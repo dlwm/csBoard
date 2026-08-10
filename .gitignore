@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.dem
+ref/
+public/maps/
+tools/
+docs/
+.idea/
+.DS_Store
+exceptions.txt
