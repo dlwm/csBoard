@@ -23,7 +23,7 @@ const MAPS = [
   { id: 'de_vertigo', label: 'Vertigo' },
 ];
 
-function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelViewMode, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onReady }) {
+function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelViewMode, trackpadDetection, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onReady }) {
   const mountRef = useRef(null);
   const edgesRef = useRef(null);
   const modelModeRef = useRef(null);
@@ -38,6 +38,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelVie
   const grenadeWheelRef = useRef(onGrenadeWheel);
   grenadeWheelRef.current = onGrenadeWheel;
   const [error, setError] = useState('');
+  const trackpadDetectionRef = useRef(trackpadDetection);
+  const wheelGestureRef = useRef({ mode: null, lastTime: 0 });
+  trackpadDetectionRef.current = trackpadDetection;
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -69,7 +72,20 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelVie
       const deltaY = event.deltaY * (event.deltaMode === 1 ? 16 : 1);
       const offset = camera.position.clone().sub(controls.target);
       const spherical = new THREE.Spherical().setFromVector3(offset);
-      if (event.shiftKey) {
+      const magnitude = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+      const gesture = wheelGestureRef.current;
+      const now = performance.now();
+      if (now - gesture.lastTime > 120) gesture.mode = null;
+      gesture.lastTime = now;
+      if (!gesture.mode) {
+        if (!trackpadDetectionRef.current) gesture.mode = 'wheel';
+        else if (event.ctrlKey) gesture.mode = 'pinch';
+        else if (event.deltaMode === 0 && (Math.abs(deltaX) > 0 || magnitude < 40 || !Number.isInteger(magnitude))) gesture.mode = 'trackpad';
+        else gesture.mode = 'wheel';
+      }
+      const isTrackpad = gesture.mode === 'trackpad';
+      const isTrackpadPinch = gesture.mode === 'pinch';
+      if (event.shiftKey && isTrackpad) {
         const forward = new THREE.Vector3();
         camera.getWorldDirection(forward);
         const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
@@ -77,8 +93,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelVie
         const pan = right.multiplyScalar(deltaX).add(up.multiplyScalar(deltaY)).multiplyScalar(offset.length() * 0.0015);
         camera.position.add(pan);
         controls.target.add(pan);
-      } else if (event.ctrlKey) {
-        const distance = THREE.MathUtils.clamp(offset.length() * Math.exp(deltaY * 0.0015), controls.minDistance, controls.maxDistance);
+      } else if (event.ctrlKey || !isTrackpad) {
+        const zoomSensitivity = isTrackpadPinch ? 0.0045 : 0.0015;
+        const distance = THREE.MathUtils.clamp(offset.length() * Math.exp(deltaY * zoomSensitivity), controls.minDistance, controls.maxDistance);
         offset.setLength(distance);
         camera.position.copy(controls.target).add(offset);
       } else {
@@ -573,6 +590,7 @@ function App() {
   const [showGrid, setShowGrid] = useState(false);
   const [showModel, setShowModel] = useState(true);
   const [modelViewMode, setModelViewMode] = useState(0);
+  const [trackpadDetection, setTrackpadDetection] = useState(false);
   const modelModeLabels = ['REACHABLE SURFACE', 'MOUSE LENS', 'CAMERA LENS'];
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [deletePointId, setDeletePointId] = useState(null);
@@ -580,6 +598,16 @@ function App() {
   const [grenadeWheel, setGrenadeWheel] = useState({ open: false, type: 'smoke' });
   const boardRef = useRef(null);
   const onReady = (value) => { boardRef.current = value; };
+  const cycleModelMode = () => {
+    if (!showModel) {
+      setShowModel(true);
+      setModelViewMode(0);
+    } else if (modelViewMode < 2) {
+      setModelViewMode((value) => value + 1);
+    } else {
+      setShowModel(false);
+    }
+  };
   useEffect(() => {
     let cancelled = false;
     setNavData(mapName === 'de_dust2' ? fallbackNavData : null);
@@ -594,7 +622,7 @@ function App() {
       <div className="header-status"><i /> REF DATA LOADED</div>
     </header>
     <section className="board-stage">
-       <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelViewMode={modelViewMode} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={setSelectedPoint} onGrenadeWheel={setGrenadeWheel} onReady={onReady} />
+       <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelViewMode={modelViewMode} trackpadDetection={trackpadDetection} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={setSelectedPoint} onGrenadeWheel={setGrenadeWheel} onReady={onReady} />
       <div className="stage-vignette" />
       <div className="map-name"><span>01</span><h1>{mapName.toUpperCase()}</h1><p>OFFICIAL VPK WORLD / 3D RECONSTRUCTION</p></div>
       <div className="map-axis"><span>N</span><div /></div>
@@ -602,7 +630,7 @@ function App() {
       <div className="hud hud-left"><span>DATASET</span><strong>VALVE VPK / WORLD GLB</strong><span>COORDINATE SYSTEM</span><strong>CS2 WORLD SPACE</strong></div>
        <div className="hud hud-right"><span>VIEW CONTROLS</span><strong>MMB <em>ROTATE</em></strong><strong>SHIFT + MMB <em>PAN</em></strong><strong>SCROLL <em>ZOOM</em></strong><strong>WASD <em>MOVE</em></strong><strong>LEFT CLICK <em>POINT MENU</em></strong></div>
        {selectedPoint && <div className="point-actions"><span>TACTICAL POINT</span><div className="point-choice"><b>TEAM</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div><div className="point-choice"><b>TYPE</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button></div><button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); }}>DELETE</button></div>}
-       <div className="board-tools"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> GRID</button><button type="button" onClick={() => setShowModel((value) => !value)} className={showModel ? 'selected' : ''}><i /> MODEL</button><button type="button" onClick={() => setModelViewMode((value) => (value + 1) % 3)} className={showModel ? 'selected' : ''}><i /> {modelModeLabels[modelViewMode]}</button>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}><i /> AREA EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET VIEW</button></div>
+        <div className="board-tools"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button><button type="button" onClick={cycleModelMode} className={showModel ? 'selected' : ''}><i /> {showModel ? modelModeLabels[modelViewMode] : 'MODEL OFF'}</button>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}><i /> AREA EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET VIEW</button></div>
       <div className="board-footer"><span>NAV PRIMARY / VPK REFERENCE</span><span>{navData ? `${Object.keys(navData.areas).length.toLocaleString()} NAV AREAS` : 'LOADING NAV'}</span><span>LIVE 3D</span></div>
     </section>
   </main>;
