@@ -36,7 +36,7 @@ export function createNavMesh(navData, focusScreen, focusEnabled, viewportSize) 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  const meshMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 1, depthTest: true, depthWrite: true, alphaTest: 0.01 });
+  const meshMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 1, depthTest: true, depthWrite: false, alphaTest: 0 });
   meshMaterial.onBeforeCompile = (shader) => {
     shader.uniforms.focusEnabled = focusEnabled;
     shader.fragmentShader = shader.fragmentShader.replace(
@@ -44,7 +44,7 @@ export function createNavMesh(navData, focusScreen, focusEnabled, viewportSize) 
       '#include <common>\nuniform vec2 focusScreen;\nuniform vec2 viewportSize;\nuniform float focusEnabled;',
     ).replace(
       '#include <color_fragment>',
-      '#include <color_fragment>\nvec2 navScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 navScreenDelta = navScreenPosition - focusScreen;\nnavScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat navFocusDistance = length(navScreenDelta);\nfloat navFocusFade = 1.0 - smoothstep(0.12, 0.24, navFocusDistance);\ndiffuseColor.a *= mix(1.0, navFocusFade, focusEnabled);\n#include <alphatest_fragment>',
+      '#include <color_fragment>\nvec2 navScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 navScreenDelta = navScreenPosition - focusScreen;\nnavScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat navFocusDistance = length(navScreenDelta);\nfloat navFocusFade = 1.0 - smoothstep(0.06, 0.34, navFocusDistance);\ndiffuseColor.a *= mix(1.0, navFocusFade, focusEnabled);\n#include <alphatest_fragment>',
     );
     shader.uniforms.focusScreen = { value: focusScreen };
     shader.uniforms.viewportSize = { value: viewportSize };

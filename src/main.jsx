@@ -62,6 +62,34 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelVie
     controls.mouseButtons.LEFT = null;
     controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
     controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+    controls.enableZoom = false;
+    const onWheel = (event) => {
+      event.preventDefault();
+      const deltaX = event.deltaX * (event.deltaMode === 1 ? 16 : 1);
+      const deltaY = event.deltaY * (event.deltaMode === 1 ? 16 : 1);
+      const offset = camera.position.clone().sub(controls.target);
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+      if (event.shiftKey) {
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+        const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+        const pan = right.multiplyScalar(deltaX).add(up.multiplyScalar(deltaY)).multiplyScalar(offset.length() * 0.0015);
+        camera.position.add(pan);
+        controls.target.add(pan);
+      } else if (event.ctrlKey) {
+        const distance = THREE.MathUtils.clamp(offset.length() * Math.exp(deltaY * 0.0015), controls.minDistance, controls.maxDistance);
+        offset.setLength(distance);
+        camera.position.copy(controls.target).add(offset);
+      } else {
+        spherical.theta += deltaX * 0.003;
+        spherical.phi = THREE.MathUtils.clamp(spherical.phi + deltaY * 0.003, 0.1, Math.PI * 0.49);
+        camera.position.copy(controls.target).add(offset.setFromSpherical(spherical));
+      }
+      camera.lookAt(controls.target);
+      controls.update();
+    };
+    renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
     const pressedKeys = new Set();
     let placing = false;
     let pathMode = false;
@@ -495,7 +523,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelVie
     };
     const animate = (now) => { moveCamera(now); controls.update(); renderer.render(scene, camera); frame = requestAnimationFrame(animate); };
     animate(performance.now());
-    return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', onPointerDown); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('contextmenu', onContextMenu); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; pointsRef.current = []; gridRef.current = null; modelRef.current = null; navFocusRef.current = null; if (nav) { nav.geometry.dispose(); nav.edgeGeometry.dispose(); nav.mesh.material.dispose(); nav.edgeLines.material.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
+    return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('wheel', onWheel); renderer.domElement.removeEventListener('pointerdown', onPointerDown); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('contextmenu', onContextMenu); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; pointsRef.current = []; gridRef.current = null; modelRef.current = null; navFocusRef.current = null; if (nav) { nav.geometry.dispose(); nav.edgeGeometry.dispose(); nav.mesh.material.dispose(); nav.edgeLines.material.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {

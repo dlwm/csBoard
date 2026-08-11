@@ -8,7 +8,7 @@ export function createGhostMaterial(focusScreen, viewportSize, viewMode) {
     depthWrite: true,
     depthTest: true,
     side: THREE.FrontSide,
-    alphaTest: 0.01,
+    alphaTest: 0,
     roughness: 0.82,
     metalness: 0,
   });
@@ -18,7 +18,7 @@ export function createGhostMaterial(focusScreen, viewportSize, viewMode) {
       '#include <common>\nuniform vec2 focusScreen;\nuniform vec2 viewportSize;\nuniform float modelViewMode;',
     ).replace(
       '#include <alphatest_fragment>',
-      'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat mouseFade = smoothstep(0.12, 0.24, modelFocusDistance);\nfloat cameraFade = smoothstep(18.0, 34.0, length(vViewPosition));\nfloat activeFade = mix(1.0, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
+       'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat mouseFade = smoothstep(0.06, 0.34, modelFocusDistance);\nfloat cameraFade = smoothstep(18.0, 34.0, length(vViewPosition));\nfloat activeFade = mix(1.0, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
     );
     shader.uniforms.focusScreen = { value: focusScreen };
     shader.uniforms.viewportSize = { value: viewportSize };

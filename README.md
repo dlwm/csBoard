@@ -61,7 +61,7 @@ VPK 导出脚本：
 ./tools/export-map.sh
 ```
 
-脚本支持输入多个地图编号或 `all`，使用 `Source2Viewer-CLI` 生成中间资源到 `ref/vpk/extracted/<map>/`，再将主要模型和 NAV 整理到 `public/maps/<map>/`。
+脚本支持输入多个地图编号或 `all`，使用 `Source2Viewer-CLI` 生成中间资源到 `ref/vpk/extracted/<map>/`，再将编辑用的 GLB 和 NAV 保留在该地图目录中；不会自动写入 `public/maps/`。
 
 ## 操作
 
