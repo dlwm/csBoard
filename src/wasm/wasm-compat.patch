@@ -1,0 +1,32 @@
+diff --git a/src/parser/src/parse_demo.rs b/src/parser/src/parse_demo.rs
+--- a/src/parser/src/parse_demo.rs
++++ b/src/parser/src/parse_demo.rs
+@@
+-        let _t = std::time::Instant::now();
++        #[cfg(not(target_arch = "wasm32"))]
++        let _t = std::time::Instant::now();
+@@
+-        if _prof {
++        #[cfg(not(target_arch = "wasm32"))]
++        if _prof {
+@@
+-        let mut t = std::time::Instant::now();
++        #[cfg(not(target_arch = "wasm32"))]
+        let mut t = std::time::Instant::now();
+@@
+-        if prof { eprintln!("[prof] second_pass start(): {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
++        #[cfg(not(target_arch = "wasm32"))]
+        if prof { eprintln!("[prof] second_pass start(): {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
+@@
+-        if prof { eprintln!("[prof] create_output: {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
++        #[cfg(not(target_arch = "wasm32"))]
+        if prof { eprintln!("[prof] create_output: {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
+@@
+-        if prof { eprintln!("[prof] combine_outputs: {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
++        #[cfg(not(target_arch = "wasm32"))]
+        if prof { eprintln!("[prof] combine_outputs: {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
+@@
+-        if prof { eprintln!("[prof] post-proc: {:.3}s", t.elapsed().as_secs_f64()); }
++        #[cfg(not(target_arch = "wasm32"))]
+        if prof { eprintln!("[prof] post-proc: {:.3}s", t.elapsed().as_secs_f64()); }
++        let mut t = std::time::Instant::now();

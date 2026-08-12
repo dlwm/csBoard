@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { parseEvents, parseHeader, parseTicks } from '@laihoe/demoparser2';
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024 * 1024 * 1024 } });
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 app.use('/maps', express.static(path.join(projectRoot, 'public/maps')));
 
@@ -158,14 +158,22 @@ app.post('/api/parse', upload.single('demo'), (request, response) => {
   try {
     const header = parseHeader(request.file.buffer);
     const eventMap = parseEvents(request.file.buffer, ['round_start', 'round_end', 'player_death', 'bomb_planted', 'bomb_defused']);
-    const events = Object.values(eventMap).sort((left, right) => left.tick - right.tick);
+    const events = Object.values(eventMap).sort((left, right) => left.tick - right.tick).map((event) => ({ ...event, timeSeconds: event.tick / 64 }));
     const rounds = events.filter((event) => event.event_name === 'round_start').length;
     const kills = events.filter((event) => event.event_name === 'player_death').length;
     const players = [...new Set(events.flatMap((event) => [event.attacker_name, event.user_name]).filter(Boolean))];
     const maxTick = events.at(-1)?.tick || 0;
-    const sampleTicks = Array.from({ length: Math.min(16, Math.max(1, Math.floor(maxTick / 4000))) }, (_value, index) => (index + 1) * 4000);
-    const positions = parseTicks(request.file.buffer, ['X', 'Y', 'Z', 'health', 'team_num'], sampleTicks, null, false);
-    return response.json({ fileName: request.file.originalname, bytes: request.file.size, map: header.map_name, patch: header.patch_version, rounds, kills, players, positions, events: events.slice(0, 250) });
+    const sampleStep = 128;
+    const sampleTicks = Array.from({ length: Math.max(1, Math.floor(maxTick / sampleStep) + 1) }, (_value, index) => index * sampleStep);
+    const positionRows = parseTicks(request.file.buffer, ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw'], sampleTicks, null, false);
+    const snapshotsByTick = new Map();
+    positionRows.forEach((row) => {
+      if (!snapshotsByTick.has(row.tick)) snapshotsByTick.set(row.tick, []);
+      snapshotsByTick.get(row.tick).push({ name: row.name, steamid: row.steamid, team: row.team_num, health: row.health, pitch: row.pitch ?? 0, yaw: row.yaw ?? 0, raw: { x: row.X, y: row.Y, z: row.Z }, position: { x: row.Y * 0.0254, y: row.Z * 0.0254, z: row.X * 0.0254 } });
+    });
+    const snapshots = [...snapshotsByTick.entries()].map(([tick, snapshotPlayers]) => ({ tick, timeSeconds: tick / 64, players: snapshotPlayers }));
+    const roundTimeline = events.filter((event) => ['round_start', 'round_end'].includes(event.event_name));
+    return response.json({ demo: { fileName: request.file.originalname, bytes: request.file.size, map: header.map_name, patch: header.patch_version, tickRate: 64, maxTick, durationSeconds: maxTick / 64 }, summary: { rounds, kills, players }, rounds: roundTimeline, events, players, snapshots });
   } catch (error) {
     return response.status(422).json({ error: `Demo 解析失败：${error.message}` });
   }

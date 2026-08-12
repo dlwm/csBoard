@@ -6,14 +6,14 @@ export function createGrenadeEffect(position, type, navData, nav) {
   const group = new THREE.Group();
   const smokeMaterial = new THREE.MeshBasicMaterial({ color: type === 'smoke' ? '#aab6c4' : '#161b21', transparent: true, opacity: type === 'smoke' ? 0.2 : 0.34, depthWrite: false });
   if (type === 'fire') {
-    if (navData && nav) group.add(createFireNavEffect(position, navData, nav));
+    if (navData && nav) group.add(createFireNavEffect(position, navData, nav, 1.35));
     else {
-      const fire = new THREE.Mesh(new THREE.CircleGeometry(2.1, 48), new THREE.MeshBasicMaterial({ color: '#ff3b18', transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide }));
+      const fire = new THREE.Mesh(new THREE.CircleGeometry(3, 48), new THREE.MeshBasicMaterial({ color: '#ff3b18', transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide }));
       fire.rotation.x = -Math.PI / 2;
       fire.position.y = 0.012;
       group.add(fire);
       for (let index = 0; index < 3; index += 1) {
-        const flame = new THREE.Mesh(new THREE.CircleGeometry(1.4 - index * 0.25, 32), new THREE.MeshBasicMaterial({ color: index === 2 ? '#fff06a' : index === 1 ? '#ff8a17' : '#ff1f12', transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide }));
+        const flame = new THREE.Mesh(new THREE.CircleGeometry(2 - index * 0.35, 32), new THREE.MeshBasicMaterial({ color: index === 2 ? '#fff06a' : index === 1 ? '#ff8a17' : '#ff1f12', transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide }));
         flame.rotation.x = -Math.PI / 2;
         flame.position.y = 0.02 + index * 0.002;
         group.add(flame);
@@ -28,9 +28,13 @@ export function createGrenadeEffect(position, type, navData, nav) {
       const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(Math.cos(angle) * 0.65, 0, Math.sin(angle) * 0.65), new THREE.Vector3(Math.cos(angle) * 1.5, 0, Math.sin(angle) * 1.5)]);
       group.add(new THREE.Line(geometry, rayMaterial));
     }
+  } else if (type === 'decoy') {
+    const decoy = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 14), new THREE.MeshBasicMaterial({ color: '#7f8b91', transparent: true, opacity: 0.92, depthWrite: false }));
+    decoy.userData.decoyBlink = true;
+    group.add(decoy);
   } else {
     const count = type === 'smoke' ? 14 : 8;
-    const smokeScale = type === 'smoke' ? 2.05 : 1;
+    const smokeScale = type === 'smoke' ? 2.7 : 1;
     if (type === 'explosion') {
       const core = new THREE.Mesh(new THREE.SphereGeometry(0.72, 20, 12), new THREE.MeshBasicMaterial({ color: '#e85b25', transparent: true, opacity: 0.58, depthWrite: false }));
       core.position.y = 0.3;

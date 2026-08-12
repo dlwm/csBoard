@@ -28,7 +28,10 @@ export function createTacticalPoint(position, direction, id, rayLength = 0.15, t
   const tBar = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.11), material);
   tBar.position.set(0, 0.07, 0.17);
   tBar.userData.tacticalPoint = true;
-  if (type === 'V') {
+   if (type === 'X') {
+     tStem.rotation.y = Math.PI / 4;
+     tBar.rotation.y = -Math.PI / 4;
+   } else if (type === 'V') {
     tStem.rotation.y = -0.65;
     tStem.position.set(-0.13, 0.07, 0);
     tBar.rotation.y = 0.65;
@@ -36,7 +39,7 @@ export function createTacticalPoint(position, direction, id, rayLength = 0.15, t
   } else tStem.rotation.y = Math.PI / 2;
   symbol.add(tStem, tBar);
   symbol.userData.symbol = true;
-  symbol.rotation.y = type === 'V' ? Math.PI : 0;
+   symbol.rotation.y = type === 'V' ? Math.PI : 0;
   const rayGeometry = new THREE.BufferGeometry();
   rayGeometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0.15, 0, 0, 0.15, -1], 3));
   const aimRay = new THREE.Line(rayGeometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.76 }));
@@ -65,7 +68,10 @@ export function updateTacticalPoint(point, team, type) {
   if (!symbol) return;
   const [stem, bar] = symbol.children;
   symbol.rotation.y = type === 'V' ? Math.PI : 0;
-  if (type === 'V') {
+   if (type === 'X') {
+     stem.rotation.y = Math.PI / 4; bar.rotation.y = -Math.PI / 4;
+     stem.position.set(0, 0.07, 0); bar.position.set(0, 0.07, 0);
+   } else if (type === 'V') {
     stem.rotation.y = -0.65; stem.position.set(-0.13, 0.07, 0);
     bar.rotation.y = 0.65; bar.position.set(0.13, 0.07, 0);
   } else {
