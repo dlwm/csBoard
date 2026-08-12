@@ -3,12 +3,19 @@ import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import fallbackNavData from './data/de_dust2.json';
 import { createNavMesh } from './three/navMesh.js';
 import { createGhostMaterial } from './three/materials.js';
 import { createTacticalPoint, updateTacticalPoint } from './three/tacticalPoint.js';
 import { createFireNavEffect, createGrenadeEffect, disposeGrenadeEffect, grenadeTypeFromPointer } from './three/grenadeEffects.js';
 import './styles.css';
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
+
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 const MAPS = [
   { id: 'de_dust2', label: 'Dust II' },
@@ -23,6 +30,17 @@ const MAPS = [
   { id: 'de_vertigo', label: 'Vertigo' },
 ];
 
+const messages = {
+  zh: {
+    rounds: '回合浏览', analysis: '数据分析', collab: '协作面板', loaded: '参考数据已加载', recentKills: '最近击杀', expand: '展开', collapse: '收起', cameraPositions: '摄像机位置', view: '视图', showNames: '显示名称', selectRound: '请选择回合', round: '回合', multiDemo: 'Demo 文件', chooseDemo: '选择文件', multiPartHint: '支持多选分片', noFileChosen: '尚未选择文件', play: '播放', pause: '暂停', loading: '加载中', allRounds: '全部回合', tRounds: 'T 回合', ctRounds: 'CT 回合', analysisHint: '选择选手后，所有回合会从冻结结束同时开始叠加播放。', heatmap: '热力图', killerPosition: '击杀时所在', victimPosition: '被击杀时所在', targetPosition: '击杀目标所在', opponentPosition: '被击杀时对方所在', saveFrame: '保存当前帧', leaveRoom: '离开房间', joinRoom: '加入房间', openRoom: '开放房间', roomPrompt: '输入 6 位房间号', currentMap: '当前地图', name: '名称', collabHint: '保存地图、镜头、编辑点位和当前 Demo 帧。Demo 文件本身不会写入浏览器存储。', owner: '房主', member: '成员', noArchives: '暂无本地存档', guestNoArchive: '房间成员不能切换存档', restoreArchive: '恢复存档', deleteArchive: '删除存档', manualEdit: '手动地图编辑', room: '房间', roomOpened: '已公开', roomDestroyed: '房间已销毁', roomLeft: '已离开房间', roomExited: '已从房间退出', joiningRoom: '正在加入房间', joinedRoom: '已加入房间', connected: '已连接', connecting: '连接中', disconnected: '连接断开', analysisReady: '全场移动数据已就绪', analysisLoading: '正在读取全场移动数据…', parseFailed: '解析失败', combiningParts: '正在组合 {count} 个 Demo 分片…', readingDemo: '正在读取 Demo 文件…', smoke: '烟', fire: '火', flash: '闪', grenade: '雷', decoy: '诱', c4Planted: 'C4 安装', c4Exploded: 'C4 爆炸', roundEnd: '回合结束', world: '世界', unknown: '未知', language: 'EN', tacticalPoint: '战术点', team: '阵营', type: '类型', delete: '删除', map: '地图', reset: '重置', players: '选手', side: '阵营', model: '模型', c4Paused: '已拆除', noGrenades: '-',
+  },
+  en: {
+    rounds: 'Round Replay', analysis: 'Analysis', collab: 'Collaboration', loaded: 'Reference Data Loaded', recentKills: 'Recent Kills', expand: 'Expand', collapse: 'Collapse', cameraPositions: 'Camera Positions', view: 'View', showNames: 'Show Names', selectRound: 'Select a round', round: 'Round', multiDemo: 'Demo Files', chooseDemo: 'Choose Files', multiPartHint: 'Multi-part selection supported', noFileChosen: 'No files selected', play: 'Play', pause: 'Pause', loading: 'Load', allRounds: 'All Rounds', tRounds: 'T Rounds', ctRounds: 'CT Rounds', analysisHint: 'Selected players are overlaid from freeze end across all rounds.', heatmap: 'Heatmap', killerPosition: 'Killer Position', victimPosition: 'Victim Position', targetPosition: 'Target Position', opponentPosition: 'Opponent Position', saveFrame: 'Save Frame', leaveRoom: 'Leave Room', joinRoom: 'Join Room', openRoom: 'Open Room', roomPrompt: 'Enter 6-digit room code', currentMap: 'Current map', name: 'Name', collabHint: 'Saves the map, camera presets, tactical edits and current Demo frame. The Demo file is not stored.', owner: 'Owner', member: 'Member', noArchives: 'No local archives', guestNoArchive: 'Room members cannot switch archives', restoreArchive: 'Restore archive', deleteArchive: 'Delete archive', manualEdit: 'Manual map edit', room: 'Room', roomOpened: 'opened', roomDestroyed: 'Room destroyed', roomLeft: 'Left room', roomExited: 'Disconnected from room', joiningRoom: 'Joining room', joinedRoom: 'Joined room', connected: 'connected', connecting: 'connecting', disconnected: 'disconnected', analysisReady: 'Full-match movement data ready', analysisLoading: 'Reading full-match movement data...', parseFailed: 'Parse failed', combiningParts: 'Combining {count} Demo parts...', readingDemo: 'Reading Demo file...', smoke: 'SMK', fire: 'FIRE', flash: 'FL', grenade: 'HE', decoy: 'DEC', c4Planted: 'C4 planted', c4Exploded: 'C4 exploded', roundEnd: 'Round ended', world: 'WORLD', unknown: 'UNKNOWN', language: '中文', tacticalPoint: 'Tactical Point', team: 'Team', type: 'Type', delete: 'Delete', map: 'Map', reset: 'Reset', players: 'Players', side: 'Side', model: 'Model', c4Paused: 'DEFUSED', noGrenades: '-',
+  },
+};
+
+const translate = (language, key, values = {}) => Object.entries(values).reduce((text, [name, value]) => text.replace(`{${name}}`, value), messages[language][key] || key);
+
 function interpolateDemoSnapshot(snapshots, tick) {
   if (!snapshots?.length) return null;
   let before = snapshots[0];
@@ -35,11 +53,22 @@ function interpolateDemoSnapshot(snapshots, tick) {
   return { tick, timeSeconds: tick / 64, players: before.players.map((player) => {
     const next = afterByName.get(player.name);
     if (!next) return player;
-    return { ...next, health: amount < 0.5 ? player.health : next.health, position: { x: THREE.MathUtils.lerp(player.position.x, next.position.x, amount), y: THREE.MathUtils.lerp(player.position.y, next.position.y, amount), z: THREE.MathUtils.lerp(player.position.z, next.position.z, amount) }, yaw: THREE.MathUtils.lerp(player.yaw, next.yaw, amount), pitch: THREE.MathUtils.lerp(player.pitch, next.pitch, amount) };
+    return { ...next, health: amount < 0.5 ? player.health : next.health, position: { x: THREE.MathUtils.lerp(player.position.x, next.position.x, amount), y: THREE.MathUtils.lerp(player.position.y, next.position.y, amount), z: THREE.MathUtils.lerp(player.position.z, next.position.z, amount) }, yaw: THREE.MathUtils.lerp(player.yaw, next.yaw, amount), pitch: THREE.MathUtils.lerp(player.pitch, next.pitch, amount), duckAmount: THREE.MathUtils.lerp(player.duckAmount || 0, next.duckAmount || 0, amount) };
   }) };
 }
 
-function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, trackpadDetection, showDemoNames, demoSnapshot, demoTick, demoFires, demoGrenades, demoProjectiles, demoDeaths, heatDeaths, demoViewFlags, analysisRows, analysisSelectedPlayers, analysisSide, analysisEnabled, analysisRounds, analysisTime, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onCameraSlots, onReady }) {
+function playerGrenades(inventory, language) {
+  const counts = new Map();
+  (inventory || []).forEach((item) => {
+    const rawName = typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item;
+    const name = String(rawName).toLowerCase().replace(/^weapon_/, '').replace(/[_-]/g, ' ');
+    const label = name.includes('smoke') ? translate(language, 'smoke') : name.includes('flash') ? translate(language, 'flash') : name.includes('molotov') || name.includes('incendiary') || name.includes('incgrenade') ? translate(language, 'fire') : name.includes('high explosive') || name.includes('he grenade') || name.includes('hegrenade') ? translate(language, 'grenade') : name.includes('decoy') ? translate(language, 'decoy') : null;
+    if (label) counts.set(label, (counts.get(label) || 0) + 1);
+  });
+  return [...counts].map(([label, count]) => `${label}${count > 1 ? count : ''}`).join(' ') || translate(language, 'noGrenades');
+}
+
+function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, trackpadDetection, showDemoNames, demoSnapshot, demoTick, demoFires, demoGrenades, demoProjectiles, demoDeaths, demoC4Events, heatDeaths, demoViewFlags, analysisRows, analysisSelectedPlayers, analysisSide, analysisEnabled, analysisRounds, analysisTime, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onCameraSlots, onReady }) {
   const mountRef = useRef(null);
   const edgesRef = useRef(null);
   const modelModeRef = useRef(null);
@@ -54,6 +83,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   const demoGrenadesRef = useRef(demoGrenades);
   const demoProjectilesRef = useRef(demoProjectiles);
   const demoDeathsRef = useRef(demoDeaths || []);
+  const demoC4EventsRef = useRef(demoC4Events || []);
   const heatDeathsRef = useRef(heatDeaths || []);
   const demoViewFlagsRef = useRef(demoViewFlags || {});
   const showDemoNamesRef = useRef(showDemoNames);
@@ -84,6 +114,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   demoGrenadesRef.current = demoGrenades;
   demoProjectilesRef.current = demoProjectiles;
   demoDeathsRef.current = demoDeaths || [];
+  demoC4EventsRef.current = demoC4Events || [];
   heatDeathsRef.current = heatDeaths || [];
   demoViewFlagsRef.current = demoViewFlags || {};
   showDemoNamesRef.current = showDemoNames;
@@ -131,11 +162,17 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     const demoMarkers = new Map();
     const demoDeathMarkers = new Map();
     const demoHeatObjects = new Map();
+    const c4Group = new THREE.Group();
     const analysisGroup = new THREE.Group();
     const analysisPaths = new Map();
     let analysisSignature = '';
+    const collisionMeshes = [];
+    const aimRaycaster = new THREE.Raycaster();
+    aimRaycaster.firstHitOnly = true;
+    let collisionVersion = 0;
     scene.add(analysisGroup);
     scene.add(demoPlayers);
+    scene.add(c4Group);
     demoPlayersRef.current = demoPlayers;
     let modelCenter = new THREE.Vector3();
     const updateDemoPlayers = () => {
@@ -153,9 +190,25 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
           marker = createTacticalPoint(new THREE.Vector3(), direction, `demo-${player.name}`, 5.25, displaySide, 'T');
           marker.scale.setScalar(1.35);
            marker.userData.playerName = player.name;
-          marker.userData.demoPitch = player.pitch || 0;
-          marker.userData.demoYaw = player.yaw || 0;
-          demoPlayers.add(marker);
+           marker.userData.demoPitch = player.pitch || 0;
+           marker.userData.demoYaw = player.yaw || 0;
+           const bodyMaterial = new THREE.MeshStandardMaterial({ color: displaySide === 'CT' ? '#5da9ff' : '#ffb347', roughness: 0.72, metalness: 0.04, transparent: true, opacity: 0.82 });
+           const standingBody = new THREE.Group();
+           standingBody.userData.demoStandingBody = true;
+           const standingTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.82, 16), bodyMaterial);
+           standingTorso.position.y = 0.52;
+           const standingHead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 10), bodyMaterial);
+           standingHead.position.y = 1.1;
+           standingBody.add(standingTorso, standingHead);
+           const crouchedBody = new THREE.Group();
+           crouchedBody.userData.demoCrouchedBody = true;
+           const crouchedTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.38, 0.58, 16), bodyMaterial);
+           crouchedTorso.position.y = 0.36;
+           const crouchedHead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 10), bodyMaterial);
+           crouchedHead.position.y = 0.78;
+           crouchedBody.add(crouchedTorso, crouchedHead);
+           marker.add(standingBody, crouchedBody);
+           demoPlayers.add(marker);
            demoMarkers.set(player.name, marker);
            const canvas = document.createElement('canvas');
            canvas.width = 512; canvas.height = 96;
@@ -164,7 +217,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
            context.fillStyle = '#f2f7ee'; context.strokeStyle = '#08100b'; context.lineWidth = 8;
            context.strokeText(player.name, 256, 48); context.fillText(player.name, 256, 48);
            const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false, depthWrite: false }));
-           label.scale.set(4.2, 0.78, 1); label.position.set(0, 2.8, 0); label.renderOrder = 30;
+           label.scale.set(6.3, 1.17, 1); label.position.set(0, 2.8, 0); label.renderOrder = 30;
            label.userData.demoNameLabel = true;
            marker.add(label);
         }
@@ -172,11 +225,39 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         updateTacticalPoint(marker, displaySide, 'T');
         const direction = new THREE.Vector3(Math.sin(THREE.MathUtils.degToRad(player.yaw || 0)), 0, Math.cos(THREE.MathUtils.degToRad(player.yaw || 0)));
         marker.rotation.y = direction.lengthSq() ? Math.atan2(-direction.x, -direction.z) : marker.rotation.y;
-        marker.userData.demoPitch = player.pitch || 0;
+         marker.userData.demoPitch = player.pitch || 0;
          marker.userData.demoYaw = player.yaw || 0;
+         const duckAmount = THREE.MathUtils.clamp(player.duckAmount || 0, 0, 1);
+         const standingBody = marker.children.find((child) => child.userData.demoStandingBody);
+         const crouchedBody = marker.children.find((child) => child.userData.demoCrouchedBody);
+         if (standingBody) standingBody.visible = duckAmount < 0.5;
+         if (crouchedBody) crouchedBody.visible = duckAmount >= 0.5;
          const nameLabel = marker.children.find((child) => child.userData.demoNameLabel);
          if (nameLabel) nameLabel.visible = Boolean(showDemoNamesRef.current || hoveredDemoPlayerRef.current === player.name);
-        if (!marker.userData.muzzleFlash) {
+          const aimRay = marker.children.find((child) => child.userData.aimRay);
+          if (aimRay) {
+            const pitch = THREE.MathUtils.degToRad(player.pitch || 0);
+            const origin = new THREE.Vector3(0, 0.93 - duckAmount * 0.339, -0.42);
+            aimRay.position.copy(origin);
+            aimRay.rotation.set(-pitch, 0, 0);
+            const collisionKey = `${snapshot.tick}:${collisionVersion}`;
+            if (marker.userData.aimCollisionKey !== collisionKey) {
+              marker.userData.aimCollisionKey = collisionKey;
+              const lineOrigin = new THREE.Vector3(0, 0.15, 0).applyEuler(aimRay.rotation).add(origin);
+              const worldOrigin = marker.localToWorld(lineOrigin.clone());
+              const worldDirection = new THREE.Vector3(0, 0, -1).applyEuler(aimRay.rotation).applyQuaternion(marker.quaternion).normalize();
+              aimRaycaster.set(worldOrigin, worldDirection);
+              aimRaycaster.near = 0.05;
+              aimRaycaster.far = 72;
+              const worldLength = Math.max(0.05, (aimRaycaster.intersectObjects(collisionMeshes, false)[0]?.distance ?? 72) - 0.03);
+              const worldScale = marker.getWorldScale(new THREE.Vector3()).z || 1;
+              marker.userData.aimCollisionLength = worldLength / worldScale;
+            }
+            const length = marker.userData.aimCollisionLength ?? 72;
+            aimRay.scale.z = length;
+            marker.userData.aimTarget?.position.copy(new THREE.Vector3(0, 0.15, -length).applyEuler(aimRay.rotation).add(origin));
+         }
+         if (!marker.userData.muzzleFlash) {
           marker.userData.muzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true }));
           marker.userData.muzzleFlash.position.set(0, 0.28, -0.42);
           marker.add(marker.userData.muzzleFlash);
@@ -217,7 +298,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
             scene.add(marker);
             demoDeathMarkers.set(key, marker);
           }
-          marker.position.set(y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y + 0.08, x * 0.0254 - modelCenter.z);
+          marker.position.set(y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y + 0.32, x * 0.0254 - modelCenter.z);
           marker.visible = true;
         });
       });
@@ -366,11 +447,11 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
           trajectory.material.opacity = 0.9 * (1 - fade);
         }
       });
-      const durations = { smokegrenade_detonate: 1152, inferno_startburn: 448, flashbang_detonate: 20, hegrenade_detonate: 20, decoy_detonate: 960 };
+       const durations = { smokegrenade_detonate: 1152, inferno_startburn: 448, flashbang_detonate: 20, hegrenade_detonate: 20 };
       const grenadeEvents = demoGrenadesRef.current;
       const detonations = grenadeEvents.filter((event) => event.event_name.endsWith('_detonate') || event.event_name === 'inferno_startburn');
       if (!demoProjectilesRef.current.length) grenadeEvents.filter((event) => event.event_name === 'grenade_thrown' && event.user_X != null).forEach((event) => {
-        const landingName = event.weapon?.includes('smoke') ? 'smokegrenade_detonate' : event.weapon?.includes('flash') ? 'flashbang_detonate' : event.weapon?.includes('hegrenade') ? 'hegrenade_detonate' : event.weapon?.includes('decoy') ? 'decoy_detonate' : 'inferno_startburn';
+         const landingName = event.weapon?.includes('smoke') ? 'smokegrenade_detonate' : event.weapon?.includes('flash') ? 'flashbang_detonate' : event.weapon?.includes('hegrenade') ? 'hegrenade_detonate' : event.weapon?.includes('decoy') ? 'decoy_started' : 'inferno_startburn';
         const landing = detonations.find((candidate) => candidate.event_name === landingName && candidate.user_steamid === event.user_steamid && candidate.tick > event.tick && candidate.tick - event.tick < 640);
         if (!landing || demoTickRef.current < event.tick || demoTickRef.current > landing.tick) return;
         const key = `trajectory-${event.tick}-${event.user_steamid}-${event.weapon}`;
@@ -393,20 +474,21 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         const progress = THREE.MathUtils.clamp((demoTickRef.current - trajectoryData.throwTick) / (trajectoryData.landingTick - trajectoryData.throwTick), 0, 1);
         trajectory.geometry.setFromPoints(trajectoryData.curve.getPoints(Math.max(2, Math.ceil(progress * 20))));
       });
-      grenadeEvents.filter((event) => event.event_name !== 'grenade_thrown').forEach((event) => {
-        const duration = durations[event.event_name] || 20;
+       grenadeEvents.filter((event) => event.event_name !== 'grenade_thrown' && event.event_name !== 'decoy_detonate').forEach((event) => {
+         const decoyEnd = event.event_name === 'decoy_started' ? grenadeEvents.find((candidate) => candidate.event_name === 'decoy_detonate' && candidate.tick > event.tick && candidate.tick - event.tick <= 1280 && (candidate.entityid == null || event.entityid == null || candidate.entityid === event.entityid)) : null;
+         const duration = event.event_name === 'decoy_started' ? (decoyEnd?.tick - event.tick || 960) : durations[event.event_name] || 20;
         if (demoTickRef.current < event.tick || demoTickRef.current > event.tick + duration || event.x == null) return;
         const key = `${event.event_name}-${event.tick}-${event.entityid || event.user_steamid}`;
         active.add(key);
         let effect = demoGrenadeObjectsRef.current.get(key);
         if (!effect) {
           const position = new THREE.Vector3(event.y * 0.0254 - modelCenter.x, event.z * 0.0254 - modelCenter.y, event.x * 0.0254 - modelCenter.z);
-           const type = event.event_name === 'smokegrenade_detonate' ? 'smoke' : event.event_name === 'inferno_startburn' ? 'fire' : event.event_name === 'flashbang_detonate' ? 'flash' : event.event_name === 'decoy_detonate' ? 'decoy' : 'explosion';
+            const type = event.event_name === 'smokegrenade_detonate' ? 'smoke' : event.event_name === 'inferno_startburn' ? 'fire' : event.event_name === 'flashbang_detonate' ? 'flash' : event.event_name === 'decoy_started' ? 'decoy' : 'explosion';
           effect = createGrenadeEffect(position, type, navData, nav);
           scene.add(effect);
           demoGrenadeObjectsRef.current.set(key, effect);
         }
-        if (event.event_name === 'decoy_detonate') {
+         if (event.event_name === 'decoy_started') {
           const blink = effect.children.find((child) => child.userData.decoyBlink);
           if (blink?.material?.color) blink.material.color.set(performance.now() % 1000 < 250 ? '#ffffff' : '#7f8b91');
         }
@@ -414,6 +496,65 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       demoGrenadeObjectsRef.current.forEach((effect, key) => {
         if (!active.has(key)) { scene.remove(effect); disposeGrenadeEffect(effect); demoGrenadeObjectsRef.current.delete(key); }
       });
+    };
+    const c4Block = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.18, 0.28), new THREE.MeshBasicMaterial({ color: '#ff3b30', depthTest: true, depthWrite: false }));
+    const c4WaveMaterial = new THREE.MeshBasicMaterial({ color: '#ffd166', transparent: true, opacity: 0.8, depthTest: true, depthWrite: false, side: THREE.DoubleSide });
+    const c4Wave = new THREE.Mesh(new THREE.RingGeometry(0.8, 0.9, 48), c4WaveMaterial);
+    c4Wave.rotation.x = -Math.PI / 2;
+    const c4Trajectory = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: '#ff5a4f', transparent: true, opacity: 0.8, depthTest: true, depthWrite: false }));
+    c4Trajectory.visible = false;
+    scene.add(c4Trajectory);
+    c4Group.add(c4Block, c4Wave);
+    c4Group.visible = false;
+    const c4EventPosition = (event) => {
+      const x = event?.x ?? event?.user_X;
+      const y = event?.y ?? event?.user_Y;
+      const z = event?.z ?? event?.user_Z;
+      if (x == null || y == null || z == null) return null;
+      const position = new THREE.Vector3(y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y, x * 0.0254 - modelCenter.z);
+      if (nav?.mesh) {
+        nav.mesh.updateWorldMatrix(true, false);
+        groundRaycaster.set(position.clone().add(new THREE.Vector3(0, 1.2, 0)), new THREE.Vector3(0, -1, 0));
+        groundRaycaster.far = 2.4;
+        const hits = groundRaycaster.intersectObject(nav.mesh, true);
+        const hit = hits.find((candidate) => Math.abs(candidate.point.y - position.y) <= 1.25);
+        if (hit) position.y = hit.point.y;
+      }
+      return position;
+    };
+    const updateC4 = () => {
+      const events = demoC4EventsRef.current;
+      const tick = demoTickRef.current;
+      const planted = [...events].reverse().find((event) => event.event_name === 'bomb_planted' && event.tick <= tick && !events.some((end) => ['bomb_exploded', 'bomb_defused', 'round_end'].includes(end.event_name) && end.tick >= event.tick && end.tick <= tick));
+      const dropped = !planted ? [...events].reverse().find((event) => event.event_name === 'bomb_dropped' && event.tick <= tick && !events.some((end) => ['bomb_pickup', 'bomb_planted'].includes(end.event_name) && end.tick >= event.tick && end.tick <= tick)) : null;
+      const event = planted || dropped;
+      let position = c4EventPosition(event);
+      c4Trajectory.visible = false;
+      if (dropped) {
+        const next = events.find((candidate) => ['bomb_pickup', 'bomb_planted'].includes(candidate.event_name) && candidate.tick > dropped.tick);
+        const end = c4EventPosition(next);
+        const start = c4EventPosition(dropped);
+        if (start && end) {
+          const control = start.clone().lerp(end, 0.5);
+          control.y += Math.max(0.35, start.distanceTo(end) * 0.18);
+          const curve = new THREE.QuadraticBezierCurve3(start, control, end);
+          const flightTicks = Math.min(32, Math.max(8, next.tick - dropped.tick));
+          const flight = THREE.MathUtils.clamp((tick - dropped.tick) / flightTicks, 0, 1);
+          position = curve.getPoint(flight);
+          c4Trajectory.geometry.setFromPoints(curve.getPoints(24));
+          c4Trajectory.visible = flight < 1;
+          c4Trajectory.geometry.setDrawRange(0, Math.max(2, Math.ceil(flight * 25)));
+          c4Wave.visible = flight >= 1;
+        } else c4Wave.visible = true;
+      } else c4Wave.visible = true;
+      if (!event || !position) { c4Group.visible = false; c4Trajectory.visible = false; return; }
+      c4Group.visible = true;
+      c4Group.position.copy(position).add(new THREE.Vector3(0, 0.12, 0));
+      const progress = ((tick - event.tick) % 64) / 64;
+      const range = planted ? 2 : 1;
+      c4Wave.scale.setScalar((0.35 + progress * 1.65) * range);
+      c4Wave.material.color.set(planted ? '#ff3b30' : '#ffd166');
+      c4Wave.material.opacity = 0.75 * (1 - progress);
     };
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
     camera.position.set(17, 23, 25);
@@ -588,18 +729,38 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       updateCameraSlotState(slot);
     };
     updateCameraSlotState(null);
-    const getWorkspaceState = () => ({
-      camera: { position: camera.position.toArray(), target: controls.target.toArray() },
-      points: pointsRef.current.filter((point) => point.userData.pointId).map((point) => ({ id: point.userData.pointId, position: point.position.toArray(), rotationY: point.rotation.y, team: point.userData.team, type: point.userData.type, rayLength: point.children.find((child) => child.userData.aimRay)?.scale.z || 0.05, aimTarget: point.userData.aimTarget?.position.toArray() || [0, 0, -0.05] })),
-      paths: pathLines.map((line) => line.userData.pathPointIds || []),
-    });
-    const restoreWorkspaceState = (saved) => {
+    const getWorkspaceState = ({ includeDemo = false } = {}) => {
+      const points = pointsRef.current.filter((point) => point.userData.pointId).map((point) => ({ id: point.userData.pointId, position: point.position.toArray(), rotationY: point.rotation.y, team: point.userData.team, type: point.userData.type, rayLength: point.children.find((child) => child.userData.aimRay)?.scale.z || 0.05, aimTarget: point.userData.aimTarget?.position.toArray() || [0, 0, -0.05] }));
+      const grenades = grenadeEffects.map((effect, index) => ({ id: effect.userData.grenadeId || `grenade-${index}`, type: effect.userData.grenadeEffect, position: effect.position.toArray(), range: effect.userData.grenadeRange || effect.scale.x || 1 }));
+      if (includeDemo) {
+        (demoSnapshotRef.current?.players || []).filter((player) => player.health > 0).forEach((player) => {
+          const pitch = THREE.MathUtils.degToRad(player.pitch || 0);
+          const rayLength = 5.25;
+          const aimTarget = new THREE.Vector3(0, 0, -rayLength).applyEuler(new THREE.Euler(-pitch, 0, 0)).add(new THREE.Vector3(0, 0.15, 0));
+          points.push({ id: `demo-${demoSnapshotRef.current.tick}-${player.steamid || player.name}`, position: [player.position.x - modelCenter.x, player.position.y - modelCenter.y + 0.16, player.position.z - modelCenter.z], rotationY: Math.atan2(-Math.sin(THREE.MathUtils.degToRad(player.yaw || 0)), -Math.cos(THREE.MathUtils.degToRad(player.yaw || 0))), team: player.team === 3 ? 'CT' : 'T', type: 'T', rayLength, aimTarget: aimTarget.toArray(), source: 'demo', playerName: player.name });
+        });
+        const durations = { smokegrenade_detonate: 1152, inferno_startburn: 448, flashbang_detonate: 20, hegrenade_detonate: 20 };
+        demoGrenadesRef.current.filter((event) => event.event_name !== 'grenade_thrown' && event.event_name !== 'decoy_detonate').forEach((event) => {
+          const decoyEnd = event.event_name === 'decoy_started' ? demoGrenadesRef.current.find((candidate) => candidate.event_name === 'decoy_detonate' && candidate.tick > event.tick && candidate.tick - event.tick <= 1280) : null;
+          const duration = event.event_name === 'decoy_started' ? decoyEnd?.tick - event.tick || 960 : durations[event.event_name];
+          const tick = demoSnapshotRef.current?.tick || 0;
+          const x = event.x ?? event.user_X; const y = event.y ?? event.user_Y; const z = event.z ?? event.user_Z;
+          if (!duration || tick < event.tick || tick > event.tick + duration || x == null || y == null || z == null) return;
+          const type = event.event_name === 'smokegrenade_detonate' ? 'smoke' : event.event_name === 'inferno_startburn' ? 'fire' : event.event_name === 'flashbang_detonate' ? 'flash' : event.event_name === 'decoy_started' ? 'decoy' : 'explosion';
+          grenades.push({ id: `demo-grenade-${event.event_name}-${event.tick}-${event.entityid || event.user_steamid || grenades.length}`, type, position: [y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y, x * 0.0254 - modelCenter.z], range: 1, source: 'demo' });
+        });
+      }
+      return { cameraSlots: cameraSlots.map((saved) => saved ? { position: saved.position.toArray(), target: saved.target.toArray() } : null), camera: { position: camera.position.toArray(), target: controls.target.toArray() }, points, paths: pathLines.map((line) => line.userData.pathPointIds || []), grenades };
+    };
+    const restoreWorkspaceState = (saved, includeCurrentCamera = true) => {
       if (!saved) return;
       pathPoints.length = 0;
       pathLines.forEach((line) => { line.parent?.remove(line); line.geometry.dispose(); line.material.dispose(); });
       pathLines.length = 0;
       pointsRef.current.forEach((point) => { point.parent?.remove(point); point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); }); });
       pointsRef.current.length = 0;
+      grenadeEffects.forEach((effect) => { effect.parent?.remove(effect); disposeGrenadeEffect(effect); });
+      grenadeEffects.length = 0;
       const restoredPoints = new Map();
       (saved.points || []).forEach((item) => {
         const point = createTacticalPoint(new THREE.Vector3(), new THREE.Vector3(0, 0, 1), item.id, item.rayLength, item.team || 'T', item.type || 'T');
@@ -609,6 +770,12 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         point.userData.team = item.team || 'T';
         point.userData.type = item.type || 'T';
         point.userData.aimTarget?.position.fromArray(item.aimTarget || [0, 0, -0.05]);
+        const aimRay = point.children.find((child) => child.userData.aimRay);
+        if (aimRay && point.userData.aimTarget) {
+          const direction = point.userData.aimTarget.position.clone().sub(new THREE.Vector3(0, 0.15, 0));
+          aimRay.scale.z = Math.max(direction.length(), 0.05);
+          aimRay.rotation.x = Math.atan2(direction.y, -direction.z);
+        }
         scene.add(point);
         pointsRef.current.push(point);
         restoredPoints.set(item.id, point);
@@ -624,7 +791,23 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         scene.add(line);
         pathLines.push(line);
       });
-      if (saved.camera) { camera.position.fromArray(saved.camera.position); controls.target.fromArray(saved.camera.target); controls.update(); }
+      (saved.grenades || []).forEach((item, index) => {
+        const position = new THREE.Vector3().fromArray(item.position || [0, 0, 0]);
+        const effect = createGrenadeEffect(position, item.type || 'smoke', navData, nav);
+        const range = Math.max(0.35, item.range || 1);
+        effect.scale.set(range, item.type === 'smoke' ? 1 / Math.pow(range, 0.65) : 1, range);
+        effect.userData.grenadeId = item.id || `restored-grenade-${index}`;
+        effect.userData.grenadeOrigin = position.clone();
+        effect.userData.grenadeRange = range;
+        scene.add(effect);
+        grenadeEffects.push(effect);
+      });
+      if (saved.cameraSlots) {
+        saved.cameraSlots.forEach((slot, index) => { cameraSlots[index] = slot ? { position: new THREE.Vector3(...slot.position), target: new THREE.Vector3(...slot.target) } : null; });
+        localStorage.setItem(cameraStorageKey, JSON.stringify(cameraSlots.map((slot) => slot ? { position: slot.position.toArray(), target: slot.target.toArray() } : null)));
+        updateCameraSlotState(null);
+      }
+      if (includeCurrentCamera && saved.camera) { camera.position.fromArray(saved.camera.position); controls.target.fromArray(saved.camera.target); controls.update(); }
     };
     const commitPathPoint = () => {
       if (!pathPreview) return;
@@ -716,6 +899,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         grenadeWheelOpen = false;
         activeGrenade = grenadePreview;
         if (activeGrenade) {
+          activeGrenade.userData.grenadeId = `grenade-${Date.now()}-${grenadeEffects.length}`;
           activeGrenade.userData.grenadeOrigin = grenadeOrigin.clone();
           activeGrenade.userData.grenadeRange = 1;
           grenadeEffects.push(activeGrenade);
@@ -775,7 +959,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
             pointPointerBasePitch = Math.atan2(targetY - 0.15, -targetZ);
             pointPointerDragging = !hit.userData.aimTarget;
           }
-        }
+        } else pointSelectRef.current?.(null);
       }
     };
     const onPointerMove = (event) => {
@@ -876,7 +1060,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
       if (event.button !== 0 || !pointPointerTarget) return;
       const distance = pointPointerStart.distanceTo(pointerPosition(event));
-      if (performance.now() - pointPointerTime < 450 && distance < 0.03) pointSelectRef.current?.(pointPointerTarget.userData.pointId);
+       if (performance.now() - pointPointerTime < 450 && distance < 0.03) { const projected = pointPointerTarget.position.clone().project(camera); pointSelectRef.current?.(pointPointerTarget.userData.pointId, { x: (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth, y: (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight }); }
       pointPointerTarget = null;
       pointPointerDragging = false;
       controls.enabled = true;
@@ -936,6 +1120,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       };
       worldModel.traverse((object) => {
         if (!object.isMesh) return;
+        object.geometry.computeBoundsTree();
+        collisionMeshes.push(object);
         object.frustumCulled = true;
         object.renderOrder = 3;
          if (object.material) object.material = Array.isArray(object.material) ? object.material.map(() => createGhostMaterial(focusScreen, viewportSize, modelMode, nav?.distanceField)) : createGhostMaterial(focusScreen, viewportSize, modelMode, nav?.distanceField);
@@ -943,11 +1129,12 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
          materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = true; });
       });
       scene.add(worldModel);
+      collisionVersion += 1;
       modelRef.current = worldModel;
       worldModel.visible = modelVisibilityRef.current;
       worldModel.position.y = modelBasePositionRef.current.y + (modelMode.value === 3 ? -0.12 : 0);
       resetCamera();
-       onReady({ reset: () => resetToDefault(resetCamera), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState });
+      onReady({ reset: () => resetToDefault(resetCamera), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }) });
     }, undefined, (loadError) => {
       console.info(`${mapName} visual model unavailable.`, loadError.message);
       if (nav) {
@@ -960,13 +1147,13 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         controls.maxDistance = Math.max(nav.size * 2.2, 70);
         controls.update();
          const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
-         onReady({ reset: () => resetToDefault(normalReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState });
+         onReady({ reset: () => resetToDefault(normalReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }) });
       }
     });
     controls.target.set(0, 0, 0);
     controls.update();
      const initialReset = () => { camera.position.set(17, 23, 25); controls.target.set(0, 0, 0); controls.update(); };
-     onReady({ reset: () => resetToDefault(initialReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState });
+     onReady({ reset: () => resetToDefault(initialReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }) });
     const resize = () => { const { width, height } = mount.getBoundingClientRect(); renderer.setSize(width, height, false); renderer.getDrawingBufferSize(viewportSize); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix(); };
     resize();
     window.addEventListener('resize', resize);
@@ -1008,6 +1195,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       updateDeathHeat();
       updateAnalysis();
       updateDemoGrenades();
+      updateC4();
       renderer.render(scene, camera);
       frame = requestAnimationFrame(animate);
     };
@@ -1070,6 +1258,10 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
 }
 
 function App() {
+  const [language, setLanguage] = useState(() => localStorage.getItem('csboard-language') || 'zh');
+  const t = (key, values) => translate(language, key, values);
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const [mapName, setMapName] = useState('de_dust2');
   const [navData, setNavData] = useState(fallbackNavData);
   const [showEdges, setShowEdges] = useState(false);
@@ -1102,6 +1294,7 @@ function App() {
   const modelModeLabels = ['REACHABLE SURFACE', 'MOUSE LENS', 'CAMERA LENS'];
   const modeOptions = [{ label: 'MODEL OFF', value: -1 }, ...modelModeLabels.map((label, value) => ({ label, value }))];
   const [selectedPoint, setSelectedPoint] = useState(null);
+  const [selectedPointScreen, setSelectedPointScreen] = useState(null);
   const [deletePointId, setDeletePointId] = useState(null);
   const [pointUpdate, setPointUpdate] = useState(null);
   const [grenadeWheel, setGrenadeWheel] = useState({ open: false, type: 'smoke' });
@@ -1109,17 +1302,132 @@ function App() {
   const [activeCameraSlot, setActiveCameraSlot] = useState(null);
   const [activePanel, setActivePanel] = useState('demo');
   const [archives, setArchives] = useState(() => { try { return JSON.parse(localStorage.getItem('csboard-workspace-archives') || '[]'); } catch { return []; } });
+  const [roomCode, setRoomCode] = useState('');
+  const [roomOwner, setRoomOwner] = useState(false);
+  const [roomStatus, setRoomStatus] = useState('');
+  const [roomJoinCode, setRoomJoinCode] = useState('');
+  const [roomNotice, setRoomNotice] = useState('');
+  const roomProviderRef = useRef(null);
+  const roomDocRef = useRef(null);
+  const roomWorkspaceRef = useRef('');
+  const roomOwnerRef = useRef(roomOwner);
+  const mapNameRef = useRef(mapName);
+  const clientName = useRef(localStorage.getItem('csboard-client-name') || (() => { const value = Array.from({ length: 4 }, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase(); localStorage.setItem('csboard-client-name', value); return value; })());
   const pendingArchiveRef = useRef(null);
   const boardRef = useRef(null);
-  const onReady = (value) => { boardRef.current = value; const pending = pendingArchiveRef.current; if (pending && pending.mapName === mapName) { value.restoreWorkspaceState?.(pending.workspace); pendingArchiveRef.current = null; } };
+  roomOwnerRef.current = roomOwner;
+  mapNameRef.current = mapName;
+  useEffect(() => {
+    localStorage.setItem('csboard-language', language);
+    document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
+  }, [language]);
+  const onReady = (value) => {
+    boardRef.current = value;
+    const pending = pendingArchiveRef.current;
+    if (pending && pending.mapName === mapName && navData) {
+      value.restoreWorkspaceState?.(pending.workspace);
+      pendingArchiveRef.current = null;
+      return;
+    }
+    const doc = roomDocRef.current;
+    if (!doc) return;
+    const room = doc.getMap('room');
+    const points = doc.getMap('points');
+    const paths = doc.getMap('paths');
+    const fallback = room.get('workspace');
+    value.restoreWorkspaceState?.({ points: points.size ? [...points.values()] : fallback?.points || [], paths: paths.size ? [...paths.values()] : fallback?.paths || [], grenades: fallback?.grenades || [], cameraSlots: room.get('cameraSlots') || fallback?.cameraSlots || [] }, false);
+  };
+  const onPointSelect = (id, screen) => { setSelectedPoint(id); setSelectedPointScreen(screen); };
+  useEffect(() => {
+    const closePointActions = (event) => {
+      if (event.target.closest?.('.point-actions') || event.target.closest?.('.three-board')) return;
+      setSelectedPoint(null);
+      setSelectedPointScreen(null);
+    };
+    document.addEventListener('pointerdown', closePointActions);
+    return () => document.removeEventListener('pointerdown', closePointActions);
+  }, []);
   const onCameraSlots = (slots, active) => { setCameraSlotState(slots); setActiveCameraSlot(active); };
-  const saveWorkspaceArchive = () => {
-    const archive = { id: `${Date.now()}`, savedAt: new Date().toISOString(), mapName, demo: demoData ? { fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick } : null, workspace: boardRef.current?.getWorkspaceState?.() };
+  const saveWorkspaceArchive = (includeDemo = false) => {
+    const archive = { id: `${Date.now()}`, savedAt: new Date().toISOString(), mapName, map: mapName, demo: demoData ? { fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick } : null, workspace: boardRef.current?.getWorkspaceState?.({ includeDemo: includeDemo === true }) };
     if (!archive.workspace) return;
     const next = [archive, ...archives].slice(0, 30);
     setArchives(next);
     localStorage.setItem('csboard-workspace-archives', JSON.stringify(next));
+    if (roomDocRef.current && roomOwner) { const room = roomDocRef.current.getMap('room'); room.set('mapName', archive.mapName); room.set('workspace', roomWorkspace(archive.workspace, archive.workspace.cameraSlots)); room.set('revision', Number(room.get('revision') || 0) + 1); }
   };
+  const openRoom = () => {
+    const workspace = boardRef.current?.getWorkspaceState?.();
+    if (!workspace) return;
+    const code = Array.from({ length: 6 }, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
+    setRoomCode(code); setRoomOwner(true); setRoomStatus(`${t('room')} ${code} ${t('roomOpened')}`);
+    localStorage.setItem(`csboard-room-${code}`, JSON.stringify({ mapName, workspace, owner: clientName.current }));
+    window.setTimeout(() => { const room = roomDocRef.current?.getMap('room'); if (room) { room.set('mapName', mapName); room.set('workspace', roomWorkspace(workspace, workspace.cameraSlots)); room.set('closed', false); } }, 0);
+  };
+  const leaveRoom = () => { const room = roomDocRef.current?.getMap('room'); if (room && roomOwner) room.set('closed', true); setRoomStatus(roomOwner ? t('roomDestroyed') : t('roomLeft')); setRoomCode(''); setRoomOwner(false); };
+  const roomWorkspace = (workspace, slots) => { const { camera: _camera, ...shared } = workspace || {}; return { ...shared, cameraSlots: slots || shared.cameraSlots || [] }; };
+  const joinRoom = (value = roomJoinCode) => { const code = value.trim().toUpperCase(); if (/^[0-9A-F]{6}$/.test(code)) { setRoomCode(code); setRoomOwner(false); setRoomStatus(`${t('joiningRoom')} ${code}...`); } };
+  useEffect(() => {
+    if (!roomNotice) return;
+    window.alert(roomNotice);
+    setRoomNotice('');
+  }, [roomNotice]);
+  useEffect(() => {
+    if (!roomCode) return undefined;
+    const doc = new Y.Doc(); const provider = new WebsocketProvider(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/rooms`, roomCode, doc);
+    roomDocRef.current = doc; roomProviderRef.current = provider;
+    const room = doc.getMap('room');
+    const points = doc.getMap('points');
+    const paths = doc.getMap('paths');
+    let applyingRemote = false;
+    let synced = false;
+    let localBaseline = null;
+    const applySharedWorkspace = () => {
+      const fallback = room.get('workspace');
+      const shared = {
+        points: points.size ? [...points.values()] : fallback?.points || [],
+        paths: paths.size ? [...paths.values()] : fallback?.paths || [],
+        grenades: fallback?.grenades || [],
+        cameraSlots: room.get('cameraSlots') || fallback?.cameraSlots || [],
+      };
+      const serialized = JSON.stringify(shared);
+      if (serialized === roomWorkspaceRef.current) return;
+      roomWorkspaceRef.current = serialized;
+      applyingRemote = true;
+      boardRef.current?.restoreWorkspaceState?.(shared, false);
+      applyingRemote = false;
+      localBaseline = shared;
+    };
+    let appliedRevision = -1;
+    const tr = (key, values) => translate(languageRef.current, key, values);
+    const apply = () => { if (room.get('closed')) { setRoomNotice(tr('roomDestroyed')); setRoomStatus(tr('roomDestroyed')); setRoomCode(''); setRoomOwner(false); return; } const revision = Number(room.get('revision') || 0); const map = room.get('mapName'); if (map && map !== mapNameRef.current && !roomOwnerRef.current) setMapName(map); if (revision !== appliedRevision) { appliedRevision = revision; roomWorkspaceRef.current = ''; } applySharedWorkspace(); setRoomStatus(`${tr('joinedRoom')} ${roomCode}`); };
+    const publishWorkspace = (force = false) => {
+      if (!synced || applyingRemote) return;
+      const workspace = boardRef.current?.getWorkspaceState?.();
+      if (!workspace) return;
+      const previousPoints = new Map((localBaseline?.points || []).map((point) => [point.id, point]));
+      const currentPoints = new Map(workspace.points.map((point) => [point.id, point]));
+      const previousPaths = new Map((localBaseline?.paths || []).map((path) => [path.join(':'), path]));
+      const currentPaths = new Map(workspace.paths.map((path) => [path.join(':'), path]));
+      doc.transact(() => {
+        currentPoints.forEach((point, id) => { if (force || JSON.stringify(previousPoints.get(id)) !== JSON.stringify(point)) points.set(id, point); });
+        previousPoints.forEach((_, id) => { if (!currentPoints.has(id)) points.delete(id); });
+        currentPaths.forEach((path, id) => { if (force || JSON.stringify(previousPaths.get(id)) !== JSON.stringify(path)) paths.set(id, path); });
+        previousPaths.forEach((_, id) => { if (!currentPaths.has(id)) paths.delete(id); });
+        if (roomOwnerRef.current) {
+          if (room.get('mapName') !== mapNameRef.current) room.set('mapName', mapNameRef.current);
+          if (JSON.stringify(room.get('cameraSlots') || []) !== JSON.stringify(workspace.cameraSlots)) room.set('cameraSlots', workspace.cameraSlots);
+        }
+      });
+      localBaseline = { points: workspace.points, paths: workspace.paths, grenades: workspace.grenades || [], cameraSlots: room.get('cameraSlots') || [] };
+      roomWorkspaceRef.current = JSON.stringify({ points: workspace.points, paths: workspace.paths, grenades: workspace.grenades || [], cameraSlots: room.get('cameraSlots') || [] });
+    };
+    provider.on('status', ({ status }) => { setRoomStatus(status === 'connected' ? `${tr('room')} ${roomCode} ${tr('connected')} · ${clientName.current}` : `${tr('room')} ${status === 'disconnected' ? tr('disconnected') : tr('connecting')}...`); });
+    provider.on('sync', (isSynced) => { synced = isSynced; if (!isSynced) return; apply(); if (roomOwnerRef.current && !points.size && !paths.size) publishWorkspace(true); });
+    room.observe(apply); points.observe(apply); paths.observe(apply); apply();
+    const publish = window.setInterval(publishWorkspace, 300);
+    return () => { window.clearInterval(publish); room.unobserve(apply); points.unobserve(apply); paths.unobserve(apply); provider.destroy(); doc.destroy(); roomDocRef.current = null; roomProviderRef.current = null; };
+  }, [roomCode]);
   const deleteWorkspaceArchive = (id) => {
     const next = archives.filter((archive) => archive.id !== id);
     setArchives(next);
@@ -1129,16 +1437,38 @@ function App() {
     setDemoPlaying(false);
     setAnalysisPlaying(false);
     if (panel === 'analysis') setAnalysisTime(0);
+    if (panel === 'demo' && activePanel === 'collab') boardRef.current?.clearWorkspaceState?.();
+    if (panel !== 'collab' && roomCode) { const wasOwner = roomOwner; leaveRoom(); window.alert(wasOwner ? t('roomDestroyed') : t('roomExited')); }
     setActivePanel(panel);
   };
   const restoreWorkspaceArchive = (archive) => {
+    if (roomCode && !roomOwner) return;
     if (archive.mapName !== mapName) { pendingArchiveRef.current = archive; setMapName(archive.mapName); } else boardRef.current?.restoreWorkspaceState?.(archive.workspace);
     if (archive.demo && demoData?.demo.fileName === archive.demo.fileName) { const round = demoData.rounds.find((item) => item.round === archive.demo.round); if (round) setDemoRound(round); setDemoTick(archive.demo.tick); }
+    if (roomDocRef.current && roomOwner) { const doc = roomDocRef.current; const room = doc.getMap('room'); const points = doc.getMap('points'); const paths = doc.getMap('paths'); doc.transact(() => { points.clear(); paths.clear(); archive.workspace.points?.forEach((point) => points.set(point.id, point)); archive.workspace.paths?.forEach((path) => paths.set(path.join(':'), path)); room.set('mapName', archive.mapName); room.set('cameraSlots', archive.workspace.cameraSlots || []); room.set('workspace', roomWorkspace(archive.workspace, archive.workspace.cameraSlots)); room.set('revision', Number(room.get('revision') || 0) + 1); }); }
   };
   const selectedMode = showModel ? modelViewMode : -1;
   const demoSnapshot = demoRound && (demoTick < demoRound.startTick || demoTick > demoRound.endTick) ? null : interpolateDemoSnapshot(demoSnapshots, demoTick);
+  const demoTeams = { T: demoSnapshot?.players.filter((player) => player.team === 2) || [], CT: demoSnapshot?.players.filter((player) => player.team === 3) || [] };
+  const demoScore = { T: demoTeams.T[0]?.score || 0, CT: demoTeams.CT[0]?.score || 0 };
   const demoKills = activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_death' && demoRound && event.tick >= demoRound.startTick && event.tick <= demoTick).slice(-5) || [] : [];
   const demoDeaths = demoData?.events?.filter((event) => event.event_name === 'player_death' && demoRound && event.tick >= demoRound.startTick && event.tick <= demoTick) || [];
+  const demoC4Events = demoData?.events?.filter((event) => demoRound && ['bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_exploded', 'bomb_defused', 'round_end'].includes(event.event_name) && event.tick >= demoRound.startTick && event.tick <= demoRound.endTick) || [];
+  const timelineEvents = demoData?.events?.filter((event) => demoRound && ['player_death', 'bomb_planted', 'bomb_exploded', 'round_end'].includes(event.event_name) && event.tick >= demoRound.startTick && event.tick <= demoRound.endTick).map((event) => ({ ...event, label: event.event_name === 'player_death' ? '×' : event.event_name === 'bomb_planted' ? '↓' : event.event_name === 'bomb_exploded' ? '💥' : '□', title: event.event_name === 'player_death' ? `${event.attacker_name || 'WORLD'} 击杀 ${event.user_name || 'UNKNOWN'}` : event.event_name === 'bomb_planted' ? 'C4 安装' : event.event_name === 'bomb_exploded' ? 'C4 爆炸' : '回合结束' })) || [];
+  const c4TimerTicks = useMemo(() => {
+    const events = demoData?.events || [];
+    const durations = events.filter((event) => event.event_name === 'bomb_planted').map((plant) => {
+      const nextPlant = events.find((event) => event.event_name === 'bomb_planted' && event.tick > plant.tick);
+      const explosion = events.find((event) => event.event_name === 'bomb_exploded' && event.tick > plant.tick && (!nextPlant || event.tick < nextPlant.tick));
+      return explosion ? explosion.tick - plant.tick : null;
+    }).filter((duration) => duration > 0).sort((left, right) => left - right);
+    return durations.length ? durations[Math.floor(durations.length / 2)] : 40 * 64;
+  }, [demoData?.events]);
+  const c4Plant = [...demoC4Events].reverse().find((event) => event.event_name === 'bomb_planted' && event.tick <= demoTick);
+  const c4Terminal = c4Plant && demoC4Events.find((event) => ['bomb_exploded', 'bomb_defused'].includes(event.event_name) && event.tick >= c4Plant.tick);
+  const c4DisplayTick = c4Terminal?.event_name === 'bomb_defused' && demoTick >= c4Terminal.tick ? c4Terminal.tick : demoTick;
+  const c4EndTick = c4Terminal?.event_name === 'bomb_exploded' ? c4Terminal.tick : c4Plant ? c4Plant.tick + c4TimerTicks : null;
+  const c4Countdown = c4Plant && (!c4Terminal || c4Terminal.event_name === 'bomb_defused' || demoTick <= c4Terminal.tick) ? Math.max(0, (c4EndTick - c4DisplayTick) / (demoData?.demo.tickRate || 64)) : null;
   const analysisDuration = useMemo(() => analysisSelectedPlayers.length && analysisRows.length ? Math.max(0, ...analysisSelectedPlayers.flatMap((name) => demoData?.rounds?.map((round) => {
     const records = analysisRows.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick).flatMap((snapshot) => snapshot.players.filter((player) => player.name === name).map((player) => ({ ...player, tick: snapshot.tick }))).sort((left, right) => left.tick - right.tick);
     const roundSide = records[0]?.team === 2 ? 'T' : records[0] ? 'CT' : null;
@@ -1149,19 +1479,19 @@ function App() {
   useEffect(() => {
     const worker = new Worker(new URL('./demoWorker.js', import.meta.url), { type: 'module' });
     worker.onmessage = (event) => {
-      if (event.data.type === 'status') setDemoStatus(event.data.message);
+       const currentLanguage = languageRef.current;
+       if (event.data.type === 'status') setDemoStatus(currentLanguage === 'zh' ? event.data.message : event.data.message.replace(/正在一次性解析 (\d+) 个回合位置…/, 'Parsing $1 rounds...').replace(/Demo 已读取，(\d+) 个回合已全部就绪/, 'Demo loaded, $1 rounds ready').replace('正在加载 Demo 解析器…', 'Loading Demo parser...').replace('正在读取 Demo Header…', 'Reading Demo header...').replace('正在读取回合事件…', 'Reading round events...').replace('正在读取道具与投掷物轨迹…', 'Reading utility trajectories...').replace('正在读取全场移动数据…', 'Reading full-match movement data...').replace('全场移动数据已就绪', 'Full-match movement data ready'));
       if (event.data.type === 'diagnostic') console.info('Demo parser diagnostic:', event.data.phase, event.data.data);
        if (event.data.type === 'loaded') { setDemoData(event.data.data); setDemoRound(null); setDemoTick(0); setDemoSnapshots([]); setDemoProjectiles([]); setDemoRoundLoading(false); setDemoPlaying(false); }
-      if (event.data.type === 'round') { setDemoSnapshots(event.data.snapshots); setDemoProjectiles(event.data.projectiles || []); setDemoRoundLoading(false); }
-       if (event.data.type === 'analysis') { const rows = event.data.rows || []; const players = [...new Set(rows.flatMap((snapshot) => snapshot.players.map((player) => player.name)).filter(Boolean))].sort(); setAnalysisRows(rows); setAnalysisPlayers(players); setAnalysisSelectedPlayers((selected) => selected.filter((name) => players.includes(name))); setAnalysisStatus('全场移动数据已就绪'); }
-      if (event.data.type === 'error') { setDemoStatus(`解析失败：${event.data.message}`); console.error('Demo parse failed:', event.data.message, event.data.diagnostic); }
+       if (event.data.type === 'analysis') { const rows = event.data.rows || []; const players = [...new Set(rows.flatMap((snapshot) => snapshot.players.map((player) => player.name)).filter(Boolean))].sort(); setAnalysisRows(rows); setAnalysisPlayers(players); setAnalysisSelectedPlayers((selected) => selected.filter((name) => players.includes(name))); setAnalysisStatus(translate(currentLanguage, 'analysisReady')); }
+       if (event.data.type === 'error') { setDemoStatus(`${translate(currentLanguage, 'parseFailed')}: ${event.data.message}`); console.error('Demo parse failed:', event.data.message, event.data.diagnostic); }
     };
     demoWorkerRef.current = worker;
     return () => worker.terminate();
   }, []);
   useEffect(() => {
     if (activePanel !== 'analysis' || !demoData || analysisLoadedFor === demoData.demo.fileName) return;
-    setAnalysisStatus('正在读取全场移动数据…');
+    setAnalysisStatus(t('analysisLoading'));
     setAnalysisLoadedFor(demoData.demo.fileName);
     demoWorkerRef.current?.postMessage({ type: 'analysis', rounds: demoData.rounds });
   }, [activePanel, demoData, analysisLoadedFor]);
@@ -1177,18 +1507,19 @@ function App() {
      setAnalysisLoadedFor('');
      setAnalysisPlaying(false);
      setAnalysisTime(0);
-     setDemoStatus(files.length > 1 ? `正在组合 ${files.length} 个 Demo 分片…` : '正在读取 Demo 文件…');
+     setDemoStatus(files.length > 1 ? t('combiningParts', { count: files.length }) : t('readingDemo'));
     const buffers = await Promise.all(files.map((file) => file.arrayBuffer()));
     demoWorkerRef.current?.postMessage({ type: 'load', fileName: files.map((file) => file.name).join(' + '), buffers }, buffers);
   };
   useEffect(() => {
-    if (!demoRound || !demoWorkerRef.current) return;
+    if (!demoRound || !demoData) return;
+    const cached = demoData.roundData?.find((item) => item.round === demoRound.round);
     setDemoTick(demoRound.startTick);
-    setDemoSnapshots([]);
-    setDemoRoundLoading(true);
+    setDemoSnapshots(cached?.snapshots || []);
+    setDemoProjectiles(cached?.projectiles || []);
+    setDemoRoundLoading(false);
     setDemoPlaying(false);
-    demoWorkerRef.current.postMessage({ type: 'round', round: demoRound.round, startTick: demoRound.startTick, endTick: demoRound.endTick });
-  }, [demoRound]);
+  }, [demoRound, demoData]);
   useEffect(() => {
     if (!demoPlaying || !demoData || !demoRound) return undefined;
     const timer = window.setInterval(() => setDemoTick((tick) => {
@@ -1227,37 +1558,39 @@ function App() {
   return <main className="board-shell">
     <header className="board-header">
       <div className="brand"><span className="brand-mark"><i /><i /><i /></span><span>CS<span>BOARD</span></span></div>
-       <nav className="topbar-panels"><button type="button" className={activePanel === 'demo' ? 'active' : ''} onClick={() => switchPanel('demo')}>回合浏览</button><button type="button" className={activePanel === 'analysis' ? 'active' : ''} onClick={() => switchPanel('analysis')}>数据分析</button><button type="button" className={activePanel === 'collab' ? 'active' : ''} onClick={() => switchPanel('collab')}>协作面板</button></nav>
-      <div className="header-status"><i /> REF DATA LOADED</div>
+       <nav className="topbar-panels"><button type="button" className={activePanel === 'demo' ? 'active' : ''} onClick={() => switchPanel('demo')}>{t('rounds')}</button><button type="button" className={activePanel === 'analysis' ? 'active' : ''} onClick={() => switchPanel('analysis')}>{t('analysis')}</button><button type="button" className={activePanel === 'collab' ? 'active' : ''} onClick={() => switchPanel('collab')}>{t('collab')}</button></nav>
+       <button type="button" className="language-switch" onClick={() => setLanguage((value) => value === 'zh' ? 'en' : 'zh')}>{t('language')}</button><div className="header-status"><i /> {t('loaded')}</div>
     </header>
     <section className="board-stage">
-       <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : null} demoTick={demoTick} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_detonate'].includes(event.event_name)) || [] : []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : []} demoDeaths={activePanel === 'demo' ? demoDeaths : []} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={setSelectedPoint} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} />
-      <div className="stage-vignette" />
+       <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : null} demoTick={demoTick} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : []} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} />
+       <div className="stage-vignette" />
+       {activePanel === 'demo' && demoSnapshot && <div className="demo-score"><span>T</span><strong>{demoScore.T}</strong><i>ROUND {demoRound?.round || '-'}{c4Countdown != null && <b className={c4Terminal?.event_name === 'bomb_defused' && demoTick >= c4Terminal.tick ? 'c4-paused' : ''}>C4 {c4Countdown.toFixed(4)}s</b>}</i><strong>{demoScore.CT}</strong><span>CT</span></div>}
        <div className="map-name"><span>01</span><h1>{mapName.toUpperCase()}</h1></div>
-      {grenadeWheel.open && <div className="grenade-wheel"><div className={`wheel-item wheel-smoke ${grenadeWheel.type === 'smoke' ? 'active' : ''}`}>烟</div><div className={`wheel-item wheel-fire ${grenadeWheel.type === 'fire' ? 'active' : ''}`}>火</div><div className={`wheel-item wheel-flash ${grenadeWheel.type === 'flash' ? 'active' : ''}`}>闪</div><div className={`wheel-item wheel-explosion ${grenadeWheel.type === 'explosion' ? 'active' : ''}`}>雷</div><span className="wheel-key">Q</span></div>}
-         {demoKills.length > 0 && <div className={`demo-kills hud-left${demoKillsCollapsed ? ' collapsed' : ''}`}><div className="demo-kills-heading"><span>RECENT KILLS</span><button type="button" onClick={() => setDemoKillsCollapsed((collapsed) => !collapsed)}>{demoKillsCollapsed ? '展开' : '收起'}</button></div>{demoKills.map((kill) => <div className="demo-kill" key={`${kill.tick}-${kill.user_steamid}`}><small>{((kill.tick - demoRound.startTick) / 64).toFixed(1)}s</small><b>{kill.attacker_name || 'WORLD'}{kill.assister_name ? ` + ${kill.assister_name}` : ''}</b><i>{kill.weapon || 'KILL'}{kill.headshot ? ' · HS' : ''}{kill.thrusmoke ? ' · SMOKE' : ''}{kill.attackerblind ? ' · BLIND' : ''}</i><strong>→ {kill.user_name || 'UNKNOWN'}</strong></div>)}</div>}
+       {grenadeWheel.open && <div className="grenade-wheel"><div className={`wheel-item wheel-smoke ${grenadeWheel.type === 'smoke' ? 'active' : ''}`}>{t('smoke')}</div><div className={`wheel-item wheel-fire ${grenadeWheel.type === 'fire' ? 'active' : ''}`}>{t('fire')}</div><div className={`wheel-item wheel-flash ${grenadeWheel.type === 'flash' ? 'active' : ''}`}>{t('flash')}</div><div className={`wheel-item wheel-explosion ${grenadeWheel.type === 'explosion' ? 'active' : ''}`}>{t('grenade')}</div><span className="wheel-key">Q</span></div>}
+         {demoKills.length > 0 && <div className={`demo-kills hud-left${demoKillsCollapsed ? ' collapsed' : ''}`}><div className="demo-kills-heading"><span>{t('recentKills')}</span><button type="button" onClick={() => setDemoKillsCollapsed((collapsed) => !collapsed)}>{demoKillsCollapsed ? t('expand') : t('collapse')}</button></div>{demoKills.map((kill) => <div className="demo-kill" key={`${kill.tick}-${kill.user_steamid}`}><small>{((kill.tick - demoRound.startTick) / 64).toFixed(1)}s</small><b>{kill.attacker_name || t('world')}{kill.assister_name ? ` + ${kill.assister_name}` : ''}</b><i>{kill.weapon || 'KILL'}{kill.headshot ? ' · HS' : ''}{kill.thrusmoke ? ' · SMOKE' : ''}{kill.attackerblind ? ' · BLIND' : ''}</i><strong>→ {kill.user_name || t('unknown')}</strong></div>)}</div>}
         <div className="hud hud-right"><span>VIEW CONTROLS</span><strong>MMB <em>ROTATE</em></strong><strong>SHIFT + MMB <em>PAN</em></strong><strong>SCROLL <em>ZOOM</em></strong><strong>WASD <em>MOVE</em></strong><strong>LEFT CLICK <em>POINT MENU</em></strong></div>
-        <div className="camera-slots"><span>CAMERA POSITIONS</span>{cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved} className={activeCameraSlot === index ? 'active' : ''} onClick={() => boardRef.current?.restoreCameraSlot?.(index)}>{index + 1}</button>)}</div>
-        {selectedPoint && <div className="point-actions"><span>TACTICAL POINT</span><div className="point-choice"><b>TEAM</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div><div className="point-choice"><b>TYPE</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div><button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); }}>DELETE</button></div>}
+         <div className="camera-slots"><span>{t('cameraPositions')}</span>{cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved} className={activeCameraSlot === index ? 'active' : ''} onClick={() => boardRef.current?.restoreCameraSlot?.(index)}>{index + 1}</button>)}</div>
+         {activePanel === 'demo' && demoSnapshot && <><div className="team-roster team-roster-t"><span>T SIDE</span>{demoTeams.T.map((player) => <div className={`roster-player${player.health > 0 ? '' : ' dead'}${player.hasC4 ? ' has-c4' : ''}`} key={player.steamid || player.name}><strong>{player.name}</strong><b>{Math.max(0, player.health || 0)} HP</b><small>{playerGrenades(player.inventory, language)}</small><em>{String(player.activeWeapon || '-').replace(/^weapon_/, '').toUpperCase()}</em></div>)}</div><div className="team-roster team-roster-ct"><span>CT SIDE</span>{demoTeams.CT.map((player) => <div className={`roster-player${player.health > 0 ? '' : ' dead'}${player.hasC4 ? ' has-c4' : ''}`} key={player.steamid || player.name}><strong>{player.name}</strong><b>{Math.max(0, player.health || 0)} HP</b><small>{playerGrenades(player.inventory, language)}</small><em>{String(player.activeWeapon || '-').replace(/^weapon_/, '').toUpperCase()}</em></div>)}</div></>}
+         {selectedPoint && selectedPointScreen && <div className="point-actions" style={{ left: selectedPointScreen.x, top: selectedPointScreen.y }}><span>{t('tacticalPoint')}</span><div className="point-choice"><b>{t('team')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div><div className="point-choice"><b>{t('type')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div><button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); setSelectedPointScreen(null); }}>{t('delete')}</button></div>}
         <div className="board-tools"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)} className={showModel ? 'selected' : ''}><i /> {modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) setShowModel(false); else { setShowModel(true); setModelViewMode(option.value); } setModeMenuOpen(false); }} /> <span>{option.label}</span></label>)}</div>}</div>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}><i /> AREA EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET VIEW</button></div>
          <div className={`demo-panel ${activePanel === 'demo' ? '' : 'panel-hidden'}`}>
           <div className="demo-toolbar">
-             <label className="demo-upload"><span>DEMO / 多选分片</span><input type="file" accept=".dem" multiple onChange={loadDemo} /></label>
+             <label className="demo-upload"><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple onChange={loadDemo} /><b>{t('chooseDemo')}</b><small>{demoData?.demo.fileName || t('noFileChosen')} · {t('multiPartHint')}</small></label>
             {demoStatus && <span className="demo-status">{demoStatus}</span>}
-            {demoData && <>
-               <label className="demo-round"><span>ROUND</span><select value={demoRound?.round || ''} onChange={(event) => setDemoRound(demoData.rounds.find((round) => String(round.round) === event.target.value) || null)}><option value="">请选择回合</option>{demoData.rounds.map((round) => <option key={round.round} value={round.round}>回合 {round.round}</option>)}</select></label>
-               {demoRound && <button type="button" className="demo-play" disabled={demoRoundLoading} onClick={() => setDemoPlaying((playing) => !playing)}>{demoRoundLoading ? 'LOAD' : demoPlaying ? 'PAUSE' : 'PLAY'}</button>}
+             <button type="button" className="demo-save-frame" onClick={() => saveWorkspaceArchive(true)}>{t('saveFrame')}</button>{demoData && <>
+              <label className="demo-round"><span>{t('round').toUpperCase()}</span><select value={demoRound?.round || ''} onChange={(event) => setDemoRound(demoData.rounds.find((round) => String(round.round) === event.target.value) || null)}><option value="">{t('selectRound')}</option>{demoData.rounds.map((round) => <option key={round.round} value={round.round}>{t('round')} {round.round}</option>)}</select></label>
+              {demoRound && <button type="button" className="demo-play" disabled={demoRoundLoading} onClick={() => setDemoPlaying((playing) => !playing)}>{demoRoundLoading ? t('loading') : demoPlaying ? t('pause') : t('play')}</button>}
               <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>
             </>}
           </div>
-            {activePanel === 'demo' && demoData && <div className="demo-view-options"><span>视图</span><button type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>显示名称</button></div>}
+             {activePanel === 'demo' && demoData && <div className="demo-view-options"><span>{t('view')}</span><button type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t('showNames')}</button></div>}
            {demoStatus && !demoData && <div className="demo-loading" aria-label="Demo parsing in progress"><i /></div>}
-          {demoData && demoRound && <div className="demo-scrub"><span className="demo-time">{((demoTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span><input className="demo-timeline" disabled={demoRoundLoading} style={{ '--timeline-progress': `${demoRound.endTick > demoRound.startTick ? ((demoTick - demoRound.startTick) / (demoRound.endTick - demoRound.startTick)) * 100 : 0}%` }} type="range" min={demoRound.startTick} max={demoRound.endTick} step="1" value={demoTick} onPointerUp={(event) => event.currentTarget.blur()} onChange={(event) => { setDemoPlaying(false); setDemoTick(Number(event.target.value)); }} /><span className="demo-duration">/ {((demoRound.endTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span></div>}
+          {demoData && demoRound && <div className="demo-scrub"><span className="demo-time">{((demoTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span><div className="timeline-track"><input className="demo-timeline" disabled={demoRoundLoading} style={{ '--timeline-progress': `${demoRound.endTick > demoRound.startTick ? ((demoTick - demoRound.startTick) / (demoRound.endTick - demoRound.startTick)) * 100 : 0}%` }} type="range" min={demoRound.startTick} max={demoRound.endTick} step="1" value={demoTick} onPointerUp={(event) => event.currentTarget.blur()} onChange={(event) => { setDemoPlaying(false); setDemoTick(Number(event.target.value)); }} />{timelineEvents.map((event, index) => <button type="button" className={`timeline-event event-${event.event_name}`} title={event.title} aria-label={event.title} style={{ left: `${((event.tick - demoRound.startTick) / Math.max(1, demoRound.endTick - demoRound.startTick)) * 100}%` }} key={`${event.event_name}-${event.tick}-${index}`} onClick={() => { setDemoPlaying(false); setDemoTick(event.tick); }}>{event.label}</button>)}</div><span className="demo-duration">/ {((demoRound.endTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span></div>}
            <div className="demo-options"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}>GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}>TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button><label className="model-opacity"><span>MODEL</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="demo-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}>EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET</button></div>
           </div>
-          {activePanel === 'analysis' && <aside className="analysis-panel"><div className="collab-heading"><div><span>DEMO ANALYSIS</span><h2>数据分析</h2></div><button type="button" disabled={!analysisSelectedPlayers.length || !analysisRows.length} onClick={() => setAnalysisPlaying((playing) => !playing)}>{analysisPlaying ? '暂停' : '播放'}</button></div><p className="collab-note">选择选手后，所有回合会从冻结结束同时开始叠加播放。</p>{analysisStatus && <div className="analysis-status">{analysisStatus}</div>}<label className="analysis-select"><span>PLAYERS</span><select multiple size={Math.min(8, Math.max(3, analysisPlayers.length))} value={analysisSelectedPlayers} onChange={(event) => { setAnalysisSelectedPlayers([...event.target.selectedOptions].map((option) => option.value)); setAnalysisTime(0); setAnalysisPlaying(false); }}>{analysisPlayers.map((player) => <option key={player} value={player}>{player}</option>)}</select></label>{analysisSelectedPlayers.length > 0 && <label className="analysis-side"><span>SIDE</span><select value={analysisSide} onChange={(event) => { setAnalysisSide(event.target.value); setAnalysisTime(0); setAnalysisPlaying(false); }}><option value="ALL">全部回合</option><option value="T">T 回合</option><option value="CT">CT 回合</option></select></label>}{analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}</aside>}
-         {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>协作面板</h2></div><button type="button" onClick={saveWorkspaceArchive}>保存当前帧</button></div><p className="collab-note">保存地图、镜头、编辑点位和当前 Demo 帧。Demo 文件本身不会写入浏览器存储。</p><div className="archive-list">{archives.length === 0 ? <div className="archive-empty">暂无本地存档</div> : archives.map((archive) => <div className="archive-item" key={archive.id}><button type="button" className="archive-restore" onClick={() => restoreWorkspaceArchive(archive)}><strong>{archive.mapName.toUpperCase()}</strong><span>{new Date(archive.savedAt).toLocaleString()}</span><small>{archive.demo ? `ROUND ${archive.demo.round || '-'} · TICK ${Math.round(archive.demo.tick)}` : '手动地图编辑'}</small></button><button type="button" className="archive-delete" aria-label="删除存档" title="删除存档" onClick={() => deleteWorkspaceArchive(archive.id)}>🗑</button></div>)}</div></aside>}
-       {activePanel === 'analysis' && demoData && <div className="analysis-view-options"><span>热力图</span><button type="button" className={demoViewFlags.killerHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, killerHeat: !flags.killerHeat }))}>击杀时所在</button><button type="button" className={demoViewFlags.victimHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, victimHeat: !flags.victimHeat }))}>被击杀时所在</button><button type="button" className={demoViewFlags.targetHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, targetHeat: !flags.targetHeat }))}>击杀目标所在</button><button type="button" className={demoViewFlags.opponentHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, opponentHeat: !flags.opponentHeat }))}>被击杀时对方所在</button></div>}
+          {activePanel === 'analysis' && <aside className="analysis-panel"><div className="collab-heading"><div><span>DEMO ANALYSIS</span><h2>{t('analysis')}</h2></div><button type="button" disabled={!analysisSelectedPlayers.length || !analysisRows.length} onClick={() => setAnalysisPlaying((playing) => !playing)}>{analysisPlaying ? t('pause') : t('play')}</button></div><p className="collab-note">{t('analysisHint')}</p>{analysisStatus && <div className="analysis-status">{analysisStatus}</div>}<label className="analysis-select"><span>{t('players').toUpperCase()}</span><select multiple size={Math.min(8, Math.max(3, analysisPlayers.length))} value={analysisSelectedPlayers} onChange={(event) => { setAnalysisSelectedPlayers([...event.target.selectedOptions].map((option) => option.value)); setAnalysisTime(0); setAnalysisPlaying(false); }}>{analysisPlayers.map((player) => <option key={player} value={player}>{player}</option>)}</select></label>{analysisSelectedPlayers.length > 0 && <label className="analysis-side"><span>{t('side').toUpperCase()}</span><select value={analysisSide} onChange={(event) => { setAnalysisSide(event.target.value); setAnalysisTime(0); setAnalysisPlaying(false); }}><option value="ALL">{t('allRounds')}</option><option value="T">{t('tRounds')}</option><option value="CT">{t('ctRounds')}</option></select></label>}{analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}</aside>}
+          {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>{t('collab')}</h2></div><div className="collab-actions"><button type="button" onClick={saveWorkspaceArchive}>{t('saveFrame')}</button>{roomCode ? <button type="button" onClick={leaveRoom}>{t('leaveRoom')}</button> : <button type="button" onClick={() => { const code = window.prompt(t('roomPrompt'), roomJoinCode); if (code != null) { setRoomJoinCode(code); joinRoom(code); } }}>{t('joinRoom')}</button>}<button type="button" disabled={Boolean(roomCode)} onClick={openRoom}>{t('openRoom')}</button></div></div><p className="collab-note">{t('currentMap')}: {mapName} · {t('name')}: {clientName.current}<br />{t('collabHint')}</p>{roomStatus && <div className="analysis-status">{roomStatus}</div>}{roomCode && <div className="room-open"><strong>{t('room')} {roomCode}</strong><span>{roomOwner ? t('owner') : t('member')}</span></div>}<div className="archive-list">{archives.filter((archive) => archive.mapName === mapName).length === 0 ? <div className="archive-empty">{t('noArchives')}</div> : archives.filter((archive) => archive.mapName === mapName).map((archive) => <div className="archive-item" key={archive.id}><button type="button" className="archive-restore" disabled={Boolean(roomCode && !roomOwner)} title={roomCode && !roomOwner ? t('guestNoArchive') : t('restoreArchive')} onClick={() => restoreWorkspaceArchive(archive)}><strong>{archive.mapName.toUpperCase()}</strong><span>{new Date(archive.savedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</span><small>{archive.demo ? `ROUND ${archive.demo.round || '-'} · TICK ${Math.round(archive.demo.tick)}` : t('manualEdit')}</small></button><button type="button" className="archive-delete" aria-label={t('deleteArchive')} title={t('deleteArchive')} onClick={() => deleteWorkspaceArchive(archive.id)}>×</button></div>)}</div></aside>}
+       {activePanel === 'analysis' && demoData && <div className="analysis-view-options"><span>{t('heatmap')}</span><button type="button" className={demoViewFlags.killerHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, killerHeat: !flags.killerHeat }))}>{t('killerPosition')}</button><button type="button" className={demoViewFlags.victimHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, victimHeat: !flags.victimHeat }))}>{t('victimPosition')}</button><button type="button" className={demoViewFlags.targetHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, targetHeat: !flags.targetHeat }))}>{t('targetPosition')}</button><button type="button" className={demoViewFlags.opponentHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, opponentHeat: !flags.opponentHeat }))}>{t('opponentPosition')}</button></div>}
      </section>
   </main>;
 }

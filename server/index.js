@@ -1,4 +1,11 @@
 import express from 'express';
+import http from 'node:http';
+import { WebSocketServer } from 'ws';
+import * as Y from 'yjs';
+import * as syncProtocol from 'y-protocols/sync';
+import * as awarenessProtocol from 'y-protocols/awareness';
+import * as encoding from 'lib0/encoding';
+import * as decoding from 'lib0/decoding';
 import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -6,6 +13,41 @@ import { fileURLToPath } from 'node:url';
 import { parseEvents, parseHeader, parseTicks } from '@laihoe/demoparser2';
 
 const app = express();
+const server = http.createServer(app);
+const rooms = new Map();
+const messageSync = 0;
+const messageAwareness = 1;
+function getRoom(name) {
+  if (!rooms.has(name)) {
+    const doc = new Y.Doc();
+    const room = { doc, awareness: new awarenessProtocol.Awareness(doc), clients: new Set() };
+    doc.on('update', (update, origin) => {
+      const encoder = encoding.createEncoder(); encoding.writeVarUint(encoder, messageSync); syncProtocol.writeUpdate(encoder, update);
+      broadcast(room, encoding.toUint8Array(encoder), origin);
+    });
+    room.awareness.on('update', ({ added, updated, removed }, origin) => {
+      const changed = added.concat(updated, removed);
+      const encoder = encoding.createEncoder(); encoding.writeVarUint(encoder, messageAwareness); encoding.writeVarUint8Array(encoder, awarenessProtocol.encodeAwarenessUpdate(room.awareness, changed));
+      broadcast(room, encoding.toUint8Array(encoder), origin);
+    });
+    rooms.set(name, room);
+  }
+  const room = rooms.get(name);
+  return room;
+}
+function broadcast(room, message, except) { room.clients.forEach((client) => { if (client !== except && client.readyState === 1) client.send(message); }); }
+function sendSyncStep1(room, socket) { const encoder = encoding.createEncoder(); encoding.writeVarUint(encoder, messageSync); syncProtocol.writeSyncStep1(encoder, room.doc); socket.send(encoding.toUint8Array(encoder)); }
+function handleRoomMessage(room, socket, data) {
+  const decoder = decoding.createDecoder(new Uint8Array(data));
+  const type = decoding.readVarUint(decoder);
+  if (type === messageSync) {
+    const encoder = encoding.createEncoder(); encoding.writeVarUint(encoder, messageSync);
+    const syncMessageType = syncProtocol.readSyncMessage(decoder, encoder, room.doc, socket);
+    if (encoding.length(encoder) > 1) socket.send(encoding.toUint8Array(encoder));
+  } else if (type === messageAwareness) {
+    awarenessProtocol.applyAwarenessUpdate(room.awareness, decoding.readVarUint8Array(decoder), socket);
+  }
+}
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024 * 1024 * 1024 } });
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 app.use('/maps', express.static(path.join(projectRoot, 'public/maps')));
@@ -165,7 +207,7 @@ app.post('/api/parse', upload.single('demo'), (request, response) => {
     const maxTick = events.at(-1)?.tick || 0;
     const sampleStep = 128;
     const sampleTicks = Array.from({ length: Math.max(1, Math.floor(maxTick / sampleStep) + 1) }, (_value, index) => index * sampleStep);
-    const positionRows = parseTicks(request.file.buffer, ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw'], sampleTicks, null, false);
+    const positionRows = parseTicks(request.file.buffer, ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'team_rounds_total', 'active_weapon_name', 'inventory'], sampleTicks, null, false);
     const snapshotsByTick = new Map();
     positionRows.forEach((row) => {
       if (!snapshotsByTick.has(row.tick)) snapshotsByTick.set(row.tick, []);
@@ -179,4 +221,15 @@ app.post('/api/parse', upload.single('demo'), (request, response) => {
   }
 });
 
-app.listen(3001, () => console.log('CSBoard parser listening on http://localhost:3001'));
+const wss = new WebSocketServer({ noServer: true });
+wss.on('connection', (socket, _request, roomName) => {
+  const room = getRoom(roomName); room.clients.add(socket); sendSyncStep1(room, socket);
+  socket.on('message', (data) => handleRoomMessage(room, socket, data));
+  socket.on('close', () => { room.clients.delete(socket); if (!room.clients.size) setTimeout(() => { if (!room.clients.size) rooms.delete(roomName); }, 300000); });
+});
+server.on('upgrade', (request, socket, head) => {
+  const match = request.url?.match(/^\/rooms\/([0-9A-F]{6})$/i);
+  if (!match) return socket.destroy();
+  wss.handleUpgrade(request, socket, head, (client) => wss.emit('connection', client, request, match[1].toUpperCase()));
+});
+server.listen(3001, () => console.log('CSBoard parser listening on http://localhost:3001'));
