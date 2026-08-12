@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.5] - 2026-08-13
+
+### Added
+
+- 新增英文主 README 和独立中文 README，完整介绍回合浏览、战术编辑、数据分析、多人协作、地图渲染、操作方式、技术架构和当前限制。
+- 新增使用演示 GIF，以及回合浏览、数据分析和协作面板功能截图。
+- 将 Ancient、Anubis、Cache、Dust II、Inferno、Mirage、Nuke、Overpass、Train 和 Vertigo 的 NAV 文件纳入版本管理。
+- 新增协作能力、道具速查个人菜单和地图模型透视优化三项路线图说明。
+
+### Changed
+
+- 地图资源忽略规则改为精确排除 GLB 与系统文件，允许仓库直接分发 NAV 数据。
+- README 明确本地 GLB 放置方式、资源边界以及 Valve 游戏资产声明。
+
 ## [0.1.4] - 2026-08-12
 
 ### Added

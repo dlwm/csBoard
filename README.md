@@ -1,120 +1,180 @@
 # CSBoard
 
-CSBoard 是一个基于 Three.js 的 CS 战术地图板，支持地图模型、NAV、战术点、路径点和道具效果展示。
+> A 3D tactical board, CS2 Demo replay viewer, analysis workspace, and real-time collaboration tool.
 
-## 当前里程碑
+[中文说明](README.zh-CN.md)
 
-- 支持所有正式地图的视觉模型展示。
-- 支持多张地图的 NAV 加载和可达区域显示。
-- NAV、GLB、VPK 资源结构已整理。
-- 支持 Blender 导出的 `<map>.glb` 更新地图模型。
-- 模型使用灰绿色主题材质显示。
-- 支持模型与 NAV 的鼠标透视效果。
-- 支持三种模型显示模式：
-  - `REACHABLE SURFACE`：正常模型与完整 NAV。
-  - `MOUSE LENS`：鼠标区域模型透明、NAV 显示。
-  - `CAMERA LENS`：距离镜头越近模型越透明。
-- 造点只允许落在 NAV 表面。
-- 支持战术点的队伍、类型、方向、长度和倾角调整。
-- 支持路径点、路径虚线和点位删除。
-- 支持烟、火、闪光和爆炸效果。
-- 支持 Blender 风格视角操作：中键旋转、`Shift + 中键`平移、滚轮缩放。
-- Three.js 效果、NAV、材质和战术点代码已完成基础模块化。
+![CSBoard demonstration](assets/readme/demo.gif)
 
-## 运行
+CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines NAV-aware editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
 
-安装依赖：
+## Highlights
+
+### Round Replay
+
+![Round replay](assets/readme/round-replay.png)
+
+- Import one Demo or select multiple Demo parts and merge them into one match.
+- Parse all rounds once through Rust/WASM, then switch rounds instantly from the in-memory cache.
+- Replay from freeze end with player movement, kills, deaths, weapons, health, utility, C4 state, and event markers.
+- Display simplified standing and crouching player models with yaw, pitch, dynamic eye height, and BVH-accelerated line-of-sight collision.
+- Track C4 carriers, drops, plants, explosions, defuses, approximate drop trajectories, and the bomb timer.
+- Save the current frame and convert live players and active utility into editable tactical-board objects.
+
+### Tactical Editing
+
+- Place T or CT tactical points directly on NAV surfaces.
+- Edit point team, symbol type, direction, aim length, and vertical angle.
+- Draw connected movement paths and remove points or paths interactively.
+- Place and adjust smoke, fire, flash, HE, and decoy effects.
+- Store nine camera presets per map and restore them with number keys.
+- Save local workspace archives containing points, paths, utility, camera presets, and an optional Demo frame reference.
+
+### Demo Analysis
+
+![Demo analysis](assets/readme/analysis.png)
+
+- Select one or more players and overlay movement from every round starting at freeze end.
+- Filter analysis by all rounds, T-side rounds, or CT-side rounds.
+- Inspect synchronized movement paths and aggregated spatial heatmaps.
+- Visualize killer positions, victim positions, target positions, and opposing-player positions at kill time.
+
+### Collaboration
+
+![Collaboration panel](assets/readme/collaboration.png)
+
+- Create or join a six-character Yjs WebSocket room.
+- Synchronize tactical points, paths, the active map, owner archives, and owner camera presets.
+- Let room members edit shared tactical content while keeping the current camera private.
+- Support owner-controlled room destruction and member leave notifications.
+- Use local archives as reusable starting points for collaborative sessions.
+
+### Map Rendering
+
+- Load CS2 NAV data for supported maps and constrain tactical editing to reachable surfaces.
+- Optionally render local GLB map geometry with configurable opacity.
+- Switch between reachable-surface, mouse-lens, and camera-lens model views.
+- Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
+- Navigate with Blender-style mouse controls, trackpad gestures, and WASD movement.
+
+### Interface
+
+- Switch the application between English and Chinese at runtime.
+- Inspect live T/CT rosters, score, health, active weapons, remaining utility, deaths, and C4 ownership.
+- Jump directly to kills, C4 plants, explosions, and round-end events from the timeline.
+
+## Supported Maps
+
+The repository includes NAV files for:
+
+- Ancient
+- Anubis
+- Cache
+- Dust II
+- Inferno
+- Mirage
+- Nuke
+- Overpass
+- Train
+- Vertigo
+
+GLB map models are intentionally not committed. Place a model at `public/maps/<map>/<map>.glb` to enable geometry rendering for that map.
+
+## Getting Started
+
+Requirements:
+
+- Node.js 20 or newer
+- npm
+
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-启动前端和服务端：
+Start the Vite frontend and collaboration/API server:
 
 ```bash
 npm run dev
 ```
 
-构建检查：
+The frontend uses Vite's development server, while the HTTP and Yjs WebSocket service runs on port `3001` and is reached through the configured proxy.
+
+Build the production bundle:
 
 ```bash
 npm run build
 ```
 
-## 资源结构
+## Controls
+
+| Input | Action |
+| --- | --- |
+| Middle mouse drag | Rotate camera |
+| `Shift` + middle mouse | Pan camera |
+| Mouse wheel / trackpad gesture | Zoom or orbit |
+| `W A S D` | Move camera |
+| `E` | Place a tactical point |
+| `Ctrl` | Draw a path or adjust point pitch |
+| `Q` | Open the utility wheel |
+| Left click a point | Open the point editor |
+| `Ctrl` + `1-9` | Save a camera preset |
+| `1-9` | Restore a camera preset |
+| `Space` | Play or pause replay/analysis |
+| Arrow keys | Step through the current round |
+
+## Resource Layout
 
 ```text
-ref/
-  vpk/
-    <map>.vpk
+assets/
+  readme/                 # README screenshots and demonstration GIF
 public/
   maps/
     <map>/
-      <map>.glb
-      <map>_physics.glb
-      <map>.nav
+      <map>.nav           # versioned in Git
+      <map>.glb           # local-only, ignored by Git
 ```
 
-VPK 导出脚本：
+Map extraction tools and raw game resources remain local-only. Do not commit VPK files, extracted game assets, Demo files, or GLB models.
 
-```bash
-./tools/export-map.sh
-```
+## Architecture
 
-脚本支持输入多个地图编号或 `all`，使用 `Source2Viewer-CLI` 生成中间资源到 `ref/vpk/extracted/<map>/`，再将编辑用的 GLB 和 NAV 保留在该地图目录中；不会自动写入 `public/maps/`。
+- React and Vite for the application shell and UI.
+- Three.js for map rendering, tactical objects, effects, and replay visualization.
+- Rust/WASM `demoparser2` for Demo events, ticks, players, inventory, and projectiles.
+- `three-mesh-bvh` for accelerated map raycasting.
+- Yjs, `y-websocket`, and `ws` for collaborative rooms.
+- Express for map/API endpoints and the collaboration server.
 
-## 操作
+## Current Limitations
 
-- 中键拖动：旋转视角
-- `Shift + 中键`：平移视角
-- 滚轮：缩放
-- `W A S D`：移动镜头
-- `Q`：道具轮盘
-- `E`：普通战术点
-- `Ctrl`：路径点模式或调整战术点倾角
-- 左键点击点位：打开点位面板
+- Collaboration rooms are stored in server memory and disappear after a server restart.
+- Room ownership is currently client-managed rather than protected by a server-issued owner token.
+- The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
+- GLB models must be supplied locally.
+- Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
 
-## TODO
+## Roadmap
 
-### 镜头与快捷键
+### Richer Collaboration
 
-- 数字键快速镜头。
-- 快速镜头支持自定义。
-- 按住 `Ctrl` 时使用临时镜头覆盖配置。
+- Server-authorized room ownership and persistent rooms.
+- Presence, cursors, member lists, permissions, and granular conflict handling.
+- Shared utility editing, annotations, review states, and export/import workflows.
 
-### 多人协同
+### Utility Reference and Personal Menu
 
-- 接入 Yjs。
-- 增加服务端中转能力。
-- 支持用户创建和加入房间。
-- 将面板状态、地图、点位、路径、道具和视图配置重构为 Yjs 数据。
-- 处理协同状态同步、冲突和用户离开房间。
+- A personal utility library for saved lineups, tags, favorites, and map-specific quick access.
+- Searchable utility reference cards with setup, aim point, movement, and result previews.
+- Reusable personal presets that can be inserted into local or collaborative boards.
 
-### 时间轴
+### Map Model Transparency
 
-- 支持时间轴基础组件和播放控制。
-- 支持点位、路径、道具和镜头状态绑定时间。
-- 支持暂停、播放、跳转和关键帧编辑。
+- Better depth handling for dense and multi-level maps.
+- More stable mouse-lens and camera-lens transparency transitions.
+- Simplified collision/render meshes, occlusion controls, and improved visual separation between NAV and geometry.
 
-### Demo 导入
+## License and Game Assets
 
-- 支持 CS Demo 文件导入。
-- 建立当前项目地图数据与 Demo 地图、坐标、Tick 的对应关系。
-- 将 Demo 时间与项目时间轴关联。
-- 支持 Demo 播放、暂停、跳转和事件定位。
-- 将玩家位置、回合、击杀、投掷物等数据映射到战术板。
-
-### 道具
-
-- 完善烟、火、闪光、手雷和其他道具的表现与参数。
-- 结合 Demo 数据完善道具事件和轨迹。
-- 支持道具的创建、编辑、删除、时间绑定和协同同步。
-- 根据 Demo 数据开发道具状态与落点支持能力。
-
-### 数据持久化
-
-- 将当前面板数据保存到 `localStorage`。
-- 支持本地数据恢复、重置和版本升级。
-- 支持用户使用本地数据创建协同房间。
-- 将本地数据转换为 Yjs 初始文档。
-- 支持协同数据导出和导入。
+CSBoard is an independent project and is not affiliated with Valve. Counter-Strike, CS2, map names, and related game assets are trademarks or property of their respective owners. This repository does not distribute GLB map models, VPK archives, or Demo files.
