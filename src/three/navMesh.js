@@ -102,7 +102,7 @@ export function createNavMesh(navData, focusScreen, focusEnabled, viewportSize) 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  const meshMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 1, depthTest: true, depthWrite: false, alphaTest: 0 });
+  const meshMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 1, depthTest: true, depthWrite: true, alphaTest: 0 });
   meshMaterial.onBeforeCompile = (shader) => {
     shader.uniforms.focusEnabled = focusEnabled;
     shader.fragmentShader = shader.fragmentShader.replace(

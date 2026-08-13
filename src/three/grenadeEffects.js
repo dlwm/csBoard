@@ -56,7 +56,8 @@ export function createGrenadeEffect(position, type, navData, nav) {
     }
     for (let index = 0; index < count; index += 1) {
       const puff = new THREE.Mesh(new THREE.SphereGeometry((type === 'smoke' ? 0.75 : 0.62) * smokeScale, 16, 10), smokeMaterial.clone());
-      puff.position.set(Math.sin(index * 2.4) * 0.38 * smokeScale, (0.55 + (index % 3) * 0.3) * smokeScale, Math.cos(index * 1.7) * 0.38 * smokeScale);
+      const puffHeight = type === 'smoke' ? 0.48 + (index % 3) * 0.25 : 0.55 + (index % 3) * 0.3;
+      puff.position.set(Math.sin(index * 2.4) * 0.38 * smokeScale, puffHeight * smokeScale, Math.cos(index * 1.7) * 0.38 * smokeScale);
       puff.scale.y = 0.62;
       puff.scale.x = 0.85 + (index % 4) * 0.16;
       puff.scale.z = 0.85 + ((index + 1) % 3) * 0.18;
