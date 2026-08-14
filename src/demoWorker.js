@@ -11,7 +11,7 @@ let allEvents = [];
 let allProjectiles = [];
 let currentPhase = 'idle';
 let phaseStartedAt = 0;
-const CACHE_SCHEMA_VERSION = 13;
+const CACHE_SCHEMA_VERSION = 15;
 const eventNames = ['round_start', 'round_freeze_end', 'round_end', 'player_death', 'player_hurt', 'player_blind', 'weapon_fire', 'weapon_reload', 'fire_bullets', 'item_pickup', 'item_purchase', 'hltv_fixed', 'hltv_chase', 'grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate', 'bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused'];
 const replayProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'user_id', 'team_rounds_total', 'active_weapon_name', 'inventory', 'armor_value', 'has_helmet', 'has_defuser', 'flash_duration', 'flash_max_alpha', 'is_scoped', 'is_walking', 'active_weapon_ammo', 'is_alive', 'is_defusing', 'balance', 'cash_spent_this_round', 'round_start_equip_value', 'current_equip_value'];
 const analysisProps = ['X', 'Y', 'Z', 'health', 'team_num', 'yaw', 'is_alive'];
@@ -20,7 +20,7 @@ const PARSE_TICK_BATCH_SIZE = 32768;
 const parseProgressStages = [
   { percent: 0, zh: '正在展开 Demo 时间轴并校准起始 tick…', en: 'Expanding the demo timeline and calibrating its first tick...' },
   { percent: 3, zh: '正在合并分段录像的重叠回合…', en: 'Merging overlapping rounds from segmented recordings...' },
-  { percent: 6, zh: '正在建立每 8 tick 的主回放索引…', en: 'Building the main replay index at 8-tick intervals...' },
+  { percent: 6, zh: '正在按设定精度建立主回放采样索引…', en: 'Building the main replay index at the selected sampling rate...' },
   { percent: 9, zh: '正在辨认玩家实体与 Steam 身份…', en: 'Resolving player entities and Steam identities...' },
   { percent: 12, zh: '正在对齐 T 与 CT 的阵营变化…', en: 'Aligning T and CT side changes...' },
   { percent: 15, zh: '正在还原玩家出生与存活区间…', en: 'Restoring player spawns and alive intervals...' },
@@ -150,7 +150,7 @@ function normalizeRows(rows, round) {
   rows.forEach((row) => {
     row = toPlainObject(row);
     if (!snapshots.has(row.tick)) snapshots.set(row.tick, []);
-    const inventory = Array.isArray(row.inventory) ? row.inventory : [];
+    const inventory = Array.isArray(row.inventory) ? row.inventory.map((item) => String(typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item)).filter(Boolean) : [];
     snapshots.get(row.tick).push({
       name: row.name, steamid: row.steamid, userId: row.user_id ?? null,
       team: row.team_num, side: row.team_num === 2 ? 'T' : 'CT', health: row.health, armor: row.armor_value ?? 0,
@@ -204,50 +204,54 @@ self.onmessage = async ({ data }) => {
          allEvents = partEvents.flatMap((events, index) => events.filter((event) => event.tick > partSkips[index]).map((event) => ({ ...event, tick: event.tick + partOffsets[index], timeSeconds: (event.tick + partOffsets[index]) / 64 }))).sort((left, right) => left.tick - right.tick);
          self.postMessage({ type: 'status', message: '正在读取道具与投掷物轨迹…' });
           allProjectiles = demoParts.flatMap((part, index) => (parseGrenades(part) || []).map(toPlainObject).filter((projectile) => projectile.x != null && projectile.y != null && projectile.z != null && projectile.tick > partSkips[index]).map((projectile) => ({ ...projectile, entity_id: projectile.entity_id ?? projectile.grenade_entity_id, thrower_steamid: String(projectile.thrower_steamid ?? projectile.steamid ?? ''), thrower_name: projectile.thrower_name ?? projectile.name ?? '', tick: projectile.tick + partOffsets[index] })));
+       const sampleRate = [1, 2, 4, 8, 16, 32, 64].includes(Number(data.sampleRate)) ? Number(data.sampleRate) : 8;
+       const sampleStep = 64 / sampleRate;
        const maxTick = allEvents.at(-1)?.tick || 0;
        const rounds = buildRounds(allEvents);
-        beginPhase('ticks');
-        self.postMessage({ type: 'status', message: `正在一次性解析 ${rounds.length} 个回合位置…` });
-         const ticks = new Int32Array([...new Set(rounds.flatMap((round) => {
-          const values = [];
-             for (let tick = round.startTick; tick <= round.endTick; tick += 8) values.push(tick);
-          if (values.at(-1) !== round.endTick) values.push(round.endTick);
-          return values;
-         }))]);
+         beginPhase('ticks');
+         self.postMessage({ type: 'status', message: `正在一次性解析 ${rounds.length} 个回合位置…` });
+           const throwPlans = demoParts.map((part, index) => {
+             const offset = partOffsets[index];
+             const localThrows = partEvents[index].filter((event) => event.event_name === 'grenade_thrown' && event.tick > partSkips[index]);
+             const localTicks = [...new Set(localThrows.flatMap((event) => Array.from({ length: 129 }, (_, tickIndex) => Math.max(0, event.tick - 128 + tickIndex))))].sort((left, right) => left - right);
+             const throwers = [...new Set(localThrows.map((event) => String(event.user_steamid)).filter(Boolean))];
+             return { part, offset, localTicks, throwers };
+           });
+           const ticks = new Int32Array([...new Set(rounds.flatMap((round) => {
+             const values = [];
+             for (let tick = round.startTick; tick <= round.endTick; tick += sampleStep) values.push(tick);
+             if (values.at(-1) !== round.endTick) values.push(round.endTick);
+             return values;
+           }))]);
            const tickPlans = demoParts.map((part, index) => {
              const offset = partOffsets[index];
              const localTicks = [...ticks].filter((tick) => tick >= offset && tick - offset <= 1000000).map((tick) => tick - offset);
              return { part, offset, localTicks };
            });
-           const throwPlans = demoParts.map((part, index) => {
-             const offset = partOffsets[index];
-             const localThrows = partEvents[index].filter((event) => event.event_name === 'grenade_thrown' && event.tick > partSkips[index]);
-              const localTicks = [...new Set(localThrows.flatMap((event) => Array.from({ length: 129 }, (_, tickIndex) => Math.max(0, event.tick - 128 + tickIndex))))].sort((left, right) => left - right);
-             const throwers = [...new Set(localThrows.map((event) => String(event.user_steamid)).filter(Boolean))];
-             return { part, offset, localTicks, throwers };
-           });
            const totalBatches = tickPlans.reduce((sum, plan) => sum + Math.ceil(plan.localTicks.length / PARSE_TICK_BATCH_SIZE), 0) + throwPlans.reduce((sum, plan) => sum + (plan.throwers.length ? Math.ceil(plan.localTicks.length / PARSE_TICK_BATCH_SIZE) : 0), 0) + 1;
            let completedBatches = 0;
-            let progressStageIndex = -1;
-            const reportProgress = () => {
-              completedBatches += 1;
-              const percent = totalBatches ? completedBatches / totalBatches * 100 : 100;
-              const stageIndex = parseProgressStages.findLastIndex((stage) => percent >= stage.percent);
-              const stage = parseProgressStages[Math.max(0, stageIndex)];
-              self.postMessage({ type: 'progress', phase: 'ticks', completed: completedBatches, total: totalBatches, percent, stage: stageIndex !== progressStageIndex ? stage : null });
-              progressStageIndex = stageIndex;
-            };
+           let progressStageIndex = -1;
+           const reportProgress = () => {
+             completedBatches += 1;
+             const percent = totalBatches ? completedBatches / totalBatches * 100 : 100;
+             const stageIndex = parseProgressStages.findLastIndex((stage) => percent >= stage.percent);
+             const stage = parseProgressStages[Math.max(0, stageIndex)];
+             self.postMessage({ type: 'progress', phase: 'ticks', completed: completedBatches, total: totalBatches, percent, stage: stageIndex !== progressStageIndex ? stage : null });
+             progressStageIndex = stageIndex;
+           };
            const rows = tickPlans.flatMap(({ part, offset, localTicks }) => localTicks.length ? parseTicksBatched(part, replayProps, localTicks, null, reportProgress).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset })) : []);
-          const throwRows = throwPlans.flatMap(({ part, offset, localTicks, throwers }) => localTicks.length && throwers.length ? parseTicksBatched(part, throwProps, localTicks, throwers, reportProgress).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset })) : []);
-         const snapshots = normalizeRows(rows, 0);
-         const throwSnapshots = normalizeRows(throwRows, 0);
-          const roundData = rounds.map((round) => ({ round: round.round, snapshots: snapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick) }));
-          reportProgress();
-         self.postMessage({ type: 'diagnostic', phase: 'ticks', data: { elapsedMs: performance.now() - phaseStartedAt, ticks: ticks.length, throwSnapshots: throwSnapshots.length, snapshots: snapshots.length, memory: memoryDiagnostics() } });
-        self.postMessage({ type: 'status', message: `Demo 已读取，${rounds.length} 个回合已全部就绪` });
-         const playerNames = [...new Set(snapshots.flatMap((snapshot) => snapshot.players.map((player) => player.name)).filter(Boolean))].sort();
-         const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, rounds, roundData, events: allEvents, players: playerNames };
-         self.postMessage({ type: 'loaded', data: result, estimatedBytes: estimateDataBytes(result) });
+           const throwRows = throwPlans.flatMap(({ part, offset, localTicks, throwers }) => localTicks.length && throwers.length ? parseTicksBatched(part, throwProps, localTicks, throwers, reportProgress).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset })) : []);
+           reportProgress();
+           const snapshots = normalizeRows(rows, 0);
+           const throwSnapshots = normalizeRows(throwRows, 0);
+           const playerNames = [...new Set(snapshots.flatMap((snapshot) => snapshot.players.map((player) => player.name)).filter(Boolean))].sort();
+           const roundData = rounds.map((round) => ({ round: round.round, snapshots: snapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick) }));
+           const estimatedBytes = snapshots.length * 320 + throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128;
+           self.postMessage({ type: 'diagnostic', phase: 'ticks', data: { elapsedMs: performance.now() - phaseStartedAt, throwSnapshots: throwSnapshots.length, snapshots: snapshots.length, memory: memoryDiagnostics() } });
+           self.postMessage({ type: 'status', message: `Demo 已读取，${rounds.length} 个回合已全部就绪` });
+           allProjectiles = [];
+           const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, rounds, roundData, events: allEvents, players: playerNames };
+           self.postMessage({ type: 'loaded', data: result, estimatedBytes });
      }
      if (data.type === 'analysis') {
        if (!demoParts.length) return;

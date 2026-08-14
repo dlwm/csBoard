@@ -1,7 +1,21 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'strip-maps-public-assets',
+      closeBundle() {
+        fs.rmSync(path.join(projectRoot, 'dist', 'maps'), { recursive: true, force: true });
+      },
+    },
+  ],
   server: { proxy: { '/api': 'http://localhost:3001', '/maps': 'http://localhost:3001', '/rooms': { target: 'ws://localhost:3001', ws: true } } },
 });
+

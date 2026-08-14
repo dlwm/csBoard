@@ -23,7 +23,8 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Tactical Editing
 
-- Place T or CT tactical points directly on NAV surfaces.
+- Place T or CT tactical points directly on NAV surfaces (Collaboration panel only).
+- Draw freehand brush strokes on the NAV ground in round replay / analysis / utility panels, with undo/redo.
 - Edit point team, symbol type, direction, aim length, and vertical angle.
 - Draw connected movement paths and remove points or paths interactively.
 - Place and adjust smoke, fire, flash, HE, and decoy effects.
@@ -51,8 +52,8 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Map Rendering
 
-- Load CS2 NAV data for supported maps and constrain tactical editing to reachable surfaces.
-- Optionally render local GLB map geometry with configurable opacity.
+- Load CS2 NAV data for supported maps (from cloud storage, parsed in the browser) and constrain tactical editing to reachable surfaces.
+- Render GLB map geometry loaded from cloud storage with configurable opacity.
 - Switch between reachable-surface, mouse-lens, and camera-lens model views.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Navigate with Blender-style mouse controls, trackpad gestures, and WASD movement.
@@ -78,7 +79,7 @@ The repository includes NAV files for:
 - Train
 - Vertigo
 
-GLB map models are intentionally not committed. Place a model at `public/maps/<map>/<map>.glb` to enable geometry rendering for that map.
+GLB map models are intentionally not committed. In development, place a model at `public/maps/<map>/<map>.glb`; at runtime the app loads both NAV and GLB from cloud storage.
 
 ## Getting Started
 
@@ -115,7 +116,9 @@ npm run build
 | `Shift` + middle mouse | Pan camera |
 | Mouse wheel / trackpad gesture | Zoom or orbit |
 | `W A S D` | Move camera |
-| `E` | Place a tactical point |
+| Left drag (round replay / analysis / utility) | Draw a freehand brush stroke on the NAV ground |
+| `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | Undo / redo brush strokes |
+| `E` | Place a tactical point (Collaboration panel only) |
 | `Ctrl` | Draw a path or adjust point pitch |
 | `Q` | Open the utility wheel |
 | Left click a point | Open the point editor |
@@ -132,9 +135,16 @@ assets/
 public/
   maps/
     <map>/
-      <map>.nav           # versioned in Git
-      <map>.glb           # local-only, ignored by Git
+      <map>.nav           # versioned in Git (offline dev source)
+      <map>.glb           # local-only, ignored by Git (offline dev source)
 ```
+
+The client loads map NAV and GLB models directly from cloud storage:
+
+- `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.nav`
+- `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.glb`
+
+NAV files are fetched as raw bytes and parsed in the browser (`src/navParser.js`). The bucket must send `Access-Control-Allow-Origin` headers. The offline files under `public/maps/` and the legacy `/api/maps/:map/nav` endpoint remain as fallbacks but are not required at runtime.
 
 Map extraction tools and raw game resources remain local-only. Do not commit VPK files, extracted game assets, Demo files, or GLB models.
 
@@ -152,7 +162,7 @@ Map extraction tools and raw game resources remain local-only. Do not commit VPK
 - Collaboration rooms are stored in server memory and disappear after a server restart.
 - Room ownership is currently client-managed rather than protected by a server-issued owner token.
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
-- GLB models must be supplied locally.
+- Map NAV and GLB load from cloud storage; when offline the app falls back to local files under `public/maps/`.
 - Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
 
 ## Roadmap

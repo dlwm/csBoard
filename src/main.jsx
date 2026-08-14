@@ -6,10 +6,12 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import fallbackNavData from './data/de_dust2.json';
 import { createNavMesh } from './three/navMesh.js';
+import { parseNavBuffer, fetchAndParseNav } from './navParser.js';
 import { createGhostMaterial } from './three/materials.js';
 import { createTacticalPoint, updateTacticalPoint } from './three/tacticalPoint.js';
 import { createFireNavEffect, createGrenadeEffect, disposeGrenadeEffect, grenadeTypeFromPointer } from './three/grenadeEffects.js';
-import { deleteCachedDemo, demoCacheId, getCachedDemo, listCachedDemos, putCachedDemo } from './demoCache.js';
+import { countCachedDemoRounds, deleteCachedDemo, demoCacheId, getCachedDemo, getCachedDemoRound, listCachedDemos, putCachedDemo, putCachedDemoRound } from './demoCache.js';
+import FarkleGame from './FarkleGame.jsx';
 import './styles.css';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
@@ -17,6 +19,8 @@ import { WebsocketProvider } from 'y-websocket';
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
+const CLOUD_MAP_BASE = 'https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps';
 
 const MAPS = [
   { id: 'de_dust2', label: 'Dust II' },
@@ -42,6 +46,7 @@ const messages = {
     cameraManual: '手动镜头', cameraFollow: '导播', cameraFixed: '固定镜头', cameraChase: '追踪镜头',
     directorCamera: '导播',
     editUtility: '编辑', saveUtilityEdit: '保存', utilityTitle: '标题', utilityDescription: '描述',
+    hintBrushDrag: '左键拖动画笔', hintPlayPause: '播放/暂停', hintStep: '步进', hintMove: '移动镜头', hintPlacePoint: 'E 放置点位', hintDrawPath: 'Ctrl 画线', hintGrenadeWheel: 'Q 道具轮盘', hintEditPoint: '左键编辑点位', hintZoom: '滚轮缩放', hintCameras: '数字键镜头', hintUndo: '撤销', hintRedo: '重做',
   },
   en: {
     rounds: 'Round Replay', analysis: 'Analysis', collab: 'Collaboration', utilityNotes: 'Utility Notes', loaded: 'Reference Data Loaded', recentKills: 'Recent Kills', expand: 'Expand', collapse: 'Collapse', cameraPositions: 'Camera Positions', view: 'View', showNames: 'Show Names', selectRound: 'Select a round', round: 'Round', multiDemo: 'Demo Files', chooseDemo: 'Choose Files', multiPartHint: 'Multi-part selection supported', noFileChosen: 'No files selected', play: 'Play', pause: 'Pause', loading: 'Load', allRounds: 'All Rounds', tRounds: 'T Rounds', ctRounds: 'CT Rounds', analysisHint: 'Selected players are overlaid from freeze end across all rounds.', heatmap: 'Heatmap', killerPosition: 'Killer Position', victimPosition: 'Victim Position', targetPosition: 'Target Position', opponentPosition: 'Opponent Position', saveFrame: 'Save Frame', leaveRoom: 'Leave Room', joinRoom: 'Join Room', openRoom: 'Open Room', roomPrompt: 'Enter 6-digit room code', currentMap: 'Current map', name: 'Name', collabHint: 'Saves the map, camera presets, tactical edits and current Demo frame. The Demo file is not stored.', owner: 'Owner', member: 'Member', noArchives: 'No local archives', guestNoArchive: 'Room members cannot switch archives', restoreArchive: 'Restore archive', deleteArchive: 'Delete archive', manualEdit: 'Manual map edit', room: 'Room', roomOpened: 'opened', roomDestroyed: 'Room destroyed', roomLeft: 'Left room', roomExited: 'Disconnected from room', joiningRoom: 'Joining room', joinedRoom: 'Joined room', connected: 'connected', connecting: 'connecting', disconnected: 'disconnected', analysisReady: 'Full-match movement data ready', analysisLoading: 'Reading full-match movement data...', parseFailed: 'Parse failed', combiningParts: 'Combining {count} Demo parts...', readingDemo: 'Reading Demo file...', smoke: 'SMK', fire: 'FIRE', flash: 'FL', grenade: 'HE', decoy: 'DEC', c4Planted: 'C4 planted', c4Exploded: 'C4 exploded', roundEnd: 'Round ended', world: 'WORLD', unknown: 'UNKNOWN', language: '中文', tacticalPoint: 'Tactical Point', team: 'Team', type: 'Type', delete: 'Delete', map: 'Map', reset: 'Reset', players: 'Players', side: 'Side', model: 'Model', c4Paused: 'DEFUSED', noGrenades: '-', addUtilityNote: 'Add Note', utilityIntro: 'Run getpos in the CS2 console and paste its output here. One position can store multiple angles.', utilityEmpty: 'No utility notes for this map', getposOutput: 'getpos output', utilityName: 'Utility name', throwSummary: 'Throw summary', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: 'Example: A Long cross smoke', throwSummaryPlaceholder: 'Example: Hug the wall, standing throw', cancel: 'Cancel', add: 'Add', invalidGetpos: 'Could not parse getpos. Include setpos and setang values.', position: 'Position', angles: 'Angles', localOnly: 'Stored only in this browser', utilityCount: '{count} notes',
@@ -53,11 +58,12 @@ const messages = {
     cameraManual: 'Manual', cameraFollow: 'Director', cameraFixed: 'Fixed camera', cameraChase: 'Chase camera',
     directorCamera: 'Director',
     editUtility: 'Edit', saveUtilityEdit: 'Save', utilityTitle: 'Title', utilityDescription: 'Description',
+    hintBrushDrag: 'LMB drag to draw', hintPlayPause: 'Play/Pause', hintStep: 'Step', hintMove: 'Move camera', hintPlacePoint: 'E place point', hintDrawPath: 'Ctrl draw path', hintGrenadeWheel: 'Q utility wheel', hintEditPoint: 'LMB edit point', hintZoom: 'Scroll zoom', hintCameras: 'Number keys cameras', hintUndo: 'Undo', hintRedo: 'Redo',
   },
 };
 
 const UTILITY_NOTES_VERSION = 3;
-const DEMO_CACHE_SCHEMA_VERSION = 13;
+const DEMO_CACHE_SCHEMA_VERSION = 15;
 
 const translate = (language, key, values = {}) => Object.entries(values).reduce((text, [name, value]) => text.replace(`{${name}}`, value), messages[language][key] || key);
 const formatBytes = (bytes = 0) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : bytes >= 1024 ** 2 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
@@ -300,6 +306,18 @@ function DemoPovHud({ player, firing, hurt }) {
   </div>;
 }
 
+const DEMO_SAMPLE_RATES = [1, 2, 4, 8, 16, 32, 64];
+
+function DemoParseSettings({ value, onChange, language }) {
+  const [open, setOpen] = useState(false);
+  const index = Math.max(0, DEMO_SAMPLE_RATES.indexOf(value));
+  const slow = value >= 16;
+  return <div className={`demo-parse-settings${open ? ' open' : ''}${slow ? ' slow' : ''}`}>
+    <button type="button" className="demo-parse-settings-toggle" aria-label={language === 'zh' ? '解析采样设置' : 'Parse sampling settings'} title={language === 'zh' ? '解析采样设置' : 'Parse sampling settings'} onClick={() => setOpen((current) => !current)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.7 1.5h2.6l.4 1.7c.4.1.8.3 1.2.5l1.5-.9 1.8 1.8-.9 1.5c.2.4.4.8.5 1.2l1.7.4v2.6l-1.7.4c-.1.4-.3.8-.5 1.2l.9 1.5-1.8 1.8-1.5-.9c-.4.2-.8.4-1.2.5l-.4 1.7H6.7l-.4-1.7c-.4-.1-.8-.3-1.2-.5l-1.5.9-1.8-1.8.9-1.5c-.2-.4-.4-.8-.5-1.2l-1.7-.4V7.7l1.7-.4c.1-.4.3-.8.5-1.2l-.9-1.5 1.8-1.8 1.5.9c.4-.2.8-.4 1.2-.5z" /><circle cx="8" cy="9" r="2.2" /></svg></button>
+    {open && <div className="demo-parse-settings-popover"><header><span>{language === 'zh' ? '主回放每秒采样' : 'Replay samples / second'}</span><strong>{value}/s</strong></header><input type="range" min="0" max={DEMO_SAMPLE_RATES.length - 1} step="1" value={index} onChange={(event) => onChange(DEMO_SAMPLE_RATES[Number(event.target.value)])} /><div className="demo-sample-ticks">{DEMO_SAMPLE_RATES.map((rate) => <button type="button" className={rate === value ? 'active' : ''} data-slow={rate >= 16 || undefined} key={rate} onClick={() => onChange(rate)}>{rate}</button>)}</div><p className={slow ? 'warning' : ''}>{slow ? language === 'zh' ? '高采样率可能需要较长解析时间并占用更多内存。' : 'High sampling rates may take much longer and use more memory.' : language === 'zh' ? `每 ${64 / value} tick 记录一次主回放。` : `One replay sample every ${64 / value} ticks.`}</p></div>}
+  </div>;
+}
+
 function parseGetpos(value) {
   const text = String(value || '').replace(/[,\n]+/g, ' ');
   const setpos = text.match(/setpos(?:_exact)?\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/i);
@@ -529,7 +547,7 @@ function utilityReplayStart(segment, throwerId, throwerName, tickRate) {
   return { startTick: actionStartTick, hasRunup: false, peakSpeed, distance };
 }
 
-function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, trackpadDetection, showDemoNames, demoSnapshot, demoSnapshots, demoTick, demoFires, demoHurts, demoGrenades, demoProjectiles, demoGrenadeSegments, onDemoGrenadeSelect, demoDeaths, demoC4Events, demoHltvEvents, demoCameraMode, demoInEyePlayer, onDemoCameraInterrupt, utilityNotes, utilityNotesEnabled, onUtilityHover, utilityFirstPerson, heatDeaths, demoViewFlags, analysisRows, analysisSelectedPlayers, analysisSide, analysisEnabled, analysisRounds, analysisTime, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onCameraSlots, onReady }) {
+function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, trackpadDetection, showDemoNames, demoSnapshot, demoSnapshots, demoTick, demoFires, demoHurts, demoGrenades, demoProjectiles, demoGrenadeSegments, onDemoGrenadeSelect, demoDeaths, demoC4Events, demoHltvEvents, demoCameraMode, demoInEyePlayer, onDemoCameraInterrupt, utilityNotes, utilityNotesEnabled, onUtilityHover, utilityFirstPerson, heatDeaths, demoViewFlags, analysisRows, analysisSelectedPlayers, analysisSide, analysisEnabled, analysisRounds, analysisTime, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onCameraSlots, onReady, pointPlacementEnabled, brushEnabled }) {
   const mountRef = useRef(null);
   const edgesRef = useRef(null);
   const modelModeRef = useRef(null);
@@ -564,6 +582,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   const analysisRowsRef = useRef(analysisRows || []);
   const analysisSelectedPlayersRef = useRef(analysisSelectedPlayers || []);
   const analysisEnabledRef = useRef(analysisEnabled);
+  const pointPlacementEnabledRef = useRef(pointPlacementEnabled);
+  const brushEnabledRef = useRef(brushEnabled);
   const analysisRoundsRef = useRef(analysisRounds || []);
   const analysisTimeRef = useRef(analysisTime || 0);
   const analysisSideRef = useRef(analysisSide || 'ALL');
@@ -606,6 +626,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   analysisRowsRef.current = analysisRows || [];
   analysisSelectedPlayersRef.current = analysisSelectedPlayers || [];
   analysisEnabledRef.current = analysisEnabled;
+  pointPlacementEnabledRef.current = pointPlacementEnabled !== false;
+  brushEnabledRef.current = brushEnabled !== false;
   analysisRoundsRef.current = analysisRounds || [];
   analysisTimeRef.current = analysisTime || 0;
   analysisSideRef.current = analysisSide || 'ALL';
@@ -1480,6 +1502,65 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     let pointPointerBasePitch = 0;
     let pointPointerRayLength = 0.05;
     let pointPointerDragging = false;
+    const brushStrokes = [];
+    const brushUndoStack = [];
+    const brushRedoStack = [];
+    let brushActive = false;
+    let brushStrokePoints = [];
+    let brushStrokeLine = null;
+    let brushPointerDown = false;
+    let brushLastInBounds = null;
+    const brushColor = '#a5e0ff';
+    const createBrushStrokeLine = () => {
+      const geometry = new THREE.BufferGeometry().setFromPoints(brushStrokePoints);
+      const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: brushColor, transparent: true, opacity: 0.9 }));
+      line.renderOrder = 7;
+      scene.add(line);
+      return line;
+    };
+    const updateBrushStrokeLine = () => {
+      if (!brushStrokeLine) return;
+      brushStrokeLine.geometry.dispose();
+      brushStrokeLine.geometry = new THREE.BufferGeometry().setFromPoints(brushStrokePoints);
+    };
+    const removeBrushStrokeLine = () => {
+      if (!brushStrokeLine) return;
+      scene.remove(brushStrokeLine);
+      brushStrokeLine.geometry.dispose();
+      brushStrokeLine.material.dispose();
+      brushStrokeLine = null;
+    };
+    const clearBrushStrokes = () => {
+      brushStrokes.forEach((line) => { scene.remove(line); line.geometry.dispose(); line.material.dispose(); });
+      brushStrokes.length = 0;
+      brushUndoStack.length = 0;
+      brushRedoStack.length = 0;
+      removeBrushStrokeLine();
+      brushStrokePoints = [];
+      brushActive = false;
+      brushPointerDown = false;
+      brushLastInBounds = null;
+    };
+    const undoBrush = () => {
+      if (!brushUndoStack.length) return;
+      const line = brushUndoStack.pop();
+      scene.remove(line);
+      brushRedoStack.push(line);
+    };
+    const redoBrush = () => {
+      if (!brushRedoStack.length) return;
+      const line = brushRedoStack.pop();
+      scene.add(line);
+      brushUndoStack.push(line);
+    };
+    const startBrushStroke = (position) => {
+      if (!position) return;
+      brushActive = true;
+      brushPointerDown = true;
+      brushStrokePoints = [position.clone().add(new THREE.Vector3(0, 0.035, 0))];
+      brushLastInBounds = position.clone();
+      brushStrokeLine = createBrushStrokeLine();
+    };
     const pointerToSurface = (pointer) => {
       raycaster.setFromCamera(pointer, camera);
       const targets = [nav?.mesh].filter(Boolean);
@@ -1659,6 +1740,17 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       pathOrigin = null;
     };
     const onKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redoBrush();
+        else undoBrush();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        redoBrush();
+        return;
+      }
       const pressedNumber = Number.parseInt(event.key, 10);
       const numberSlot = pressedNumber === 0 ? 9 : pressedNumber - 1;
       if (numberSlot >= 0 && numberSlot < cameraSlots.length) {
@@ -1676,7 +1768,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         pressedKeys.add(event.key.toLowerCase());
         event.preventDefault();
       }
-      if (event.key.toLowerCase() === 'e' && !placing) {
+      if (event.key.toLowerCase() === 'e' && !placing && pointPlacementEnabledRef.current) {
         placing = true;
       controls.enabled = false;
         placementStartPointer = pointerCurrent.clone();
@@ -1813,6 +1905,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
           }
         } else pointSelectRef.current?.(null);
       }
+      if (event.button === 0 && brushEnabledRef.current && !pathMode && !placing && !grenadeWheelOpen && !grenadeAdjusting && !pointPointerTarget && !activeGrenade) {
+        startBrushStroke(pointerToSurface(pointerCurrent));
+      }
     };
     const onPointerMove = (event) => {
       pointerCurrent = pointerPosition(event);
@@ -1831,6 +1926,28 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         } else utilityHoverRef.current?.(null);
       }
       focusScreen.set(pointerCurrent.x * 0.5 + 0.5, pointerCurrent.y * 0.5 + 0.5);
+      if (brushActive && brushPointerDown) {
+        const position = pointerToSurface(pointerCurrent);
+        if (position) {
+          const previous = brushStrokePoints[brushStrokePoints.length - 1];
+          if (!previous || previous.distanceTo(position) > 0.06) {
+            brushStrokePoints.push(position.clone().add(new THREE.Vector3(0, 0.035, 0)));
+            brushLastInBounds = position.clone();
+            updateBrushStrokeLine();
+          }
+        } else if (brushLastInBounds) {
+          const aim = pointerToAim(pointerCurrent, brushLastInBounds.y);
+          if (aim) {
+            aim.y += 0.035;
+            const previous = brushStrokePoints[brushStrokePoints.length - 1];
+            if (!previous || previous.distanceTo(aim) > 0.06) {
+              brushStrokePoints.push(aim);
+              updateBrushStrokeLine();
+            }
+          }
+        }
+        return;
+      }
       if (pathMode) {
         if (pathPointerDown && pathPreview) {
           const target = pointerToAim(pointerCurrent, pathOrigin.y);
@@ -1907,6 +2024,19 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
     };
     const onPointerUp = (event) => {
+      if (event.button === 0 && brushActive && brushPointerDown) {
+        brushActive = false;
+        brushPointerDown = false;
+        if (brushStrokePoints.length >= 2 && brushStrokeLine) {
+          brushStrokes.push(brushStrokeLine);
+          brushUndoStack.push(brushStrokeLine);
+          brushRedoStack.length = 0;
+        } else removeBrushStrokeLine();
+        brushStrokeLine = null;
+        brushStrokePoints = [];
+        brushLastInBounds = null;
+        return;
+      }
       if (event.button === 0 && pathMode && pathPointerDown) {
         pathPointerDown = false;
         const target = pointerToAim(pointerCurrent, pathOrigin?.y ?? pathPreview?.position.y);
@@ -1934,6 +2064,11 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       pointPointerDragging = false;
       placing = false;
       pathMode = false;
+      if (brushActive) removeBrushStrokeLine();
+      brushActive = false;
+      brushPointerDown = false;
+      brushStrokePoints = [];
+      brushLastInBounds = null;
       if (!cameraTransition && !utilityFirstPersonRef.current?.player && !demoDirectorCameraActive) controls.enabled = true;
     };
     const onContextMenu = (event) => event.preventDefault();
@@ -1966,10 +2101,11 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     let worldModel;
     let disposed = false;
     const resetToDefault = (normalReset) => {
+      clearBrushStrokes();
       camera.up.set(0, 1, 0);
       normalReset();
     };
-    new GLTFLoader().load(`/maps/${mapName}/${mapName}.glb`, (gltf) => {
+    new GLTFLoader().load(`${CLOUD_MAP_BASE}/${mapName}/${mapName}.glb`, (gltf) => {
       if (disposed) return;
       worldModel = gltf.scene;
       const modelBounds = new THREE.Box3().setFromObject(worldModel);
@@ -2006,7 +2142,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       worldModel.visible = modelVisibilityRef.current;
       worldModel.position.y = modelBasePositionRef.current.y + (modelMode.value === 3 ? -0.12 : 0);
       resetCamera();
-      onReady({ reset: () => resetToDefault(resetCamera), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }) });
+      onReady({ reset: () => resetToDefault(resetCamera), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes });
     }, undefined, (loadError) => {
       console.info(`${mapName} visual model unavailable.`, loadError.message);
       if (nav) {
@@ -2019,13 +2155,13 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         controls.maxDistance = Math.max(nav.size * 2.2, 70);
         controls.update();
          const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
-         onReady({ reset: () => resetToDefault(normalReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }) });
+         onReady({ reset: () => resetToDefault(normalReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes });
       }
     });
     controls.target.set(0, 0, 0);
     controls.update();
      const initialReset = () => { camera.position.set(17, 23, 25); controls.target.set(0, 0, 0); controls.update(); };
-     onReady({ reset: () => resetToDefault(initialReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }) });
+     onReady({ reset: () => resetToDefault(initialReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes });
     const resize = () => { const { width, height } = mount.getBoundingClientRect(); renderer.setSize(width, height, false); renderer.getDrawingBufferSize(viewportSize); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix(); };
     resize();
     window.addEventListener('resize', resize);
@@ -2057,7 +2193,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         if (!target?.visible) return;
         const worldPosition = target.getWorldPosition(new THREE.Vector3());
         const viewDepth = Math.max(0.1, -worldPosition.applyMatrix4(camera.matrixWorldInverse).z);
-        const worldDiameter = 2 * viewDepth * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (5 / viewportHeight);
+         const worldDiameter = 2 * viewDepth * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (4 / viewportHeight);
         const parentScale = target.parent?.getWorldScale(new THREE.Vector3()) || new THREE.Vector3(1, 1, 1);
         target.scale.set(worldDiameter / Math.max(0.001, parentScale.x * 0.2), worldDiameter / Math.max(0.001, parentScale.y * 0.2), worldDiameter / Math.max(0.001, parentScale.z * 0.2));
       });
@@ -2232,7 +2368,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       frame = requestAnimationFrame(animate);
     };
     animate(performance.now());
-     return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('wheel', onWheel); renderer.domElement.removeEventListener('pointerdown', onPointerDown); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('contextmenu', onContextMenu); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeObjectsRef.current.forEach((effect) => { scene.remove(effect); disposeGrenadeEffect(effect); }); demoGrenadeObjectsRef.current.clear(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); demoDeathMarkers.forEach((marker) => { marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); }); scene.remove(marker); }); analysisPaths.forEach((item) => { item.line.geometry.dispose(); item.line.material.dispose(); item.marker.geometry.dispose(); item.marker.material.dispose(); }); analysisGroup.removeFromParent(); if (nav) { nav.geometry.dispose(); nav.edgeGeometry.dispose(); nav.mesh.material.dispose(); nav.edgeLines.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('wheel', onWheel); renderer.domElement.removeEventListener('pointerdown', onPointerDown); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('contextmenu', onContextMenu); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeObjectsRef.current.forEach((effect) => { scene.remove(effect); disposeGrenadeEffect(effect); }); demoGrenadeObjectsRef.current.clear(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); demoDeathMarkers.forEach((marker) => { marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); }); scene.remove(marker); }); analysisPaths.forEach((item) => { item.line.geometry.dispose(); item.line.material.dispose(); item.marker.geometry.dispose(); item.marker.material.dispose(); }); analysisGroup.removeFromParent(); if (nav) { nav.geometry.dispose(); nav.edgeGeometry.dispose(); nav.mesh.material.dispose(); nav.edgeLines.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {
@@ -2307,6 +2443,11 @@ function App() {
   const [demoPlaying, setDemoPlaying] = useState(false);
   const [demoStatus, setDemoStatus] = useState('');
   const [demoParseProgress, setDemoParseProgress] = useState(0);
+  const [parseGameState, setParseGameState] = useState('hidden');
+  const [parseGameDismissed, setParseGameDismissed] = useState(false);
+  const parseGameDismissedRef = useRef(false);
+  parseGameDismissedRef.current = parseGameDismissed;
+  const parseGameTimerRef = useRef(null);
   const demoParseProgressRef = useRef({ startedAt: 0, real: 0, completed: 0, total: 0, lastRealAt: 0, msPerPercent: 3000, hasReal: false });
   const [demoKillsCollapsed, setDemoKillsCollapsed] = useState(false);
   const [demoViewFlags, setDemoViewFlags] = useState({ deathVictim: true, deathKiller: true, killerHeat: false, victimHeat: false, targetHeat: false, opponentHeat: false });
@@ -2329,10 +2470,12 @@ function App() {
   const [analysisSide, setAnalysisSide] = useState('ALL');
   const demoWorkerRef = useRef(null);
   const pendingDemoCacheRef = useRef(null);
+  const pendingDemoRoundWritesRef = useRef(Promise.resolve());
   const activeDemoCacheIdRef = useRef('');
   const [demoSourceReady, setDemoSourceReady] = useState(false);
   const [cachedDemos, setCachedDemos] = useState([]);
   const [demoCacheOpen, setDemoCacheOpen] = useState(false);
+  const [demoSampleRate, setDemoSampleRate] = useState(() => Number(localStorage.getItem('csboard-demo-sample-rate')) || 8);
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const modelModeLabels = ['REACHABLE SURFACE', 'MOUSE LENS', 'CAMERA LENS'];
   const modeOptions = [{ label: 'MODEL OFF', value: -1 }, ...modelModeLabels.map((label, value) => ({ label, value }))];
@@ -2377,6 +2520,7 @@ function App() {
     localStorage.setItem('csboard-language', language);
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
   }, [language]);
+  useEffect(() => { localStorage.setItem('csboard-demo-sample-rate', String(demoSampleRate)); }, [demoSampleRate]);
   useEffect(() => {
     const timer = window.setInterval(() => {
       const progress = demoParseProgressRef.current;
@@ -2404,7 +2548,7 @@ function App() {
     });
     localStorage.setItem('csboard-utility-notes-version', String(UTILITY_NOTES_VERSION));
   }, []);
-  const refreshCachedDemos = () => listCachedDemos().then(setCachedDemos).catch(() => setDemoStatus(t('cacheFailed')));
+  const refreshCachedDemos = () => listCachedDemos().then((entries) => setCachedDemos(entries.map((entry) => { const sampleRate = entry.sampleRate || Number(String(entry.id).match(/^(\d+)hz\|/)?.[1]) || 8; return { ...entry, sampleRate, map: `${entry.map} · ${sampleRate} Hz` }; }))).catch(() => setDemoStatus(t('cacheFailed')));
   useEffect(() => { refreshCachedDemos(); }, []);
   useEffect(() => {
     const buttons = document.querySelectorAll('.demo-view-options button');
@@ -2439,6 +2583,7 @@ function App() {
     return () => { list.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
   }, [demoRoundMenuOpen, demoData?.rounds?.length]);
   useEffect(() => () => window.clearTimeout(utilityHoverTimerRef.current), []);
+  useEffect(() => () => window.clearTimeout(parseGameTimerRef.current), []);
   const applyDemoData = (data, cacheId, analysisRowsFromCache = [], hasSource = false) => {
     setDemoData(data);
     const firstRound = data.rounds?.[0] || null;
@@ -2460,8 +2605,9 @@ function App() {
   };
   const openCachedDemo = async (id) => {
     const entry = await getCachedDemo(id);
-    if (!entry?.data || entry.data.cacheSchemaVersion !== DEMO_CACHE_SCHEMA_VERSION) { if (entry) await deleteCachedDemo(id); await refreshCachedDemos(); return; }
+    if (!entry?.data || entry.data.cacheSchemaVersion !== DEMO_CACHE_SCHEMA_VERSION || await countCachedDemoRounds(id) !== entry.data.rounds?.length) { if (entry) await deleteCachedDemo(id); await refreshCachedDemos(); return; }
     applyDemoData(entry.data, id, entry.analysisRows || [], false);
+    setDemoSampleRate(entry.data.demo.sampleRate || 8);
     setMapName(entry.data.demo.map || mapName);
     setDemoStatus(t('cacheReady'));
     setDemoCacheOpen(false);
@@ -2589,6 +2735,7 @@ function App() {
     setSelectedDemoGrenadeScreen(null);
     setUtilityReplay(null);
     if (panel === 'analysis') setAnalysisTime(0);
+    boardRef.current?.clearBrushStrokes?.();
     if (panel === 'demo' && activePanel === 'collab') boardRef.current?.clearWorkspaceState?.();
     if (panel !== 'collab' && roomCode) { const wasOwner = roomOwner; leaveRoom(); window.alert(wasOwner ? t('roomDestroyed') : t('roomExited')); }
     if (panel !== 'utility') { setUtilityModalOpen(false); setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); setUtilityError(''); }
@@ -2814,7 +2961,7 @@ function App() {
   }) || [])) : 0, [analysisSelectedPlayers, analysisRows, analysisSide, demoData?.rounds]);
   useEffect(() => {
     const worker = new Worker(new URL('./demoWorker.js', import.meta.url), { type: 'module' });
-    worker.onmessage = (event) => {
+    worker.onmessage = async (event) => {
        const currentLanguage = languageRef.current;
        if (event.data.type === 'status') setDemoStatus(currentLanguage === 'zh' ? event.data.message : event.data.message.replace(/正在一次性解析 (\d+) 个回合位置…/, 'Parsing $1 rounds...').replace(/Demo 已读取，(\d+) 个回合已全部就绪/, 'Demo loaded, $1 rounds ready').replace('正在加载 Demo 解析器…', 'Loading Demo parser...').replace('正在读取 Demo Header…', 'Reading Demo header...').replace('正在读取回合事件…', 'Reading round events...').replace('正在读取道具与投掷物轨迹…', 'Reading utility trajectories...').replace('正在读取全场移动数据…', 'Reading full-match movement data...').replace('全场移动数据已就绪', 'Full-match movement data ready'));
        if (event.data.type === 'progress' && event.data.phase === 'ticks') {
@@ -2826,19 +2973,33 @@ function App() {
          setDemoParseProgress((current) => Math.max(current, real));
          if (event.data.stage) setDemoStatus(event.data.stage[currentLanguage] || event.data.stage.zh);
        }
-       if (event.data.type === 'diagnostic') console.info('Demo parser diagnostic:', event.data.phase, event.data.data);
-       if (event.data.type === 'sourceReady') { setDemoSourceReady(true); setDemoStatus(translate(currentLanguage, 'cacheReady')); }
+        if (event.data.type === 'diagnostic') console.info('Demo parser diagnostic:', event.data.phase, event.data.data);
+        if (event.data.type === 'sourceReady') { setDemoSourceReady(true); setDemoStatus(translate(currentLanguage, 'cacheReady')); }
        if (event.data.type === 'loaded') {
+          window.clearTimeout(parseGameTimerRef.current);
+          setParseGameState((state) => state === 'visible' ? 'closing' : 'hidden');
+          window.setTimeout(() => setParseGameState('hidden'), 420);
           demoParseProgressRef.current = { ...demoParseProgressRef.current, real: 100, completed: demoParseProgressRef.current.total, lastRealAt: performance.now(), hasReal: true };
           setDemoParseProgress(100);
-         const data = event.data.data;
-         const pending = pendingDemoCacheRef.current;
-         applyDemoData(data, pending?.id, [], true);
-         if (pending) {
-           const entry = { id: pending.id, fileName: data.demo.fileName, map: data.demo.map, rounds: data.rounds.length, sourceBytes: pending.sourceBytes, dataBytes: event.data.estimatedBytes || 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), data, analysisRows: [] };
-           putCachedDemo(entry).then(refreshCachedDemos).catch(() => setDemoStatus(translate(currentLanguage, 'cacheFailed')));
-         }
-         pendingDemoCacheRef.current = null;
+          const cacheId = pendingDemoCacheRef.current?.id;
+          const summaries = new Map();
+          (event.data.data.roundData || []).forEach((roundData) => {
+            const representative = roundData.snapshots?.find((snapshot) => snapshot.players.filter((player) => player.team === 2 || player.team === 3).length >= 8) || roundData.snapshots?.[0];
+            summaries.set(roundData.round, { round: roundData.round, snapshots: representative ? [representative] : [] });
+            if (cacheId) pendingDemoRoundWritesRef.current = pendingDemoRoundWritesRef.current.then(() => putCachedDemoRound(cacheId, roundData)).catch(() => {});
+          });
+          await pendingDemoRoundWritesRef.current;
+          const data = { ...event.data.data, roundData: event.data.data.rounds.map((round) => summaries.get(round.round)).filter(Boolean) };
+          pendingDemoRoundWritesRef.current = Promise.resolve();
+          const pending = pendingDemoCacheRef.current;
+          applyDemoData(data, pending?.id, [], true);
+          if (pending) {
+            const entry = { id: pending.id, fileName: data.demo.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate || 8, sourceBytes: pending.sourceBytes, dataBytes: event.data.estimatedBytes || 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), data, analysisRows: [] };
+            const writeCache = () => putCachedDemo(entry).then(refreshCachedDemos).catch(() => setDemoStatus(translate(currentLanguage, 'cacheFailed')));
+            if ('requestIdleCallback' in window) window.requestIdleCallback(writeCache, { timeout: 3000 });
+            else window.setTimeout(writeCache, 500);
+          }
+          pendingDemoCacheRef.current = null;
        }
        if (event.data.type === 'analysis') {
          const rows = event.data.rows || [];
@@ -2847,7 +3008,7 @@ function App() {
          const cacheId = activeDemoCacheIdRef.current;
          if (cacheId) getCachedDemo(cacheId).then((entry) => entry && putCachedDemo({ ...entry, analysisRows: rows, analysisBytes: event.data.estimatedBytes || 0, updatedAt: new Date().toISOString() })).then(refreshCachedDemos).catch(() => {});
        }
-       if (event.data.type === 'error') { demoParseProgressRef.current.startedAt = 0; setDemoStatus(`${translate(currentLanguage, 'parseFailed')}: ${event.data.message}`); console.error('Demo parse failed:', event.data.message, event.data.diagnostic); }
+       if (event.data.type === 'error') { window.clearTimeout(parseGameTimerRef.current); demoParseProgressRef.current.startedAt = 0; setParseGameState((state) => state === 'visible' ? 'stopped' : 'hidden'); setDemoStatus(`${translate(currentLanguage, 'parseFailed')}: ${event.data.message}`); console.error('Demo parse failed:', event.data.message, event.data.diagnostic); }
     };
     demoWorkerRef.current = worker;
     return () => worker.terminate();
@@ -2862,9 +3023,11 @@ function App() {
   const loadDemo = async (event) => {
     const files = [...(event.target.files || [])].sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true }));
     if (files.length === 0) return;
-    const cacheId = demoCacheId(files);
+    const cacheId = demoCacheId(files, demoSampleRate);
     const cached = await getCachedDemo(cacheId).catch(() => null);
-    if (cached?.data?.cacheSchemaVersion === DEMO_CACHE_SCHEMA_VERSION) {
+    if (cached?.data?.cacheSchemaVersion === DEMO_CACHE_SCHEMA_VERSION && await countCachedDemoRounds(cacheId) === cached.data.rounds?.length) {
+      window.clearTimeout(parseGameTimerRef.current);
+      setParseGameState('hidden');
       applyDemoData(cached.data, cacheId, cached.analysisRows || [], false);
       setMapName(cached.data.demo.map || mapName);
       setDemoStatus(t('cacheReady'));
@@ -2883,23 +3046,33 @@ function App() {
      setAnalysisLoadedFor('');
      setAnalysisPlaying(false);
      setAnalysisTime(0);
-      setDemoStatus(files.length > 1 ? t('combiningParts', { count: files.length }) : t('readingDemo'));
+     setDemoStatus(files.length > 1 ? t('combiningParts', { count: files.length }) : t('readingDemo'));
+      window.clearTimeout(parseGameTimerRef.current);
+      setParseGameState('hidden');
+      setParseGameDismissed(false);
+      parseGameTimerRef.current = window.setTimeout(() => { if (!parseGameDismissedRef.current) setParseGameState('visible'); }, 3000);
+      pendingDemoRoundWritesRef.current = Promise.resolve();
       setDemoParseProgress(0);
       demoParseProgressRef.current = { startedAt: performance.now(), real: 0, completed: 0, total: 0, lastRealAt: 0, msPerPercent: 3000, hasReal: false };
      pendingDemoCacheRef.current = { id: cacheId, sourceBytes: files.reduce((sum, file) => sum + file.size, 0) };
      const buffers = await Promise.all(files.map((file) => file.arrayBuffer()));
-    demoWorkerRef.current?.postMessage({ type: 'load', fileName: files.map((file) => file.name).join(' + '), buffers }, buffers);
+     demoWorkerRef.current?.postMessage({ type: 'load', fileName: files.map((file) => file.name).join(' + '), sampleRate: demoSampleRate, buffers }, buffers);
   };
   useEffect(() => {
     if (!demoRound || !demoData) return;
+    let cancelled = false;
     setDemoPovPlayerId('');
-    const cached = demoData.roundData?.find((item) => item.round === demoRound.round);
     setDemoTick(demoRound.startTick);
-    setDemoSnapshots(cached?.snapshots || []);
-    setDemoThrowSnapshots(cached?.throwSnapshots || []);
-    setDemoProjectiles(cached?.projectiles || []);
-    setDemoRoundLoading(false);
+    setDemoRoundLoading(true);
     setDemoPlaying(false);
+    getCachedDemoRound(activeDemoCacheIdRef.current, demoRound.round).then((cached) => {
+      if (cancelled) return;
+      setDemoSnapshots(cached?.snapshots || []);
+      setDemoThrowSnapshots(cached?.throwSnapshots || []);
+      setDemoProjectiles(cached?.projectiles || []);
+      setDemoRoundLoading(false);
+    }).catch(() => { if (!cancelled) setDemoRoundLoading(false); });
+    return () => { cancelled = true; };
   }, [demoRound, demoData]);
   useEffect(() => { if (demoPovPlayerId && !demoPovPlayer) setDemoPovPlayerId(''); }, [demoPovPlayerId, demoPovPlayer]);
   useEffect(() => {
@@ -2934,21 +3107,23 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     setNavData(mapName === 'de_dust2' ? fallbackNavData : null);
-    fetch(`/api/maps/${mapName}/nav`).then((response) => response.json()).then((data) => { if (!cancelled && data.areas) setNavData(data); }).catch(() => {});
+    fetchAndParseNav(`${CLOUD_MAP_BASE}/${mapName}/${mapName}.nav`).then((data) => { if (!cancelled && data.areas) setNavData(data); }).catch(() => {});
     return () => { cancelled = true; };
   }, [mapName]);
   return <main className="board-shell">
     <header className="board-header">
-      <div className="brand"><svg className="brand-mark" viewBox="0 0 78 44" aria-label="CSBoard"><g className="penrose penrose-left"><path className="brand-beam beam-top" d="M34 3 5 22l7 7 15-10-7 12 7 4 14-24z" /><path className="brand-beam beam-left" d="M5 22 34 41l5-9-16-10h14V14H9z" /><path className="brand-beam beam-right" d="M34 41 41 3H30l-3 20-7-12-7 4 14 24z" /></g><g className="penrose penrose-right" transform="translate(78 0) scale(-1 1)"><path className="brand-beam beam-top" d="M34 3 5 22l7 7 15-10-7 12 7 4 14-24z" /><path className="brand-beam beam-left" d="M5 22 34 41l5-9-16-10h14V14H9z" /><path className="brand-beam beam-right" d="M34 41 41 3H30l-3 20-7-12-7 4 14 24z" /></g><path className="brand-two" d="M29 13h20l-12 9h12L29 34" /></svg><span>CS<span>BOARD</span></span></div>
+      <div className="brand"><span className="brand-mark"><i /><i /><i /></span><span>CS<span>BOARD</span></span></div>
        <nav className="topbar-panels"><button type="button" className={activePanel === 'demo' ? 'active' : ''} onClick={() => switchPanel('demo')}>{t('rounds')}</button><button type="button" className={activePanel === 'analysis' ? 'active' : ''} onClick={() => switchPanel('analysis')}>{t('analysis')}</button><button type="button" className={activePanel === 'utility' ? 'active' : ''} onClick={() => switchPanel('utility')}>{t('utilityNotes')}</button><button type="button" className={activePanel === 'collab' ? 'active' : ''} onClick={() => switchPanel('collab')}>{t('collab')}</button></nav>
-        <button type="button" className="language-switch" onClick={() => setLanguage((value) => value === 'zh' ? 'en' : 'zh')}>{t('language')}</button>
+      <div className="header-right"><div className="key-hints">{(activePanel === 'demo' || activePanel === 'analysis') ? <><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span></> : activePanel === 'utility' ? <><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></> : <><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>CTRL</kbd>{t('hintDrawPath')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>LMB</kbd>{t('hintEditPoint')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span></>}</div>
+        <button type="button" className="language-switch" onClick={() => setLanguage((value) => value === 'zh' ? 'en' : 'zh')}>{t('language')}</button></div>
     </header>
     <section className="board-stage">
-        <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} />
+        {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><FarkleGame language={language} stopped={parseGameState === 'stopped'} onClose={() => { setParseGameDismissed(true); setParseGameState('hidden'); }} /></div>}
+        <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} pointPlacementEnabled={activePanel === 'collab'} brushEnabled={activePanel !== 'collab'} />
          <div className="stage-vignette" />
           {activePanel === 'demo' && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} />}
          {activePanel === 'demo' && demoSnapshot && <div className={`demo-score${roundWinner ? ` winner-${roundWinner.toLowerCase()}` : ''}`}><span>T</span><strong>{demoScore.T}</strong><i>ROUND {demoRound?.round || '-'}{roundResult ? <b className="round-result">{roundResult}</b> : c4Countdown != null ? <b className={c4Terminal?.event_name === 'bomb_defused' && demoTick >= c4Terminal.tick ? 'c4-paused' : ''}>C4 {c4Countdown.toFixed(4)}s</b> : <b className="round-clock">{roundClock}</b>}{defuseProgress != null && <span className={`score-defuse${currentDefuser.hasDefuser ? ' has-kit' : ''}`} style={{ '--defuse-progress': `${defuseProgress * 360}deg` }}><i>{currentDefuser.hasDefuser ? 'KIT' : '10s'}</i></span>}</i><strong>{demoScore.CT}</strong><span>CT</span></div>}
-       <div className="map-name"><h1>{mapName.toUpperCase()}</h1></div>
+       <div className={`map-name${demoData?.demo.map && demoData.demo.map !== mapName ? ' map-mismatch' : ''}`}><h1>{mapName.toUpperCase()}</h1>{demoData?.demo.map && demoData.demo.map !== mapName && <button type="button" onClick={() => setMapName(demoData.demo.map)}>{language === 'zh' ? '当前地图不匹配，可跳转' : 'Map mismatch, switch to Demo map'}</button>}</div>
        {grenadeWheel.open && <div className="grenade-wheel"><div className={`wheel-item wheel-smoke ${grenadeWheel.type === 'smoke' ? 'active' : ''}`}>{t('smoke')}</div><div className={`wheel-item wheel-fire ${grenadeWheel.type === 'fire' ? 'active' : ''}`}>{t('fire')}</div><div className={`wheel-item wheel-flash ${grenadeWheel.type === 'flash' ? 'active' : ''}`}>{t('flash')}</div><div className={`wheel-item wheel-explosion ${grenadeWheel.type === 'explosion' ? 'active' : ''}`}>{t('grenade')}</div><span className="wheel-key">Q</span></div>}
          {demoKills.length > 0 && <DemoKillFeed kills={demoKills} round={demoRound} language={language} collapsed={demoKillsCollapsed} onToggle={() => setDemoKillsCollapsed((collapsed) => !collapsed)} />}
         <div className="hud hud-right"><span>VIEW CONTROLS</span><strong>MMB <em>ROTATE</em></strong><strong>SHIFT + MMB <em>PAN</em></strong><strong>SCROLL <em>ZOOM</em></strong><strong>WASD <em>MOVE</em></strong><strong>LEFT CLICK <em>POINT MENU</em></strong></div>
@@ -2962,8 +3137,9 @@ function App() {
            {activePanel === 'utility' && utilityHover && <div className="utility-hover-card" style={{ left: utilityHover.x, top: utilityHover.y }} onPointerEnter={() => { utilityHoverInsideRef.current = true; window.clearTimeout(utilityHoverTimerRef.current); }} onPointerLeave={() => { utilityHoverInsideRef.current = false; utilityHoverTimerRef.current = window.setTimeout(() => { setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); }, 180); }}><header><strong>{selectedUtilityNote ? t('utilityDetails') : 'LOCATION'}</strong><span>{selectedUtilityNote ? <button type="button" onClick={() => { setSelectedUtilityNote(null); setUtilityEditDraft(null); }}>←</button> : utilityHover.entries.length}</span></header>{selectedUtilityNote ? <div className="utility-detail">{utilityEditDraft ? <form className="utility-edit-form" onSubmit={saveUtilityEdit}><label><span>{t('utilityTitle')}</span><input required value={utilityEditDraft.name} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><label><span>{t('utilityDescription')}</span><textarea required value={utilityEditDraft.summary} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, summary: event.target.value }))} /></label><div><button type="button" onClick={() => setUtilityEditDraft(null)}>{t('cancel')}</button><button type="submit">{t('saveUtilityEdit')}</button></div></form> : <><strong>{selectedUtilityNote.name}</strong><p>{selectedUtilityNote.summary}</p></>}<dl><div><dt>{t('map')}</dt><dd>{selectedUtilityNote.mapName}</dd></div>{selectedUtilityNote.startPlace && <div><dt>{t('startPlace')}</dt><dd>{selectedUtilityNote.startPlace}</dd></div>}{selectedUtilityNote.throwPlace && <div><dt>{t('throwPlace')}</dt><dd>{selectedUtilityNote.throwPlace}</dd></div>}<div><dt>{t('position')}</dt><dd>{selectedUtilityNote.position.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('angles')}</dt><dd>{selectedUtilityNote.angles.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('exportedBy')}</dt><dd>{selectedUtilityNote.thrower || t('customUtility')}</dd></div>{selectedUtilityNote.demoSource && <div><dt>{t('sourceDemo')}</dt><dd>{selectedUtilityNote.demoSource.fileName} · R{selectedUtilityNote.demoSource.round || '-'} · T{selectedUtilityNote.demoSource.tick}</dd></div>}<div><dt>{t('exportedAt')}</dt><dd>{new Date(selectedUtilityNote.createdAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</dd></div></dl><div className="utility-detail-actions"><button type="button" onClick={() => setUtilityEditDraft({ name: selectedUtilityNote.name, summary: selectedUtilityNote.summary || '' })}>{t('editUtility')}</button><button type="button" onClick={() => copyUtilityCommand(selectedUtilityNote)}>{utilityCopied ? t('copied') : t('getposCommand')}</button><button type="button" className="utility-delete" onClick={() => deleteUtilityNote(selectedUtilityNote)}>{t('delete')}</button>{selectedUtilityNote.replay && <><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote)}>{t('replayUtility')}</button><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote, true)}>{t('replayUtilityFirstPerson')}</button></>}</div></div> : <div className="utility-hover-list">{utilityHover.entries.map((note) => <button type="button" key={note.id} className={`utility-list-entry${note.replay ? ' replayable' : ''}`} onClick={() => { setSelectedUtilityNote(note); setUtilityEditDraft(null); setUtilityCopied(false); }}><strong>{note.name}</strong><span>{t('angles')}: {(note.angles || [0, 0, 0]).map((value) => Number(value).toFixed(2)).join(' / ')}</span><p>{note.summary}</p></button>)}</div>}</div>}
           {activePanel === 'utility' && utilityReplay && <div className="utility-replay-bar"><strong>{utilityReplay.note.name}</strong><span>{(utilityReplay.tick / utilityReplay.note.replay.tickRate).toFixed(1)}s / {(utilityReplay.note.replay.endTick / utilityReplay.note.replay.tickRate).toFixed(1)}s</span><button type="button" onClick={() => setUtilityReplay((current) => ({ ...current, tick: current.playing ? current.tick : current.tick >= current.note.replay.endTick ? 0 : current.tick, playing: !current.playing }))}>{utilityReplay.playing ? t('pause') : t('play')}</button><button type="button" onClick={() => setUtilityReplay(null)}>×</button></div>}
          {utilityModalOpen && <div className="utility-modal-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget) setUtilityModalOpen(false); }}><form className="utility-modal" onSubmit={addUtilityNote}><header><div><span>GETPOS</span><h2>{t('addUtilityNote')}</h2></div><button type="button" onClick={() => setUtilityModalOpen(false)}>×</button></header><label><span>{t('getposOutput')}</span><textarea required value={utilityDraft.getpos} placeholder={t('getposPlaceholder')} onChange={(event) => setUtilityDraft((draft) => ({ ...draft, getpos: event.target.value }))} /></label><label><span>{t('utilityName')}</span><input required value={utilityDraft.name} placeholder={t('utilityNamePlaceholder')} onChange={(event) => setUtilityDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><label><span>{t('throwSummary')}</span><textarea required value={utilityDraft.summary} placeholder={t('throwSummaryPlaceholder')} onChange={(event) => setUtilityDraft((draft) => ({ ...draft, summary: event.target.value }))} /></label>{utilityError && <div className="utility-error">{utilityError}</div>}<footer><button type="button" onClick={() => setUtilityModalOpen(false)}>{t('cancel')}</button><button type="submit">{t('add')}</button></footer></form></div>}
-          <div className={`demo-panel ${activePanel === 'demo' ? '' : 'panel-hidden'}`}>
+          <div className={`demo-panel ${activePanel === 'demo' ? '' : 'panel-hidden'}${demoData ? ' has-demo' : ''}`}>
            <div className="demo-toolbar"><div className="demo-source-controls"><label className="demo-upload"><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{t('parsedDemos')} · {cachedDemos.length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{t('parsedDemos')}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{cachedDemos.length === 0 ? <div className="demo-cache-empty">{t('noCachedDemos')}</div> : cachedDemos.map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}</strong><span>{entry.map} · {entry.rounds} {t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}</div><div className="demo-playback-controls">{demoData && <div className={`demo-round-picker${demoRoundMenuOpen ? ' open' : ''}`}><button type="button" onClick={() => setDemoRoundMenuOpen((open) => !open)}>{demoRound ? `${t('round')} ${demoRound.round} · ${demoRoundEconomies.get(demoRound.round)?.T.label}/${demoRoundEconomies.get(demoRound.round)?.CT.label}` : t('selectRound')}</button>{demoRoundMenuOpen && <div className="demo-round-list">{demoData.rounds.map((round) => { const economy = demoRoundEconomies.get(round.round); return <button type="button" key={round.round} className={demoRound?.round === round.round ? 'active' : ''} style={{ '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => { setDemoRound(round); setDemoRoundMenuOpen(false); }}><span className="economy-t">T {economy?.T.label}</span><strong>R{round.round}</strong><span className="economy-ct">CT {economy?.CT.label}</span><i /></button>; })}</div>}</div>}{demoData && demoRound && <div className="demo-scrub"><span className="demo-time">{((demoTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span><div className="timeline-track"><input className="demo-timeline" disabled={demoRoundLoading} style={{ '--timeline-progress': `${demoRound.endTick > demoRound.startTick ? ((demoTick - demoRound.startTick) / (demoRound.endTick - demoRound.startTick)) * 100 : 0}%` }} type="range" min={demoRound.startTick} max={demoRound.endTick} step="1" value={demoTick} onPointerUp={(event) => event.currentTarget.blur()} onChange={(event) => { setDemoPlaying(false); setDemoTick(Number(event.target.value)); }} />{timelineEvents.map((event, index) => <button type="button" className={`timeline-event event-${event.event_name}`} title={event.title} aria-label={event.title} style={{ left: `${((event.tick - demoRound.startTick) / Math.max(1, demoRound.endTick - demoRound.startTick)) * 100}%` }} key={`${event.event_name}-${event.tick}-${index}`} onClick={() => { setDemoPlaying(false); setDemoTick(event.tick); }}>{event.label}</button>)}</div><span className="demo-duration">/ {((demoRound.endTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span></div>}{demoRound && <button type="button" className="demo-play" disabled={demoRoundLoading} onClick={() => setDemoPlaying((playing) => !playing)}>{demoRoundLoading ? t('loading') : demoPlaying ? t('pause') : t('play')}</button>}<button type="button" className="demo-save-frame" onClick={() => saveWorkspaceArchive(true)}>{t('saveFrame')}</button></div></div>
+             <DemoParseSettings value={demoSampleRate} onChange={setDemoSampleRate} language={language} />
              {demoStatus && !demoData && <div className="demo-loading" role="progressbar" aria-label="Demo parsing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div>}
             <div className="demo-controls-row">{activePanel === 'demo' && demoData && <div className="demo-view-options"><span>{t('view')}</span><button type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t('showNames')}</button>{[['manual','cameraManual'],['follow','cameraFollow'],['fixed','cameraFixed'],['chase','cameraChase']].map(([mode,key]) => <button type="button" key={mode} className={demoCameraMode === mode ? 'selected' : ''} onClick={() => setDemoCameraMode(mode)}>{t(key)}</button>)}</div>}<div className="demo-options"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}>GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}>TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button><label className="model-opacity"><span>MODEL</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="demo-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}>EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET</button></div></div>
           </div>
