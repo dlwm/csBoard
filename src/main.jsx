@@ -25,6 +25,7 @@ THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 const CLOUD_MAP_BASE = 'https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps';
+const MAP_BASE = import.meta.env.DEV ? '/maps' : CLOUD_MAP_BASE;
 
 const MAPS = [
   { id: 'de_dust2', label: 'Dust II' },
@@ -2521,7 +2522,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       camera.up.set(0, 1, 0);
       normalReset();
     };
-    new GLTFLoader().load(`${CLOUD_MAP_BASE}/${mapName}/${mapName}.glb`, (gltf) => {
+    new GLTFLoader().load(`${MAP_BASE}/${mapName}/${mapName}.glb`, (gltf) => {
       if (disposed) return;
       worldModel = gltf.scene;
       const modelBounds = new THREE.Box3().setFromObject(worldModel);
@@ -3752,7 +3753,7 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     setNavData(mapName === 'de_dust2' ? fallbackNavData : null);
-    fetchAndParseNav(`${CLOUD_MAP_BASE}/${mapName}/${mapName}.nav`).then((data) => { if (!cancelled && data.areas) setNavData(data); }).catch(() => {});
+    fetchAndParseNav(`${MAP_BASE}/${mapName}/${mapName}.nav`).then((data) => { if (!cancelled && data.areas) setNavData(data); }).catch(() => {});
     return () => { cancelled = true; };
   }, [mapName]);
   return <main className={`board-shell${isMobile ? ' is-mobile' : ''}`} data-panel={activePanel}>

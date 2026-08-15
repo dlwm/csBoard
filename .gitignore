@@ -2,8 +2,7 @@ node_modules/
 dist/
 *.dem
 ref/
-public/maps/**/*.glb
-public/maps/**/.DS_Store
+public/
 tools/
 docs/
 .idea/

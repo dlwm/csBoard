@@ -81,7 +81,7 @@ The repository includes NAV files for:
 - Train
 - Vertigo
 
-GLB map models are intentionally not committed. In development, place a model at `public/maps/<map>/<map>.glb`; at runtime the app loads both NAV and GLB from cloud storage.
+GLB map models are intentionally not committed. Running `npm run dev` automatically detects and downloads any missing `.nav`/`.glb` into `public/maps/<map>/`; after a production build the runtime loads both NAV and GLB from cloud storage.
 
 ## Getting Started
 
@@ -101,6 +101,8 @@ Start the Vite frontend and collaboration/API server:
 ```bash
 npm run dev
 ```
+
+Before starting, the `predev` resource check (`scripts/ensure-maps.js`) inspects each map's `.nav` and `.glb` under `public/maps/<map>/`; missing files are downloaded automatically from cloud storage with progress printed to the terminal. In development the map NAV/GLB load from the local `public/maps` directory.
 
 The frontend uses Vite's development server, while the HTTP and Yjs WebSocket service runs on port `3001` and is reached through the configured proxy.
 
@@ -137,16 +139,18 @@ assets/
 public/
   maps/
     <map>/
-      <map>.nav           # versioned in Git (offline dev source)
-      <map>.glb           # local-only, ignored by Git (offline dev source)
+      <map>.nav           # local dev data, ignored by Git (auto-downloaded on dev)
+      <map>.glb           # local dev data, ignored by Git (auto-downloaded on dev)
 ```
 
-The client loads map NAV and GLB models directly from cloud storage:
+The whole `public/` directory is ignored by Git. Running `npm run dev` triggers `scripts/ensure-maps.js`, which downloads any missing map resource into `public/maps/<map>/`.
+
+In development (`import.meta.env.DEV`) the app loads NAV and GLB from the local `public/maps` directory (`/maps/<map>/<map>.nav`, `/maps/<map>/<map>.glb`). A production build (`vite build`) instead uses cloud storage:
 
 - `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.nav`
 - `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.glb`
 
-NAV files are fetched as raw bytes and parsed in the browser (`src/navParser.js`). The bucket must send `Access-Control-Allow-Origin` headers. The offline files under `public/maps/` and the legacy `/api/maps/:map/nav` endpoint remain as fallbacks but are not required at runtime.
+NAV files are fetched as raw bytes and parsed in the browser (`src/navParser.js`). The bucket must send `Access-Control-Allow-Origin` headers. The legacy `/api/maps/:map/nav` endpoint remains as a fallback but is not required at runtime.
 
 Map extraction tools and raw game resources remain local-only. Do not commit VPK files, extracted game assets, Demo files, or GLB models.
 
@@ -164,7 +168,7 @@ Map extraction tools and raw game resources remain local-only. Do not commit VPK
 - Collaboration rooms are stored in server memory and disappear after a server restart.
 - Room ownership is currently client-managed rather than protected by a server-issued owner token.
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
-- Map NAV and GLB load from cloud storage; when offline the app falls back to local files under `public/maps/`.
+- Production loads map NAV and GLB from cloud storage; development uses local files under `public/maps/` (auto-downloaded when missing).
 - Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
 
 ## Roadmap

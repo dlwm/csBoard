@@ -1,9 +1,10 @@
 {
   "name": "csboard",
   "private": true,
-  "version": "0.1.9",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/ensure-maps.js",
     "dev": "concurrently \"vite\" \"node server/index.js\"",
     "server": "node server/index.js",
     "build": "vite build",

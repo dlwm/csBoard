@@ -81,7 +81,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - Train
 - Vertigo
 
-GLB 地图模型不会提交到仓库。开发时若需显示地图几何体，可将模型放在 `public/maps/<map>/<map>.glb`；运行时 NAV 与 GLB 均从云存储加载。
+GLB 地图模型不会提交到仓库。开发时运行 `npm run dev` 会自动检测并下载缺失的 `.nav`/`.glb` 到 `public/maps/<map>/`；生产构建后运行时 NAV 与 GLB 均从云存储加载。
 
 ## 开始使用
 
@@ -101,6 +101,8 @@ npm install
 ```bash
 npm run dev
 ```
+
+启动前会先运行 `predev` 资源检测脚本（`scripts/ensure-maps.js`）：检查 `public/maps/<map>/` 下各地图的 `.nav` 与 `.glb` 是否存在，缺失时自动从云存储下载并在命令行显示下载进度。开发模式下地图 NAV/GLB 从本地 `public/maps` 加载。
 
 前端由 Vite 开发服务器提供，HTTP 与 Yjs WebSocket 服务运行在 `3001` 端口，并通过 Vite 代理访问。
 
@@ -137,16 +139,19 @@ assets/
 public/
   maps/
     <map>/
-      <map>.nav           # 提交到 Git（离线开发数据）
-      <map>.glb           # 仅本地使用，由 Git 忽略（离线开发数据）
+      <map>.nav           # 本地开发数据，由 Git 忽略（`npm run dev` 自动下载）
+      <map>.glb           # 本地开发数据，由 Git 忽略（`npm run dev` 自动下载）
 ```
 
-客户端直接从云存储加载地图 NAV 与 GLB 模型：
+`public/` 目录整体被 Git 忽略。运行 `npm run dev` 时 `scripts/ensure-maps.js` 会检测各地图资源，缺失则自动下载到本地。
+
+开发模式（`import.meta.env.DEV`）下从本地 `public/maps` 加载：`/maps/<map>/<map>.nav`、`/maps/<map>/<map>.glb`。
+生产构建（`vite build`）则直接使用云存储地址：
 
 - `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.nav`
 - `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.glb`
 
-NAV 以原始字节拉取并在浏览器内解析（`src/navParser.js`）。存储桶需返回 `Access-Control-Allow-Origin` 头。`public/maps/` 下的离线文件与旧的 `/api/maps/:map/nav` 接口仅作为回退，运行时非必需。
+NAV 以原始字节拉取并在浏览器内解析（`src/navParser.js`）。存储桶需返回 `Access-Control-Allow-Origin` 头。旧的 `/api/maps/:map/nav` 接口仅作为回退，运行时非必需。
 
 地图导出工具和原始游戏资源继续仅保存在本地。请勿提交 VPK、解包后的游戏资源、Demo 文件或 GLB 模型。
 
@@ -164,7 +169,7 @@ NAV 以原始字节拉取并在浏览器内解析（`src/navParser.js`）。存�
 - 协作房间仅保存在服务端内存中，服务重启后失效。
 - 房主身份目前主要由客户端管理，尚未使用服务端签发的 owner token。
 - 解析器没有暴露 C4 实体逐 Tick 坐标，因此掉落轨迹只能根据事件近似。
-- 地图 NAV 与 GLB 依赖云存储可用；离线时回退到 `public/maps/` 本地数据。
+- 生产环境地图 NAV 与 GLB 依赖云存储可用；开发模式使用 `public/maps/` 本地数据（缺失时自动下载）。
 - Demo 初次解析后会缓存全部回合，大型 Demo 可能占用较多内存。
 
 ## 未来方向
