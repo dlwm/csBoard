@@ -245,13 +245,23 @@ self.onmessage = async ({ data }) => {
            const snapshots = normalizeRows(rows, 0);
            const throwSnapshots = normalizeRows(throwRows, 0);
            const playerNames = [...new Set(snapshots.flatMap((snapshot) => snapshot.players.map((player) => player.name)).filter(Boolean))].sort();
-           const roundData = rounds.map((round) => ({ round: round.round, snapshots: snapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick) }));
-           const estimatedBytes = snapshots.length * 320 + throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128;
-           self.postMessage({ type: 'diagnostic', phase: 'ticks', data: { elapsedMs: performance.now() - phaseStartedAt, throwSnapshots: throwSnapshots.length, snapshots: snapshots.length, memory: memoryDiagnostics() } });
-           self.postMessage({ type: 'status', message: `Demo 已读取，${rounds.length} 个回合已全部就绪` });
-           allProjectiles = [];
-           const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, rounds, roundData, events: allEvents, players: playerNames };
-           self.postMessage({ type: 'loaded', data: result, estimatedBytes });
+            const roundData = rounds.map((round) => ({ round: round.round, snapshots: snapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick) }));
+            const estimatedBytes = snapshots.length * 320 + throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128;
+            const analysisStep = 32;
+            const analysisGlobalTicks = [];
+            rounds.forEach((round) => { for (let tick = round.startTick; tick <= round.endTick; tick += analysisStep) analysisGlobalTicks.push(tick); });
+            const analysisRows = demoParts.flatMap((part, index) => {
+              const offset = partOffsets[index];
+              const localTicks = [...new Set(analysisGlobalTicks)].filter((tick) => tick >= offset && tick - offset <= 1000000).map((tick) => tick - offset);
+              if (localTicks.length === 0) return [];
+              return parseTicksBatched(part, analysisProps, localTicks).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset }));
+            });
+            const analysis = normalizeRows(analysisRows, 0);
+            self.postMessage({ type: 'diagnostic', phase: 'ticks', data: { elapsedMs: performance.now() - phaseStartedAt, throwSnapshots: throwSnapshots.length, snapshots: snapshots.length, analysis: analysis.length, memory: memoryDiagnostics() } });
+            self.postMessage({ type: 'status', message: `Demo 已读取，${rounds.length} 个回合已全部就绪` });
+            allProjectiles = [];
+            const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
+            self.postMessage({ type: 'loaded', data: result, estimatedBytes });
      }
      if (data.type === 'analysis') {
        if (!demoParts.length) return;

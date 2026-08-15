@@ -3,12 +3,16 @@ import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import fallbackNavData from './data/de_dust2.json';
 import { createNavMesh } from './three/navMesh.js';
 import { parseNavBuffer, fetchAndParseNav } from './navParser.js';
 import { createGhostMaterial } from './three/materials.js';
 import { createTacticalPoint, updateTacticalPoint } from './three/tacticalPoint.js';
+import { createCollabPlayer, randomPlayerName, renameCollabPlayer, setCollabPlayerCrouch, setCollabPlayerPitch, setCollabPlayerTeam, updateCollabPlayerAim } from './three/collabPlayer.js';
 import { createFireNavEffect, createGrenadeEffect, disposeGrenadeEffect, grenadeTypeFromPointer } from './three/grenadeEffects.js';
 import { countCachedDemoRounds, deleteCachedDemo, demoCacheId, getCachedDemo, getCachedDemoRound, listCachedDemos, putCachedDemo, putCachedDemoRound } from './demoCache.js';
 import FarkleGame from './FarkleGame.jsx';
@@ -37,7 +41,7 @@ const MAPS = [
 
 const messages = {
   zh: {
-    rounds: '回合浏览', analysis: '数据分析', collab: '协作面板', utilityNotes: '道具速记', loaded: '参考数据已加载', recentKills: '最近击杀', expand: '展开', collapse: '收起', cameraPositions: '摄像机位置', view: '视图', showNames: '显示名称', selectRound: '请选择回合', round: '回合', multiDemo: 'Demo 文件', chooseDemo: '选择文件', multiPartHint: '支持多选分片', noFileChosen: '尚未选择文件', play: '播放', pause: '暂停', loading: '加载中', allRounds: '全部回合', tRounds: 'T 回合', ctRounds: 'CT 回合', analysisHint: '选择选手后，所有回合会从冻结结束同时开始叠加播放。', heatmap: '热力图', killerPosition: '击杀时所在', victimPosition: '被击杀时所在', targetPosition: '击杀目标所在', opponentPosition: '被击杀时对方所在', saveFrame: '保存当前帧', leaveRoom: '离开房间', joinRoom: '加入房间', openRoom: '开放房间', roomPrompt: '输入 6 位房间号', currentMap: '当前地图', name: '名称', collabHint: '保存地图、镜头、编辑点位和当前 Demo 帧。Demo 文件本身不会写入浏览器存储。', owner: '房主', member: '成员', noArchives: '暂无本地存档', guestNoArchive: '房间成员不能切换存档', restoreArchive: '恢复存档', deleteArchive: '删除存档', manualEdit: '手动地图编辑', room: '房间', roomOpened: '已公开', roomDestroyed: '房间已销毁', roomLeft: '已离开房间', roomExited: '已从房间退出', joiningRoom: '正在加入房间', joinedRoom: '已加入房间', connected: '已连接', connecting: '连接中', disconnected: '连接断开', analysisReady: '全场移动数据已就绪', analysisLoading: '正在读取全场移动数据…', parseFailed: '解析失败', combiningParts: '正在组合 {count} 个 Demo 分片…', readingDemo: '正在读取 Demo 文件…', smoke: '烟', fire: '火', flash: '闪', grenade: '雷', decoy: '诱', c4Planted: 'C4 安装', c4Exploded: 'C4 爆炸', roundEnd: '回合结束', world: '世界', unknown: '未知', language: 'EN', tacticalPoint: '战术点', team: '阵营', type: '类型', delete: '删除', map: '地图', reset: '重置', players: '选手', side: '阵营', model: '模型', c4Paused: '已拆除', noGrenades: '-', addUtilityNote: '添加速记', utilityIntro: '在 CS2 控制台输入 getpos，将输出粘贴到这里。相同位置可保存多个不同角度。', utilityEmpty: '当前地图暂无道具速记', getposOutput: 'getpos 输出', utilityName: '道具名称', throwSummary: '投掷简述', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: '例如：A 大过点烟', throwSummaryPlaceholder: '例如：贴墙站立，静步投掷', cancel: '取消', add: '添加', invalidGetpos: '无法识别 getpos，请包含 setpos 与 setang 数据', position: '位置', angles: '角度', localOnly: '数据仅保存在当前浏览器', utilityCount: '{count} 条速记',
+    rounds: '回合浏览', analysis: '数据分析', collab: '协作面板', utilityNotes: '道具速记', loaded: '参考数据已加载', recentKills: '最近击杀', expand: '展开', collapse: '收起', cameraPositions: '摄像机位置', view: '视图', showNames: '显示名称', selectRound: '请选择回合', round: '回合', multiDemo: 'Demo 文件', chooseDemo: '选择文件', multiPartHint: '支持多选分片', noFileChosen: '尚未选择文件', play: '播放', pause: '暂停', loading: '加载中', allRounds: '全部回合', tRounds: 'T 回合', ctRounds: 'CT 回合', analysisHint: '选择选手后，所有回合会从冻结结束同时开始叠加播放。', heatmap: '热力图', killerPosition: '击杀时所在', victimPosition: '被击杀时所在', targetPosition: '击杀目标所在', opponentPosition: '被击杀时对方所在', saveFrame: '保存当前帧', leaveRoom: '离开房间', joinRoom: '加入房间', openRoom: '开放房间', roomPrompt: '输入 6 位房间号', currentMap: '当前地图', name: '名称', collabHint: '保存地图、镜头、编辑点位和当前 Demo 帧。Demo 文件本身不会写入浏览器存储。', owner: '房主', member: '成员',     noArchives: '暂无本地存档', guestNoArchive: '房间成员不能切换存档', restoreArchive: '恢复存档', deleteArchive: '删除存档', manualEdit: '手动地图编辑', addUtility: '添加道具', searchUtility: '搜索道具速记…', collabPlayer: '人物点位', frame: '帧', copy: '副本', nameExists: '名称已存在', insertFrame: '插帧', duplicateFrame: '复制帧', deleteFrame: '删除帧', frameName: '帧名', saveToArchive: '保存到存档', newArchive: '新建存档', archiveName: '存档名',     collabPlayers: '人物列表', noCollabPlayers: '暂无人物', frames: '帧列表', noFrames: '暂无帧', eraser: '橡皮擦', rename: '重命名', renameFrame: '重命名帧', room: '房间', roomOpened: '已公开', roomDestroyed: '房间已销毁', roomLeft: '已离开房间', roomExited: '已从房间退出', joiningRoom: '正在加入房间', joinedRoom: '已加入房间', connected: '已连接', connecting: '连接中', disconnected: '连接断开', analysisReady: '全场移动数据已就绪', analysisLoading: '正在读取全场移动数据…', parseFailed: '解析失败', combiningParts: '正在组合 {count} 个 Demo 分片…', readingDemo: '正在读取 Demo 文件…', smoke: '烟', fire: '火', flash: '闪', grenade: '雷', decoy: '诱', c4Planted: 'C4 安装', c4Exploded: 'C4 爆炸', roundEnd: '回合结束', world: '世界', unknown: '未知', language: 'EN', tacticalPoint: '战术点', team: '阵营', type: '类型', delete: '删除', map: '地图', reset: '重置', players: '选手', side: '阵营', model: '模型', c4Paused: '已拆除', noGrenades: '-', addUtilityNote: '添加速记', utilityIntro: '在 CS2 控制台输入 getpos，将输出粘贴到这里。相同位置可保存多个不同角度。', utilityEmpty: '当前地图暂无道具速记', getposOutput: 'getpos 输出', utilityName: '道具名称', throwSummary: '投掷简述', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: '例如：A 大过点烟', throwSummaryPlaceholder: '例如：贴墙站立，静步投掷', cancel: '取消', add: '添加', invalidGetpos: '无法识别 getpos，请包含 setpos 与 setang 数据', position: '位置', angles: '角度', localOnly: '数据仅保存在当前浏览器', utilityCount: '{count} 条速记',
     utilityIntro: '手动添加仍只需粘贴 getpos；从 Demo 保存的复杂投掷会与同一起点的手动记录归在一起。',
     saveUtility: '保存道具', clickToReplay: '点击重播投掷', utilityStorageFailed: '保存失败，浏览器本地空间不足',
     parsedDemos: '已解析 Demo', noCachedDemos: '暂无已解析 Demo', openCachedDemo: '打开', deleteCachedDemo: '删除缓存', cacheFailed: 'Demo 缓存失败', cacheReady: '已从缓存打开', analysisNeedsSource: '该缓存尚无分析数据，请重新选择原 Demo 后打开分析面板',
@@ -46,10 +50,10 @@ const messages = {
     cameraManual: '手动镜头', cameraFollow: '导播', cameraFixed: '固定镜头', cameraChase: '追踪镜头',
     directorCamera: '导播',
     editUtility: '编辑', saveUtilityEdit: '保存', utilityTitle: '标题', utilityDescription: '描述',
-    hintBrushDrag: '左键拖动画笔', hintPlayPause: '播放/暂停', hintStep: '步进', hintMove: '移动镜头', hintPlacePoint: 'E 放置点位', hintDrawPath: 'Ctrl 画线', hintGrenadeWheel: 'Q 道具轮盘', hintEditPoint: '左键编辑点位', hintZoom: '滚轮缩放', hintCameras: '数字键镜头', hintUndo: '撤销', hintRedo: '重做',
+    hintBrushDrag: '左键拖动画笔', hintPlayPause: '播放/暂停', hintStep: '步进', hintMove: '移动镜头', hintPlacePoint: 'E 放置点位', hintDrawPath: 'Ctrl 画线', hintGrenadeWheel: 'Q 道具轮盘', hintEditPoint: '左键编辑点位', hintZoom: '滚轮缩放', hintCameras: '数字键镜头', hintUndo: '撤销', hintRedo: '重做', hintErase: '按住擦除', hintRotate: '旋转', hintCatEdit: '编辑', hintCatPlayback: '回放', hintCatCamera: '视角', hintCatPlace: '造点', hintCatAdjust: '人物调整', hintCatHistory: '撤销重做', hintMovePlayer: '拖动移动', hintYaw: '水平转向', hintPitch: '调整倾角', hintCrouch: '双击蹲/站',
   },
   en: {
-    rounds: 'Round Replay', analysis: 'Analysis', collab: 'Collaboration', utilityNotes: 'Utility Notes', loaded: 'Reference Data Loaded', recentKills: 'Recent Kills', expand: 'Expand', collapse: 'Collapse', cameraPositions: 'Camera Positions', view: 'View', showNames: 'Show Names', selectRound: 'Select a round', round: 'Round', multiDemo: 'Demo Files', chooseDemo: 'Choose Files', multiPartHint: 'Multi-part selection supported', noFileChosen: 'No files selected', play: 'Play', pause: 'Pause', loading: 'Load', allRounds: 'All Rounds', tRounds: 'T Rounds', ctRounds: 'CT Rounds', analysisHint: 'Selected players are overlaid from freeze end across all rounds.', heatmap: 'Heatmap', killerPosition: 'Killer Position', victimPosition: 'Victim Position', targetPosition: 'Target Position', opponentPosition: 'Opponent Position', saveFrame: 'Save Frame', leaveRoom: 'Leave Room', joinRoom: 'Join Room', openRoom: 'Open Room', roomPrompt: 'Enter 6-digit room code', currentMap: 'Current map', name: 'Name', collabHint: 'Saves the map, camera presets, tactical edits and current Demo frame. The Demo file is not stored.', owner: 'Owner', member: 'Member', noArchives: 'No local archives', guestNoArchive: 'Room members cannot switch archives', restoreArchive: 'Restore archive', deleteArchive: 'Delete archive', manualEdit: 'Manual map edit', room: 'Room', roomOpened: 'opened', roomDestroyed: 'Room destroyed', roomLeft: 'Left room', roomExited: 'Disconnected from room', joiningRoom: 'Joining room', joinedRoom: 'Joined room', connected: 'connected', connecting: 'connecting', disconnected: 'disconnected', analysisReady: 'Full-match movement data ready', analysisLoading: 'Reading full-match movement data...', parseFailed: 'Parse failed', combiningParts: 'Combining {count} Demo parts...', readingDemo: 'Reading Demo file...', smoke: 'SMK', fire: 'FIRE', flash: 'FL', grenade: 'HE', decoy: 'DEC', c4Planted: 'C4 planted', c4Exploded: 'C4 exploded', roundEnd: 'Round ended', world: 'WORLD', unknown: 'UNKNOWN', language: '中文', tacticalPoint: 'Tactical Point', team: 'Team', type: 'Type', delete: 'Delete', map: 'Map', reset: 'Reset', players: 'Players', side: 'Side', model: 'Model', c4Paused: 'DEFUSED', noGrenades: '-', addUtilityNote: 'Add Note', utilityIntro: 'Run getpos in the CS2 console and paste its output here. One position can store multiple angles.', utilityEmpty: 'No utility notes for this map', getposOutput: 'getpos output', utilityName: 'Utility name', throwSummary: 'Throw summary', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: 'Example: A Long cross smoke', throwSummaryPlaceholder: 'Example: Hug the wall, standing throw', cancel: 'Cancel', add: 'Add', invalidGetpos: 'Could not parse getpos. Include setpos and setang values.', position: 'Position', angles: 'Angles', localOnly: 'Stored only in this browser', utilityCount: '{count} notes',
+    rounds: 'Round Replay', analysis: 'Analysis', collab: 'Collaboration', utilityNotes: 'Utility Notes', loaded: 'Reference Data Loaded', recentKills: 'Recent Kills', expand: 'Expand', collapse: 'Collapse', cameraPositions: 'Camera Positions', view: 'View', showNames: 'Show Names', selectRound: 'Select a round', round: 'Round', multiDemo: 'Demo Files', chooseDemo: 'Choose Files', multiPartHint: 'Multi-part selection supported', noFileChosen: 'No files selected', play: 'Play', pause: 'Pause', loading: 'Load', allRounds: 'All Rounds', tRounds: 'T Rounds', ctRounds: 'CT Rounds', analysisHint: 'Selected players are overlaid from freeze end across all rounds.', heatmap: 'Heatmap', killerPosition: 'Killer Position', victimPosition: 'Victim Position', targetPosition: 'Target Position', opponentPosition: 'Opponent Position', saveFrame: 'Save Frame', leaveRoom: 'Leave Room', joinRoom: 'Join Room', openRoom: 'Open Room', roomPrompt: 'Enter 6-digit room code', currentMap: 'Current map', name: 'Name', collabHint: 'Saves the map, camera presets, tactical edits and current Demo frame. The Demo file is not stored.', owner: 'Owner', member: 'Member',     noArchives: 'No local archives', guestNoArchive: 'Room members cannot switch archives', restoreArchive: 'Restore archive', deleteArchive: 'Delete archive', manualEdit: 'Manual map edit', addUtility: 'Add Utility', searchUtility: 'Search utility notes…', collabPlayer: 'Player Marker', frame: 'Frame', copy: 'Copy', nameExists: 'Name already exists', insertFrame: 'Insert Frame', duplicateFrame: 'Duplicate Frame', deleteFrame: 'Delete Frame', frameName: 'Frame Name', saveToArchive: 'Save to Archive', newArchive: 'New Archive', archiveName: 'Archive Name',     collabPlayers: 'Players', noCollabPlayers: 'No players yet', frames: 'Frames', noFrames: 'No frames yet', eraser: 'Eraser', rename: 'Rename', renameFrame: 'Rename Frame', room: 'Room', roomOpened: 'opened', roomDestroyed: 'Room destroyed', roomLeft: 'Left room', roomExited: 'Disconnected from room', joiningRoom: 'Joining room', joinedRoom: 'Joined room', connected: 'connected', connecting: 'connecting', disconnected: 'disconnected', analysisReady: 'Full-match movement data ready', analysisLoading: 'Reading full-match movement data...', parseFailed: 'Parse failed', combiningParts: 'Combining {count} Demo parts...', readingDemo: 'Reading Demo file...', smoke: 'SMK', fire: 'FIRE', flash: 'FL', grenade: 'HE', decoy: 'DEC', c4Planted: 'C4 planted', c4Exploded: 'C4 exploded', roundEnd: 'Round ended', world: 'WORLD', unknown: 'UNKNOWN', language: '中文', tacticalPoint: 'Tactical Point', team: 'Team', type: 'Type', delete: 'Delete', map: 'Map', reset: 'Reset', players: 'Players', side: 'Side', model: 'Model', c4Paused: 'DEFUSED', noGrenades: '-', addUtilityNote: 'Add Note', utilityIntro: 'Run getpos in the CS2 console and paste its output here. One position can store multiple angles.', utilityEmpty: 'No utility notes for this map', getposOutput: 'getpos output', utilityName: 'Utility name', throwSummary: 'Throw summary', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: 'Example: A Long cross smoke', throwSummaryPlaceholder: 'Example: Hug the wall, standing throw', cancel: 'Cancel', add: 'Add', invalidGetpos: 'Could not parse getpos. Include setpos and setang values.', position: 'Position', angles: 'Angles', localOnly: 'Stored only in this browser', utilityCount: '{count} notes',
     utilityIntro: 'Manual entry still accepts getpos only. Complex Demo throws are grouped with manual notes at the same start position.',
     saveUtility: 'Save Utility', clickToReplay: 'Click to replay throw', utilityStorageFailed: 'Could not save: browser storage is full',
     parsedDemos: 'Parsed Demos', noCachedDemos: 'No parsed Demos', openCachedDemo: 'Open', deleteCachedDemo: 'Delete cache', cacheFailed: 'Demo cache failed', cacheReady: 'Opened from cache', analysisNeedsSource: 'This cache has no analysis data. Select the source Demo and open Analysis.',
@@ -58,12 +62,12 @@ const messages = {
     cameraManual: 'Manual', cameraFollow: 'Director', cameraFixed: 'Fixed camera', cameraChase: 'Chase camera',
     directorCamera: 'Director',
     editUtility: 'Edit', saveUtilityEdit: 'Save', utilityTitle: 'Title', utilityDescription: 'Description',
-    hintBrushDrag: 'LMB drag to draw', hintPlayPause: 'Play/Pause', hintStep: 'Step', hintMove: 'Move camera', hintPlacePoint: 'E place point', hintDrawPath: 'Ctrl draw path', hintGrenadeWheel: 'Q utility wheel', hintEditPoint: 'LMB edit point', hintZoom: 'Scroll zoom', hintCameras: 'Number keys cameras', hintUndo: 'Undo', hintRedo: 'Redo',
+    hintBrushDrag: 'LMB drag to draw', hintPlayPause: 'Play/Pause', hintStep: 'Step', hintMove: 'Move camera', hintPlacePoint: 'E place point', hintDrawPath: 'Ctrl draw path', hintGrenadeWheel: 'Q utility wheel', hintEditPoint: 'LMB edit point', hintZoom: 'Scroll zoom', hintCameras: 'Number keys cameras', hintUndo: 'Undo', hintRedo: 'Redo', hintErase: 'hold to erase', hintRotate: 'Rotate', hintCatEdit: 'EDIT', hintCatPlayback: 'PLAYBACK', hintCatCamera: 'CAMERA', hintCatPlace: 'PLACE', hintCatAdjust: 'ADJUST', hintCatHistory: 'HISTORY', hintMovePlayer: 'Drag to move', hintYaw: 'Horizontal yaw', hintPitch: 'Adjust pitch', hintCrouch: 'Double-click crouch/stand',
   },
 };
 
 const UTILITY_NOTES_VERSION = 3;
-const DEMO_CACHE_SCHEMA_VERSION = 15;
+const DEMO_CACHE_SCHEMA_VERSION = 16;
 
 const translate = (language, key, values = {}) => Object.entries(values).reduce((text, [name, value]) => text.replace(`{${name}}`, value), messages[language][key] || key);
 const formatBytes = (bytes = 0) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : bytes >= 1024 ** 2 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
@@ -547,7 +551,7 @@ function utilityReplayStart(segment, throwerId, throwerName, tickRate) {
   return { startTick: actionStartTick, hasRunup: false, peakSpeed, distance };
 }
 
-function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, trackpadDetection, showDemoNames, demoSnapshot, demoSnapshots, demoTick, demoFires, demoHurts, demoGrenades, demoProjectiles, demoGrenadeSegments, onDemoGrenadeSelect, demoDeaths, demoC4Events, demoHltvEvents, demoCameraMode, demoInEyePlayer, onDemoCameraInterrupt, utilityNotes, utilityNotesEnabled, onUtilityHover, utilityFirstPerson, heatDeaths, demoViewFlags, analysisRows, analysisSelectedPlayers, analysisSide, analysisEnabled, analysisRounds, analysisTime, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onCameraSlots, onReady, pointPlacementEnabled, brushEnabled }) {
+function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, trackpadDetection, showDemoNames, demoSnapshot, demoSnapshots, demoTick, demoFires, demoHurts, demoGrenades, demoProjectiles, demoGrenadeSegments, onDemoGrenadeSelect, demoDeaths, demoC4Events, demoHltvEvents, demoCameraMode, demoInEyePlayer, onDemoCameraInterrupt, utilityNotes, utilityNotesEnabled, onUtilityHover, utilityFirstPerson, heatDeaths, demoViewFlags, analysisRows, analysisSelectedPlayers, analysisSide, analysisEnabled, analysisRounds, analysisTime, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onCameraSlots, onReady, pointPlacementEnabled, brushEnabled, brushColor, brushWidth, eraserEnabled, onBrushChange, onCollabEdit }) {
   const mountRef = useRef(null);
   const edgesRef = useRef(null);
   const modelModeRef = useRef(null);
@@ -584,6 +588,14 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   const analysisEnabledRef = useRef(analysisEnabled);
   const pointPlacementEnabledRef = useRef(pointPlacementEnabled);
   const brushEnabledRef = useRef(brushEnabled);
+  const brushColorRef = useRef(brushColor || '#a5e0ff');
+  const brushWidthRef = useRef(brushWidth || 3);
+  const brushEraserRef = useRef(false);
+  const onBrushChangeRef = useRef(onBrushChange);
+  onBrushChangeRef.current = onBrushChange;
+  const onCollabEditRef = useRef(onCollabEdit);
+  onCollabEditRef.current = onCollabEdit;
+  const collabHistoryRef = useRef({ push: () => {}, undo: () => {}, redo: () => {} });
   const analysisRoundsRef = useRef(analysisRounds || []);
   const analysisTimeRef = useRef(analysisTime || 0);
   const analysisSideRef = useRef(analysisSide || 'ALL');
@@ -628,6 +640,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   analysisEnabledRef.current = analysisEnabled;
   pointPlacementEnabledRef.current = pointPlacementEnabled !== false;
   brushEnabledRef.current = brushEnabled !== false;
+  brushColorRef.current = brushColor || brushColorRef.current;
+  brushWidthRef.current = brushWidth || brushWidthRef.current;
+  brushEraserRef.current = eraserEnabled === true;
   analysisRoundsRef.current = analysisRounds || [];
   analysisTimeRef.current = analysisTime || 0;
   analysisSideRef.current = analysisSide || 'ALL';
@@ -658,6 +673,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     const analysisPaths = new Map();
     const utilityNotesGroup = new THREE.Group();
     const utilityMarkers = new Map();
+    const collabUtilitiesGroup = new THREE.Group();
+    const collabUtilities = [];
+    let frameTween = null;
     let utilitySignature = '';
     let analysisSignature = '';
     const collisionMeshes = [];
@@ -668,6 +686,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     scene.add(utilityNotesGroup);
     scene.add(demoPlayers);
     scene.add(c4Group);
+    scene.add(collabUtilitiesGroup);
     demoPlayersRef.current = demoPlayers;
     let modelCenter = new THREE.Vector3();
     const updateDemoPlayers = () => {
@@ -1502,6 +1521,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     let pointPointerBasePitch = 0;
     let pointPointerRayLength = 0.05;
     let pointPointerDragging = false;
+    let pointPointerMoved = false;
+    let lastClickTime = 0;
+    let lastClickId = null;
     const brushStrokes = [];
     const brushUndoStack = [];
     const brushRedoStack = [];
@@ -1510,10 +1532,18 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     let brushStrokeLine = null;
     let brushPointerDown = false;
     let brushLastInBounds = null;
-    const brushColor = '#a5e0ff';
+    let eraserActive = false;
+    let eraserLastPointer = null;
+    const collabUndoStack = [];
+    const collabRedoStack = [];
+    const notifyCollabEdit = () => onCollabEditRef.current?.();
     const createBrushStrokeLine = () => {
-      const geometry = new THREE.BufferGeometry().setFromPoints(brushStrokePoints);
-      const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: brushColor, transparent: true, opacity: 0.9 }));
+      const geometry = new LineGeometry().setPositions(brushStrokePoints.flatMap((p) => [p.x, p.y, p.z]));
+      const material = new LineMaterial({ color: brushColorRef.current, linewidth: brushWidthRef.current, transparent: true, opacity: 0.9, resolution: new THREE.Vector2(1, 1) });
+      const line = new Line2(geometry, material);
+      line.userData.brushStrokeId = `brush-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      line.userData.brushColor = brushColorRef.current;
+      line.userData.brushWidth = brushWidthRef.current;
       line.renderOrder = 7;
       scene.add(line);
       return line;
@@ -1521,7 +1551,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     const updateBrushStrokeLine = () => {
       if (!brushStrokeLine) return;
       brushStrokeLine.geometry.dispose();
-      brushStrokeLine.geometry = new THREE.BufferGeometry().setFromPoints(brushStrokePoints);
+      brushStrokeLine.geometry = new LineGeometry().setPositions(brushStrokePoints.flatMap((p) => [p.x, p.y, p.z]));
     };
     const removeBrushStrokeLine = () => {
       if (!brushStrokeLine) return;
@@ -1540,18 +1570,21 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       brushActive = false;
       brushPointerDown = false;
       brushLastInBounds = null;
+      notifyBrushChange();
     };
     const undoBrush = () => {
       if (!brushUndoStack.length) return;
       const line = brushUndoStack.pop();
       scene.remove(line);
       brushRedoStack.push(line);
+      notifyBrushChange();
     };
     const redoBrush = () => {
       if (!brushRedoStack.length) return;
       const line = brushRedoStack.pop();
       scene.add(line);
       brushUndoStack.push(line);
+      notifyBrushChange();
     };
     const startBrushStroke = (position) => {
       if (!position) return;
@@ -1560,6 +1593,77 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       brushStrokePoints = [position.clone().add(new THREE.Vector3(0, 0.035, 0))];
       brushLastInBounds = position.clone();
       brushStrokeLine = createBrushStrokeLine();
+    };
+    const pointSegmentDistance = (point, a, b) => {
+      const abx = b.x - a.x;
+      const aby = b.y - a.y;
+      const lenSq = abx * abx + aby * aby;
+      let t = lenSq > 0 ? ((point.x - a.x) * abx + (point.y - a.y) * aby) / lenSq : 0;
+      t = Math.max(0, Math.min(1, t));
+      const dx = point.x - (a.x + abx * t);
+      const dy = point.y - (a.y + aby * t);
+      return Math.hypot(dx, dy);
+    };
+    const strokeWorldPoints = (line) => {
+      const width = renderer.domElement.clientWidth || 1;
+      const height = renderer.domElement.clientHeight || 1;
+      const worldPoints = line.userData.worldPoints;
+      const world = new THREE.Vector3();
+      const project = (w) => {
+        const projected = w.clone().project(camera);
+        return new THREE.Vector2((projected.x * 0.5 + 0.5) * width, (-projected.y * 0.5 + 0.5) * height);
+      };
+      if (worldPoints && worldPoints.length) return worldPoints.map(project);
+      const positions = line.geometry.attributes.position?.array;
+      if (!positions) return [];
+      const points = [];
+      for (let index = 0; index < positions.length; index += 3) {
+        world.set(positions[index], positions[index + 1], positions[index + 2]);
+        line.localToWorld(world);
+        points.push(project(world));
+      }
+      return points;
+    };
+    const eraseStrokesUnderPointer = (pointerScreen) => {
+      if (!brushStrokes.length) return;
+      scene.updateMatrixWorld(true);
+      camera.updateMatrixWorld(true);
+      camera.updateProjectionMatrix();
+      const threshold = 1.5;
+      const hitSet = new Set();
+      brushStrokes.forEach((line) => {
+        const screenPoints = strokeWorldPoints(line);
+        for (let index = 0; index < screenPoints.length - 1; index += 1) {
+          if (pointSegmentDistance(pointerScreen, screenPoints[index], screenPoints[index + 1]) <= threshold) {
+            hitSet.add(line);
+            break;
+          }
+        }
+      });
+      if (!hitSet.size) return;
+      hitSet.forEach((line) => {
+        const index = brushStrokes.indexOf(line);
+        if (index < 0) return;
+        brushStrokes.splice(index, 1);
+        const undoIndex = brushUndoStack.indexOf(line);
+        if (undoIndex >= 0) brushUndoStack.splice(undoIndex, 1);
+        scene.remove(line);
+        line.geometry.dispose();
+        line.material.dispose();
+      });
+      notifyBrushChange();
+    };
+    const eraseAtPointer = (ndcPointer) => {
+      const screenX = (ndcPointer.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
+      const screenY = (-ndcPointer.y * 0.5 + 0.5) * renderer.domElement.clientHeight;
+      const pointerScreen = new THREE.Vector2(screenX, screenY);
+      if (eraserLastPointer && pointerScreen.distanceTo(eraserLastPointer) < 6) return;
+      const start = eraserLastPointer ? eraserLastPointer.clone() : pointerScreen.clone();
+      eraserLastPointer = pointerScreen.clone();
+      eraseStrokesUnderPointer(start);
+      eraseStrokesUnderPointer(pointerScreen);
+      const midpoint = start.clone().add(pointerScreen).multiplyScalar(0.5);
+      eraseStrokesUnderPointer(midpoint);
     };
     const pointerToSurface = (pointer) => {
       raycaster.setFromCamera(pointer, camera);
@@ -1573,6 +1677,44 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -height);
       return raycaster.ray.intersectPlane(plane, hit) ? hit : null;
     };
+    const isCollabPlacement = () => pointPlacementEnabledRef.current === true;
+    const createPlacedObject = (position, direction, id, rayLength, team = 'T') => {
+      if (isCollabPlacement()) {
+        const existing = new Set(pointsRef.current.filter((point) => point.userData.collabPlayer && point.userData.playerName).map((point) => point.userData.playerName));
+        let name = randomPlayerName();
+        let attempts = 0;
+        while (existing.has(name) && attempts < 32) { name = randomPlayerName(); attempts += 1; }
+        const player = createCollabPlayer({ position, id, name, team });
+        const flat = direction.clone(); flat.y = 0;
+        if (flat.lengthSq()) player.rotation.y = Math.atan2(-flat.x, -flat.z);
+        updateCollabPlayerAim(player, collisionMeshes, aimRaycaster, collisionVersion);
+        return player;
+      }
+      return createTacticalPoint(position, direction, id, rayLength, team, 'T');
+    };
+    const applyPlacedAim = (point, target) => {
+      if (point.userData.collabPlayer) {
+        const flat = target.clone().sub(point.position); flat.y = 0;
+        if (flat.lengthSq()) point.rotation.y = Math.atan2(-flat.x, -flat.z);
+        point.userData.aimCollisionVersion = -1;
+        updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion);
+        return;
+      }
+      const aimRay = point.children.find((child) => child.userData.aimRay);
+      const rayLength = Math.max(target.distanceTo(point.position), 0.05);
+      if (aimRay) aimRay.scale.z = rayLength;
+    };
+    const applyPlacedPreview = (point, direction) => {
+      const flat = direction.clone(); flat.y = 0;
+      if (flat.lengthSq()) point.rotation.y = Math.atan2(-flat.x, -flat.z);
+      if (point.userData.collabPlayer) {
+        point.userData.aimCollisionVersion = -1;
+        updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion);
+      } else {
+        const aimRay = point.children.find((child) => child.userData.aimRay);
+        if (aimRay) aimRay.scale.z = Math.max(flat.length(), 0.05);
+      }
+    };
     const pointerPosition = (event) => {
       const rect = renderer.domElement.getBoundingClientRect();
       return new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
@@ -1582,25 +1724,21 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       const previous = pathPoints[pathPoints.length - 1];
       const direction = previous ? point.position.clone().sub(previous.position) : new THREE.Vector3(0, 0, 1);
       direction.y = 0;
-      const rayLength = Math.max(direction.length(), 0.15);
-      point.rotation.y = direction.lengthSq() ? Math.atan2(-direction.x, -direction.z) : point.rotation.y;
-      const aimRay = point.children.find((child) => child.userData.aimRay);
-      if (aimRay) aimRay.scale.z = rayLength;
+      applyPlacedPreview(point, direction);
     };
     const updatePathAim = (point, target) => {
       if (!pathOrigin) return;
       const direction = target.clone().sub(pathOrigin);
       direction.y = 0;
-      const rayLength = Math.max(direction.length(), 0.15);
-      if (direction.lengthSq()) point.rotation.y = Math.atan2(-direction.x, -direction.z);
-      const aimRay = point.children.find((child) => child.userData.aimRay);
-      if (aimRay) aimRay.scale.z = rayLength;
+      applyPlacedPreview(point, direction);
     };
     const createPathPreview = (position) => {
-      const point = createTacticalPoint(position, new THREE.Vector3(0, 0, 1), null, 0.15);
+      const point = createPlacedObject(position, new THREE.Vector3(0, 0, 1), null, 0.15);
       point.userData.pathPoint = true;
-      point.userData.aimTarget.visible = false;
-      point.traverse((object) => { if (object.material) object.material.opacity = 0.58; });
+      if (!point.userData.collabPlayer) {
+        point.userData.aimTarget.visible = false;
+        point.traverse((object) => { if (object.material) object.material.opacity = 0.58; });
+      }
       updatePathPoint(point, position);
       return point;
     };
@@ -1619,6 +1757,91 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         points.push(new THREE.Vector3(x, y + 0.035, z));
       }
       return points;
+    };
+    const noteWorldPosition = (note) => {
+      const [x, y, z] = note?.position || [0, 0, 0];
+      return new THREE.Vector3(y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y, x * 0.0254 - modelCenter.z);
+    };
+    const createCollabUtility = (note, itemId, kind, originPosition) => {
+      const group = new THREE.Group();
+      const effect = createGrenadeEffect(new THREE.Vector3(), kind || note?.grenadeType || 'smoke', navData, nav);
+      effect.userData.collabUtilityEffect = true;
+      group.add(effect);
+      let trajectory = null;
+      const projectiles = (note?.replay?.projectiles || []).filter((record) => record.x != null && record.y != null && record.z != null);
+      if (projectiles.length >= 2) {
+        const points = projectiles.map((record) => new THREE.Vector3(record.y * 0.0254 - modelCenter.x, record.z * 0.0254 - modelCenter.y, record.x * 0.0254 - modelCenter.z).sub(originPosition));
+        trajectory = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: '#c58cff', transparent: true, opacity: 0.9 }));
+        trajectory.userData.collabUtilityTrajectory = true;
+        group.add(trajectory);
+      }
+      group.userData.collabUtility = true;
+      group.userData.collabUtilityId = itemId;
+      group.userData.noteId = note?.id;
+      group.userData.noteName = note?.name || '';
+      group.userData.noteSummary = note?.summary || '';
+      group.userData.utilityKind = kind || note?.grenadeType || 'smoke';
+      group.userData.collabUtilityEffect = effect;
+      return group;
+    };
+    const disposeCollabUtility = (group) => {
+      group.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); });
+      group.removeFromParent();
+    };
+    const addCollabUtility = (note, itemId) => {
+      if (!note) return;
+      pushCollabHistory();
+      const origin = noteWorldPosition(note);
+      const group = createCollabUtility(note, itemId || `collab-util-${Date.now()}-${collabUtilities.length}`, undefined, origin);
+      group.position.copy(origin);
+      collabUtilitiesGroup.add(group);
+      collabUtilities.push(group);
+      notifyCollabEdit();
+      return group;
+    };
+    const clearCollabUtilities = () => {
+      collabUtilities.forEach((group) => disposeCollabUtility(group));
+      collabUtilities.length = 0;
+    };
+    const getCollabPlayers = () => pointsRef.current.filter((point) => point.userData.collabPlayer && point.userData.pointId).map((point) => ({ id: point.userData.pointId, name: point.userData.playerName, team: point.userData.team, position: point.position.toArray(), rotationY: point.rotation.y, pitch: point.userData.collabPitch || 0 }));
+    const renamePlayerPoint = (pointId, name) => {
+      const point = pointsRef.current.find((item) => item.userData.pointId === pointId && item.userData.collabPlayer);
+      if (point) { pushCollabHistory(); renameCollabPlayer(point, name); notifyCollabEdit(); }
+    };
+    const setCollabVisible = (visible) => {
+      collabUtilitiesGroup.visible = visible !== false;
+      pointsRef.current.forEach((point) => { if (point.userData.collabPlayer) point.visible = visible !== false; });
+    };
+    const finalizeFrameTween = () => {
+      if (frameTween) {
+        frameTween.entries.forEach(({ point, to, toRot, toPitch }) => {
+          point.position.copy(to);
+          point.rotation.y = toRot;
+          setCollabPlayerPitch(point, toPitch);
+        });
+        frameTween = null;
+      }
+    };
+    const smoothRestoreFrame = (saved, includeCurrentCamera = true, cameraOverride = null) => {
+      finalizeFrameTween();
+      let previousByName = new Map();
+      try { previousByName = new Map(getCollabPlayers().map((player) => [player.name, { position: new THREE.Vector3().fromArray(player.position), rotationY: player.rotationY, pitch: player.pitch }])); } catch (error) { console.error('smoothRestoreFrame getCollabPlayers', error); }
+      const savedCamera = saved?.camera && saved.camera.position && saved.camera.target ? { position: new THREE.Vector3().fromArray(saved.camera.position), target: new THREE.Vector3().fromArray(saved.camera.target) } : null;
+      const overrideCamera = cameraOverride?.position && cameraOverride?.target ? { position: new THREE.Vector3().fromArray(cameraOverride.position), target: new THREE.Vector3().fromArray(cameraOverride.target) } : null;
+      const targetCamera = overrideCamera || (includeCurrentCamera ? savedCamera : null);
+      restoreWorkspaceState(saved, false);
+      const tweenEntries = [];
+      pointsRef.current.forEach((point) => {
+        if (!point.userData.collabPlayer || !point.userData.playerName) return;
+        const from = previousByName.get(point.userData.playerName);
+        if (!from) return;
+        tweenEntries.push({ point, from: from.position, to: point.position.clone(), fromRot: from.rotationY, toRot: point.rotation.y, fromPitch: from.pitch, toPitch: point.userData.collabPitch || 0 });
+      });
+      frameTween = { start: performance.now(), duration: 420, entries: tweenEntries };
+      if (targetCamera) {
+        cameraTransition = { elapsed: 0, duration: 500, fromPosition: camera.position.clone(), fromTarget: controls.target.clone(), toPosition: targetCamera.position.clone(), toTarget: targetCamera.target.clone() };
+        controls.enabled = false;
+      }
     };
     const cameraStorageKey = `csboard-camera-slots-${mapName}`;
     let storedCameraSlots = [];
@@ -1641,8 +1864,52 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       updateCameraSlotState(slot);
     };
     updateCameraSlotState(null);
+    const getCameraState = () => ({ position: camera.position.toArray(), target: controls.target.toArray() });
+    const collabSnapshot = () => ({ points: getWorkspaceState().points.filter((p) => p.kind === 'player'), collabUtilities: collabUtilities.map((group) => ({ id: group.userData.collabUtilityId, noteId: group.userData.noteId, noteName: group.userData.noteName, noteSummary: group.userData.noteSummary, kind: group.userData.utilityKind, position: group.position.toArray() })) });
+    const pushCollabHistory = () => { collabUndoStack.push(collabSnapshot()); if (collabUndoStack.length > 60) collabUndoStack.shift(); collabRedoStack.length = 0; };
+    const restoreCollabSnapshot = (snap) => {
+      if (!snap) return;
+      pointsRef.current.filter((p) => p.userData.collabPlayer).forEach((point) => { point.parent?.remove(point); point.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); });
+      const kept = pointsRef.current.filter((p) => !p.userData.collabPlayer);
+      pointsRef.current.length = 0;
+      pointsRef.current.push(...kept);
+      clearCollabUtilities();
+      (snap.points || []).forEach((item) => {
+        const point = createCollabPlayer({ position: new THREE.Vector3().fromArray(item.position || [0, 0, 0]), id: item.id, name: item.name || randomPlayerName(), team: item.team || 'T', crouched: Boolean(item.crouched), pitch: item.pitch || 0 });
+        point.rotation.y = item.rotationY || 0;
+        point.userData.pointId = item.id;
+        updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion);
+        scene.add(point);
+        pointsRef.current.push(point);
+        if (item.crouched) setCollabPlayerCrouch(point, true);
+      });
+      (snap.collabUtilities || []).forEach((item) => {
+        const origin = new THREE.Vector3().fromArray(item.position || [0, 0, 0]);
+        const note = (utilityNotesRef.current || []).find((candidate) => candidate.id === item.noteId);
+        const group = createCollabUtility(note || { name: item.noteName, summary: item.noteSummary, grenadeType: item.kind }, item.id, item.kind, origin);
+        group.position.copy(origin);
+        collabUtilitiesGroup.add(group);
+        collabUtilities.push(group);
+      });
+      notifyCollabEdit();
+    };
+    const undoCollab = () => {
+      if (!collabUndoStack.length) return;
+      const current = collabSnapshot();
+      const previous = collabUndoStack.pop();
+      collabRedoStack.push(current);
+      restoreCollabSnapshot(previous);
+    };
+    const redoCollab = () => {
+      if (!collabRedoStack.length) return;
+      const current = collabSnapshot();
+      const next = collabRedoStack.pop();
+      collabUndoStack.push(current);
+      restoreCollabSnapshot(next);
+    };
+    collabHistoryRef.current = { push: pushCollabHistory, undo: undoCollab, redo: redoCollab };
     const getWorkspaceState = ({ includeDemo = false } = {}) => {
-      const points = pointsRef.current.filter((point) => point.userData.pointId).map((point) => ({ id: point.userData.pointId, position: point.position.toArray(), rotationY: point.rotation.y, team: point.userData.team, type: point.userData.type, rayLength: point.children.find((child) => child.userData.aimRay)?.scale.z || 0.05, aimTarget: point.userData.aimTarget?.position.toArray() || [0, 0, -0.05] }));
+      const points = pointsRef.current.filter((point) => point.userData.pointId).map((point) => ({ id: point.userData.pointId, position: point.position.toArray(), rotationY: point.rotation.y, team: point.userData.team, type: point.userData.type, rayLength: point.children.find((child) => child.userData.aimRay)?.scale.z || 0.05, aimTarget: point.userData.aimTarget?.position.toArray() || [0, 0, -0.05], kind: point.userData.collabPlayer ? 'player' : undefined, name: point.userData.playerName || undefined, crouched: point.userData.collabPlayer ? Boolean(point.userData.crouched) : undefined, pitch: point.userData.collabPlayer ? (point.userData.collabPitch || 0) : undefined }));
       const grenades = grenadeEffects.map((effect, index) => ({ id: effect.userData.grenadeId || `grenade-${index}`, type: effect.userData.grenadeEffect, position: effect.position.toArray(), range: effect.userData.grenadeRange || effect.scale.x || 1 }));
       if (includeDemo) {
         (demoSnapshotRef.current?.players || []).filter((player) => player.health > 0).forEach((player) => {
@@ -1662,7 +1929,49 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
           grenades.push({ id: `demo-grenade-${event.event_name}-${event.tick}-${event.entityid || event.user_steamid || grenades.length}`, type, position: [y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y, x * 0.0254 - modelCenter.z], range: 1, source: 'demo' });
         });
       }
-      return { cameraSlots: cameraSlots.map((saved) => saved ? { position: saved.position.toArray(), target: saved.target.toArray() } : null), camera: { position: camera.position.toArray(), target: controls.target.toArray() }, points, paths: pathLines.map((line) => line.userData.pathPointIds || []), grenades };
+      return { cameraSlots: cameraSlots.map((saved) => saved ? { position: saved.position.toArray(), target: saved.target.toArray() } : null), camera: { position: camera.position.toArray(), target: controls.target.toArray() }, points, paths: pathLines.map((line) => line.userData.pathPointIds || []), grenades, collabUtilities: collabUtilities.map((group) => ({ id: group.userData.collabUtilityId, noteId: group.userData.noteId, noteName: group.userData.noteName, noteSummary: group.userData.noteSummary, kind: group.userData.utilityKind, position: group.position.toArray() })), brushStrokes: brushStrokes.map((line) => ({ id: line.userData.brushStrokeId, color: line.userData.brushColor, width: line.userData.brushWidth, points: (line.userData.worldPoints || []).map((point) => point.toArray()) })) };
+    };
+    const getLiveBrushData = () => {
+      const data = brushStrokes.map((line) => ({ id: line.userData.brushStrokeId, color: line.userData.brushColor, width: line.userData.brushWidth, points: (line.userData.worldPoints || []).map((point) => point.toArray()) }));
+      if (brushStrokeLine && brushStrokePoints.length >= 2) {
+        data.push({ id: brushStrokeLine.userData.brushStrokeId, color: brushStrokeLine.userData.brushColor, width: brushStrokeLine.userData.brushWidth, points: brushStrokePoints.map((point) => point.toArray()) });
+      }
+      return data;
+    };
+    const notifyBrushChange = () => { onBrushChangeRef.current?.(getLiveBrushData()); };
+    let brushApplyRemote = false;
+    const applyLiveBrushData = (data = []) => {
+      if (!Array.isArray(data)) return;
+      brushApplyRemote = true;
+      const ids = new Set(data.map((item) => item.id));
+      brushStrokes.forEach((line) => { if (!ids.has(line.userData.brushStrokeId)) { scene.remove(line); line.geometry.dispose(); line.material.dispose(); } });
+      for (let index = brushStrokes.length - 1; index >= 0; index -= 1) { if (!ids.has(brushStrokes[index].userData.brushStrokeId)) brushStrokes.splice(index, 1); }
+      brushUndoStack.length = 0;
+      brushRedoStack.length = 0;
+      data.forEach((item) => {
+        if (brushStrokeLine?.userData.brushStrokeId === item.id) return;
+        const existing = brushStrokes.find((line) => line.userData.brushStrokeId === item.id);
+        if (existing) {
+          const points = (item.points || []).map((point) => new THREE.Vector3().fromArray(point));
+          existing.geometry.dispose();
+          existing.geometry = new LineGeometry().setPositions(points.flatMap((p) => [p.x, p.y, p.z]));
+          existing.userData.worldPoints = points;
+        } else {
+          const points = (item.points || []).map((point) => new THREE.Vector3().fromArray(point));
+          if (points.length < 2) return;
+          const geometry = new LineGeometry().setPositions(points.flatMap((p) => [p.x, p.y, p.z]));
+          const material = new LineMaterial({ color: item.color || '#a5e0ff', linewidth: item.width || 3, transparent: true, opacity: 0.9, resolution: new THREE.Vector2(1, 1) });
+          const line = new Line2(geometry, material);
+          line.userData.brushStrokeId = item.id;
+          line.userData.brushColor = item.color || '#a5e0ff';
+          line.userData.brushWidth = item.width || 3;
+          line.userData.worldPoints = points;
+          line.renderOrder = 7;
+          scene.add(line);
+          brushStrokes.push(line);
+        }
+      });
+      brushApplyRemote = false;
     };
     const restoreWorkspaceState = (saved, includeCurrentCamera = true) => {
       if (!saved) return;
@@ -1673,21 +1982,31 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       pointsRef.current.length = 0;
       grenadeEffects.forEach((effect) => { effect.parent?.remove(effect); disposeGrenadeEffect(effect); });
       grenadeEffects.length = 0;
+      clearCollabUtilities();
       const restoredPoints = new Map();
       (saved.points || []).forEach((item) => {
-        const point = createTacticalPoint(new THREE.Vector3(), new THREE.Vector3(0, 0, 1), item.id, item.rayLength, item.team || 'T', item.type || 'T');
-        point.position.fromArray(item.position || [0, 0, 0]);
-        point.rotation.y = item.rotationY || 0;
-        point.userData.pointId = item.id;
-        point.userData.team = item.team || 'T';
-        point.userData.type = item.type || 'T';
-        point.userData.aimTarget?.position.fromArray(item.aimTarget || [0, 0, -0.05]);
-        const aimRay = point.children.find((child) => child.userData.aimRay);
-        if (aimRay && point.userData.aimTarget) {
-          const direction = point.userData.aimTarget.position.clone().sub(new THREE.Vector3(0, 0.15, 0));
-          aimRay.scale.z = Math.max(direction.length(), 0.05);
-          aimRay.rotation.x = Math.atan2(direction.y, -direction.z);
+        let point;
+        if (item.kind === 'player') {
+          point = createCollabPlayer({ position: new THREE.Vector3().fromArray(item.position || [0, 0, 0]), id: item.id, name: item.name || randomPlayerName(), team: item.team || 'T', crouched: Boolean(item.crouched), pitch: item.pitch || 0 });
+          point.rotation.y = item.rotationY || 0;
+          updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion);
+          if (item.crouched) setCollabPlayerCrouch(point, true);
+        } else {
+          point = createTacticalPoint(new THREE.Vector3(), new THREE.Vector3(0, 0, 1), item.id, item.rayLength, item.team || 'T', item.type || 'T');
+          point.position.fromArray(item.position || [0, 0, 0]);
+          point.rotation.y = item.rotationY || 0;
+          point.userData.pointId = item.id;
+          point.userData.team = item.team || 'T';
+          point.userData.type = item.type || 'T';
+          point.userData.aimTarget?.position.fromArray(item.aimTarget || [0, 0, -0.05]);
+          const aimRay = point.children.find((child) => child.userData.aimRay);
+          if (aimRay && point.userData.aimTarget) {
+            const direction = point.userData.aimTarget.position.clone().sub(new THREE.Vector3(0, 0.15, 0));
+            aimRay.scale.z = Math.max(direction.length(), 0.05);
+            aimRay.rotation.x = Math.atan2(direction.y, -direction.z);
+          }
         }
+        point.userData.pointId = item.id;
         scene.add(point);
         pointsRef.current.push(point);
         restoredPoints.set(item.id, point);
@@ -1714,11 +2033,39 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         scene.add(effect);
         grenadeEffects.push(effect);
       });
+      (saved.collabUtilities || []).forEach((item) => {
+        const note = (utilityNotesRef.current || []).find((candidate) => candidate.id === item.noteId);
+        const origin = new THREE.Vector3().fromArray(item.position || [0, 0, 0]);
+        const group = createCollabUtility(note || { name: item.noteName, summary: item.noteSummary, grenadeType: item.kind }, item.id, item.kind, origin);
+        group.position.copy(origin);
+        collabUtilitiesGroup.add(group);
+        collabUtilities.push(group);
+      });
       if (saved.cameraSlots) {
         saved.cameraSlots.forEach((slot, index) => { cameraSlots[index] = slot ? { position: new THREE.Vector3(...slot.position), target: new THREE.Vector3(...slot.target) } : null; });
         localStorage.setItem(cameraStorageKey, JSON.stringify(cameraSlots.map((slot) => slot ? { position: slot.position.toArray(), target: slot.target.toArray() } : null)));
         updateCameraSlotState(null);
       }
+      brushStrokes.forEach((line) => { scene.remove(line); line.geometry.dispose(); line.material.dispose(); });
+      brushStrokes.length = 0;
+      brushUndoStack.length = 0;
+      brushRedoStack.length = 0;
+      removeBrushStrokeLine();
+      (saved.brushStrokes || []).forEach((item) => {
+        const worldPoints = (item.points || []).map((point) => new THREE.Vector3().fromArray(point));
+        if (worldPoints.length < 2) return;
+        const geometry = new LineGeometry().setPositions(worldPoints.flatMap((p) => [p.x, p.y, p.z]));
+        const material = new LineMaterial({ color: item.color || '#a5e0ff', linewidth: item.width || 3, transparent: true, opacity: 0.9, resolution: new THREE.Vector2(1, 1) });
+        const line = new Line2(geometry, material);
+        line.userData.brushStrokeId = item.id;
+        line.userData.brushColor = item.color || '#a5e0ff';
+        line.userData.brushWidth = item.width || 3;
+        line.userData.worldPoints = worldPoints;
+        line.renderOrder = 7;
+        scene.add(line);
+        brushStrokes.push(line);
+        brushUndoStack.push(line);
+      });
       if (includeCurrentCamera && saved.camera) { camera.position.fromArray(saved.camera.position); controls.target.fromArray(saved.camera.target); controls.update(); }
     };
     const commitPathPoint = () => {
@@ -1740,15 +2087,17 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       pathOrigin = null;
     };
     const onKeyDown = (event) => {
+      const tag = event.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target?.isContentEditable) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
-        if (event.shiftKey) redoBrush();
-        else undoBrush();
+        if (event.shiftKey) { if (collabRedoStack.length) redoCollab(); else redoBrush(); }
+        else if (collabUndoStack.length) undoCollab(); else undoBrush();
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
         event.preventDefault();
-        redoBrush();
+        if (collabRedoStack.length) redoCollab(); else redoBrush();
         return;
       }
       const pressedNumber = Number.parseInt(event.key, 10);
@@ -1774,16 +2123,15 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         placementStartPointer = pointerCurrent.clone();
         placementOrigin = pointerToSurface(pointerCurrent);
         if (placementOrigin) {
-           previewPoint = createTacticalPoint(placementOrigin, new THREE.Vector3(0, 0, 1), null, 0.05);
-           previewPoint.userData.aimTarget.visible = false;
-           previewPoint.traverse((object) => { if (object.material) object.material.opacity = 0.52; });
+           previewPoint = createPlacedObject(placementOrigin, new THREE.Vector3(0, 0, 1), null, 0.05);
+           if (!previewPoint.userData.collabPlayer) {
+             previewPoint.userData.aimTarget.visible = false;
+             previewPoint.traverse((object) => { if (object.material) object.material.opacity = 0.52; });
+           }
           scene.add(previewPoint);
         }
       }
       if (event.key.toLowerCase() === 'control' && !pathMode && !placing && !grenadeWheelOpen) {
-        pathMode = true;
-        pathPoints.length = 0;
-        controls.enabled = false;
         event.preventDefault();
       }
       if (event.key.toLowerCase() === 'q' && !grenadeWheelOpen) {
@@ -1802,9 +2150,12 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         placing = false;
         controls.enabled = true;
         if (previewPoint && placementOrigin) {
+          pushCollabHistory();
           const direction = pointerToAim(pointerCurrent, placementOrigin.y)?.sub(placementOrigin) || new THREE.Vector3(0, 0, 1);
           const rayLength = Math.max(new THREE.Vector3(direction.x, 0, direction.z).length(), 0.05);
-          const point = createTacticalPoint(placementOrigin, direction, `${Date.now()}-${pointsRef.current.length}`, rayLength);
+          const point = previewPoint.userData.collabPlayer ? previewPoint : createPlacedObject(placementOrigin, direction, `${Date.now()}-${pointsRef.current.length}`, rayLength);
+          point.userData.pointId = `${Date.now()}-${pointsRef.current.length}`;
+          if (previewPoint.userData.collabPlayer) applyPlacedPreview(point, direction);
           scene.remove(previewPoint);
           pointsRef.current.push(point);
           scene.add(point);
@@ -1889,24 +2240,33 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         const hit = raycaster.intersectObjects(pointsRef.current, true)[0]?.object;
         if (hit) {
           let pointOwner = hit;
-          while (pointOwner?.parent && pointOwner.parent.userData.pointId) pointOwner = pointOwner.parent;
+          while (pointOwner?.parent && !pointOwner.userData.pointId && !pointOwner.userData.collabPlayer) pointOwner = pointOwner.parent;
+          if (pointOwner?.userData.collabPlayer) pointOwner = pointOwner.userData.pointId ? pointOwner : null;
           pointPointerTarget = pointOwner?.userData.pointId ? pointOwner : null;
           pointPointerStart = pointerCurrent.clone();
           pointPointerTime = performance.now();
+          pointPointerMoved = false;
           if (pointPointerTarget) {
             controls.enabled = false;
             pointPointerBaseRotation = pointPointerTarget.rotation.y;
+            pointPointerBasePitch = pointPointerTarget.userData.collabPitch || 0;
             const aimTarget = pointPointerTarget.userData.aimTarget;
             const targetY = aimTarget?.position.y ?? 0.15;
             const targetZ = aimTarget?.position.z ?? -0.05;
             pointPointerRayLength = Math.max(Math.hypot(targetY - 0.15, targetZ), 0.05);
-            pointPointerBasePitch = Math.atan2(targetY - 0.15, -targetZ);
-            pointPointerDragging = !hit.userData.aimTarget;
+            pointPointerDragging = !hit.userData.aimTarget && !pressedKeys.has('control') && !pressedKeys.has('shift');
           }
         } else pointSelectRef.current?.(null);
       }
       if (event.button === 0 && brushEnabledRef.current && !pathMode && !placing && !grenadeWheelOpen && !grenadeAdjusting && !pointPointerTarget && !activeGrenade) {
-        startBrushStroke(pointerToSurface(pointerCurrent));
+        if (brushEraserRef.current || pressedKeys.has('control')) {
+          eraserActive = true;
+          eraserLastPointer = null;
+          controls.enabled = false;
+          eraseAtPointer(pointerCurrent);
+        } else {
+          startBrushStroke(pointerToSurface(pointerCurrent));
+        }
       }
     };
     const onPointerMove = (event) => {
@@ -1926,6 +2286,10 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         } else utilityHoverRef.current?.(null);
       }
       focusScreen.set(pointerCurrent.x * 0.5 + 0.5, pointerCurrent.y * 0.5 + 0.5);
+      if (eraserActive) {
+        eraseAtPointer(pointerCurrent);
+        return;
+      }
       if (brushActive && brushPointerDown) {
         const position = pointerToSurface(pointerCurrent);
         if (position) {
@@ -1934,6 +2298,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
             brushStrokePoints.push(position.clone().add(new THREE.Vector3(0, 0.035, 0)));
             brushLastInBounds = position.clone();
             updateBrushStrokeLine();
+            notifyBrushChange();
           }
         } else if (brushLastInBounds) {
           const aim = pointerToAim(pointerCurrent, brushLastInBounds.y);
@@ -1943,6 +2308,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
             if (!previous || previous.distanceTo(aim) > 0.06) {
               brushStrokePoints.push(aim);
               updateBrushStrokeLine();
+              notifyBrushChange();
             }
           }
         }
@@ -1989,10 +2355,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         if (position) {
           const direction = position.clone().sub(placementOrigin);
           direction.y = 0;
-          previewPoint.rotation.y = direction.lengthSq() ? Math.atan2(-direction.x, -direction.z) : 0;
-          let aimRay;
-          previewPoint.traverse((object) => { if (object.userData.aimRay) aimRay = object; });
-          if (aimRay) aimRay.scale.z = Math.max(new THREE.Vector3(direction.x, 0, direction.z).length(), 0.05);
+          applyPlacedPreview(previewPoint, direction);
         }
       }
       if (pointPointerTarget && !placing && !grenadeAdjusting) {
@@ -2000,16 +2363,34 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         const deltaY = pointerCurrent.y - pointPointerStart.y;
         const aimRay = pointPointerTarget.children.find((child) => child.userData.aimRay);
         const aimTarget = pointPointerTarget.userData.aimTarget;
+        const isCollabPlayer = pointPointerTarget.userData.collabPlayer;
         if (pointPointerDragging) {
+          pointPointerMoved = true;
           const targetPosition = pointerToSurface(pointerCurrent);
-          if (targetPosition) pointPointerTarget.position.copy(targetPosition).add(new THREE.Vector3(0, 0.002, 0));
-        } else if (pressedKeys.has('control')) {
+          if (targetPosition) {
+            pointPointerTarget.position.copy(targetPosition).add(new THREE.Vector3(0, 0.002, 0));
+            if (isCollabPlayer) { pointPointerTarget.userData.aimCollisionVersion = -1; updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionVersion); }
+          }
+        } else if (isCollabPlayer && pressedKeys.has('control')) {
+          pointPointerMoved = true;
+          const targetPosition = pointerToAim(pointerCurrent, pointPointerTarget.position.y);
+          if (targetPosition) applyPlacedAim(pointPointerTarget, targetPosition);
+        } else if (isCollabPlayer && pressedKeys.has('shift')) {
+          pointPointerMoved = true;
+          const pitch = THREE.MathUtils.clamp(pointPointerBasePitch - deltaY * 1.8, -Math.PI * 0.42, Math.PI * 0.42);
+          setCollabPlayerPitch(pointPointerTarget, pitch);
+          pointPointerTarget.userData.aimCollisionVersion = -1;
+          updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionVersion);
+        } else if (pressedKeys.has('control') && !isCollabPlayer) {
           const pitch = THREE.MathUtils.clamp(pointPointerBasePitch + deltaY * Math.PI, -Math.PI * 0.42, Math.PI * 0.42);
           if (aimRay) {
             aimRay.rotation.x = pitch;
             aimRay.scale.z = pointPointerRayLength;
           }
           if (aimTarget) aimTarget.position.set(0, 0.15 + Math.sin(pitch) * pointPointerRayLength, -Math.cos(pitch) * pointPointerRayLength);
+        } else if (isCollabPlayer) {
+          const targetPosition = pointerToAim(pointerCurrent, pointPointerTarget.position.y);
+          if (targetPosition) applyPlacedAim(pointPointerTarget, targetPosition);
         } else {
           const targetPosition = pointerToAim(pointerCurrent, pointPointerTarget.position.y);
           if (targetPosition) {
@@ -2024,13 +2405,21 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
     };
     const onPointerUp = (event) => {
+      if (event.button === 0 && eraserActive) {
+        eraserActive = false;
+        eraserLastPointer = null;
+        if (!cameraTransition && !utilityFirstPersonRef.current?.player && !demoDirectorCameraActive) controls.enabled = true;
+        return;
+      }
       if (event.button === 0 && brushActive && brushPointerDown) {
         brushActive = false;
         brushPointerDown = false;
         if (brushStrokePoints.length >= 2 && brushStrokeLine) {
+          brushStrokeLine.userData.worldPoints = brushStrokePoints.map((point) => point.clone());
           brushStrokes.push(brushStrokeLine);
           brushUndoStack.push(brushStrokeLine);
           brushRedoStack.length = 0;
+          notifyBrushChange();
         } else removeBrushStrokeLine();
         brushStrokeLine = null;
         brushStrokePoints = [];
@@ -2051,9 +2440,33 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
       if (event.button !== 0 || !pointPointerTarget) return;
       const distance = pointPointerStart.distanceTo(pointerPosition(event));
-       if (performance.now() - pointPointerTime < 450 && distance < 0.03) { const projected = pointPointerTarget.position.clone().project(camera); pointSelectRef.current?.(pointPointerTarget.userData.pointId, { x: (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth, y: (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight }); }
+      const targetId = pointPointerTarget.userData.pointId;
+      const isCollabPlayer = pointPointerTarget.userData.collabPlayer;
+      const moved = pointPointerMoved;
+      if (isCollabPlayer && !moved && distance < 0.03) {
+        const now = performance.now();
+        if (lastClickId === targetId && now - lastClickTime < 350) {
+          setCollabPlayerCrouch(pointPointerTarget, !pointPointerTarget.userData.crouched);
+          pointPointerTarget.userData.aimCollisionVersion = -1;
+          updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionVersion);
+          pushCollabHistory();
+          notifyCollabEdit();
+          lastClickTime = 0;
+          lastClickId = null;
+        } else {
+          lastClickTime = now;
+          lastClickId = targetId;
+        }
+      } else if (isCollabPlayer && moved) {
+        pushCollabHistory();
+        notifyCollabEdit();
+      } else if (!isCollabPlayer) {
+        pushCollabHistory();
+        if (performance.now() - pointPointerTime < 450 && distance < 0.03) { const projected = pointPointerTarget.position.clone().project(camera); pointSelectRef.current?.(targetId, { x: (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth, y: (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight }); }
+      }
       pointPointerTarget = null;
       pointPointerDragging = false;
+      pointPointerMoved = false;
       if (!cameraTransition && !utilityFirstPersonRef.current?.player && !demoDirectorCameraActive) controls.enabled = true;
     };
     const cancelPointerInteraction = () => {
@@ -2062,8 +2475,11 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       grenadeAdjusting = false;
       pointPointerTarget = null;
       pointPointerDragging = false;
+      pointPointerMoved = false;
       placing = false;
       pathMode = false;
+      eraserActive = false;
+      eraserLastPointer = null;
       if (brushActive) removeBrushStrokeLine();
       brushActive = false;
       brushPointerDown = false;
@@ -2142,7 +2558,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       worldModel.visible = modelVisibilityRef.current;
       worldModel.position.y = modelBasePositionRef.current.y + (modelMode.value === 3 ? -0.12 : 0);
       resetCamera();
-      onReady({ reset: () => resetToDefault(resetCamera), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes });
+      onReady({ reset: () => resetToDefault(resetCamera), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, clearCollabUtilities, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, finalizeFrameTween, setCollabVisible, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
     }, undefined, (loadError) => {
       console.info(`${mapName} visual model unavailable.`, loadError.message);
       if (nav) {
@@ -2155,13 +2571,13 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         controls.maxDistance = Math.max(nav.size * 2.2, 70);
         controls.update();
          const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
-         onReady({ reset: () => resetToDefault(normalReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes });
+         onReady({ reset: () => resetToDefault(normalReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, clearCollabUtilities, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, finalizeFrameTween, setCollabVisible, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
       }
     });
     controls.target.set(0, 0, 0);
     controls.update();
      const initialReset = () => { camera.position.set(17, 23, 25); controls.target.set(0, 0, 0); controls.update(); };
-     onReady({ reset: () => resetToDefault(initialReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes });
+     onReady({ reset: () => resetToDefault(initialReset), restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, clearCollabUtilities, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, finalizeFrameTween, setCollabVisible, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
     const resize = () => { const { width, height } = mount.getBoundingClientRect(); renderer.setSize(width, height, false); renderer.getDrawingBufferSize(viewportSize); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix(); };
     resize();
     window.addEventListener('resize', resize);
@@ -2361,20 +2777,36 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       updateUtilityNotes();
       updateDemoGrenades();
       updateC4();
+      if (frameTween) {
+        const progress = THREE.MathUtils.smoothstep(Math.min((performance.now() - frameTween.start) / frameTween.duration, 1), 0, 1);
+        frameTween.entries.forEach(({ point, from, to, fromRot, toRot, fromPitch, toPitch }) => {
+          point.position.lerpVectors(from, to, progress);
+          point.rotation.y = THREE.MathUtils.lerp(fromRot, toRot, progress);
+          point.userData.collabPitch = THREE.MathUtils.lerp(fromPitch, toPitch, progress);
+          point.userData.aimCollisionVersion = -1;
+        });
+        if (progress >= 1) frameTween = null;
+      }
+      pointsRef.current.forEach((point) => { if (point.userData.collabPlayer) updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion); });
       updateAimTargetScreenSizes();
       const interactionLocked = Boolean(cameraTransition || utilityFirstPersonRef.current?.player || demoDirectorCameraActive || placing || pathMode || grenadeAdjusting || pointPointerTarget);
       if (!interactionLocked && !controls.enabled) controls.enabled = true;
+      const brushResolution = renderer.getDrawingBufferSize(new THREE.Vector2());
+      brushStrokes.forEach((line) => { if (line.material) line.material.resolution.copy(brushResolution); });
+      if (brushStrokeLine?.material) brushStrokeLine.material.resolution.copy(brushResolution);
       renderer.render(scene, camera);
       frame = requestAnimationFrame(animate);
     };
     animate(performance.now());
-     return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('wheel', onWheel); renderer.domElement.removeEventListener('pointerdown', onPointerDown); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('contextmenu', onContextMenu); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeObjectsRef.current.forEach((effect) => { scene.remove(effect); disposeGrenadeEffect(effect); }); demoGrenadeObjectsRef.current.clear(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); demoDeathMarkers.forEach((marker) => { marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); }); scene.remove(marker); }); analysisPaths.forEach((item) => { item.line.geometry.dispose(); item.line.material.dispose(); item.marker.geometry.dispose(); item.marker.material.dispose(); }); analysisGroup.removeFromParent(); if (nav) { nav.geometry.dispose(); nav.edgeGeometry.dispose(); nav.mesh.material.dispose(); nav.edgeLines.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('wheel', onWheel); renderer.domElement.removeEventListener('pointerdown', onPointerDown); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('contextmenu', onContextMenu); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeObjectsRef.current.forEach((effect) => { scene.remove(effect); disposeGrenadeEffect(effect); }); demoGrenadeObjectsRef.current.clear(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); demoDeathMarkers.forEach((marker) => { marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); }); scene.remove(marker); }); analysisPaths.forEach((item) => { item.line.geometry.dispose(); item.line.material.dispose(); item.marker.geometry.dispose(); item.marker.material.dispose(); }); analysisGroup.removeFromParent(); if (nav) { nav.geometry.dispose(); nav.edgeGeometry.dispose(); nav.mesh.material.dispose(); nav.edgeLines.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {
     if (!deletePointId) return;
     const index = pointsRef.current.findIndex((point) => point.userData.pointId === deletePointId);
     if (index < 0) return;
+    const target = pointsRef.current[index];
+    if (target?.userData.collabPlayer) collabHistoryRef.current.push();
     const [point] = pointsRef.current.splice(index, 1);
     pathLinesRef.current.filter((line) => line.userData.pathPointIds?.includes(deletePointId)).forEach((line) => {
       line.parent?.remove(line);
@@ -2390,7 +2822,12 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   useEffect(() => {
     if (!pointUpdate) return;
     const point = pointsRef.current.find((item) => item.userData.pointId === pointUpdate.id);
-    if (point) updateTacticalPoint(point, pointUpdate.team || point.userData.team, pointUpdate.type || point.userData.type);
+    if (!point) return;
+    if (point.userData.collabPlayer) {
+      if (pointUpdate.team) { collabHistoryRef.current.push(); setCollabPlayerTeam(point, pointUpdate.team); onCollabEditRef.current?.(); }
+    } else {
+      updateTacticalPoint(point, pointUpdate.team || point.userData.team, pointUpdate.type || point.userData.type);
+    }
   }, [pointUpdate]);
 
   useEffect(() => {
@@ -2427,6 +2864,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
 
 function App() {
   const [language, setLanguage] = useState(() => localStorage.getItem('csboard-language') || 'zh');
+  const [collabUtilitySearch, setCollabUtilitySearch] = useState('');
+  const [collabObjectTab, setCollabObjectTab] = useState('players');
   const t = (key, values) => translate(language, key, values);
   const languageRef = useRef(language);
   languageRef.current = language;
@@ -2468,6 +2907,9 @@ function App() {
   const [analysisStatus, setAnalysisStatus] = useState('');
   const [analysisTime, setAnalysisTime] = useState(0);
   const [analysisSide, setAnalysisSide] = useState('ALL');
+  const [brushColor, setBrushColor] = useState(() => localStorage.getItem('csboard-brush-color') || '#a5e0ff');
+  const [brushWidth, setBrushWidth] = useState(() => Number(localStorage.getItem('csboard-brush-width')) || 3);
+  const [eraserEnabled, setEraserEnabled] = useState(false);
   const demoWorkerRef = useRef(null);
   const pendingDemoCacheRef = useRef(null);
   const pendingDemoRoundWritesRef = useRef(Promise.resolve());
@@ -2487,6 +2929,56 @@ function App() {
   const [cameraSlotState, setCameraSlotState] = useState(Array(10).fill(false));
   const [activeCameraSlot, setActiveCameraSlot] = useState(null);
   const [activePanel, setActivePanel] = useState('demo');
+  useEffect(() => {
+    boardRef.current?.setCollabVisible?.(activePanel === 'collab');
+  }, [activePanel]);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia?.('(max-width: 820px)').matches ?? false);
+  useEffect(() => {
+    const query = window.matchMedia?.('(max-width: 820px)');
+    if (!query) return;
+    const onChange = () => setIsMobile(query.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+  const [collabTick, setCollabTick] = useState(0);
+  const [renameModal, setRenameModal] = useState(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const openRenameModal = (id, current) => { setRenameModal({ id, current }); setRenameDraft(current || ''); };
+  const confirmRename = () => {
+    if (!renameModal) return;
+    renameCollabPlayerPoint(renameModal.id, renameDraft.trim());
+    setRenameModal(null);
+    setRenameDraft('');
+  };
+  useEffect(() => {
+    if (activePanel !== 'collab') return;
+    const timer = window.setInterval(() => setCollabTick((tick) => tick + 1), 400);
+    return () => window.clearInterval(timer);
+  }, [activePanel]);
+  const collabDirtyRef = useRef(false);
+  const collabSaveTimerRef = useRef(null);
+  const scheduleCollabSave = (delay = 700) => {
+    collabDirtyRef.current = true;
+    window.clearTimeout(collabSaveTimerRef.current);
+    collabSaveTimerRef.current = window.setTimeout(() => {
+      collabDirtyRef.current = false;
+      try { boardRef.current?.finalizeFrameTween?.(); saveActiveFrame(); } catch (error) { console.error('collab debounced save', error); }
+    }, delay);
+  };
+  const flushCollabSave = () => {
+    if (!collabDirtyRef.current) return;
+    window.clearTimeout(collabSaveTimerRef.current);
+    collabDirtyRef.current = false;
+    try { boardRef.current?.finalizeFrameTween?.(); saveActiveFrame(); } catch (error) { console.error('collab flush save', error); }
+  };
+  useEffect(() => {
+    if (activePanel !== 'collab') return;
+    return () => { window.clearTimeout(collabSaveTimerRef.current); collabDirtyRef.current = false; };
+  }, [activePanel]);
+  useEffect(() => {
+    if (activePanel !== 'collab' || !activeFrameIdRef.current || !framesRef.current.length) return;
+    flushCollabSave();
+  }, [collabTick]);
   const [utilityNotes, setUtilityNotes] = useState(() => { try { return JSON.parse(localStorage.getItem('csboard-utility-notes') || '[]'); } catch { return []; } });
   const [utilityModalOpen, setUtilityModalOpen] = useState(false);
   const [utilityDraft, setUtilityDraft] = useState({ getpos: '', name: '', summary: '' });
@@ -2501,6 +2993,12 @@ function App() {
   const [selectedDemoGrenadeScreen, setSelectedDemoGrenadeScreen] = useState(null);
   const [utilityReplay, setUtilityReplay] = useState(null);
   const [archives, setArchives] = useState(() => { try { return JSON.parse(localStorage.getItem('csboard-workspace-archives') || '[]'); } catch { return []; } });
+  const [frames, setFrames] = useState(() => { try { return JSON.parse(localStorage.getItem('csboard-collab-frames') || '[]'); } catch { return []; } });
+  const [activeFrameId, setActiveFrameId] = useState(null);
+  const framesRef = useRef(frames);
+  const activeFrameIdRef = useRef(activeFrameId);
+  framesRef.current = frames;
+  activeFrameIdRef.current = activeFrameId;
   const [roomCode, setRoomCode] = useState('');
   const [roomOwner, setRoomOwner] = useState(false);
   const [roomStatus, setRoomStatus] = useState('');
@@ -2629,10 +3127,104 @@ function App() {
     const room = doc.getMap('room');
     const points = doc.getMap('points');
     const paths = doc.getMap('paths');
+    const utilities = doc.getMap('utilities');
     const fallback = room.get('workspace');
-    value.restoreWorkspaceState?.({ points: points.size ? [...points.values()] : fallback?.points || [], paths: paths.size ? [...paths.values()] : fallback?.paths || [], grenades: fallback?.grenades || [], cameraSlots: room.get('cameraSlots') || fallback?.cameraSlots || [] }, false);
+    value.restoreWorkspaceState?.({ points: points.size ? [...points.values()] : fallback?.points || [], paths: paths.size ? [...paths.values()] : fallback?.paths || [], grenades: fallback?.grenades || [], cameraSlots: room.get('cameraSlots') || fallback?.cameraSlots || [], collabUtilities: utilities.size ? [...utilities.values()] : fallback?.collabUtilities || [] }, false);
   };
   const onPointSelect = (id, screen) => { setSelectedPoint(id); setSelectedPointScreen(screen); };
+  const persistFrames = (next, silent = false) => {
+    setFrames(next);
+    try { localStorage.setItem('csboard-collab-frames', JSON.stringify(next)); } catch { /* ignore */ }
+    if (!silent) publishFramesToRoom(next);
+  };
+  const activeFrameWorkspace = () => boardRef.current?.getWorkspaceState?.() || { points: [], paths: [], grenades: [], collabUtilities: [] };
+  const emptyWorkspace = () => ({ points: [], paths: [], grenades: [], collabUtilities: [], brushStrokes: [] });
+  const saveActiveFrame = (workspace) => {
+    if (!framesRef.current.length || !activeFrameIdRef.current) return null;
+    window.clearTimeout(collabSaveTimerRef.current);
+    collabDirtyRef.current = false;
+    boardRef.current?.finalizeFrameTween?.();
+    const snapshot = workspace ?? activeFrameWorkspace();
+    const next = framesRef.current.map((frame) => frame.id === activeFrameIdRef.current ? { ...frame, workspace: snapshot } : frame);
+    persistFrames(next);
+    return next;
+  };
+  const switchFrame = (frameId) => {
+    const frame = framesRef.current.find((item) => item.id === frameId);
+    if (!frame || frameId === activeFrameIdRef.current) return;
+    try { boardRef.current?.finalizeFrameTween?.(); saveActiveFrame(); } catch (error) { console.error('switchFrame saveActiveFrame', error); }
+    try { boardRef.current?.smoothRestoreFrame?.(frame.workspace || emptyWorkspace(), false); } catch (error) { console.error('switchFrame smoothRestoreFrame', error); }
+    setActiveFrameId(frameId);
+  };
+  const insertFrame = () => {
+    boardRef.current?.finalizeFrameTween?.();
+    saveActiveFrame();
+    const id = `frame-${Date.now()}`;
+    const next = [...framesRef.current, { id, workspace: emptyWorkspace() }];
+    persistFrames(next);
+    boardRef.current?.restoreWorkspaceState?.(emptyWorkspace(), false);
+    setActiveFrameId(id);
+  };
+  const duplicateFrame = () => {
+    if (!framesRef.current.length) return;
+    boardRef.current?.finalizeFrameTween?.();
+    saveActiveFrame();
+    const active = framesRef.current.find((frame) => frame.id === activeFrameIdRef.current) || framesRef.current[0];
+    const index = framesRef.current.indexOf(active);
+    const id = `frame-${Date.now()}`;
+    const copy = { id, workspace: activeFrameWorkspace() };
+    const next = [...framesRef.current.slice(0, index + 1), copy, ...framesRef.current.slice(index + 1)];
+    persistFrames(next);
+    boardRef.current?.smoothRestoreFrame?.(copy.workspace, false);
+    setActiveFrameId(id);
+  };
+  const deleteFrame = () => {
+    if (framesRef.current.length <= 1) return;
+    const index = framesRef.current.findIndex((frame) => frame.id === activeFrameIdRef.current);
+    const next = framesRef.current.filter((frame) => frame.id !== activeFrameIdRef.current);
+    persistFrames(next);
+    const nextActive = next[Math.max(0, index - 1)] || next[0];
+    boardRef.current?.smoothRestoreFrame?.(nextActive.workspace || emptyWorkspace(), false);
+    setActiveFrameId(nextActive.id);
+  };
+  const activeCollabPlayers = () => {
+    const workspace = activeFrameWorkspace();
+    return (workspace.points || []).filter((point) => point.kind === 'player');
+  };
+  const renameCollabPlayerPoint = (pointId, newName) => {
+    const current = activeCollabPlayers();
+    const target = current.find((point) => point.id === pointId);
+    if (!target || target.name === newName) return;
+    if (current.some((point) => point.id !== pointId && point.name === newName)) { setRoomNotice(`${t('nameExists')} ${newName}`); return; }
+    boardRef.current?.renamePlayerPoint?.(pointId, newName);
+    saveActiveFrame();
+  };
+  const handleBrushChange = (data) => {
+    if (activePanel === 'collab') scheduleCollabSave();
+    const doc = roomDocRef.current;
+    if (!doc) return;
+    const brushes = doc.getMap('brushes');
+    doc.transact(() => {
+      const known = new Set(data.map((item) => item.id));
+      brushes.forEach((_, id) => { if (!known.has(id)) brushes.delete(id); });
+      data.forEach((item) => { if (JSON.stringify(brushes.get(item.id)) !== JSON.stringify(item)) brushes.set(item.id, item); });
+    });
+  };
+  const publishFramesToRoom = (next = frames) => {
+    const doc = roomDocRef.current;
+    if (!doc) return;
+    const framesMap = doc.getMap('frames');
+    const activeMap = doc.getMap('activeFrame');
+    doc.transact(() => {
+      const known = new Set(next.map((frame) => frame.id));
+      framesMap.forEach((_, id) => { if (!known.has(id)) framesMap.delete(id); });
+      next.forEach((frame) => { if (JSON.stringify(framesMap.get(frame.id)) !== JSON.stringify(frame)) framesMap.set(frame.id, frame); });
+      if (activeMap.get('id') !== activeFrameId) activeMap.set('id', activeFrameId);
+    });
+  };
+  useEffect(() => {
+    if (!activeFrameId && frames.length) setActiveFrameId(frames[0].id);
+  }, [frames, activeFrameId]);
   useEffect(() => {
     const closePointActions = (event) => {
       if (event.target.closest?.('.point-actions') || event.target.closest?.('.three-board')) return;
@@ -2643,14 +3235,33 @@ function App() {
     return () => document.removeEventListener('pointerdown', closePointActions);
   }, []);
   const onCameraSlots = (slots, active) => { setCameraSlotState(slots); setActiveCameraSlot(active); };
-  const saveWorkspaceArchive = (includeDemo = false) => {
-    const archive = { id: `${Date.now()}`, savedAt: new Date().toISOString(), mapName, map: mapName, demo: demoData ? { fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick } : null, workspace: boardRef.current?.getWorkspaceState?.({ includeDemo: includeDemo === true }) };
-    if (!archive.workspace) return;
-    const next = [archive, ...archives].slice(0, 30);
+  const [saveArchiveModal, setSaveArchiveModal] = useState(false);
+  const [saveArchiveName, setSaveArchiveName] = useState('');
+  const [saveArchiveSelected, setSaveArchiveSelected] = useState('');
+  const [saveArchiveIncludeDemo, setSaveArchiveIncludeDemo] = useState(false);
+  const saveWorkspaceArchive = (targetId = saveArchiveSelected, targetName = saveArchiveName) => {
+    const workspace = boardRef.current?.getWorkspaceState?.({ includeDemo: saveArchiveIncludeDemo === true });
+    if (!workspace) return;
+    const now = Date.now();
+    let archive;
+    let next;
+    const existing = archives.find((item) => item.id === targetId);
+    if (existing) {
+      archive = { ...existing, savedAt: new Date().toISOString(), workspace, mapName, map: mapName, demo: demoData ? { fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick } : null };
+      next = archives.map((item) => item.id === targetId ? archive : item);
+    } else {
+      archive = { id: `${now}`, savedAt: new Date().toISOString(), name: targetName.trim() || `${t('frame')} ${archives.length + 1}`, mapName, map: mapName, demo: demoData ? { fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick } : null, workspace };
+      next = [archive, ...archives].slice(0, 30);
+    }
     setArchives(next);
-    localStorage.setItem('csboard-workspace-archives', JSON.stringify(next));
+    try { localStorage.setItem('csboard-workspace-archives', JSON.stringify(next)); } catch { /* ignore */ }
     if (roomDocRef.current && roomOwner) { const room = roomDocRef.current.getMap('room'); room.set('mapName', archive.mapName); room.set('workspace', roomWorkspace(archive.workspace, archive.workspace.cameraSlots)); room.set('revision', Number(room.get('revision') || 0) + 1); }
+    setSaveArchiveModal(false);
+    setSaveArchiveName('');
+    setSaveArchiveSelected('');
+    setSaveArchiveIncludeDemo(false);
   };
+  const openSaveArchiveModal = (includeDemo = false) => { setSaveArchiveIncludeDemo(includeDemo); setSaveArchiveSelected(''); setSaveArchiveName(''); setSaveArchiveModal(true); };
   const openRoom = () => {
     const workspace = boardRef.current?.getWorkspaceState?.();
     if (!workspace) return;
@@ -2674,6 +3285,10 @@ function App() {
     const room = doc.getMap('room');
     const points = doc.getMap('points');
     const paths = doc.getMap('paths');
+    const utilities = doc.getMap('utilities');
+    const framesMap = doc.getMap('frames');
+    const activeFrameMap = doc.getMap('activeFrame');
+    const brushes = doc.getMap('brushes');
     let applyingRemote = false;
     let synced = false;
     let localBaseline = null;
@@ -2683,6 +3298,7 @@ function App() {
         points: points.size ? [...points.values()] : fallback?.points || [],
         paths: paths.size ? [...paths.values()] : fallback?.paths || [],
         grenades: fallback?.grenades || [],
+        collabUtilities: utilities.size ? [...utilities.values()] : fallback?.collabUtilities || [],
         cameraSlots: room.get('cameraSlots') || fallback?.cameraSlots || [],
       };
       const serialized = JSON.stringify(shared);
@@ -2704,24 +3320,47 @@ function App() {
       const currentPoints = new Map(workspace.points.map((point) => [point.id, point]));
       const previousPaths = new Map((localBaseline?.paths || []).map((path) => [path.join(':'), path]));
       const currentPaths = new Map(workspace.paths.map((path) => [path.join(':'), path]));
+      const previousUtilities = new Map((localBaseline?.collabUtilities || []).map((utility) => [utility.id, utility]));
+      const currentUtilities = new Map((workspace.collabUtilities || []).map((utility) => [utility.id, utility]));
       doc.transact(() => {
         currentPoints.forEach((point, id) => { if (force || JSON.stringify(previousPoints.get(id)) !== JSON.stringify(point)) points.set(id, point); });
         previousPoints.forEach((_, id) => { if (!currentPoints.has(id)) points.delete(id); });
         currentPaths.forEach((path, id) => { if (force || JSON.stringify(previousPaths.get(id)) !== JSON.stringify(path)) paths.set(id, path); });
         previousPaths.forEach((_, id) => { if (!currentPaths.has(id)) paths.delete(id); });
+        currentUtilities.forEach((utility, id) => { if (force || JSON.stringify(previousUtilities.get(id)) !== JSON.stringify(utility)) utilities.set(id, utility); });
+        previousUtilities.forEach((_, id) => { if (!currentUtilities.has(id)) utilities.delete(id); });
         if (roomOwnerRef.current) {
           if (room.get('mapName') !== mapNameRef.current) room.set('mapName', mapNameRef.current);
           if (JSON.stringify(room.get('cameraSlots') || []) !== JSON.stringify(workspace.cameraSlots)) room.set('cameraSlots', workspace.cameraSlots);
         }
       });
-      localBaseline = { points: workspace.points, paths: workspace.paths, grenades: workspace.grenades || [], cameraSlots: room.get('cameraSlots') || [] };
-      roomWorkspaceRef.current = JSON.stringify({ points: workspace.points, paths: workspace.paths, grenades: workspace.grenades || [], cameraSlots: room.get('cameraSlots') || [] });
+      localBaseline = { points: workspace.points, paths: workspace.paths, grenades: workspace.grenades || [], collabUtilities: workspace.collabUtilities || [], cameraSlots: room.get('cameraSlots') || [] };
+      roomWorkspaceRef.current = JSON.stringify({ points: workspace.points, paths: workspace.paths, grenades: workspace.grenades || [], collabUtilities: workspace.collabUtilities || [], cameraSlots: room.get('cameraSlots') || [] });
     };
     provider.on('status', ({ status }) => { setRoomStatus(status === 'connected' ? `${tr('room')} ${roomCode} ${tr('connected')} · ${clientName.current}` : `${tr('room')} ${status === 'disconnected' ? tr('disconnected') : tr('connecting')}...`); });
     provider.on('sync', (isSynced) => { synced = isSynced; if (!isSynced) return; apply(); if (roomOwnerRef.current && !points.size && !paths.size) publishWorkspace(true); });
-    room.observe(apply); points.observe(apply); paths.observe(apply); apply();
+    room.observe(apply); points.observe(apply); paths.observe(apply); utilities.observe(apply); apply();
+    const applyFrames = () => {
+      const remote = [...framesMap.values()];
+      if (!remote.length) return;
+      setFrames((local) => {
+        const merged = remote.map((frame) => {
+          const existing = local.find((item) => item.id === frame.id);
+          return existing && JSON.stringify(existing.workspace) === JSON.stringify(frame.workspace) ? existing : frame;
+        });
+        try { localStorage.setItem('csboard-collab-frames', JSON.stringify(merged)); } catch { /* ignore */ }
+        return merged;
+      });
+      setActiveFrameId((current) => current && framesMap.has(current) ? current : (activeFrameMap.get('id') || remote[0].id));
+    };
+    const applyBrushes = () => {
+      if (!synced) return;
+      boardRef.current?.applyLiveBrushData?.([...brushes.values()]);
+    };
+    framesMap.observe(applyFrames); activeFrameMap.observe(applyFrames); applyFrames();
+    brushes.observe(applyBrushes); applyBrushes();
     const publish = window.setInterval(publishWorkspace, 300);
-    return () => { window.clearInterval(publish); room.unobserve(apply); points.unobserve(apply); paths.unobserve(apply); provider.destroy(); doc.destroy(); roomDocRef.current = null; roomProviderRef.current = null; };
+    return () => { window.clearInterval(publish); room.unobserve(apply); points.unobserve(apply); paths.unobserve(apply); utilities.unobserve(apply); framesMap.unobserve(applyFrames); activeFrameMap.unobserve(applyFrames); brushes.unobserve(applyBrushes); provider.destroy(); doc.destroy(); roomDocRef.current = null; roomProviderRef.current = null; };
   }, [roomCode]);
   const deleteWorkspaceArchive = (id) => {
     const next = archives.filter((archive) => archive.id !== id);
@@ -2729,13 +3368,18 @@ function App() {
     localStorage.setItem('csboard-workspace-archives', JSON.stringify(next));
   };
   const switchPanel = (panel) => {
-    setDemoPlaying(false);
-    setAnalysisPlaying(false);
+    setDemoPlaying(false);    setAnalysisPlaying(false);
     setSelectedDemoGrenade(null);
     setSelectedDemoGrenadeScreen(null);
     setUtilityReplay(null);
     if (panel === 'analysis') setAnalysisTime(0);
     boardRef.current?.clearBrushStrokes?.();
+    boardRef.current?.setCollabVisible?.(panel === 'collab');
+    if (panel === 'collab' && !frames.length) {
+      const id = `frame-${Date.now()}`;
+      persistFrames([{ id, workspace: { points: [], paths: [], grenades: [], collabUtilities: [] } }], true);
+      setActiveFrameId(id);
+    }
     if (panel === 'demo' && activePanel === 'collab') boardRef.current?.clearWorkspaceState?.();
     if (panel !== 'collab' && roomCode) { const wasOwner = roomOwner; leaveRoom(); window.alert(wasOwner ? t('roomDestroyed') : t('roomExited')); }
     if (panel !== 'utility') { setUtilityModalOpen(false); setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); setUtilityError(''); }
@@ -2989,12 +3633,13 @@ function App() {
             if (cacheId) pendingDemoRoundWritesRef.current = pendingDemoRoundWritesRef.current.then(() => putCachedDemoRound(cacheId, roundData)).catch(() => {});
           });
           await pendingDemoRoundWritesRef.current;
-          const data = { ...event.data.data, roundData: event.data.data.rounds.map((round) => summaries.get(round.round)).filter(Boolean) };
+           const data = { ...event.data.data, roundData: event.data.data.rounds.map((round) => summaries.get(round.round)).filter(Boolean) };
           pendingDemoRoundWritesRef.current = Promise.resolve();
           const pending = pendingDemoCacheRef.current;
-          applyDemoData(data, pending?.id, [], true);
+          const analysisRows = event.data.data.analysisRows || [];
+          applyDemoData(data, pending?.id, analysisRows, true);
           if (pending) {
-            const entry = { id: pending.id, fileName: data.demo.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate || 8, sourceBytes: pending.sourceBytes, dataBytes: event.data.estimatedBytes || 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), data, analysisRows: [] };
+            const entry = { id: pending.id, fileName: data.demo.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate || 8, sourceBytes: pending.sourceBytes, dataBytes: event.data.estimatedBytes || 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), data, analysisRows, analysisBytes: event.data.data.analysisBytes || 0 };
             const writeCache = () => putCachedDemo(entry).then(refreshCachedDemos).catch(() => setDemoStatus(translate(currentLanguage, 'cacheFailed')));
             if ('requestIdleCallback' in window) window.requestIdleCallback(writeCache, { timeout: 3000 });
             else window.setTimeout(writeCache, 500);
@@ -3110,41 +3755,45 @@ function App() {
     fetchAndParseNav(`${CLOUD_MAP_BASE}/${mapName}/${mapName}.nav`).then((data) => { if (!cancelled && data.areas) setNavData(data); }).catch(() => {});
     return () => { cancelled = true; };
   }, [mapName]);
-  return <main className="board-shell">
+  return <main className={`board-shell${isMobile ? ' is-mobile' : ''}`} data-panel={activePanel}>
     <header className="board-header">
       <div className="brand"><span className="brand-mark"><i /><i /><i /></span><span>CS<span>BOARD</span></span></div>
        <nav className="topbar-panels"><button type="button" className={activePanel === 'demo' ? 'active' : ''} onClick={() => switchPanel('demo')}>{t('rounds')}</button><button type="button" className={activePanel === 'analysis' ? 'active' : ''} onClick={() => switchPanel('analysis')}>{t('analysis')}</button><button type="button" className={activePanel === 'utility' ? 'active' : ''} onClick={() => switchPanel('utility')}>{t('utilityNotes')}</button><button type="button" className={activePanel === 'collab' ? 'active' : ''} onClick={() => switchPanel('collab')}>{t('collab')}</button></nav>
-      <div className="header-right"><div className="key-hints">{(activePanel === 'demo' || activePanel === 'analysis') ? <><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span></> : activePanel === 'utility' ? <><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></> : <><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>CTRL</kbd>{t('hintDrawPath')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>LMB</kbd>{t('hintEditPoint')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span></>}</div>
-        <button type="button" className="language-switch" onClick={() => setLanguage((value) => value === 'zh' ? 'en' : 'zh')}>{t('language')}</button></div>
+      <div className="header-right"><label className="map-select header-map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" className="language-switch" onClick={() => setLanguage((value) => value === 'zh' ? 'en' : 'zh')}>{t('language')}</button></div>
     </header>
     <section className="board-stage">
         {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><FarkleGame language={language} stopped={parseGameState === 'stopped'} onClose={() => { setParseGameDismissed(true); setParseGameState('hidden'); }} /></div>}
-        <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} pointPlacementEnabled={activePanel === 'collab'} brushEnabled={activePanel !== 'collab'} />
+        <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} pointPlacementEnabled={activePanel === 'collab'} brushEnabled={true} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
          <div className="stage-vignette" />
           {activePanel === 'demo' && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} />}
          {activePanel === 'demo' && demoSnapshot && <div className={`demo-score${roundWinner ? ` winner-${roundWinner.toLowerCase()}` : ''}`}><span>T</span><strong>{demoScore.T}</strong><i>ROUND {demoRound?.round || '-'}{roundResult ? <b className="round-result">{roundResult}</b> : c4Countdown != null ? <b className={c4Terminal?.event_name === 'bomb_defused' && demoTick >= c4Terminal.tick ? 'c4-paused' : ''}>C4 {c4Countdown.toFixed(4)}s</b> : <b className="round-clock">{roundClock}</b>}{defuseProgress != null && <span className={`score-defuse${currentDefuser.hasDefuser ? ' has-kit' : ''}`} style={{ '--defuse-progress': `${defuseProgress * 360}deg` }}><i>{currentDefuser.hasDefuser ? 'KIT' : '10s'}</i></span>}</i><strong>{demoScore.CT}</strong><span>CT</span></div>}
        <div className={`map-name${demoData?.demo.map && demoData.demo.map !== mapName ? ' map-mismatch' : ''}`}><h1>{mapName.toUpperCase()}</h1>{demoData?.demo.map && demoData.demo.map !== mapName && <button type="button" onClick={() => setMapName(demoData.demo.map)}>{language === 'zh' ? '当前地图不匹配，可跳转' : 'Map mismatch, switch to Demo map'}</button>}</div>
        {grenadeWheel.open && <div className="grenade-wheel"><div className={`wheel-item wheel-smoke ${grenadeWheel.type === 'smoke' ? 'active' : ''}`}>{t('smoke')}</div><div className={`wheel-item wheel-fire ${grenadeWheel.type === 'fire' ? 'active' : ''}`}>{t('fire')}</div><div className={`wheel-item wheel-flash ${grenadeWheel.type === 'flash' ? 'active' : ''}`}>{t('flash')}</div><div className={`wheel-item wheel-explosion ${grenadeWheel.type === 'explosion' ? 'active' : ''}`}>{t('grenade')}</div><span className="wheel-key">Q</span></div>}
-         {demoKills.length > 0 && <DemoKillFeed kills={demoKills} round={demoRound} language={language} collapsed={demoKillsCollapsed} onToggle={() => setDemoKillsCollapsed((collapsed) => !collapsed)} />}
-        <div className="hud hud-right"><span>VIEW CONTROLS</span><strong>MMB <em>ROTATE</em></strong><strong>SHIFT + MMB <em>PAN</em></strong><strong>SCROLL <em>ZOOM</em></strong><strong>WASD <em>MOVE</em></strong><strong>LEFT CLICK <em>POINT MENU</em></strong></div>
-          <div className="camera-slots"><span>{t('cameraPositions')}</span>{cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved} className={activeCameraSlot === index ? 'active' : ''} onClick={() => boardRef.current?.restoreCameraSlot?.(index)}>{index === 9 ? 0 : index + 1}</button>)}</div>
+      {saveArchiveModal && <div className="save-archive-modal" onClick={(event) => { if (event.target === event.currentTarget) setSaveArchiveModal(false); }}><div className="save-archive-dialog"><header><strong>{t('saveFrame')}</strong><button type="button" onClick={() => setSaveArchiveModal(false)}>×</button></header><label className="collab-utility-search"><span>{t('saveToArchive')}</span><select value={saveArchiveSelected} onChange={(event) => { setSaveArchiveSelected(event.target.value); setSaveArchiveName(''); }}>{saveArchiveSelected === '' && <option value="">{t('newArchive')}</option>}{archives.filter((archive) => archive.mapName === mapName).map((archive) => <option key={archive.id} value={archive.id}>{archive.name || archive.mapName.toUpperCase()} · {new Date(archive.savedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</option>)}</select></label><label className="collab-utility-search"><span>{t('archiveName')}</span><input value={saveArchiveName} placeholder={t('newArchive')} onChange={(event) => { setSaveArchiveName(event.target.value); if (event.target.value.trim()) setSaveArchiveSelected(''); }} /></label><div className="save-archive-actions"><button type="button" onClick={() => setSaveArchiveModal(false)}>{t('cancel')}</button><button type="button" onClick={() => saveWorkspaceArchive(saveArchiveSelected, saveArchiveName)} disabled={!saveArchiveSelected && !saveArchiveName.trim()}>{t('save')}</button></div></div></div>}
+      {renameModal && <div className="save-archive-modal" onClick={(event) => { if (event.target === event.currentTarget) setRenameModal(null); }}><div className="save-archive-dialog"><header><strong>{t('rename')}</strong><button type="button" onClick={() => setRenameModal(null)}>×</button></header><label className="collab-utility-search"><span>{t('name')}</span><input autoFocus value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') confirmRename(); else if (event.key === 'Escape') setRenameModal(null); }} /></label><div className="save-archive-actions"><button type="button" onClick={() => setRenameModal(null)}>{t('cancel')}</button><button type="button" onClick={confirmRename} disabled={!renameDraft.trim()}>{t('save')}</button></div></div></div>}
+          {demoKills.length > 0 && <DemoKillFeed kills={demoKills} round={demoRound} language={language} collapsed={demoKillsCollapsed} onToggle={() => setDemoKillsCollapsed((collapsed) => !collapsed)} />}
+          <div className="view-tools"><div className="camera-slots"><span>{t('cameraPositions')}</span>{cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved} className={activeCameraSlot === index ? 'active' : ''} onClick={() => boardRef.current?.restoreCameraSlot?.(index)}>{index === 9 ? 0 : index + 1}</button>)}</div><div className="brush-controls"><div className="brush-swatches">{[['#a5e0ff', 'color'], ['#ff6b6b', 'color'], ['#7cf29c', 'color'], ['#ffd166', 'color'], ['#ffffff', 'color'], ['#c084fc', 'color']].map(([c]) => <button type="button" key={c} className={`brush-swatch${brushColor.toLowerCase() === c ? ' active' : ''}`} style={{ background: c }} aria-label={c} title={c} onClick={() => { setBrushColor(c); localStorage.setItem('csboard-brush-color', c); }} />)}</div><div className="brush-util-row"><div className="brush-widths">{[2, 3, 5, 8].map((w) => <button type="button" key={w} className={`brush-width${brushWidth === w ? ' active' : ''}`} title={`${w}px`} onClick={() => { setBrushWidth(w); localStorage.setItem('csboard-brush-width', String(w)); }}><i style={{ width: Math.max(2, w), height: Math.max(2, w) }} /></button>)}</div><button type="button" className={`brush-eraser${eraserEnabled ? ' active' : ''}`} title={t('eraser')} onClick={() => setEraserEnabled((value) => !value)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M11 3 14 6l-5 5H5l-3-3z" /><path d="M8 6 11 9" /></svg>{t('eraser')}</button></div></div></div>
+          <div className="key-hints">{activePanel === 'demo' || activePanel === 'analysis' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatPlayback')}</b><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : activePanel === 'utility' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : <><div className="key-group"><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>LMB</kbd>{t('hintMovePlayer')}</span><span><kbd>CTRL+LMB</kbd>{t('hintYaw')}</span><span><kbd>SHIFT+LMB</kbd>{t('hintPitch')}</span><span><kbd>DBL</kbd>{t('hintCrouch')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></>}</div>
+          <div className="aspect-frame" aria-hidden="true"><i /></div>
            {activePanel === 'demo' && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} language={language} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} language={language} /></>}
-          {selectedPoint && selectedPointScreen && <div className="point-actions" style={{ left: selectedPointScreen.x, top: selectedPointScreen.y }}><span>{t('tacticalPoint')}</span><div className="point-choice"><b>{t('team')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div><div className="point-choice"><b>{t('type')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div><button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); setSelectedPointScreen(null); }}>{t('delete')}</button></div>}
+          {selectedPoint && selectedPointScreen && <div className="point-actions" style={{ left: selectedPointScreen.x, top: selectedPointScreen.y }}><span>{activePanel === 'collab' ? t('collabPlayer') : t('tacticalPoint')}</span><div className="point-choice"><b>{t('team')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div>{activePanel === 'collab' ? null : <div className="point-choice"><b>{t('type')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div>}<button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); setSelectedPointScreen(null); }}>{t('delete')}</button></div>}
           {activePanel === 'demo' && selectedDemoGrenade && selectedDemoGrenadeScreen && <div className="demo-grenade-actions" style={{ left: selectedDemoGrenadeScreen.x, top: selectedDemoGrenadeScreen.y }}><div><strong>{selectedDemoGrenade.kind.toUpperCase()}</strong><span>{selectedDemoGrenade.throwEvent.user_name || t('unknown')} · T{selectedDemoGrenade.throwTick}</span></div><button type="button" onClick={saveDemoGrenade}>{t('saveUtility')}</button><button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedDemoGrenade(null); setSelectedDemoGrenadeScreen(null); }}>×</button></div>}
-        <div className="board-tools"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)} className={showModel ? 'selected' : ''}><i /> {modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) setShowModel(false); else { setShowModel(true); setModelViewMode(option.value); } setModeMenuOpen(false); }} /> <span>{option.label}</span></label>)}</div>}</div>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}><i /> AREA EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET VIEW</button></div>
+        <div className="board-tools"><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)} className={showModel ? 'selected' : ''}><i /> {modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) setShowModel(false); else { setShowModel(true); setModelViewMode(option.value); } setModeMenuOpen(false); }} /> <span>{option.label}</span></label>)}</div>}</div>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}><i /> AREA EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET VIEW</button></div>
           {activePanel === 'utility' && <aside className="utility-notes-panel"><div className="utility-notes-heading"><div><span>UTILITY NOTES</span><h2>{t('utilityNotes')}</h2></div><button type="button" onClick={() => { setUtilityDraft({ getpos: '', name: '', summary: '' }); setUtilityError(''); setUtilityModalOpen(true); }}>{t('addUtilityNote')}</button></div><p>{t('utilityIntro')}</p><div className="utility-notes-meta"><label className="map-select"><span>{t('map').toUpperCase()}</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><span>{t('utilityCount', { count: currentUtilityNotes.length })}</span></div><div className="utility-model-options"><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="utility-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div>{currentUtilityNotes.length === 0 && <div className="utility-empty">{t('utilityEmpty')}</div>}<small>{t('localOnly')}</small></aside>}
           {activePanel === 'utility' && <aside className="utility-location-panel"><header><strong>{t('utilityLocations')}</strong><span>{currentUtilityGroups.length}</span></header>{currentUtilityGroups.length === 0 ? <div className="utility-location-empty">{t('utilityEmpty')}</div> : <div className="utility-location-groups">{currentUtilityGroups.map(({ location, categories }) => <section key={location}><div className="utility-location-heading"><strong>{location}</strong><span>{categories.reduce((sum, [, entries]) => sum + entries.length, 0)}</span></div>{categories.map(([kind, entries]) => <div className="utility-category" key={kind}><span>{kind === 'smoke' ? 'SMOKE' : kind === 'flash' ? 'FLASH' : kind === 'fire' ? 'FIRE' : kind === 'he' ? 'HE' : kind === 'decoy' ? 'DECOY' : 'CUSTOM'}</span>{entries.map((note) => <button type="button" key={note.id} className={note.replay ? 'replayable' : ''} onClick={() => { setUtilityHover({ key: note.positionKey, entries: note.positionEntries, x: 330, y: Math.max(150, window.innerHeight / 2 - 36) }); setSelectedUtilityNote(note); setUtilityCopied(false); }}><b>{note.name}</b><small>{note.thrower || t('customUtility')}</small></button>)}</div>)}</section>)}</div>}</aside>}
            {activePanel === 'utility' && utilityHover && <div className="utility-hover-card" style={{ left: utilityHover.x, top: utilityHover.y }} onPointerEnter={() => { utilityHoverInsideRef.current = true; window.clearTimeout(utilityHoverTimerRef.current); }} onPointerLeave={() => { utilityHoverInsideRef.current = false; utilityHoverTimerRef.current = window.setTimeout(() => { setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); }, 180); }}><header><strong>{selectedUtilityNote ? t('utilityDetails') : 'LOCATION'}</strong><span>{selectedUtilityNote ? <button type="button" onClick={() => { setSelectedUtilityNote(null); setUtilityEditDraft(null); }}>←</button> : utilityHover.entries.length}</span></header>{selectedUtilityNote ? <div className="utility-detail">{utilityEditDraft ? <form className="utility-edit-form" onSubmit={saveUtilityEdit}><label><span>{t('utilityTitle')}</span><input required value={utilityEditDraft.name} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><label><span>{t('utilityDescription')}</span><textarea required value={utilityEditDraft.summary} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, summary: event.target.value }))} /></label><div><button type="button" onClick={() => setUtilityEditDraft(null)}>{t('cancel')}</button><button type="submit">{t('saveUtilityEdit')}</button></div></form> : <><strong>{selectedUtilityNote.name}</strong><p>{selectedUtilityNote.summary}</p></>}<dl><div><dt>{t('map')}</dt><dd>{selectedUtilityNote.mapName}</dd></div>{selectedUtilityNote.startPlace && <div><dt>{t('startPlace')}</dt><dd>{selectedUtilityNote.startPlace}</dd></div>}{selectedUtilityNote.throwPlace && <div><dt>{t('throwPlace')}</dt><dd>{selectedUtilityNote.throwPlace}</dd></div>}<div><dt>{t('position')}</dt><dd>{selectedUtilityNote.position.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('angles')}</dt><dd>{selectedUtilityNote.angles.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('exportedBy')}</dt><dd>{selectedUtilityNote.thrower || t('customUtility')}</dd></div>{selectedUtilityNote.demoSource && <div><dt>{t('sourceDemo')}</dt><dd>{selectedUtilityNote.demoSource.fileName} · R{selectedUtilityNote.demoSource.round || '-'} · T{selectedUtilityNote.demoSource.tick}</dd></div>}<div><dt>{t('exportedAt')}</dt><dd>{new Date(selectedUtilityNote.createdAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</dd></div></dl><div className="utility-detail-actions"><button type="button" onClick={() => setUtilityEditDraft({ name: selectedUtilityNote.name, summary: selectedUtilityNote.summary || '' })}>{t('editUtility')}</button><button type="button" onClick={() => copyUtilityCommand(selectedUtilityNote)}>{utilityCopied ? t('copied') : t('getposCommand')}</button><button type="button" className="utility-delete" onClick={() => deleteUtilityNote(selectedUtilityNote)}>{t('delete')}</button>{selectedUtilityNote.replay && <><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote)}>{t('replayUtility')}</button><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote, true)}>{t('replayUtilityFirstPerson')}</button></>}</div></div> : <div className="utility-hover-list">{utilityHover.entries.map((note) => <button type="button" key={note.id} className={`utility-list-entry${note.replay ? ' replayable' : ''}`} onClick={() => { setSelectedUtilityNote(note); setUtilityEditDraft(null); setUtilityCopied(false); }}><strong>{note.name}</strong><span>{t('angles')}: {(note.angles || [0, 0, 0]).map((value) => Number(value).toFixed(2)).join(' / ')}</span><p>{note.summary}</p></button>)}</div>}</div>}
           {activePanel === 'utility' && utilityReplay && <div className="utility-replay-bar"><strong>{utilityReplay.note.name}</strong><span>{(utilityReplay.tick / utilityReplay.note.replay.tickRate).toFixed(1)}s / {(utilityReplay.note.replay.endTick / utilityReplay.note.replay.tickRate).toFixed(1)}s</span><button type="button" onClick={() => setUtilityReplay((current) => ({ ...current, tick: current.playing ? current.tick : current.tick >= current.note.replay.endTick ? 0 : current.tick, playing: !current.playing }))}>{utilityReplay.playing ? t('pause') : t('play')}</button><button type="button" onClick={() => setUtilityReplay(null)}>×</button></div>}
          {utilityModalOpen && <div className="utility-modal-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget) setUtilityModalOpen(false); }}><form className="utility-modal" onSubmit={addUtilityNote}><header><div><span>GETPOS</span><h2>{t('addUtilityNote')}</h2></div><button type="button" onClick={() => setUtilityModalOpen(false)}>×</button></header><label><span>{t('getposOutput')}</span><textarea required value={utilityDraft.getpos} placeholder={t('getposPlaceholder')} onChange={(event) => setUtilityDraft((draft) => ({ ...draft, getpos: event.target.value }))} /></label><label><span>{t('utilityName')}</span><input required value={utilityDraft.name} placeholder={t('utilityNamePlaceholder')} onChange={(event) => setUtilityDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><label><span>{t('throwSummary')}</span><textarea required value={utilityDraft.summary} placeholder={t('throwSummaryPlaceholder')} onChange={(event) => setUtilityDraft((draft) => ({ ...draft, summary: event.target.value }))} /></label>{utilityError && <div className="utility-error">{utilityError}</div>}<footer><button type="button" onClick={() => setUtilityModalOpen(false)}>{t('cancel')}</button><button type="submit">{t('add')}</button></footer></form></div>}
           <div className={`demo-panel ${activePanel === 'demo' ? '' : 'panel-hidden'}${demoData ? ' has-demo' : ''}`}>
-           <div className="demo-toolbar"><div className="demo-source-controls"><label className="demo-upload"><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{t('parsedDemos')} · {cachedDemos.length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{t('parsedDemos')}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{cachedDemos.length === 0 ? <div className="demo-cache-empty">{t('noCachedDemos')}</div> : cachedDemos.map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}</strong><span>{entry.map} · {entry.rounds} {t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}</div><div className="demo-playback-controls">{demoData && <div className={`demo-round-picker${demoRoundMenuOpen ? ' open' : ''}`}><button type="button" onClick={() => setDemoRoundMenuOpen((open) => !open)}>{demoRound ? `${t('round')} ${demoRound.round} · ${demoRoundEconomies.get(demoRound.round)?.T.label}/${demoRoundEconomies.get(demoRound.round)?.CT.label}` : t('selectRound')}</button>{demoRoundMenuOpen && <div className="demo-round-list">{demoData.rounds.map((round) => { const economy = demoRoundEconomies.get(round.round); return <button type="button" key={round.round} className={demoRound?.round === round.round ? 'active' : ''} style={{ '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => { setDemoRound(round); setDemoRoundMenuOpen(false); }}><span className="economy-t">T {economy?.T.label}</span><strong>R{round.round}</strong><span className="economy-ct">CT {economy?.CT.label}</span><i /></button>; })}</div>}</div>}{demoData && demoRound && <div className="demo-scrub"><span className="demo-time">{((demoTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span><div className="timeline-track"><input className="demo-timeline" disabled={demoRoundLoading} style={{ '--timeline-progress': `${demoRound.endTick > demoRound.startTick ? ((demoTick - demoRound.startTick) / (demoRound.endTick - demoRound.startTick)) * 100 : 0}%` }} type="range" min={demoRound.startTick} max={demoRound.endTick} step="1" value={demoTick} onPointerUp={(event) => event.currentTarget.blur()} onChange={(event) => { setDemoPlaying(false); setDemoTick(Number(event.target.value)); }} />{timelineEvents.map((event, index) => <button type="button" className={`timeline-event event-${event.event_name}`} title={event.title} aria-label={event.title} style={{ left: `${((event.tick - demoRound.startTick) / Math.max(1, demoRound.endTick - demoRound.startTick)) * 100}%` }} key={`${event.event_name}-${event.tick}-${index}`} onClick={() => { setDemoPlaying(false); setDemoTick(event.tick); }}>{event.label}</button>)}</div><span className="demo-duration">/ {((demoRound.endTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span></div>}{demoRound && <button type="button" className="demo-play" disabled={demoRoundLoading} onClick={() => setDemoPlaying((playing) => !playing)}>{demoRoundLoading ? t('loading') : demoPlaying ? t('pause') : t('play')}</button>}<button type="button" className="demo-save-frame" onClick={() => saveWorkspaceArchive(true)}>{t('saveFrame')}</button></div></div>
+           <div className="demo-toolbar"><div className="demo-source-controls"><label className="demo-upload"><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{t('parsedDemos')} · {cachedDemos.length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{t('parsedDemos')}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{cachedDemos.length === 0 ? <div className="demo-cache-empty">{t('noCachedDemos')}</div> : cachedDemos.map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}</strong><span>{entry.map} · {entry.rounds} {t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}</div><div className="demo-playback-controls">{demoData && <div className={`demo-round-picker${demoRoundMenuOpen ? ' open' : ''}`}><button type="button" onClick={() => setDemoRoundMenuOpen((open) => !open)}>{demoRound ? `${t('round')} ${demoRound.round} · ${demoRoundEconomies.get(demoRound.round)?.T.label}/${demoRoundEconomies.get(demoRound.round)?.CT.label}` : t('selectRound')}</button>{demoRoundMenuOpen && <div className="demo-round-list">{demoData.rounds.map((round) => { const economy = demoRoundEconomies.get(round.round); return <button type="button" key={round.round} className={demoRound?.round === round.round ? 'active' : ''} style={{ '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => { setDemoRound(round); setDemoRoundMenuOpen(false); }}><span className="economy-t">T {economy?.T.label}</span><strong>R{round.round}</strong><span className="economy-ct">CT {economy?.CT.label}</span><i /></button>; })}</div>}</div>}{demoData && demoRound && <div className="demo-scrub"><span className="demo-time">{((demoTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span><div className="timeline-track"><input className="demo-timeline" disabled={demoRoundLoading} style={{ '--timeline-progress': `${demoRound.endTick > demoRound.startTick ? ((demoTick - demoRound.startTick) / (demoRound.endTick - demoRound.startTick)) * 100 : 0}%` }} type="range" min={demoRound.startTick} max={demoRound.endTick} step="1" value={demoTick} onPointerUp={(event) => event.currentTarget.blur()} onChange={(event) => { setDemoPlaying(false); setDemoTick(Number(event.target.value)); }} />{timelineEvents.map((event, index) => <button type="button" className={`timeline-event event-${event.event_name}`} title={event.title} aria-label={event.title} style={{ left: `${((event.tick - demoRound.startTick) / Math.max(1, demoRound.endTick - demoRound.startTick)) * 100}%` }} key={`${event.event_name}-${event.tick}-${index}`} onClick={() => { setDemoPlaying(false); setDemoTick(event.tick); }}>{event.label}</button>)}</div><span className="demo-duration">/ {((demoRound.endTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span></div>}{demoRound && <button type="button" className="demo-play" disabled={demoRoundLoading} onClick={() => setDemoPlaying((playing) => !playing)}>{demoRoundLoading ? t('loading') : demoPlaying ? t('pause') : t('play')}</button>}<button type="button" className="demo-save-frame" onClick={() => openSaveArchiveModal(true)}>{t('saveFrame')}</button></div></div>
              <DemoParseSettings value={demoSampleRate} onChange={setDemoSampleRate} language={language} />
              {demoStatus && !demoData && <div className="demo-loading" role="progressbar" aria-label="Demo parsing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div>}
             <div className="demo-controls-row">{activePanel === 'demo' && demoData && <div className="demo-view-options"><span>{t('view')}</span><button type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t('showNames')}</button>{[['manual','cameraManual'],['follow','cameraFollow'],['fixed','cameraFixed'],['chase','cameraChase']].map(([mode,key]) => <button type="button" key={mode} className={demoCameraMode === mode ? 'selected' : ''} onClick={() => setDemoCameraMode(mode)}>{t(key)}</button>)}</div>}<div className="demo-options"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}>GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}>TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button><label className="model-opacity"><span>MODEL</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="demo-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}>EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET</button></div></div>
           </div>
           {activePanel === 'analysis' && <aside className="analysis-panel"><div className="collab-heading"><div><span>DEMO ANALYSIS</span><h2>{t('analysis')}</h2></div><button type="button" disabled={!analysisSelectedPlayers.length || !analysisRows.length} onClick={() => setAnalysisPlaying((playing) => !playing)}>{analysisPlaying ? t('pause') : t('play')}</button></div><p className="collab-note">{t('analysisHint')}</p>{analysisStatus && <div className="analysis-status">{analysisStatus}</div>}<label className="analysis-select"><span>{t('players').toUpperCase()}</span><select multiple size={Math.min(8, Math.max(3, analysisPlayers.length))} value={analysisSelectedPlayers} onChange={(event) => { setAnalysisSelectedPlayers([...event.target.selectedOptions].map((option) => option.value)); setAnalysisTime(0); setAnalysisPlaying(false); }}>{analysisPlayers.map((player) => <option key={player} value={player}>{player}</option>)}</select></label>{analysisSelectedPlayers.length > 0 && <label className="analysis-side"><span>{t('side').toUpperCase()}</span><select value={analysisSide} onChange={(event) => { setAnalysisSide(event.target.value); setAnalysisTime(0); setAnalysisPlaying(false); }}><option value="ALL">{t('allRounds')}</option><option value="T">{t('tRounds')}</option><option value="CT">{t('ctRounds')}</option></select></label>}{analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}</aside>}
-          {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>{t('collab')}</h2></div><div className="collab-actions"><button type="button" onClick={saveWorkspaceArchive}>{t('saveFrame')}</button>{roomCode ? <button type="button" onClick={leaveRoom}>{t('leaveRoom')}</button> : <button type="button" onClick={() => { const code = window.prompt(t('roomPrompt'), roomJoinCode); if (code != null) { setRoomJoinCode(code); joinRoom(code); } }}>{t('joinRoom')}</button>}<button type="button" disabled={Boolean(roomCode)} onClick={openRoom}>{t('openRoom')}</button></div></div><p className="collab-note">{t('currentMap')}: {mapName} · {t('name')}: {clientName.current}<br />{t('collabHint')}</p>{roomStatus && <div className="analysis-status">{roomStatus}</div>}{roomCode && <div className="room-open"><strong>{t('room')} {roomCode}</strong><span>{roomOwner ? t('owner') : t('member')}</span></div>}<div className="archive-list">{archives.filter((archive) => archive.mapName === mapName).length === 0 ? <div className="archive-empty">{t('noArchives')}</div> : archives.filter((archive) => archive.mapName === mapName).map((archive) => <div className="archive-item" key={archive.id}><button type="button" className="archive-restore" disabled={Boolean(roomCode && !roomOwner)} title={roomCode && !roomOwner ? t('guestNoArchive') : t('restoreArchive')} onClick={() => restoreWorkspaceArchive(archive)}><strong>{archive.mapName.toUpperCase()}</strong><span>{new Date(archive.savedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</span><small>{archive.demo ? `ROUND ${archive.demo.round || '-'} · TICK ${Math.round(archive.demo.tick)}` : t('manualEdit')}</small></button><button type="button" className="archive-delete" aria-label={t('deleteArchive')} title={t('deleteArchive')} onClick={() => deleteWorkspaceArchive(archive.id)}>×</button></div>)}</div></aside>}
+          {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>{t('collab')}</h2></div><div className="collab-actions"><button type="button" onClick={() => openSaveArchiveModal()}>{t('saveFrame')}</button>{roomCode ? <button type="button" onClick={leaveRoom}>{t('leaveRoom')}</button> : <button type="button" onClick={() => { const code = window.prompt(t('roomPrompt'), roomJoinCode); if (code != null) { setRoomJoinCode(code); joinRoom(code); } }}>{t('joinRoom')}</button>}<button type="button" disabled={Boolean(roomCode)} onClick={openRoom}>{t('openRoom')}</button></div></div><p className="collab-note">{t('currentMap')}: {mapName} · {t('name')}: {clientName.current}<br />{t('collabHint')}</p>{roomStatus && <div className="analysis-status">{roomStatus}</div>}{roomCode && <div className="room-open"><strong>{t('room')} {roomCode}</strong><span>{roomOwner ? t('owner') : t('member')}</span></div>}<div className="archive-list">{archives.filter((archive) => archive.mapName === mapName).length === 0 ? <div className="archive-empty">{t('noArchives')}</div> : archives.filter((archive) => archive.mapName === mapName).map((archive) => <div className="archive-item" key={archive.id}><button type="button" className="archive-restore" disabled={Boolean(roomCode && !roomOwner)} title={roomCode && !roomOwner ? t('guestNoArchive') : t('restoreArchive')} onClick={() => restoreWorkspaceArchive(archive)}><strong>{archive.mapName.toUpperCase()}</strong><span>{new Date(archive.savedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</span><small>{archive.demo ? `ROUND ${archive.demo.round || '-'} · TICK ${Math.round(archive.demo.tick)}` : t('manualEdit')}</small></button><button type="button" className="archive-delete" aria-label={t('deleteArchive')} title={t('deleteArchive')} onClick={() => deleteWorkspaceArchive(archive.id)}>×</button></div>)}</div></aside>}
+          {activePanel === 'collab' && <aside className="collab-objects"><div className="collab-objects-tabs"><button type="button" className={collabObjectTab === 'players' ? 'active' : ''} onClick={() => setCollabObjectTab('players')}>{t('collabPlayers')}</button><button type="button" className={collabObjectTab === 'utility' ? 'active' : ''} onClick={() => setCollabObjectTab('utility')}>{t('addUtility')}</button></div>{collabObjectTab === 'players' ? <div className="collab-players">{activeCollabPlayers().length === 0 ? <div className="archive-empty">{t('noCollabPlayers')}</div> : <div className="collab-player-list">{activeCollabPlayers().map((player) => <div className="collab-player-item" key={player.id}><span className="collab-player-name">{player.name}</span><button type="button" className="collab-player-rename" onClick={() => openRenameModal(player.id, player.name)}>{t('rename')}</button><span>{player.team || 'T'}</span></div>)}</div>}</div> : <div className="collab-utility"><label className="collab-utility-search"><span>{t('addUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => setCollabUtilitySearch(event.target.value)} /><select value={''} onChange={(event) => { const id = event.target.value; if (!id) return; const note = currentUtilityNotes.find((candidate) => candidate.id === id); if (note) boardRef.current?.addCollabUtility?.(note); setCollabUtilitySearch(''); event.target.value = ''; }}>{[...currentUtilityNotes].sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0).filter((note) => `${note.name} ${note.summary || ''} ${note.thrower || ''}`.toLowerCase().includes(collabUtilitySearch.trim().toLowerCase())).map((note) => <option key={note.id} value={note.id}>{note.name} · {note.grenadeType || 'custom'}{note.thrower ? ` · ${note.thrower}` : ''}</option>)}</select></label></div>}</aside>}
+          {activePanel === 'collab' && <div className="collab-frame-strip"><div className="collab-frame-timeline">{frames.length === 0 ? <span className="archive-empty">{t('noFrames')}</span> : frames.map((frame) => <button type="button" key={frame.id} className={`collab-frame-dot${frame.id === activeFrameId ? ' active' : ''}`} onClick={() => switchFrame(frame.id)}><i /></button>)}</div><div className="collab-frame-actions"><button type="button" onClick={insertFrame}>{t('insertFrame')}</button><button type="button" onClick={duplicateFrame}>{t('duplicateFrame')}</button><button type="button" onClick={deleteFrame}>{t('deleteFrame')}</button></div></div>}
        {activePanel === 'analysis' && demoData && <div className="analysis-view-options"><span>{t('heatmap')}</span><button type="button" className={demoViewFlags.killerHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, killerHeat: !flags.killerHeat }))}>{t('killerPosition')}</button><button type="button" className={demoViewFlags.victimHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, victimHeat: !flags.victimHeat }))}>{t('victimPosition')}</button><button type="button" className={demoViewFlags.targetHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, targetHeat: !flags.targetHeat }))}>{t('targetPosition')}</button><button type="button" className={demoViewFlags.opponentHeat ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, opponentHeat: !flags.opponentHeat }))}>{t('opponentPosition')}</button></div>}
      </section>
   </main>;

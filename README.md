@@ -45,7 +45,9 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 ![Collaboration panel](assets/readme/collaboration.png)
 
 - Create or join a six-character Yjs WebSocket room.
-- Synchronize tactical points, paths, the active map, owner archives, and owner camera presets.
+- Synchronize tactical points, player markers, utility, paths, the active map, owner archives, and owner camera presets.
+- Player markers carry a character model and random name; drag to move, adjust yaw/pitch, toggle crouch/stand, with undo/redo.
+- Frames: insert, duplicate, delete, and switch between snapshots; switching smoothly transitions player positions and facing.
 - Let room members edit shared tactical content while keeping the current camera private.
 - Support owner-controlled room destruction and member leave notifications.
 - Use local archives as reusable starting points for collaborative sessions.
