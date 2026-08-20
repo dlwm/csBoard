@@ -1,7 +1,7 @@
 {
   "name": "csboard",
   "private": true,
-  "version": "0.10.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "predev": "node scripts/ensure-maps.js",

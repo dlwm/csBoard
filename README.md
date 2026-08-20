@@ -23,19 +23,18 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Tactical Editing
 
-【@】
+![Tactical editing](assets/readme/collaboration.png)
 
 - Place T or CT tactical points directly on NAV surfaces (Collaboration panel only).
 - Draw freehand brush strokes on the NAV ground in round replay / analysis / utility panels, with undo/redo.
 - Edit point team, symbol type, direction, aim length, and vertical angle.
-- Draw connected movement paths and remove points or paths interactively.
 - Place and adjust smoke, fire, flash, HE, and decoy effects.
 - Store ten camera presets per map and restore them with `1-9` / `0`.
-- Save local workspace archives containing points, paths, utility, camera presets, and an optional Demo frame reference.
+- Save local workspace archives containing player markers, utility, brushes, camera presets, and an optional Demo frame reference.
 
 ### Utility Notes
 
-【@】
+![Utility notes](assets/readme/utility-notes.png)
 
 - Save map-specific utility setups from pasted `getpos` output or Demo throws.
 - Search and replay saved lineups with setup positions, view angles, thrower details, events, and projectile paths.
@@ -58,11 +57,11 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 ![Collaboration panel](assets/readme/collaboration.png)
 
 - Create or join a six-character Yjs WebSocket room.
-- Synchronize player markers, imported utility, custom utility, paths, brushes, frame order, and active frames.
+- Synchronize player markers, imported utility, custom utility, brushes, frame order, and active frames.
 - Player markers carry a character model, AK47, and unique three-digit hexadecimal name; drag to move, use `Ctrl` to adjust yaw, `Shift` to adjust pitch, and double-click to toggle crouch/stand.
-- Frames contain players, paths, imported utility, custom utility, trajectories, and brushes. Camera state and camera presets remain archive-level data.
+- Frames contain players, imported utility, custom utility, trajectories, and brushes. Camera state and camera presets remain archive-level data.
 - Insert, duplicate, delete, save, and switch frames. Saving to an existing archive appends a frame; switching smoothly transitions same-name player positions, yaw, and pitch.
-- Use unified undo/redo for players, paths, utility, brushes, imported utility, and erasing. History is isolated per frame.
+- Use unified undo/redo for players, utility, brushes, imported utility, and erasing. History is isolated per frame.
 - Let room members edit shared tactical content while keeping the current camera private.
 - Support owner-controlled room destruction and member leave notifications.
 - Use local archives as reusable starting points for collaborative sessions.
@@ -83,7 +82,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Mobile / H5
 
-【@】
+![Mobile collaboration](assets/readme/mobile.jpeg)
 
 - Use a dedicated mobile layout with a 4:3 Three.js viewport above the operation panels.
 - Rotate with one finger; use two fingers to zoom and pan.
@@ -149,7 +148,8 @@ npm run build
 | Left drag (round replay / analysis / utility) | Draw a freehand brush stroke on the NAV ground |
 | `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | Undo / redo brush strokes |
 | `E` | Place a tactical point (Collaboration panel only) |
-| `Ctrl` | Draw a path or adjust point pitch |
+| `Ctrl` + left drag | Erase brush strokes, or adjust a player marker's yaw |
+| `Shift` + left drag a player | Adjust player pitch |
 | `Q` | Open the utility wheel |
 | Left click a point | Open the point editor |
 | `Ctrl` + `1-9` / `0` | Save one of ten camera presets |
