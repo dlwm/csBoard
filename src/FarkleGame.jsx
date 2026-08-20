@@ -9,7 +9,7 @@ function Die({ value, selected, scoring, disabled, onClick }) {
   </button>;
 }
 
-export default function FarkleGame({ language = 'zh', stopped = false, onClose }) {
+export default function FarkleGame({ language = 'zh', stopped = false, onClose, embedded = false }) {
   const zh = language === 'zh';
   const [scores, setScores] = useState({ player: 0, ai: 0 });
   const [turn, setTurn] = useState('player');
@@ -19,6 +19,7 @@ export default function FarkleGame({ language = 'zh', stopped = false, onClose }
   const [remaining, setRemaining] = useState(6);
   const [turnScore, setTurnScore] = useState(0);
   const [message, setMessage] = useState(zh ? '你的回合，投出六颗骰子。' : 'Your turn. Roll all six dice.');
+  const [showRules, setShowRules] = useState(false);
   const timerRef = useRef(null);
   const selectedScore = useMemo(() => scoreDice(selected.map((index) => dice[index])), [dice, selected]);
   const scoringIndexes = useMemo(() => new Set(scoringSelections(dice).flatMap((option) => option.indexes)), [dice]);
@@ -81,8 +82,9 @@ export default function FarkleGame({ language = 'zh', stopped = false, onClose }
   useEffect(() => () => window.clearTimeout(timerRef.current), []);
   const reset = () => { setScores({ player: 0, ai: 0 }); setTurn('player'); setPhase('ready'); setDice([]); setSelected([]); setRemaining(6); setTurnScore(0); setMessage(zh ? '你的回合，投出六颗骰子。' : 'Your turn. Roll all six dice.'); };
 
-  return <section className={`farkle-game${phase === 'bust' || phase === 'ai-bust' ? ' bust' : ''}`}>
-    <header><div><span>{zh ? '解析等待游戏' : 'PARSING SIDE GAME'}</span><h2>FARKLE · 2000</h2></div><small>{stopped ? zh ? '解析已停止' : 'Parsing stopped' : zh ? '解析在后台继续' : 'Parsing continues in background'}</small>{onClose && <button type="button" className="farkle-close" aria-label={zh ? '关闭' : 'Close'} onClick={onClose}>×</button>}</header>
+  return <section className={`farkle-game${phase === 'bust' || phase === 'ai-bust' ? ' bust' : ''}${embedded ? ' embedded' : ''}`}>
+    {!embedded && <header><div><span>{zh ? '解析等待游戏' : 'PARSING SIDE GAME'}</span><h2>FARKLE · 2000</h2></div><small>{stopped ? zh ? '解析已停止' : 'Parsing stopped' : zh ? '解析在后台继续' : 'Parsing continues in background'}</small><div className="farkle-header-actions">{onClose && <button type="button" className="farkle-close" aria-label={zh ? '关闭' : 'Close'} onClick={onClose}>×</button>}<button type="button" className="farkle-rules-toggle" aria-label={zh ? '规则' : 'Rules'} title={zh ? '查看规则' : 'View rules'} onClick={() => setShowRules((value) => !value)}>?</button></div></header>}
+    {!embedded && showRules && <div className="farkle-rules"><h3>{zh ? '玩法规则' : 'How to Play'}</h3><ul><li>{zh ? '投掷六颗骰子，选择计分骰。' : 'Roll six dice and select scoring dice.'}</li><li><b>1</b> = 100 分，<b>5</b> = 50 分，三枚相同 = 面值 × 100（三个 1 = 1000）。</li><li>{zh ? '三对、顺子 1-6、六枚相同为特殊组合，直接获胜分数。' : 'Three pairs, straight 1-6, and six of a kind are special winning combos.'}</li><li>{zh ? '至少有一枚骰子可计分才能继续，否则爆骰归零。' : 'You must keep at least one scoring die, otherwise it is a Farkle.'}</li><li>{zh ? '可随时"存下分数"；若六颗全部计分（热骰）可重掷。' : 'Bank any time; if all six score (hot dice), roll all six again.'}</li><li>{zh ? '先达到 2000 分者获胜。' : `First to reach ${FARKLE_TARGET} points wins.`}</li></ul></div>}
     <div className="farkle-score"><div className={turn === 'player' ? 'active' : ''}><span>PLAYER</span><strong>{scores.player}</strong></div><i>/ {FARKLE_TARGET}</i><div className={turn === 'ai' ? 'active' : ''}><span>AI · EXPERT</span><strong>{scores.ai}</strong></div></div>
     <div className="farkle-table">{dice.length ? dice.map((die, index) => <Die value={die} key={`${index}-${die}`} selected={selected.includes(index)} scoring={scoringIndexes.has(index)} disabled={turn !== 'player' || phase !== 'selecting'} onClick={() => setSelected((current) => current.includes(index) ? current.filter((item) => item !== index) : [...current, index])} />) : <div className="farkle-idle" />}</div>
     <div className="farkle-status"><p>{message}</p><dl><div><dt>{zh ? '本回合' : 'TURN'}</dt><dd>{turnScore + selectedScore}</dd></div><div><dt>{zh ? '已选择' : 'SELECTED'}</dt><dd>{selectedScore}</dd></div><div><dt>{zh ? '剩余骰' : 'DICE LEFT'}</dt><dd>{remaining}</dd></div></dl></div>

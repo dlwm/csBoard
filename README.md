@@ -23,13 +23,26 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Tactical Editing
 
+【@】
+
 - Place T or CT tactical points directly on NAV surfaces (Collaboration panel only).
 - Draw freehand brush strokes on the NAV ground in round replay / analysis / utility panels, with undo/redo.
 - Edit point team, symbol type, direction, aim length, and vertical angle.
 - Draw connected movement paths and remove points or paths interactively.
 - Place and adjust smoke, fire, flash, HE, and decoy effects.
-- Store nine camera presets per map and restore them with number keys.
+- Store ten camera presets per map and restore them with `1-9` / `0`.
 - Save local workspace archives containing points, paths, utility, camera presets, and an optional Demo frame reference.
+
+### Utility Notes
+
+【@】
+
+- Save map-specific utility setups from pasted `getpos` output or Demo throws.
+- Search and replay saved lineups with setup positions, view angles, thrower details, events, and projectile paths.
+- Edit utility titles and descriptions without rebuilding the record.
+- Export the utility library as JSON and append imported JSON records to the local library.
+- Deduplicate records by complete deep equality during import; identical records are retained only once.
+- Import a saved utility into a collaboration frame only after selecting it and confirming the action. Imported utility and custom `Q`-wheel utility remain separate data types.
 
 ### Demo Analysis
 
@@ -45,9 +58,11 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 ![Collaboration panel](assets/readme/collaboration.png)
 
 - Create or join a six-character Yjs WebSocket room.
-- Synchronize tactical points, player markers, utility, paths, the active map, owner archives, and owner camera presets.
-- Player markers carry a character model and random name; drag to move, adjust yaw/pitch, toggle crouch/stand, with undo/redo.
-- Frames: insert, duplicate, delete, and switch between snapshots; switching smoothly transitions player positions and facing.
+- Synchronize player markers, imported utility, custom utility, paths, brushes, frame order, and active frames.
+- Player markers carry a character model, AK47, and unique three-digit hexadecimal name; drag to move, use `Ctrl` to adjust yaw, `Shift` to adjust pitch, and double-click to toggle crouch/stand.
+- Frames contain players, paths, imported utility, custom utility, trajectories, and brushes. Camera state and camera presets remain archive-level data.
+- Insert, duplicate, delete, save, and switch frames. Saving to an existing archive appends a frame; switching smoothly transitions same-name player positions, yaw, and pitch.
+- Use unified undo/redo for players, paths, utility, brushes, imported utility, and erasing. History is isolated per frame.
 - Let room members edit shared tactical content while keeping the current camera private.
 - Support owner-controlled room destruction and member leave notifications.
 - Use local archives as reusable starting points for collaborative sessions.
@@ -65,6 +80,17 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Switch the application between English and Chinese at runtime.
 - Inspect live T/CT rosters, score, health, active weapons, remaining utility, deaths, and C4 ownership.
 - Jump directly to kills, C4 plants, explosions, and round-end events from the timeline.
+
+### Mobile / H5
+
+【@】
+
+- Use a dedicated mobile layout with a 4:3 Three.js viewport above the operation panels.
+- Rotate with one finger; use two fingers to zoom and pan.
+- Select camera presets from a cyclic iPhone-style semicircular dial overlaid on the bottom of the 3D viewport.
+- Tap a saved camera position to restore it, rotate through positions continuously, swipe up to save the centered slot, or select `RESET`.
+- Keep collaboration frames at the top of the operation area for quick switching.
+- Hide Round Replay, Demo Analysis, map controls, brush controls, trackpad settings, and model-lens modes on H5. Utility Notes and Collaboration remain available.
 
 ## Supported Maps
 
@@ -126,10 +152,13 @@ npm run build
 | `Ctrl` | Draw a path or adjust point pitch |
 | `Q` | Open the utility wheel |
 | Left click a point | Open the point editor |
-| `Ctrl` + `1-9` | Save a camera preset |
-| `1-9` | Restore a camera preset |
+| `Ctrl` + `1-9` / `0` | Save one of ten camera presets |
+| `1-9` / `0` | Restore a camera preset |
 | `Space` | Play or pause replay/analysis |
 | Arrow keys | Step through the current round |
+| Mobile one-finger drag | Rotate camera |
+| Mobile two-finger gesture | Zoom and pan camera |
+| Mobile camera-dial swipe | Rotate through camera slots; swipe up to save the centered slot |
 
 ## Resource Layout
 
@@ -170,27 +199,14 @@ Map extraction tools and raw game resources remain local-only. Do not commit VPK
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
 - Production loads map NAV and GLB from cloud storage; development uses local files under `public/maps/` (auto-downloaded when missing).
 - Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
+- Round Replay and Demo Analysis are desktop-only; H5 exposes Utility Notes and Collaboration.
 
 ## Roadmap
 
-### Richer Collaboration
+### Model Size Reduction
 
-- Server-authorized room ownership and persistent rooms.
-- Presence, cursors, member lists, permissions, and granular conflict handling.
-- Shared utility editing, annotations, review states, and export/import workflows.
+- Reduce map model asset size, download cost, and runtime memory usage.
 
-### Utility Reference and Personal Menu
+### Map Area Markers
 
-- A personal utility library for saved lineups, tags, favorites, and map-specific quick access.
-- Searchable utility reference cards with setup, aim point, movement, and result previews.
-- Reusable personal presets that can be inserted into local or collaborative boards.
-
-### Map Model Transparency
-
-- Better depth handling for dense and multi-level maps.
-- More stable mouse-lens and camera-lens transparency transitions.
-- Simplified collision/render meshes, occlusion controls, and improved visual separation between NAV and geometry.
-
-## License and Game Assets
-
-CSBoard is an independent project and is not affiliated with Valve. Counter-Strike, CS2, map names, and related game assets are trademarks or property of their respective owners. This repository does not distribute GLB map models, VPK archives, or Demo files.
+- Mark C4 bombsites and team spawn areas on supported maps.
