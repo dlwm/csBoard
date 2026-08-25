@@ -6,7 +6,7 @@
 
 ![CSBoard demonstration](assets/readme/demo.gif)
 
-CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines NAV-aware editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
+CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
 
 ## Highlights
 
@@ -25,8 +25,8 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ![Tactical editing](assets/readme/collaboration.png)
 
-- Place T or CT tactical points directly on NAV surfaces (Collaboration panel only).
-- Draw freehand brush strokes on the NAV ground in round replay / analysis / utility panels, with undo/redo.
+- Place T or CT tactical points directly on surfaces (Collaboration panel only).
+- Draw freehand brush strokes on the ground in round replay / analysis / utility panels, with undo/redo.
 - Edit point team, symbol type, direction, aim length, and vertical angle.
 - Place and adjust smoke, fire, flash, HE, and decoy effects.
 - Store ten camera presets per map and restore them with `1-9` / `0`.
@@ -68,7 +68,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Map Rendering
 
-- Load CS2 NAV data for supported maps (from cloud storage, parsed in the browser) and constrain tactical editing to reachable surfaces.
+- Load CS2 data for supported maps (from cloud storage, parsed in the browser) and constrain tactical editing to reachable surfaces.
 - Render GLB map geometry loaded from cloud storage with configurable opacity.
 - Switch between reachable-surface, mouse-lens, and camera-lens model views.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
@@ -93,7 +93,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ## Supported Maps
 
-The repository includes NAV files for:
+The repository includes files for:
 
 - Ancient
 - Anubis
@@ -145,7 +145,7 @@ npm run build
 | `Shift` + middle mouse | Pan camera |
 | Mouse wheel / trackpad gesture | Zoom or orbit |
 | `W A S D` | Move camera |
-| Left drag (round replay / analysis / utility) | Draw a freehand brush stroke on the NAV ground |
+| Left drag (round replay / analysis / utility) | Draw a freehand brush stroke on the ground |
 | `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | Undo / redo brush strokes |
 | `E` | Place a tactical point (Collaboration panel only) |
 | `Ctrl` + left drag | Erase brush strokes, or adjust a player marker's yaw |
