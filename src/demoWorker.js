@@ -9,13 +9,17 @@ let partSkips = [];
 let partEvents = [];
 let allEvents = [];
 let allProjectiles = [];
+let activeWeaponNamesByPart = [];
+let equippedWeaponsByPlayer = new Map();
 let currentPhase = 'idle';
 let phaseStartedAt = 0;
-const CACHE_SCHEMA_VERSION = 17;
-const eventNames = ['round_start', 'round_freeze_end', 'round_end', 'player_death', 'player_hurt', 'player_blind', 'weapon_fire', 'weapon_reload', 'fire_bullets', 'item_pickup', 'item_purchase', 'hltv_fixed', 'hltv_chase', 'grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate', 'bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused'];
-const replayProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'user_id', 'team_rounds_total', 'active_weapon_name', 'inventory', 'armor_value', 'has_helmet', 'has_defuser', 'flash_duration', 'flash_max_alpha', 'is_scoped', 'is_walking', 'active_weapon_ammo', 'is_alive', 'is_defusing', 'balance', 'cash_spent_this_round', 'round_start_equip_value', 'current_equip_value'];
-const analysisProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'active_weapon_name', 'is_alive'];
-const throwProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'is_airborne', 'FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'WALK', 'active_weapon_name', 'has_defuser', 'last_place_name'];
+const CACHE_SCHEMA_VERSION = 23;
+const ACTIVE_WEAPON_HANDLE_PROP = 'CCSPlayerPawn.CCSPlayer_WeaponServices.m_hActiveWeapon';
+const GRENADE_ENTITY_PROPS = ['Grenade.m_flThrowStrength', 'Grenade.m_bJumpThrow', 'Grenade.m_fThrowTime', 'Grenade.m_vInitialVelocity'];
+const eventNames = ['round_start', 'round_freeze_end', 'round_end', 'player_death', 'player_hurt', 'player_blind', 'weapon_fire', 'weapon_reload', 'fire_bullets', 'item_equip', 'item_pickup', 'item_purchase', 'hltv_fixed', 'hltv_chase', 'grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate', 'bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused'];
+const replayProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'user_id', 'team_rounds_total', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'inventory', 'armor_value', 'has_helmet', 'has_defuser', 'flash_duration', 'flash_max_alpha', 'is_scoped', 'is_walking', 'active_weapon_ammo', 'is_alive', 'is_defusing', 'balance', 'cash_spent_this_round', 'round_start_equip_value', 'current_equip_value'];
+const analysisProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'is_alive'];
+const throwProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'is_airborne', 'is_walking', 'FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'WALK', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'has_defuser', 'last_place_name'];
 const PARSE_TICK_BATCH_SIZE = 32768;
 const parseProgressStages = [
   { percent: 0, zh: '正在展开 Demo 时间轴并校准起始 tick…', en: 'Expanding the demo timeline and calibrating its first tick...' },
@@ -100,8 +104,86 @@ function toPlainObject(value) {
 }
 
 function parsePartEvents(part) {
-  const parsed = parseEvents(part, eventNames, ['X', 'Y', 'Z', 'team_num']);
+  const parsed = parseEvents(part, eventNames, ['X', 'Y', 'Z', 'pitch', 'yaw', 'team_num']);
   return Object.values(parsed || {}).map(toPlainObject).map(normalizeEvent);
+}
+
+function grenadeWeaponName(type = '') {
+  const normalized = String(type).toLowerCase();
+  if (normalized.includes('smoke')) return 'smokegrenade';
+  if (normalized.includes('flash')) return 'flashbang';
+  if (normalized.includes('molotov') || normalized.includes('incendiary') || normalized.includes('incgrenade')) return 'molotov';
+  if (normalized.includes('decoy')) return 'decoy';
+  return 'hegrenade';
+}
+
+function parsePartGrenades(part, includeHeldGrenades) {
+  const projectiles = [];
+  const throwStates = new Map();
+  const lastProjectileByEntity = new Map();
+  for (const value of parseGrenades(part, GRENADE_ENTITY_PROPS, includeHeldGrenades) || []) {
+    const row = toPlainObject(value);
+    if (String(row.grenade_type || '').includes('Projectile')) {
+      if (row.x != null && row.y != null && row.z != null) {
+        const entityId = row.entity_id ?? row.grenade_entity_id;
+        const previous = lastProjectileByEntity.get(entityId);
+        const startsLifecycle = !previous || row.tick - previous.tick > 2 || row.grenade_type !== previous.grenade_type;
+        const projectile = { ...row };
+        GRENADE_ENTITY_PROPS.forEach((prop) => { delete projectile[prop.split('.').at(-1)]; });
+        projectiles.push({ ...projectile, entity_id: entityId, thrower_steamid: String(row.thrower_steamid ?? row.steamid ?? ''), thrower_name: row.thrower_name ?? row.name ?? '', ...(startsLifecycle && row.m_vInitialVelocity ? { initial_velocity: row.m_vInitialVelocity } : {}) });
+        lastProjectileByEntity.set(entityId, row);
+      }
+      continue;
+    }
+    if (!includeHeldGrenades || !(Number(row.m_fThrowTime) > 0)) continue;
+    const steamid = String(row.thrower_steamid ?? row.steamid ?? '');
+    throwStates.set(`${row.tick}:${steamid}:${grenadeWeaponName(row.grenade_type)}`, { strength: row.m_flThrowStrength, jumpThrow: row.m_bJumpThrow, throwTime: row.m_fThrowTime });
+  }
+  return { projectiles, throwStates };
+}
+
+function inferProjectileThrows(projectiles, events, throwStates) {
+  const byEntity = new Map();
+  const fires = events.filter((event) => event.event_name === 'weapon_fire' && event.user_steamid && event.weapon);
+  const usedFires = new Set();
+  projectiles.forEach((projectile) => {
+    if (!String(projectile.grenade_type || '').includes('Projectile')) return;
+    const entityId = projectile.entity_id ?? projectile.grenade_entity_id;
+    if (!byEntity.has(entityId)) byEntity.set(entityId, []);
+    byEntity.get(entityId).push(projectile);
+  });
+  const throws = [];
+  byEntity.forEach((unsorted) => {
+    const records = [...unsorted].sort((left, right) => left.tick - right.tick);
+    records.forEach((record, index) => {
+      const previous = records[index - 1];
+      if (previous && record.tick - previous.tick <= 2 && record.grenade_type === previous.grenade_type) return;
+      const weapon = grenadeWeaponName(record.grenade_type);
+      const steamid = String(record.thrower_steamid ?? record.steamid ?? '');
+      const fire = fires.findLast((event) => !usedFires.has(event) && String(event.user_steamid) === steamid && grenadeWeaponName(event.weapon) === weapon && event.tick <= record.tick && record.tick - event.tick <= 32);
+      if (fire) usedFires.add(fire);
+      const tick = fire?.tick ?? record.tick;
+      const throwState = fire ? throwStates.get(`${fire.tick}:${steamid}:${weapon}`) : null;
+      throws.push(normalizeEvent({
+        event_name: 'grenade_thrown',
+        tick,
+        user_name: fire?.user_name ?? record.thrower_name ?? record.name ?? '',
+        user_steamid: steamid,
+        user_X: fire?.user_X,
+        user_Y: fire?.user_Y,
+        user_Z: fire?.user_Z,
+        user_pitch: fire?.user_pitch,
+        user_yaw: fire?.user_yaw,
+        weapon,
+        throw_strength: throwState?.strength ?? null,
+        jump_throw: throwState?.jumpThrow ?? null,
+        throw_time: throwState?.throwTime ?? null,
+        initial_velocity: record.initial_velocity ?? null,
+        inferred: true,
+      }));
+    });
+  });
+  return throws;
 }
 
 function parseTicksBatched(part, props, ticks, players = null, onBatch = null) {
@@ -115,9 +197,29 @@ function parseTicksBatched(part, props, ticks, players = null, onBatch = null) {
   return rows;
 }
 
+function buildActiveWeaponNames(part, events) {
+  const fires = events.filter((event) => event.event_name === 'weapon_fire' && event.user_steamid && event.weapon);
+  if (!fires.length) return new Map();
+  const ticks = [...new Set(fires.map((event) => event.tick))].sort((left, right) => left - right);
+  const players = [...new Set(fires.map((event) => String(event.user_steamid)))];
+  const fireByPlayerTick = new Map(fires.map((event) => [`${event.tick}:${event.user_steamid}`, event]));
+  const names = new Map();
+  parseTicksBatched(part, [ACTIVE_WEAPON_HANDLE_PROP], ticks, players).forEach((row) => {
+    const event = fireByPlayerTick.get(`${row.tick}:${row.steamid}`);
+    const handle = row[ACTIVE_WEAPON_HANDLE_PROP];
+    if (event && handle != null) names.set(String(handle), event.weapon);
+  });
+  return names;
+}
+
+function restoreActiveWeapon(row, names) {
+  if (!row.active_weapon_name) row.active_weapon_name = names.get(String(row[ACTIVE_WEAPON_HANDLE_PROP])) || '';
+  return row;
+}
+
 function findPartOffsets(parts) {
   const offsets = [0];
-  partSkips = [0];
+  partSkips = [-1];
   partEvents = parts.map(parsePartEvents);
   let previousEvents = partEvents[0];
   for (let index = 1; index < parts.length; index += 1) {
@@ -132,6 +234,8 @@ function findPartOffsets(parts) {
   return offsets;
 }
 
+const includesPartTick = (tick, index) => index === 0 ? tick >= 0 : tick > partSkips[index];
+
 function buildRounds(events) {
   const starts = events.filter((event) => event.event_name === 'round_start');
   const ends = events.filter((event) => event.event_name === 'round_end');
@@ -141,8 +245,43 @@ function buildRounds(events) {
     const startTick = playableStart?.tick ?? start.tick;
     const end = ends.find((candidate) => candidate.tick > startTick && (!nextStart || candidate.tick < nextStart.tick));
     const bufferedEnd = end ? end.tick + 192 : startTick;
-    return { round: start.round ?? index + 1, freezeStartTick: start.tick, startTick, endTick: nextStart ? Math.min(bufferedEnd, nextStart.tick - 1) : bufferedEnd, winner: end?.winner ?? null, reason: end?.reason ?? null, timeSeconds: startTick / 64 };
+    return { round: index + 1, sourceRound: start.round ?? null, freezeStartTick: start.tick, startTick, endTick: nextStart ? Math.min(bufferedEnd, nextStart.tick - 1) : bufferedEnd, winner: end?.winner ?? null, reason: end?.reason ?? null, timeSeconds: startTick / 64 };
   });
+}
+
+function fallbackInventoryWeapon(inventory) {
+  const names = (inventory || []).map((item) => String(item || '')).filter(Boolean);
+  const primary = names.find((name) => /ak-?47|m4a|galil|famas|aug|sg ?55|awp|ssg|scar|g3sg|mp9|mac-?10|mp7|mp5|ump|p90|bizon|nova|xm1014|mag-?7|sawed|m249|negev/i.test(name));
+  const pistol = names.find((name) => /glock|usp|p2000|p250|deagle|five-?seven|tec-?9|cz75|revolver|dual|beretta/i.test(name));
+  const melee = names.find((name) => /knife|bayonet|karambit|dagger/i.test(name));
+  return primary || pistol || melee || names.find((name) => !/c4|explosive/i.test(name)) || '';
+}
+
+function indexEquippedWeapons(events) {
+  const indexed = new Map();
+  events.filter((event) => event.event_name === 'item_equip' && event.item).forEach((event) => {
+    const keys = [event.user_steamid ? String(event.user_steamid) : '', event.user_name ? `name:${event.user_name}` : ''].filter(Boolean);
+    keys.forEach((key) => {
+      if (!indexed.has(key)) indexed.set(key, []);
+      indexed.get(key).push(event);
+    });
+  });
+  indexed.forEach((history) => history.sort((left, right) => left.tick - right.tick));
+  return indexed;
+}
+
+function restoreEquippedWeapons(snapshots) {
+  const cursors = new Map();
+  snapshots.forEach((snapshot) => snapshot.players.forEach((player) => {
+    const key = player.steamid ? String(player.steamid) : `name:${player.name}`;
+    const history = equippedWeaponsByPlayer.get(key) || equippedWeaponsByPlayer.get(`name:${player.name}`) || [];
+    let cursor = cursors.get(key) ?? -1;
+    while (cursor + 1 < history.length && history[cursor + 1].tick <= snapshot.tick) cursor += 1;
+    cursors.set(key, cursor);
+    if (cursor >= 0 && (!player.activeWeapon || !player.alive)) player.activeWeapon = history[cursor].item;
+    if (!player.activeWeapon && player.alive) player.activeWeapon = fallbackInventoryWeapon(player.inventory);
+  }));
+  return snapshots;
 }
 
 function normalizeRows(rows, round) {
@@ -162,12 +301,12 @@ function normalizeRows(rows, round) {
       defusing: Boolean(row.is_defusing), balance: row.balance ?? null,
       cashSpentThisRound: row.cash_spent_this_round ?? null, roundStartEquipValue: row.round_start_equip_value ?? null, currentEquipValue: row.current_equip_value ?? null,
       score: row.team_rounds_total ?? 0,
-      activeWeapon: row.active_weapon_name || '', inventory,
+       activeWeapon: row.active_weapon_name || '', inventory,
       hasC4: inventory.some((item) => String(typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item).toLowerCase().includes('c4')),
       raw: { x: row.X, y: row.Y, z: row.Z }, position: { x: row.Y * 0.0254, y: row.Z * 0.0254, z: row.X * 0.0254 },
     });
   });
-  return [...snapshots.entries()].map(([tick, players]) => ({ tick, timeSeconds: tick / 64, players }));
+  return restoreEquippedWeapons([...snapshots.entries()].map(([tick, players]) => ({ tick, timeSeconds: tick / 64, players })));
 }
 
 self.onmessage = async ({ data }) => {
@@ -201,9 +340,14 @@ self.onmessage = async ({ data }) => {
        self.postMessage({ type: 'diagnostic', phase: 'header', data: { elapsedMs: performance.now() - phaseStartedAt, memory: memoryDiagnostics() } });
         self.postMessage({ type: 'status', message: '正在读取回合事件…' });
         beginPhase('events');
-         allEvents = partEvents.flatMap((events, index) => events.filter((event) => event.tick > partSkips[index]).map((event) => ({ ...event, tick: event.tick + partOffsets[index], timeSeconds: (event.tick + partOffsets[index]) / 64 }))).sort((left, right) => left.tick - right.tick);
-         self.postMessage({ type: 'status', message: '正在读取道具与投掷物轨迹…' });
-           allProjectiles = demoParts.flatMap((part, index) => (parseGrenades(part) || []).map(toPlainObject).filter((projectile) => projectile.x != null && projectile.y != null && projectile.z != null && projectile.tick > partSkips[index]).map((projectile) => ({ ...projectile, entity_id: projectile.entity_id ?? projectile.grenade_entity_id, thrower_steamid: String(projectile.thrower_steamid ?? projectile.steamid ?? ''), thrower_name: projectile.thrower_name ?? projectile.name ?? '', tick: projectile.tick + partOffsets[index] })));
+          self.postMessage({ type: 'status', message: '正在读取道具与投掷物轨迹…' });
+            const grenadeDataByPart = demoParts.map((part, index) => parsePartGrenades(part, !partEvents[index].some((event) => event.event_name === 'grenade_thrown')));
+            const projectilesByPart = grenadeDataByPart.map((data) => data.projectiles);
+            partEvents = partEvents.map((events, index) => events.some((event) => event.event_name === 'grenade_thrown') ? events : [...events, ...inferProjectileThrows(projectilesByPart[index], events, grenadeDataByPart[index].throwStates)].sort((left, right) => left.tick - right.tick));
+            allEvents = partEvents.flatMap((events, index) => events.filter((event) => includesPartTick(event.tick, index)).map((event) => ({ ...event, tick: event.tick + partOffsets[index], timeSeconds: (event.tick + partOffsets[index]) / 64 }))).sort((left, right) => left.tick - right.tick);
+            equippedWeaponsByPlayer = indexEquippedWeapons(allEvents);
+            allProjectiles = projectilesByPart.flatMap((projectiles, index) => projectiles.filter((projectile) => includesPartTick(projectile.tick, index)).map((projectile) => ({ ...projectile, tick: projectile.tick + partOffsets[index] })));
+            activeWeaponNamesByPart = demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index]));
         const sampleRate = [1, 2, 4, 8, 16, 32].includes(Number(data.sampleRate)) ? Number(data.sampleRate) : 8;
        const sampleStep = 64 / sampleRate;
        const maxTick = allEvents.at(-1)?.tick || 0;
@@ -212,10 +356,10 @@ self.onmessage = async ({ data }) => {
          self.postMessage({ type: 'status', message: `正在一次性解析 ${rounds.length} 个回合位置…` });
              const throwPlans = demoParts.map((part, index) => {
              const offset = partOffsets[index];
-             const localThrows = partEvents[index].filter((event) => event.event_name === 'grenade_thrown' && event.tick > partSkips[index]);
+              const localThrows = partEvents[index].filter((event) => event.event_name === 'grenade_thrown' && includesPartTick(event.tick, index));
              const localTicks = [...new Set(localThrows.flatMap((event) => Array.from({ length: 129 }, (_, tickIndex) => Math.max(0, event.tick - 128 + tickIndex))))].sort((left, right) => left - right);
              const throwers = [...new Set(localThrows.map((event) => String(event.user_steamid)).filter(Boolean))];
-             return { part, offset, localTicks, throwers };
+              return { part, index, offset, localTicks, throwers };
            });
             const roundTickPlans = rounds.map((round) => {
               const ticks = [];
@@ -224,7 +368,7 @@ self.onmessage = async ({ data }) => {
               return demoParts.map((part, index) => {
                 const offset = partOffsets[index];
                 const localTicks = ticks.filter((tick) => tick >= offset && tick - offset <= 1000000).map((tick) => tick - offset);
-                return { part, offset, localTicks };
+                 return { part, index, offset, localTicks };
               });
             });
             const totalBatches = roundTickPlans.flat().reduce((sum, plan) => sum + Math.ceil(plan.localTicks.length / PARSE_TICK_BATCH_SIZE), 0) + throwPlans.reduce((sum, plan) => sum + (plan.throwers.length ? Math.ceil(plan.localTicks.length / PARSE_TICK_BATCH_SIZE) : 0), 0) + 1;
@@ -238,14 +382,14 @@ self.onmessage = async ({ data }) => {
              self.postMessage({ type: 'progress', phase: 'ticks', completed: completedBatches, total: totalBatches, percent, stage: stageIndex !== progressStageIndex ? stage : null });
              progressStageIndex = stageIndex;
            };
-            const throwRows = throwPlans.flatMap(({ part, offset, localTicks, throwers }) => localTicks.length && throwers.length ? parseTicksBatched(part, throwProps, localTicks, throwers, reportProgress).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset })) : []);
+             const throwRows = throwPlans.flatMap(({ part, index, offset, localTicks, throwers }) => localTicks.length && throwers.length ? parseTicksBatched(part, throwProps, localTicks, throwers, reportProgress).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset })) : []);
             const throwSnapshots = normalizeRows(throwRows, 0);
             const playerNameSet = new Set();
             const roundData = [];
             let snapshotCount = 0;
             let estimatedBytes = throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128;
              rounds.forEach((round, roundIndex) => {
-               const rows = roundTickPlans[roundIndex].flatMap(({ part, offset, localTicks }) => localTicks.length ? parseTicksBatched(part, replayProps, localTicks, null, reportProgress).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset })) : []);
+                const rows = roundTickPlans[roundIndex].flatMap(({ part, index, offset, localTicks }) => localTicks.length ? parseTicksBatched(part, replayProps, localTicks, null, reportProgress).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset })) : []);
               const snapshots = normalizeRows(rows, 0);
               snapshots.forEach((snapshot) => snapshot.players.forEach((player) => { if (player.name) playerNameSet.add(player.name); }));
               snapshotCount += snapshots.length;
@@ -264,7 +408,7 @@ self.onmessage = async ({ data }) => {
               const offset = partOffsets[index];
               const localTicks = [...new Set(analysisGlobalTicks)].filter((tick) => tick >= offset && tick - offset <= 1000000).map((tick) => tick - offset);
               if (localTicks.length === 0) return [];
-              return parseTicksBatched(part, analysisProps, localTicks).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset }));
+               return parseTicksBatched(part, analysisProps, localTicks).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset }));
             });
             const analysis = normalizeRows(analysisRows, 0);
              self.postMessage({ type: 'diagnostic', phase: 'ticks', data: { elapsedMs: performance.now() - phaseStartedAt, throwSnapshots: throwSnapshots.length, snapshots: snapshotCount, analysis: analysis.length, memory: memoryDiagnostics() } });
@@ -284,7 +428,7 @@ self.onmessage = async ({ data }) => {
          const offset = partOffsets[index];
          const localTicks = [...new Set(globalTicks)].filter((tick) => tick >= offset && tick - offset <= 1000000).map((tick) => tick - offset);
          if (localTicks.length === 0) return [];
-             return parseTicksBatched(part, analysisProps, localTicks).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset }));
+              return parseTicksBatched(part, analysisProps, localTicks).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset }));
        });
         const normalized = normalizeRows(rows, 0);
         self.postMessage({ type: 'analysis', rows: normalized, estimatedBytes: estimateDataBytes(normalized) });
