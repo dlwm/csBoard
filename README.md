@@ -106,7 +106,7 @@ The repository includes files for:
 - Train
 - Vertigo
 
-GLB map models are intentionally not committed. Running `npm run dev` automatically detects and downloads any missing `.nav`/`.glb` into `public/maps/<map>/`; after a production build the runtime loads both NAV and GLB from cloud storage.
+GLB map models are intentionally not committed. Run `make resources` when local `.nav`/`.glb` files are needed under `public/maps/<map>/`; the Workers application loads production map resources from cloud storage.
 
 ## Getting Started
 
@@ -119,23 +119,35 @@ Install dependencies:
 
 ```bash
 npm install
+cp .env.example .env.local
 ```
 
-Start the Vite frontend and collaboration/API server:
+Set your own `VITE_OSS_BASE_URL` in `.env.local`, then run `make resources` to download missing local maps. `MAP_DOWNLOAD_BASE_URL` can override the source for that command only; the repository does not provide a default download origin.
+
+Build the frontend and start the APIs and collaboration service with the default Node.js Runtime:
 
 ```bash
 npm run dev
 ```
 
-Before starting, the `predev` resource check (`scripts/ensure-maps.js`) inspects each map's `.nav` and `.glb` under `public/maps/<map>/`; missing files are downloaded automatically from cloud storage with progress printed to the terminal. In development the map NAV/GLB load from the local `public/maps` directory.
+The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
 
-The frontend uses Vite's development server, while the HTTP and Yjs WebSocket service runs on port `3001` and is reached through the configured proxy.
+The same API and Yjs protocol core can also run behind a traditional Node.js HTTP/WebSocket entry:
+
+```bash
+make node-dev
+# or: npm run dev:node
+```
+
+The Node.js Runtime adapter listens on `PORT` (default `3001`) and reads `MAP_BASE_URL` from `process.env`. The Cloudflare Workers adapter uses `env.MAP_BASE_URL` and Durable Object Storage; shared route, parsing, and protocol logic lives under `server/core/`.
 
 Build the production bundle:
 
 ```bash
-npm run build
+make build
 ```
+
+This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and writes the Cloudflare Workers bundle to `build/workers/`.
 
 ## Controls
 
@@ -172,12 +184,12 @@ public/
       <map>.glb           # local dev data, ignored by Git (auto-downloaded on dev)
 ```
 
-The whole `public/` directory is ignored by Git. Running `npm run dev` triggers `scripts/ensure-maps.js`, which downloads any missing map resource into `public/maps/<map>/`.
+The whole `public/` directory is ignored by Git. Running `make resources` checks each map and downloads missing files from `VITE_OSS_BASE_URL` (or `MAP_DOWNLOAD_BASE_URL`) configured in `.env.local`. The command fails clearly when no download origin is configured.
 
 In development (`import.meta.env.DEV`) the app loads NAV and GLB from the local `public/maps` directory (`/maps/<map>/<map>.nav`, `/maps/<map>/<map>.glb`). A production build (`vite build`) instead uses cloud storage:
 
-- `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.nav`
-- `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.glb`
+- `<VITE_OSS_BASE_URL>/maps/<map>/<map>.nav`
+- `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
 
 NAV files are fetched as raw bytes and parsed in the browser (`src/navParser.js`). The bucket must send `Access-Control-Allow-Origin` headers. The legacy `/api/maps/:map/nav` endpoint remains as a fallback but is not required at runtime.
 
@@ -189,12 +201,32 @@ Map extraction tools and raw game resources remain local-only. Do not commit VPK
 - Three.js for map rendering, tactical objects, effects, and replay visualization.
 - Rust/WASM `demoparser2` for Demo events, ticks, players, inventory, and projectiles.
 - `three-mesh-bvh` for accelerated map raycasting.
-- Yjs, `y-websocket`, and `ws` for collaborative rooms.
-- Express for map/API endpoints and the collaboration server.
+- Yjs and `y-websocket` for collaborative rooms.
+- Cloudflare Workers Fetch API for HTTP routes in the backend Worker and static assets in the frontend Worker.
+- Cloudflare Durable Objects for room WebSockets and short-lived Yjs persistence.
+
+## Cloudflare Workers
+
+The production backend is a Workers module exported from `server/index.js`; it does not open a local port. A separate frontend Worker serves `dist` through Workers Static Assets, while the backend routes `/rooms/<code>` to one Durable Object per room.
+
+```bash
+npm install
+npx wrangler dev
+cp deploy.cloudflare.env.example deploy.cloudflare.env
+make workers-deploy
+```
+
+Edit `deploy.cloudflare.env` with the Cloudflare account, frontend and backend Worker names, OSS base URL, backend public URL, and optional custom domains. Prefer supplying `CLOUDFLARE_API_TOKEN` through the shell or CI secret store. The deploy script writes the platform-neutral `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL` values to the ignored `.env.production.local`, then passes the same OSS base URL to the backend as `env.MAP_BASE_URL`.
+
+The script deploys the API, room WebSockets, and Durable Objects to the backend Worker first, then deploys the Vite bundle to the frontend Workers Static Assets service. `BACKEND_PUBLIC_URL` is embedded into the frontend so collaboration connections use the separate backend origin.
+
+The legacy `POST /api/parse` response contract is retained using the existing browser-compatible parser WASM. Cloudflare request-body, memory, and CPU limits still apply, so large Demo files should continue to be parsed locally in the browser.
+
+The native `@laihoe/demoparser2` package is used only by the Node.js Runtime adapter and offline tools. It is not imported by or bundled into Cloudflare Workers because the runtime cannot load N-API addons or start subprocesses; the Cloudflare Workers adapter uses the existing parser WASM instead.
 
 ## Current Limitations
 
-- Collaboration rooms are stored in server memory and disappear after a server restart.
+- Collaboration rooms use Durable Object storage and are deleted five minutes after the final client disconnects.
 - Room ownership is currently client-managed rather than protected by a server-issued owner token.
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
 - Production loads map NAV and GLB from cloud storage; development uses local files under `public/maps/` (auto-downloaded when missing).

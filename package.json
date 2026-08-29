@@ -1,31 +1,33 @@
 {
   "name": "csboard",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/ensure-maps.js",
-    "dev": "concurrently \"vite --host\" \"node server/index.js\"",
-    "server": "node server/index.js",
+    "dev": "npm run dev:node",
+    "dev:workers": "wrangler dev",
+    "dev:node": "VITE_USE_LOCAL_MAPS=true VITE_BACKEND_BASE_URL=/ npm run build && node server/node.js",
+    "server": "node server/node.js",
+    "deploy": "bash scripts/deploy-cloudflare.sh",
+    "deploy:workers": "bash scripts/deploy-cloudflare.sh",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.42.0",
     "@vitejs/plugin-react": "latest",
-    "express": "^5.2.1",
-    "multer": "^2.2.0",
+    "lib0": "^0.2.114",
     "react": "latest",
     "react-dom": "latest",
-    "snappyjs": "^0.7.0",
     "three": "latest",
     "three-mesh-bvh": "^0.9.14",
-    "ws": "^8.21.3",
+    "ws": "^8.21.0",
+    "y-protocols": "^1.0.6",
     "y-websocket": "^3.1.0",
     "yjs": "latest"
   },
   "devDependencies": {
-    "concurrently": "^10.0.4",
-    "vite": "latest"
+    "vite": "latest",
+    "wrangler": "^4.37.1"
   }
 }

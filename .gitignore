@@ -1,5 +1,10 @@
 node_modules/
 dist/
+build/
+.wrangler/
+.env.production.local
+.env.local
+deploy.cloudflare.env
 *.dem
 ref/*
 public/

@@ -6,8 +6,31 @@ import { fileURLToPath } from 'node:url';
 
 const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const MAPS = ['de_dust2', 'de_mirage', 'de_nuke', 'de_ancient', 'de_anubis', 'de_cache', 'de_inferno', 'de_overpass', 'de_train', 'de_vertigo'];
-const BASE = 'https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps';
 const PUBLIC_DIR = path.join(projectRoot, 'public', 'maps');
+
+function readLocalEnv(name) {
+  for (const filename of ['.env.local', '.env']) {
+    const filePath = path.join(projectRoot, filename);
+    if (!fs.existsSync(filePath)) continue;
+    const line = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).find((entry) => entry.match(new RegExp(`^\\s*${name}\\s*=`)));
+    if (line) return line.slice(line.indexOf('=') + 1).trim().replace(/^(['"])(.*)\1$/, '$2');
+  }
+  return '';
+}
+
+const configuredBase = process.env.MAP_DOWNLOAD_BASE_URL
+  || process.env.VITE_OSS_BASE_URL
+  || readLocalEnv('MAP_DOWNLOAD_BASE_URL')
+  || readLocalEnv('VITE_OSS_BASE_URL');
+if (!configuredBase) {
+  console.error('未配置地图下载源。请在 .env.local 中设置 VITE_OSS_BASE_URL，或设置 MAP_DOWNLOAD_BASE_URL 环境变量。');
+  process.exit(1);
+}
+if (!/^https?:\/\//.test(configuredBase)) {
+  console.error('地图下载源必须是完整的 HTTP(S) 地址。');
+  process.exit(1);
+}
+const BASE = `${configuredBase.replace(/\/$/, '')}/maps`;
 
 async function ensureFile(map, ext) {
   const dir = path.join(PUBLIC_DIR, map);

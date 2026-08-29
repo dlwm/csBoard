@@ -106,7 +106,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - Train
 - Vertigo
 
-GLB 地图模型不会提交到仓库。开发时运行 `npm run dev` 会自动检测并下载缺失的 `.nav`/`.glb` 到 `public/maps/<map>/`；生产构建后运行时 NAV 与 GLB 均从云存储加载。
+GLB 地图模型不会提交到仓库。需要本地 `.nav`/`.glb` 时运行 `make resources` 下载到 `public/maps/<map>/`；Workers 应用运行时从云存储加载生产地图资源。
 
 ## 开始使用
 
@@ -119,23 +119,35 @@ GLB 地图模型不会提交到仓库。开发时运行 `npm run dev` 会自动�
 
 ```bash
 npm install
+cp .env.example .env.local
 ```
 
-启动 Vite 前端以及协作/API 服务：
+在 `.env.local` 中填写你自己的 `VITE_OSS_BASE_URL`，然后运行 `make resources` 下载缺失的本地地图。也可以仅为下载命令设置 `MAP_DOWNLOAD_BASE_URL`；仓库不提供默认下载源。
+
+构建前端，并通过默认 Node.js Runtime 启动 API 与协作服务：
 
 ```bash
 npm run dev
 ```
 
-启动前会先运行 `predev` 资源检测脚本（`scripts/ensure-maps.js`）：检查 `public/maps/<map>/` 下各地图的 `.nav` 与 `.glb` 是否存在，缺失时自动从云存储下载并在命令行显示下载进度。开发模式下地图 NAV/GLB 从本地 `public/maps` 加载。
+默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
 
-前端由 Vite 开发服务器提供，HTTP 与 Yjs WebSocket 服务运行在 `3001` 端口，并通过 Vite 代理访问。
+相同的 API 与 Yjs 协议核心也可以通过传统 Node.js HTTP/WebSocket 入口运行：
+
+```bash
+make node-dev
+# 或：npm run dev:node
+```
+
+Node.js Runtime 适配层监听 `PORT`（默认 `3001`），并从 `process.env` 读取 `MAP_BASE_URL`。Cloudflare Workers 适配层使用 `env.MAP_BASE_URL` 和 Durable Object Storage；共享路由、解析和协议逻辑位于 `server/core/`。
 
 构建生产版本：
 
 ```bash
-npm run build
+make build
 ```
+
+该命令会将前端构建到 `dist/`、校验 Node.js Runtime 适配层，并将 Cloudflare Workers bundle 输出到 `build/workers/`。
 
 ## 操作方式
 
@@ -168,17 +180,17 @@ assets/
 public/
   maps/
     <map>/
-      <map>.nav           # 本地开发数据，由 Git 忽略（`npm run dev` 自动下载）
-      <map>.glb           # 本地开发数据，由 Git 忽略（`npm run dev` 自动下载）
+      <map>.nav           # 本地开发数据，由 Git 忽略（通过 `make resources` 下载）
+      <map>.glb           # 本地开发数据，由 Git 忽略（通过 `make resources` 下载）
 ```
 
-`public/` 目录整体被 Git 忽略。运行 `npm run dev` 时 `scripts/ensure-maps.js` 会检测各地图资源，缺失则自动下载到本地。
+`public/` 目录整体被 Git 忽略。运行 `make resources` 时，`scripts/ensure-maps.js` 会检测各地图资源，并从 `.env.local` 的 `VITE_OSS_BASE_URL`（或 `MAP_DOWNLOAD_BASE_URL`）下载缺失文件。未配置下载源时命令会明确报错。
 
 开发模式（`import.meta.env.DEV`）下从本地 `public/maps` 加载：`/maps/<map>/<map>.nav`、`/maps/<map>/<map>.glb`。
 生产构建（`vite build`）则直接使用云存储地址：
 
-- `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.nav`
-- `https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps/<map>/<map>.glb`
+- `<VITE_OSS_BASE_URL>/maps/<map>/<map>.nav`
+- `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
 
 NAV 以原始字节拉取并在浏览器内解析（`src/navParser.js`）。存储桶需返回 `Access-Control-Allow-Origin` 头。旧的 `/api/maps/:map/nav` 接口仅作为回退，运行时非必需。
 
@@ -190,12 +202,26 @@ NAV 以原始字节拉取并在浏览器内解析（`src/navParser.js`）。存�
 - Three.js：地图、战术对象、效果和回放渲染。
 - Rust/WASM `demoparser2`：解析 Demo 事件、Tick、玩家、库存和投掷物。
 - `three-mesh-bvh`：地图射线检测加速。
-- Yjs、`y-websocket` 与 `ws`：协作房间。
-- Express：地图/API 接口与协作服务端。
+- Yjs 与 `y-websocket`：协作房间协议。
+- Node.js Runtime：传统 HTTP/WebSocket 服务入口。
+- Cloudflare Workers Fetch API：后端 Worker 提供 HTTP 路由，前端 Worker 提供静态资源。
+- Durable Objects：云端房间 WebSocket 与短期 Yjs 持久化。
+
+## Cloudflare Workers 部署
+
+```bash
+npm install
+cp deploy.cloudflare.env.example deploy.cloudflare.env
+make workers-deploy
+```
+
+在 `deploy.cloudflare.env` 中填写 Cloudflare Account ID、前后端 Worker 名称、OSS 根地址、后端公网地址和两个可选自定义域名。建议通过终端环境变量或 CI Secret 提供 `CLOUDFLARE_API_TOKEN`。
+
+部署脚本先部署后端 Worker（API、房间 WebSocket 和 Durable Objects），再部署前端 Worker（Workers Static Assets）。它会把与平台无关的 `VITE_OSS_BASE_URL` 和 `VITE_BACKEND_BASE_URL` 写入已忽略的 `.env.production.local`，其中 `BACKEND_PUBLIC_URL` 会被嵌入前端用于连接独立后端服务。
 
 ## 当前限制
 
-- 协作房间仅保存在服务端内存中，服务重启后失效。
+- Node.js Runtime 的协作房间保存在进程内存中；Cloudflare Workers 使用 Durable Object Storage，并在最后一个客户端离开五分钟后清理。
 - 房主身份目前主要由客户端管理，尚未使用服务端签发的 owner token。
 - 解析器没有暴露 C4 实体逐 Tick 坐标，因此掉落轨迹只能根据事件近似。
 - 生产环境地图 NAV 与 GLB 依赖云存储可用；开发模式使用 `public/maps/` 本地数据（缺失时自动下载）。

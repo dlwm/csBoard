@@ -27,8 +27,18 @@ THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
-const CLOUD_MAP_BASE = 'https://pub-535aa40e0aa54f49be75aa008da8b788.r2.dev/maps';
-const MAP_BASE = import.meta.env.DEV ? '/maps' : CLOUD_MAP_BASE;
+const OSS_BASE = String(import.meta.env.VITE_OSS_BASE_URL || '').replace(/\/$/, '');
+const USE_LOCAL_MAPS = import.meta.env.DEV || import.meta.env.VITE_USE_LOCAL_MAPS === 'true';
+const MAP_BASE = USE_LOCAL_MAPS || !OSS_BASE ? '/maps' : `${OSS_BASE}/maps`;
+const BACKEND_BASE = String(import.meta.env.VITE_BACKEND_BASE_URL || '').replace(/\/$/, '');
+const collaborationUrl = () => {
+  const url = new URL(BACKEND_BASE || location.origin, location.origin);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  url.pathname = '/rooms';
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/$/, '');
+};
 
 const MAPS = [
   { id: 'de_dust2', label: 'Dust II' },
@@ -3640,7 +3650,7 @@ function App() {
   }, [roomNotice]);
   useEffect(() => {
     if (!roomCode) return undefined;
-    const doc = new Y.Doc(); const provider = new WebsocketProvider(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/rooms`, roomCode, doc);
+    const doc = new Y.Doc(); const provider = new WebsocketProvider(collaborationUrl(), roomCode, doc);
     roomDocRef.current = doc; roomProviderRef.current = provider;
     const room = doc.getMap('room');
     const points = doc.getMap('points');
