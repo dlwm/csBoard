@@ -2,7 +2,7 @@
 
 > A 3D tactical board, CS2 Demo replay viewer, analysis workspace, and real-time collaboration tool.
 
-[中文说明](README.zh-CN.md)
+[中文说明](README.zh-CN.md) · [Changelog](CHANGELOG.en.md)
 
 ![CSBoard demonstration](assets/readme/demo.gif)
 
@@ -15,7 +15,8 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 ![Round replay](assets/readme/round-replay.png)
 
 - Import one Demo or select multiple Demo parts and merge them into one match.
-- Parse all rounds once through Rust/WASM, then switch rounds instantly from the in-memory cache.
+- Parse playable rounds once through Rust/WASM, persist each round in IndexedDB, and switch rounds without reparsing the Demo.
+- Omit empty placeholder rounds and discard incompatible cached parses automatically.
 - Replay from freeze end with player movement, kills, deaths, weapons, health, utility, C4 state, and event markers.
 - Display simplified standing and crouching player models with yaw, pitch, dynamic eye height, and BVH-accelerated line-of-sight collision.
 - Track C4 carriers, drops, plants, explosions, defuses, approximate drop trajectories, and the bomb timer.
@@ -29,6 +30,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Draw freehand brush strokes on the ground in round replay / analysis / utility panels, with undo/redo.
 - Edit point team, symbol type, direction, aim length, and vertical angle.
 - Place and adjust smoke, fire, flash, HE, and decoy effects.
+- Open the custom utility wheel from any desktop workspace and delete placed utility with `Ctrl`/`Cmd` + click.
 - Store ten camera presets per map and restore them with `1-9` / `0`.
 - Save local workspace archives containing player markers, utility, brushes, camera presets, and an optional Demo frame reference.
 
@@ -58,12 +60,12 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 - Create or join a six-character Yjs WebSocket room.
 - Synchronize player markers, imported utility, custom utility, brushes, frame order, and active frames.
-- Player markers carry a character model, AK47, and unique three-digit hexadecimal name; drag to move, use `Ctrl` to adjust yaw, `Shift` to adjust pitch, and double-click to toggle crouch/stand.
+- Player markers carry a character model and AK47 and use generated adjective-fruit names; drag to move, use `Ctrl` to adjust yaw, `Shift` to adjust pitch, and double-click to toggle crouch/stand.
 - Frames contain players, imported utility, custom utility, trajectories, and brushes. Camera state and camera presets remain archive-level data.
 - Insert, duplicate, delete, save, and switch frames. Saving to an existing archive appends a frame; switching smoothly transitions same-name player positions, yaw, and pitch.
 - Use unified undo/redo for players, utility, brushes, imported utility, and erasing. History is isolated per frame.
 - Let room members edit shared tactical content while keeping the current camera private.
-- Support owner-controlled room destruction and member leave notifications.
+- Show room members, owner/current-user labels, and recent join/leave activity; support owner-controlled room destruction.
 - Use local archives as reusable starting points for collaborative sessions.
 
 ### Map Rendering
@@ -72,6 +74,8 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Render GLB map geometry loaded from cloud storage with configurable opacity.
 - Switch between reachable-surface, mouse-lens, and camera-lens model views.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
+- Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
+- Show bundled 2D radar previews and floor switching where map assets provide them.
 - Navigate with Blender-style mouse controls, trackpad gestures, and WASD movement.
 
 ### Interface
@@ -79,6 +83,8 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Switch the application between English and Chinese at runtime.
 - Inspect live T/CT rosters, score, health, active weapons, remaining utility, deaths, and C4 ownership.
 - Jump directly to kills, C4 plants, explosions, and round-end events from the timeline.
+- Keep desktop tool panels in dedicated columns around the 3D viewport and collapse available sidebars independently.
+- Offer a non-blocking replay-control prompt when the loaded Demo map differs from the current map.
 
 ### Mobile / H5
 
@@ -147,7 +153,9 @@ Build the production bundle:
 make build
 ```
 
-This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and writes the Cloudflare Workers bundle to `build/workers/`.
+This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and writes the Cloudflare Workers bundle to `build/workers/`. Make builds derive the header version from Git: a clean exact-tag build uses that tag, while dirty or untagged interactive builds ask before using `git describe`.
+
+`npm run build` and `npm run build:local` use local `/maps` resources and same-origin APIs. `npm run build:remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
 ## Controls
 
@@ -161,13 +169,14 @@ This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and
 | `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | Undo / redo brush strokes |
 | `E` | Place a tactical point (Collaboration panel only) |
 | `Ctrl` + left drag | Erase brush strokes, or adjust a player marker's yaw |
+| `Ctrl` / `Cmd` + click placed utility | Delete the placed utility |
 | `Shift` + left drag a player | Adjust player pitch |
-| `Q` | Open the utility wheel |
+| `Q` | Open the custom utility wheel in the active desktop workspace |
 | Left click a point | Open the point editor |
 | `Ctrl` + `1-9` / `0` | Save one of ten camera presets |
 | `1-9` / `0` | Restore a camera preset |
 | `Space` | Play or pause replay/analysis |
-| Arrow keys | Step through the current round |
+| `←` / `→` | Step replay or analysis by 16 ticks; switch adjacent Collaboration frames |
 | Mobile one-finger drag | Rotate camera |
 | Mobile two-finger gesture | Zoom and pan camera |
 | Mobile camera-dial swipe | Rotate through camera slots; swipe up to save the centered slot |
@@ -186,7 +195,7 @@ public/
 
 The whole `public/` directory is ignored by Git. Running `make resources` checks each map and downloads missing files from `VITE_OSS_BASE_URL` (or `MAP_DOWNLOAD_BASE_URL`) configured in `.env.local`. The command fails clearly when no download origin is configured.
 
-In development (`import.meta.env.DEV`) the app loads NAV and GLB from the local `public/maps` directory (`/maps/<map>/<map>.nav`, `/maps/<map>/<map>.glb`). A production build (`vite build`) instead uses cloud storage:
+Local builds load NAV and GLB from `public/maps` (`/maps/<map>/<map>.nav`, `/maps/<map>/<map>.glb`). Remote builds use cloud storage:
 
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.nav`
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
@@ -226,7 +235,7 @@ The native `@laihoe/demoparser2` package is used only by the Node.js Runtime ada
 
 ## Current Limitations
 
-- Collaboration rooms use Durable Object storage and are deleted five minutes after the final client disconnects.
+- Node.js Runtime rooms are held in process memory. Cloudflare Workers rooms use Durable Object storage and are deleted five minutes after the final client disconnects.
 - Room ownership is currently client-managed rather than protected by a server-issued owner token.
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
 - Production loads map NAV and GLB from cloud storage; development uses local files under `public/maps/` (auto-downloaded when missing).

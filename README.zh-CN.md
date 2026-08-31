@@ -2,7 +2,7 @@
 
 > 集 3D 战术板、CS2 Demo 回放、数据分析和实时协作于一体的浏览器工具。
 
-[English README](README.md)
+[English README](README.md) · [更新日志](CHANGELOG.md)
 
 ![CSBoard 使用演示](assets/readme/demo.gif)
 
@@ -15,7 +15,8 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 ![回合浏览](assets/readme/round-replay.png)
 
 - 导入单个 Demo，或多选 Demo 分片并合并为一场比赛。
-- 通过 Rust/WASM 一次性解析全部回合，之后从内存缓存即时切换回合。
+- 通过 Rust/WASM 一次性解析全部可播放回合，将各回合持久化到 IndexedDB，之后无需重新解析 Demo 即可切换。
+- 自动忽略空的占位回合，并丢弃不兼容的旧解析缓存。
 - 从冻结结束开始回放玩家移动、击杀、死亡、武器、血量、道具、C4 状态和事件标记。
 - 使用简化的站立/蹲伏人物模型，并显示 yaw、pitch、动态视点高度和 BVH 加速的视线墙体碰撞。
 - 跟踪 C4 携带、掉落、安装、爆炸、拆除、近似掉落轨迹和炸弹倒计时。
@@ -29,6 +30,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - 在回合浏览/数据分析/道具速查面板左键拖拽绘制手绘笔迹，支持撤销与重做。
 - 编辑点位阵营、符号类型、方向、视线长度和垂直倾角。
 - 放置和调整烟、火、闪、HE 与诱饵弹效果。
+- 在任意桌面工作区打开自定义道具轮盘，并使用 `Ctrl`/`Command` + 点击删除已放置道具。
 - 每张地图保存 10 个镜头预设，并通过 `1-9` / `0` 快速恢复。
 - 本地存档可保存人物、道具、画笔、镜头预设和可选的 Demo 当前帧引用。
 
@@ -58,12 +60,12 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 - 创建或加入 6 位房间号的 Yjs WebSocket 房间。
 - 同步人物、引入道具、自定义道具、画笔、帧顺序和当前帧。
-- 人物点带人物模型、AK47 与唯一三位十六进制名称；可拖动移动，使用 `Ctrl` 调整 yaw、`Shift` 调整 pitch，双击切换蹲下/站立。
+- 人物点带人物模型和 AK47，并使用自动生成的“形容词 + 水果”名称；可拖动移动，使用 `Ctrl` 调整 yaw、`Shift` 调整 pitch，双击切换蹲下/站立。
 - 每帧包含人物、引入道具、自定义道具、轨迹和画笔；当前相机与镜头预设属于存档级数据，不属于单帧。
 - 支持插帧、复制、删除、保存和切换；保存到已有存档会追加一帧，切帧时同名人物的位置、yaw 和 pitch 平滑过渡。
 - 人物、道具、画笔、引入和擦除共用统一撤销/重做，并按帧隔离历史。
 - 房间成员可以共同编辑战术内容，同时各自当前摄像机保持私有。
-- 支持房主销毁房间和成员离开通知。
+- 显示房间成员、房主/自己标记和最近加入/离开动态，并支持房主销毁房间。
 - 可使用本地存档快速创建协作战术板。
 
 ### 地图渲染
@@ -72,6 +74,8 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - 从云存储加载 GLB 地图模型，并调节模型透明度。
 - 支持可达表面、鼠标透镜和摄像机透镜三种模型显示方式。
 - 使用 `three-mesh-bvh` 高效查询视线最近墙体碰撞。
+- 显示 GLB 下载、处理和失败状态；模型不可用时继续使用 NAV 完成镜头取景、碰撞和表面编辑。
+- 在资源可用时显示内置 2D 雷达预览并支持楼层切换。
 - 支持 Blender 风格鼠标控制、触控板手势和 WASD 移动。
 
 ### 界面信息
@@ -79,6 +83,8 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - 运行时切换中文和英文界面。
 - 查看实时 T/CT 比分、成员、血量、当前武器、剩余道具、死亡状态和 C4 携带者。
 - 从时间轴直接跳转到击杀、C4 安装、爆炸和回合结束事件。
+- 桌面端使用独立列放置功能面板，避免覆盖 3D 视窗，并可分别折叠可用侧栏。
+- Demo 地图与当前地图不一致时，在回放控制栏提供非强制跳转提示。
 
 ### 手机 / H5
 
@@ -147,7 +153,9 @@ Node.js Runtime 适配层监听 `PORT`（默认 `3001`），并从 `process.env`
 make build
 ```
 
-该命令会将前端构建到 `dist/`、校验 Node.js Runtime 适配层，并将 Cloudflare Workers bundle 输出到 `build/workers/`。
+该命令会将前端构建到 `dist/`、校验 Node.js Runtime 适配层，并将 Cloudflare Workers bundle 输出到 `build/workers/`。Make 构建会从 Git 生成标题栏版本：干净且 HEAD 有精确 tag 时使用该 tag；dirty 或无 tag 的交互构建会先询问，再使用 `git describe`。
+
+`npm run build` 与 `npm run build:local` 使用本地 `/maps` 和同源 API；`npm run build:remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
 
 ## 操作方式
 
@@ -161,13 +169,14 @@ make build
 | `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` | 撤销 / 重做画笔笔迹 |
 | `E` | 放置战术点（仅协作面板） |
 | `Ctrl` + 左键拖动 | 擦除画笔笔迹，或调整人物 yaw |
+| `Ctrl` / `Command` + 点击已放置道具 | 删除该道具 |
 | `Shift` + 左键拖动人物 | 调整人物 pitch |
-| `Q` | 打开道具轮盘 |
+| `Q` | 在当前桌面工作区打开自定义道具轮盘 |
 | 左键点击点位 | 打开点位编辑器 |
 | `Ctrl` + `1-9` / `0` | 保存 10 个镜头预设之一 |
 | `1-9` / `0` | 恢复镜头预设 |
 | `Space` | 播放或暂停回放/分析 |
-| 方向键 | 在当前回合中步进 |
+| `←` / `→` | 回放或分析步进 16 ticks；切换相邻协作帧 |
 | 手机单指拖动 | 旋转镜头 |
 | 手机双指手势 | 缩放并平移镜头 |
 | 手机机位轮盘滑动 | 循环选择机位；上滑保存中心机位 |
@@ -186,8 +195,7 @@ public/
 
 `public/` 目录整体被 Git 忽略。运行 `make resources` 时，`scripts/ensure-maps.js` 会检测各地图资源，并从 `.env.local` 的 `VITE_OSS_BASE_URL`（或 `MAP_DOWNLOAD_BASE_URL`）下载缺失文件。未配置下载源时命令会明确报错。
 
-开发模式（`import.meta.env.DEV`）下从本地 `public/maps` 加载：`/maps/<map>/<map>.nav`、`/maps/<map>/<map>.glb`。
-生产构建（`vite build`）则直接使用云存储地址：
+本地构建从 `public/maps` 加载 `/maps/<map>/<map>.nav` 和 `/maps/<map>/<map>.glb`；远程构建使用云存储地址：
 
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.nav`
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
