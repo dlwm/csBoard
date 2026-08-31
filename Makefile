@@ -4,7 +4,7 @@ NPX ?= npx
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup install resources build frontend-build backend-build workers-build dev node-dev workers-dev workers-deploy clean
+.PHONY: help setup install resources build build-version frontend-build backend-build workers-build dev node-dev workers-dev workers-deploy clean
 
 help:
 	@printf '%s\n' \
@@ -33,29 +33,31 @@ resources:
 
 build: frontend-build backend-build workers-build
 
-frontend-build:
-	$(NPM) run build
+build-version:
+	@scripts/resolve-build-version.sh > .build-version
 
-backend-build:
+frontend-build: build-version
+	VITE_BUILD_VERSION="$$(< .build-version)" $(NPM) run build
+
+backend-build: build-version
 	node --check server/node.js
 	node --check server/core/http.js
 	node --check server/core/yjs.js
 
-workers-build:
-	$(NPX) wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir build/workers/backend
-	$(NPX) wrangler deploy --config wrangler.frontend.jsonc --dry-run --outdir build/workers/frontend
+workers-build: build-version
+	VITE_BUILD_VERSION="$$(< .build-version)" $(NPX) wrangler deploy --config wrangler.backend.jsonc --dry-run --outdir build/workers/backend
+	VITE_BUILD_VERSION="$$(< .build-version)" $(NPX) wrangler deploy --config wrangler.frontend.jsonc --dry-run --outdir build/workers/frontend
 
-node-dev: backend-build
-	VITE_USE_LOCAL_MAPS=true VITE_BACKEND_BASE_URL=/ $(NPM) run build
+node-dev: backend-build frontend-build
 	node server/node.js
 
 dev: node-dev
 
-workers-dev:
-	$(NPM) run dev:workers
+workers-dev: build-version
+	VITE_BUILD_VERSION="$$(< .build-version)" $(NPM) run dev:workers
 
-workers-deploy:
-	bash scripts/deploy-cloudflare.sh
+workers-deploy: build-version
+	VITE_BUILD_VERSION="$$(< .build-version)" bash scripts/deploy-cloudflare.sh
 
 clean:
-	rm -rf dist build .wrangler
+	rm -rf dist build .wrangler .build-version
