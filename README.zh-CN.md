@@ -130,7 +130,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
+默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，确保 NAV/GLB 继续读取 `public/maps`。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
 
 相同的 API 与 Yjs 协议核心也可以通过传统 Node.js HTTP/WebSocket 入口运行：
 

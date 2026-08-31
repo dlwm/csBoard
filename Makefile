@@ -52,7 +52,7 @@ node-dev: backend-build
 dev: node-dev
 
 workers-dev:
-	$(NPX) wrangler dev
+	$(NPM) run dev:workers
 
 workers-deploy:
 	bash scripts/deploy-cloudflare.sh

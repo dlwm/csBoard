@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "npm run dev:node",
-    "dev:workers": "wrangler dev",
-    "dev:node": "VITE_USE_LOCAL_MAPS=true VITE_BACKEND_BASE_URL=/ npm run build && node server/node.js",
+    "dev:workers": "node scripts/dev-workers.js",
+    "dev:node": "npm run build:local && node server/node.js",
     "server": "node server/node.js",
     "deploy": "bash scripts/deploy-cloudflare.sh",
     "deploy:workers": "bash scripts/deploy-cloudflare.sh",
-    "build": "vite build",
+    "build": "npm run build:local",
+    "build:local": "VITE_USE_LOCAL_MAPS=true VITE_BACKEND_BASE_URL=/ vite build",
+    "build:remote": "VITE_USE_LOCAL_MAPS=false vite build",
     "preview": "vite preview"
   },
   "dependencies": {

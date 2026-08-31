@@ -65,7 +65,7 @@ function localMapResponse(pathname) {
   const relative = pathname.replace(/^\/maps\/+/, '');
   const filePath = path.resolve(LOCAL_MAPS_DIR, relative);
   if (!filePath.startsWith(`${LOCAL_MAPS_DIR}${path.sep}`) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) return new Response('Local map resource not found', { status: 404 });
-  return new Response(Readable.toWeb(fs.createReadStream(filePath)), { headers: { 'content-type': mimeTypes[path.extname(filePath)] || 'application/octet-stream' } });
+  return new Response(Readable.toWeb(fs.createReadStream(filePath)), { headers: { 'content-length': String(fs.statSync(filePath).size), 'content-type': mimeTypes[path.extname(filePath)] || 'application/octet-stream' } });
 }
 
 function staticResponse(pathname) {

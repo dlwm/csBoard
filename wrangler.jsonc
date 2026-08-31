@@ -5,13 +5,13 @@
   "compatibility_date": "2026-08-29",
   "compatibility_flags": ["nodejs_compat"],
   "build": {
-    "command": "npm run build"
+    "command": "VITE_OSS_BASE_URL=http://localhost:3002 VITE_BACKEND_BASE_URL=/ npm run build:remote"
   },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/rooms/*", "/maps/*"]
+    "run_worker_first": ["/api/*", "/rooms/*"]
   },
   "vars": {
     "MAP_BASE_URL": ""

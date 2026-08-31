@@ -130,7 +130,7 @@ Build the frontend and start the APIs and collaboration service with the default
 npm run dev
 ```
 
-The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
+The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` so NAV/GLB requests continue to use `public/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
 
 The same API and Yjs protocol core can also run behind a traditional Node.js HTTP/WebSocket entry:
 

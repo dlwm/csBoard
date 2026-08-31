@@ -3,7 +3,7 @@
   "name": "csboard-frontend",
   "compatibility_date": "2026-08-29",
   "build": {
-    "command": "npm run build"
+    "command": "npm run build:remote"
   },
   "assets": {
     "directory": "./dist",
