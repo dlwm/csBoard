@@ -54,6 +54,53 @@ const MAPS = [
   { id: 'de_vertigo', label: 'Vertigo' },
 ];
 
+const MAP_FLOOR_HEIGHTS = {
+  de_nuke: { main: -520, lower: -500 },
+  de_vertigo: { main: 11650, lower: 11650 },
+};
+const MAP_UNITS_TO_METERS = 0.0254;
+const FLOOR_FADE_HALF_WIDTH = 64 * MAP_UNITS_TO_METERS;
+
+function updateFloorFadeState(state, mapName, floor, modelCenterY = 0) {
+  const height = MAP_FLOOR_HEIGHTS[mapName]?.[floor];
+  if (height == null) {
+    state.set(0, 0, FLOOR_FADE_HALF_WIDTH, 0);
+    return;
+  }
+  state.set(floor === 'lower' ? -1 : 1, height * MAP_UNITS_TO_METERS - modelCenterY, FLOOR_FADE_HALF_WIDTH, 1);
+}
+
+function floorVisibilityAtY(y, state) {
+  if (state.w < 0.5) return 1;
+  const upper = THREE.MathUtils.smoothstep(y, state.y - state.z, state.y + state.z);
+  return state.x < 0 ? 1 - upper : upper;
+}
+
+function enableMaterialFloorFade(material, state) {
+  if (!material || material.userData.csboardFloorFade) return;
+  material.userData.csboardFloorFade = true;
+  material.transparent = true;
+  const previousCompile = material.onBeforeCompile;
+  const previousCacheKey = material.customProgramCacheKey?.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    previousCompile?.(shader, renderer);
+    if (!shader.vertexShader.includes('#include <project_vertex>') || !shader.fragmentShader.includes('#include <dithering_fragment>')) return;
+    shader.uniforms.floorFadeState = { value: state };
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying float csboardFloorWorldY;').replace('#include <project_vertex>', 'csboardFloorWorldY = (modelMatrix * vec4(transformed, 1.0)).y;\n#include <project_vertex>');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float csboardFloorWorldY;\nuniform vec4 floorFadeState;').replace('#include <dithering_fragment>', 'float csboardUpperFloor = smoothstep(floorFadeState.y - floorFadeState.z, floorFadeState.y + floorFadeState.z, csboardFloorWorldY);\nfloat csboardFloorAlpha = floorFadeState.x < 0.0 ? 1.0 - csboardUpperFloor : csboardUpperFloor;\ngl_FragColor.a *= mix(1.0, csboardFloorAlpha, floorFadeState.w);\nif (gl_FragColor.a < 0.01) discard;\n#include <dithering_fragment>');
+  };
+  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}-csboard-floor-fade-v1`;
+  material.needsUpdate = true;
+}
+
+function enableObjectFloorFade(object, state) {
+  object.traverse((child) => {
+    if (!child.material) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    materials.forEach((material) => enableMaterialFloorFade(material, state));
+  });
+}
+
 const CLIENT_ADJECTIVES = ['Bright', 'Calm', 'Clever', 'Cool', 'Fresh', 'Gentle', 'Happy', 'Jolly', 'Kind', 'Lucky', 'Quick', 'Sunny'];
 const CLIENT_FRUITS = ['Apple', 'Berry', 'Cherry', 'Grape', 'Kiwi', 'Lemon', 'Mango', 'Melon', 'Orange', 'Peach', 'Pear', 'Plum'];
 const generatedClientNames = new Set(CLIENT_ADJECTIVES.flatMap((adjective) => CLIENT_FRUITS.map((fruit) => `${adjective} ${fruit}`)));
@@ -775,6 +822,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   const gridRef = useRef(null);
   const modelRef = useRef(null);
   const modelBasePositionRef = useRef(null);
+  const modelCenterYRef = useRef(0);
+  const floorFadeRef = useRef(new THREE.Vector4(0, 0, FLOOR_FADE_HALF_WIDTH, 0));
+  const mapFloorRef = useRef('all');
   const demoSnapshotRef = useRef(demoSnapshot);
   const demoSnapshotsRef = useRef(demoSnapshots || []);
   const demoTickRef = useRef(demoTick);
@@ -863,9 +913,20 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   analysisRoundsRef.current = analysisRounds || [];
   analysisTimeRef.current = analysisTime || 0;
   analysisSideRef.current = analysisSide || 'ALL';
+  updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current);
   useEffect(() => {
     demoProjectileGroupsRef.current = groupDemoProjectiles(demoProjectiles);
   }, [demoProjectiles]);
+
+  useEffect(() => {
+    const onMapFloorChange = (event) => {
+      if (event.detail?.mapName !== mapName) return;
+      mapFloorRef.current = event.detail.floor;
+      updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current);
+    };
+    window.addEventListener('csboard-map-floor', onMapFloorChange);
+    return () => window.removeEventListener('csboard-map-floor', onMapFloorChange);
+  }, [mapName]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -896,6 +957,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     let utilitySignature = '';
     let analysisSignature = '';
     const collisionMeshes = [];
+    const isInteractiveFloorPoint = (point) => floorVisibilityAtY(point.y, floorFadeRef.current) > 0.05;
+    const firstInteractiveFloorHit = (hits) => hits.find((hit) => isInteractiveFloorPoint(hit.point));
     const aimRaycaster = new THREE.Raycaster();
     aimRaycaster.firstHitOnly = true;
     let collisionVersion = 0;
@@ -1322,7 +1385,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
              const sizeVariation = 0.78 + (Math.sin(seed * 2.41) * 0.5 + 0.5) * 0.55;
              positions.setXYZ(index, record.position.x - modelCenter.x + drift, record.position.y - modelCenter.y + 0.16 + age * 0.24, record.position.z - modelCenter.z + Math.cos(seed * 1.21) * 0.065 * age);
              sizes.setX(index, THREE.MathUtils.lerp(1.8, 3.8, age) * sizeVariation);
-             opacities.setX(index, 0.58 * Math.pow(1 - age, 1.25));
+              const worldY = record.position.y - modelCenter.y + 0.16 + age * 0.24;
+              opacities.setX(index, 0.58 * Math.pow(1 - age, 1.25) * floorVisibilityAtY(worldY, floorFadeRef.current));
            });
            positions.needsUpdate = true;
            sizes.needsUpdate = true;
@@ -1541,6 +1605,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
           trajectory = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points.length > 1 ? points : [points[0], points[0]]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
           trajectory.userData.demoTrajectory = { firstTick: first.tick, lastTick: fadeStartTick, fadeTicks, pointCount: points.length };
           trajectory.userData.demoGrenadeSegmentId = demoGrenadeSegmentsRef.current.find((segment) => segment.groupKey === groupKey)?.id;
+          enableObjectFloorFade(trajectory, floorFadeRef.current);
           scene.add(trajectory);
           demoGrenadeObjectsRef.current.set(key, trajectory);
         }
@@ -1574,9 +1639,10 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
           const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(2));
           const color = event.weapon?.includes('smoke') ? '#b9c7d6' : event.weapon?.includes('flash') ? '#fff3a6' : event.weapon?.includes('molotov') || event.weapon?.includes('inc') ? '#ff7a45' : '#ffb36b';
            trajectory = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
-           trajectory.userData.demoTrajectory = { curve, landingTick: landing.tick, throwTick: event.tick };
-           trajectory.userData.demoGrenadeSegmentId = segment.id;
-          scene.add(trajectory);
+            trajectory.userData.demoTrajectory = { curve, landingTick: landing.tick, throwTick: event.tick };
+            trajectory.userData.demoGrenadeSegmentId = segment.id;
+            enableObjectFloorFade(trajectory, floorFadeRef.current);
+           scene.add(trajectory);
           demoGrenadeObjectsRef.current.set(key, trajectory);
         }
         const trajectoryData = trajectory.userData.demoTrajectory;
@@ -1599,8 +1665,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
              if (!landing || landing.tick !== event.tick || landing.event_name !== event.event_name) return false;
              if (landing.user_steamid != null && event.user_steamid != null) return String(landing.user_steamid) === String(event.user_steamid);
              return true;
-           })?.id;
-          scene.add(effect);
+            })?.id;
+           enableObjectFloorFade(effect, floorFadeRef.current);
+           scene.add(effect);
           demoGrenadeObjectsRef.current.set(key, effect);
         }
          if (event.event_name === 'decoy_started') {
@@ -1919,6 +1986,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       const threshold = 1.5;
       const hitSet = new Set();
       brushStrokes.forEach((line) => {
+        if (line.userData.worldPoints?.length && !line.userData.worldPoints.some(isInteractiveFloorPoint)) return;
         const screenPoints = strokeWorldPoints(line);
         for (let index = 0; index < screenPoints.length - 1; index += 1) {
           if (pointSegmentDistance(pointerScreen, screenPoints[index], screenPoints[index + 1]) <= threshold) {
@@ -1956,7 +2024,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     const pointerToSurface = (pointer) => {
       raycaster.setFromCamera(pointer, camera);
       const targets = [nav?.mesh].filter(Boolean);
-      const hit = raycaster.intersectObjects(targets, true)[0];
+      const hit = firstInteractiveFloorHit(raycaster.intersectObjects(targets, true));
       return hit?.point.clone() || null;
     };
     const pointerToAim = (pointer, height) => {
@@ -2027,12 +2095,14 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       const effect = createGrenadeEffect(effectPosition, effectKind, navData, nav);
       effect.position.sub(originPosition);
       effect.userData.collabUtilityEffect = true;
+      enableObjectFloorFade(effect, floorFadeRef.current);
       group.add(effect);
       let trajectory = null;
       if (projectiles.length >= 2) {
         const points = projectiles.map((record) => new THREE.Vector3(record.y * 0.0254 - modelCenter.x, record.z * 0.0254 - modelCenter.y, record.x * 0.0254 - modelCenter.z).sub(originPosition));
         trajectory = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: '#c58cff', transparent: true, opacity: 0.9 }));
         trajectory.userData.collabUtilityTrajectory = true;
+        enableObjectFloorFade(trajectory, floorFadeRef.current);
         group.add(trajectory);
       }
       group.userData.collabUtility = true;
@@ -2467,11 +2537,11 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       if (event.button === 0 && !grenadeWheelOpen && !placing) {
         raycaster.setFromCamera(pointerCurrent, camera);
         raycaster.params.Line.threshold = 0.28;
-        const demoGrenadeHit = raycaster.intersectObjects([...demoGrenadeObjectsRef.current.values()], true).find((candidate) => {
+        const demoGrenadeHit = raycaster.intersectObjects([...demoGrenadeObjectsRef.current.values()], true).find((candidate) => isInteractiveFloorPoint(candidate.point) && (() => {
           let owner = candidate.object;
           while (owner && !owner.userData.demoGrenadeSegmentId) owner = owner.parent;
           return Boolean(owner);
-        });
+        })());
         let demoGrenadeOwner = demoGrenadeHit?.object;
         while (demoGrenadeOwner && !demoGrenadeOwner.userData.demoGrenadeSegmentId) demoGrenadeOwner = demoGrenadeOwner.parent;
         if (demoGrenadeOwner) {
@@ -2483,7 +2553,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
       if (event.button === 0 && !grenadeWheelOpen && !placing) {
         raycaster.setFromCamera(pointerCurrent, camera);
-        const objectHit = raycaster.intersectObjects(grenadeEffects, true)[0]?.object;
+        const objectHit = firstInteractiveFloorHit(raycaster.intersectObjects(grenadeEffects, true))?.object;
         let owner = objectHit;
         while (owner && !owner.userData.grenadeEffect) owner = owner.parent;
         activeGrenade = owner || null;
@@ -2509,7 +2579,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
       if (event.button === 0 && !placing) {
         raycaster.setFromCamera(pointerCurrent, camera);
-        const hit = raycaster.intersectObjects(pointsRef.current, true)[0]?.object;
+        const hit = firstInteractiveFloorHit(raycaster.intersectObjects(pointsRef.current, true))?.object;
         if (hit) {
           let pointOwner = hit;
           while (pointOwner?.parent && !pointOwner.userData.pointId && !pointOwner.userData.collabPlayer) pointOwner = pointOwner.parent;
@@ -2548,12 +2618,12 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       pointerCurrent = pointerPosition(event);
       if (event.pointerType === 'touch') return;
       raycaster.setFromCamera(pointerCurrent, camera);
-      const demoHit = raycaster.intersectObjects([...demoMarkers.values()], true).find((candidate) => !candidate.object.userData.aimRay && !candidate.object.userData.aimTarget)?.object;
+      const demoHit = raycaster.intersectObjects([...demoMarkers.values()], true).find((candidate) => isInteractiveFloorPoint(candidate.point) && !candidate.object.userData.aimRay && !candidate.object.userData.aimTarget)?.object;
       let demoOwner = demoHit;
       while (demoOwner && !demoOwner.userData.playerName) demoOwner = demoOwner.parent;
       hoveredDemoPlayerRef.current = demoOwner?.userData.playerName || null;
       if (utilityNotesEnabledRef.current) {
-        const utilityHit = raycaster.intersectObjects([...utilityMarkers.values()], true).find((candidate) => candidate.object.userData.utilityMarker);
+        const utilityHit = raycaster.intersectObjects([...utilityMarkers.values()], true).find((candidate) => isInteractiveFloorPoint(candidate.point) && candidate.object.userData.utilityMarker);
         let utilityOwner = utilityHit?.object;
         while (utilityOwner && !utilityOwner.userData.utilityPositionKey) utilityOwner = utilityOwner.parent;
         if (utilityOwner) {
@@ -2798,6 +2868,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       worldModel = gltf.scene;
       const modelBounds = new THREE.Box3().setFromObject(worldModel);
       modelCenter = modelBounds.getCenter(new THREE.Vector3());
+      modelCenterYRef.current = modelCenter.y;
+      updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current);
       worldModel.position.sub(modelCenter);
       modelBasePositionRef.current = worldModel.position.clone();
       floor.position.y = -modelCenter.y - 0.35;
@@ -2900,6 +2972,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         target.scale.set(worldDiameter / Math.max(0.001, parentScale.x * 0.2), worldDiameter / Math.max(0.001, parentScale.y * 0.2), worldDiameter / Math.max(0.001, parentScale.z * 0.2));
       });
     };
+    let lastFloorMaterialScan = 0;
     const animate = (now) => {
       if (disposed) return;
       frame = requestAnimationFrame(animate);
@@ -3062,6 +3135,14 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       const brushResolution = renderer.getDrawingBufferSize(new THREE.Vector2());
       brushStrokes.forEach((line) => { if (line.material) line.material.resolution.copy(brushResolution); });
       if (brushStrokeLine?.material) brushStrokeLine.material.resolution.copy(brushResolution);
+      if (now - lastFloorMaterialScan > 250) {
+        lastFloorMaterialScan = now;
+        scene.traverse((object) => {
+          if (!object.material || object === floor) return;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach((material) => enableMaterialFloorFade(material, floorFadeRef.current));
+        });
+      }
       renderer.render(scene, camera);
     };
     animate(performance.now());
@@ -3207,6 +3288,7 @@ function App() {
   const [grenadeWheel, setGrenadeWheel] = useState({ open: false, type: 'smoke' });
   const [cameraSlotState, setCameraSlotState] = useState(Array(10).fill(false));
   const [map2dLayer, setMap2dLayer] = useState(0);
+  const [modelFloor, setModelFloor] = useState('all');
   const [radarScene, setRadarScene] = useState(null);
   const [activeCameraSlot, setActiveCameraSlot] = useState(null);
   const [activePanel, setActivePanel] = useState(() => window.matchMedia?.('(max-width: 820px)').matches ? 'utility' : 'demo');
@@ -3246,7 +3328,7 @@ function App() {
     observer.observe(target);
     return () => { observer.disconnect(); window.cancelAnimationFrame(frame); stage?.removeAttribute('data-map-status-overlap'); stage?.style.removeProperty('--map-bar-height'); stage?.style.removeProperty('--map-bar-width'); stage?.style.removeProperty('--status-bar-height'); stage?.style.removeProperty('--frame-window-width'); };
   }, [activePanel, isMobile, leftSidebarOpen, mapName, navData]);
-  useEffect(() => setMap2dLayer(0), [mapName]);
+  useEffect(() => { setMap2dLayer(0); setModelFloor('all'); }, [mapName]);
   useEffect(() => {
     const update = () => setRadarScene(boardRef.current?.getRadarCameraState?.() || null);
     update();
@@ -4452,7 +4534,7 @@ function App() {
       {renameModal && <div className="save-archive-modal" onClick={(event) => { if (event.target === event.currentTarget) setRenameModal(null); }}><div className="save-archive-dialog"><header><strong>{t('rename')}</strong><button type="button" onClick={() => setRenameModal(null)}>×</button></header><label className="collab-utility-search"><span>{t('name')}</span><input autoFocus value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') confirmRename(); else if (event.key === 'Escape') setRenameModal(null); }} /></label><div className="save-archive-actions"><button type="button" onClick={() => setRenameModal(null)}>{t('cancel')}</button><button type="button" onClick={confirmRename} disabled={!renameDraft.trim()}>{t('save')}</button></div></div></div>}
             <div className="view-tools">
              <div className="view-tools-top">
-               {map2dLayers[mapName]?.length ? <button type="button" className="map-preview-slot" aria-label={language === 'zh' ? '切换地图层级' : 'Switch map floor'} onClick={() => setMap2dLayer((layer) => (layer + 1) % map2dLayers[mapName].length)}>
+                {map2dLayers[mapName]?.length ? <button type="button" className="map-preview-slot" aria-label={language === 'zh' ? '切换地图层级' : 'Switch map floor'} onClick={() => setMap2dLayer((layer) => { const next = (layer + 1) % map2dLayers[mapName].length; const floor = map2dLayers[mapName][next].id; setModelFloor(floor); window.dispatchEvent(new CustomEvent('csboard-map-floor', { detail: { mapName, floor } })); return next; })}>
                  <img src={map2dLayers[mapName][map2dLayer]?.url} alt="" />
                  {radarOverlay && <svg className="map-radar-overlay" viewBox="0 0 100 100" aria-hidden="true">
                    {radarOverlay.players.map((player) => <g className={`map-player-base side-${player.team.toLowerCase()}`} key={`${player.source}-${player.id}`} transform={`translate(${player.x} ${player.y}) rotate(${player.angle})`}><circle r="3.1" /><path d="M2.2 0 5.2-1.6 5.2 1.6Z" /></g>)}
@@ -4460,7 +4542,7 @@ function App() {
                  </svg>}
                  {map2dLayers[mapName].length > 1 && <span>{map2dLayers[mapName][map2dLayer]?.id === 'lower' ? 'LOWER' : 'UPPER'}</span>}
                </button> : <div className="map-preview-slot map-preview-empty" aria-hidden="true" />}
-                <div className="camera-slots"><span>{t('cameraPositions')}</span>{cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved} className={activeCameraSlot === index ? 'active' : ''} onClick={() => boardRef.current?.restoreCameraSlot?.(index)}>{index === 9 ? 0 : index + 1}</button>)}</div>
+                 <div className="camera-slots"><span>{t('cameraPositions')}</span>{cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved} className={activeCameraSlot === index ? 'active' : ''} onClick={() => boardRef.current?.restoreCameraSlot?.(index)}>{index === 9 ? 0 : index + 1}</button>)}{MAP_FLOOR_HEIGHTS[mapName] != null && <div className="floor-controls">{[['main', 'UP'], ['lower', 'LOW']].map(([floor, label]) => <button type="button" key={floor} className={modelFloor === floor ? 'active' : ''} onClick={() => { const next = modelFloor === floor ? 'all' : floor; setModelFloor(next); if (next !== 'all') { const layer = map2dLayers[mapName].findIndex((item) => item.id === next); if (layer >= 0) setMap2dLayer(layer); } window.dispatchEvent(new CustomEvent('csboard-map-floor', { detail: { mapName, floor: next } })); }}>{label}</button>)}</div>}</div>
              </div>
              <div className="brush-controls"><div className="brush-swatches">{['#a5e0ff', '#ff6b6b', '#7cf29c', '#ffd166', '#ffffff', '#c084fc'].map((c) => <button type="button" key={c} className={`brush-swatch${brushColor.toLowerCase() === c ? ' active' : ''}`} style={{ background: c }} aria-label={c} title={c} onClick={() => { setBrushColor(c); localStorage.setItem('csboard-brush-color', c); }} />)}</div><div className="brush-util-row"><div className="brush-widths">{[2, 3, 5, 8].map((w) => <button type="button" key={w} className={`brush-width${brushWidth === w ? ' active' : ''}`} title={`${w}px`} onClick={() => { setBrushWidth(w); localStorage.setItem('csboard-brush-width', String(w)); }}><i style={{ width: Math.max(2, w), height: Math.max(2, w) }} /></button>)}</div><button type="button" className={`brush-eraser${eraserEnabled ? ' active' : ''}`} title={t('eraser')} aria-label={t('eraser')} onClick={() => setEraserEnabled((value) => !value)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M11 3 14 6l-5 5H5l-3-3z" /><path d="M8 6 11 9" /></svg></button></div></div>
            </div>

@@ -2,6 +2,23 @@
 
 [中文](CHANGELOG.md)
 
+## [1.4.0] - 2026-09-02
+
+### Added
+
+- Add synchronized 2D-radar and 3D-model floor views for Nuke and Vertigo, switchable from either the radar preview or the `UP` / `LOW` camera-bar controls, with an option to restore the full map.
+- Fade map geometry, players, utility, projectile paths, landing effects, and movement trails by floor while preserving cross-floor path continuity around the boundary.
+- Ignore hidden floors for manual drawing, erasing, player dragging, utility placement, and object selection while retaining full-map line-of-sight and wall collision.
+
+### Changed
+
+- Compact and raise the desktop camera bar to add joined floor controls below the ten camera presets.
+- Use independent Nuke thresholds of `Z = -520` for the upper floor and `Z = -500` for the lower floor; Vertigo currently uses `Z = 11700`.
+
+### Fixed
+
+- Raise the parsed-Demo list and its parent stacking context so the popup is no longer hidden behind the 3D viewport.
+
 ## [1.3.3] - 2026-08-31
 
 ### Fixed

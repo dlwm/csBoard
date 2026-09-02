@@ -73,6 +73,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Load CS2 data for supported maps (from cloud storage, parsed in the browser) and constrain tactical editing to reachable surfaces.
 - Render GLB map geometry loaded from cloud storage with configurable opacity.
 - Switch between reachable-surface, mouse-lens, and camera-lens model views.
+- Show Nuke and Vertigo as full, upper, or lower 3D floors. Switch from either the radar preview or the camera-bar `UP` / `LOW` controls; players, utility, trajectories, and manual editing follow the active floor.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
 - Show bundled 2D radar previews and floor switching where map assets provide them.
