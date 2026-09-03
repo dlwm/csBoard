@@ -73,7 +73,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Load CS2 data for supported maps (from cloud storage, parsed in the browser) and constrain tactical editing to reachable surfaces.
 - Render GLB map geometry loaded from cloud storage with configurable opacity.
 - Switch between reachable-surface, mouse-lens, and camera-lens model views.
-- Show Nuke and Vertigo as full, upper, or lower 3D floors. Switch from either the radar preview or the camera-bar `UP` / `LOW` controls; players, utility, trajectories, and manual editing follow the active floor.
+- Show Nuke, Train, and Vertigo as full, upper, or lower 3D floors. Switch from either the radar preview or the camera-bar `UP` / `LOW` controls; players, utility, trajectories, and manual editing follow the active floor.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
 - Show bundled 2D radar previews and floor switching where map assets provide them.
@@ -102,6 +102,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 The repository includes files for:
 
+- Training Ground (built-in two-level tutorial map with lower streets and linked rooftops; no external resources required)
 - Ancient
 - Anubis
 - Cache
@@ -114,6 +115,10 @@ The repository includes files for:
 - Vertigo
 
 GLB map models are intentionally not committed. Run `make resources` when local `.nav`/`.glb` files are needed under `public/maps/<map>/`; the Workers application loads production map resources from cloud storage.
+
+Training Ground is available only in Utility Notes and Collaboration. Switching to Round Replay or Analysis automatically returns to Dust II.
+
+First-time visitors are asked whether to open the tutorial, which starts directly in the Training Ground Collaboration practice frame. For local testing, every third load on `localhost`, `127.0.0.1`, or `::1` is treated as a first visit. The tutorial map includes separate upper and lower 2D radar images synchronized with `UP` / `LOW`.
 
 ## Getting Started
 
@@ -187,12 +192,18 @@ This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and
 ```text
 assets/
   readme/                 # README screenshots and demonstration GIF
+src/
+  default-data/           # committable data imported on first visit
+    utility-notes/        # utility-note JSON files
+    workspace-archives/   # Collaboration archive JSON files
 public/
   maps/
     <map>/
       <map>.nav           # local dev data, ignored by Git (auto-downloaded on dev)
       <map>.glb           # local dev data, ignored by Git (auto-downloaded on dev)
 ```
+
+Contributors can place default utility-note or Collaboration-archive JSON files directly in the corresponding `src/default-data/` subdirectory. See [`src/default-data/README.md`](src/default-data/README.md) for accepted formats. These files are imported only when the browser has never created the corresponding local data, so existing user data is never replaced or repopulated.
 
 The whole `public/` directory is ignored by Git. Running `make resources` checks each map and downloads missing files from `VITE_OSS_BASE_URL` (or `MAP_DOWNLOAD_BASE_URL`) configured in `.env.local`. The command fails clearly when no download origin is configured.
 

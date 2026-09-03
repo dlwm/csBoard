@@ -1,0 +1,32 @@
+{
+  "archives": [
+    {
+      "id": "csboard-tutorial-basics",
+      "name": "Training Basics",
+      "mapName": "cs_tutorial",
+      "savedAt": "2026-01-01T00:00:00.000Z",
+      "activeFrameId": "tutorial-frame-1",
+      "frames": [
+        {
+          "id": "tutorial-frame-1",
+          "name": "Practice",
+          "workspace": {
+            "points": [],
+            "paths": [],
+            "grenades": [],
+            "collabUtilities": [],
+            "brushStrokes": []
+          }
+        }
+      ],
+      "workspace": {
+        "points": [],
+        "paths": [],
+        "grenades": [],
+        "collabUtilities": [],
+        "brushStrokes": [],
+        "cameraSlots": []
+      }
+    }
+  ]
+}

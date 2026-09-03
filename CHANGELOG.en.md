@@ -2,6 +2,22 @@
 
 [中文](CHANGELOG.md)
 
+## [1.5.0] - 2026-09-03
+
+### Added
+
+- Add a committable `src/default-data/` directory whose utility notes and Collaboration archives seed first-time visits without replacing existing local data.
+- Add a NAV ground visibility switch to independently show or hide the navigation-mesh fill.
+- Add a self-contained minimalist Training Ground with lower streets, linked rooftops, connecting ramps, a subdivided two-level NAV layout, a practice frame, and a bilingual walkthrough covering utility, camera positions, tactical frames, archives, and collaboration.
+- Limit Training Ground to Utility Notes and Collaboration, automatically returning to Dust II when opening Round Replay or Analysis.
+- Prompt first-time visitors before opening the Collaboration tutorial, repeat the prompt every third local load for testing, and add synchronized upper/lower 2D radar images for Training Ground.
+- Render translucent CS map models with MSAA alpha-to-coverage and depth writes, reducing both overlapping-face sorting flicker and alpha-hash noise.
+- Set the default map-model opacity to 90%.
+- Remove the status dot from the NAV switch and localize all model and map-control labels in Chinese and English.
+- Localize every map name, including the established Chinese names for Inferno, Mirage, Dust II, and the other supported maps.
+- Add synchronized upper/lower 3D floor filtering for Train around its official radar altitude boundary of `-50` units.
+- Fix the ghost material incorrectly clipping a map-center square through every height while the NAV distance field is disabled.
+
 ## [1.4.0] - 2026-09-02
 
 ### Added
