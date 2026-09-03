@@ -2,6 +2,14 @@
 
 [中文](CHANGELOG.md)
 
+## [1.6.0] - 2026-09-04
+
+### Added
+
+- Replace floor fading with binary NAV-derived bottom/top ranges: multi-floor maps clip each floor independently, while every other map can toggle a playable-layer clip to hide rooftop geometry.
+- Keep the native cursor during `Shift` + middle-mouse panning, then switch to pointer lock and a virtual cursor at the viewport edge for Blender-style continuous wrapping.
+- Replace the static team label in the Collaboration player list with explicit `T` / `CT` controls that do not conflict with player movement, aiming, or crouching gestures.
+
 ## [1.5.0] - 2026-09-03
 
 ### Added

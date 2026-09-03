@@ -60,7 +60,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 - Create or join a six-character Yjs WebSocket room.
 - Synchronize player markers, imported utility, custom utility, brushes, frame order, and active frames.
-- Player markers carry a character model and AK47 and use generated adjective-fruit names; drag to move, use `Ctrl` to adjust yaw, `Shift` to adjust pitch, and double-click to toggle crouch/stand.
+- Player markers carry a character model and AK47 and use generated adjective-fruit names; drag to move, use `Ctrl` to adjust yaw, `Shift` to adjust pitch, double-click to toggle crouch/stand, and select `T` or `CT` directly in the player list.
 - Frames contain players, imported utility, custom utility, trajectories, and brushes. Camera state and camera presets remain archive-level data.
 - Insert, duplicate, delete, save, and switch frames. Saving to an existing archive appends a frame; switching smoothly transitions same-name player positions, yaw, and pitch.
 - Use unified undo/redo for players, utility, brushes, imported utility, and erasing. History is isolated per frame.
@@ -73,7 +73,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Load CS2 data for supported maps (from cloud storage, parsed in the browser) and constrain tactical editing to reachable surfaces.
 - Render GLB map geometry loaded from cloud storage with configurable opacity.
 - Switch between reachable-surface, mouse-lens, and camera-lens model views.
-- Show Nuke, Train, and Vertigo as full, upper, or lower 3D floors. Switch from either the radar preview or the camera-bar `UP` / `LOW` controls; players, utility, trajectories, and manual editing follow the active floor.
+- Show Nuke, Train, Vertigo, and Training Ground as full, upper, or lower 3D floors with binary NAV-bounded clipping. Other maps expose a toggleable playable-layer range that removes obstructing rooftop geometry; players, utility, trajectories, and manual editing follow the active range.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
 - Show bundled 2D radar previews and floor switching where map assets provide them.
@@ -168,7 +168,7 @@ This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and
 | Input | Action |
 | --- | --- |
 | Middle mouse drag | Rotate camera |
-| `Shift` + middle mouse | Pan camera |
+| `Shift` + middle mouse | Pan camera with Blender-style cursor wrapping at viewport edges |
 | Mouse wheel / trackpad gesture | Zoom or orbit |
 | `W A S D` | Move camera |
 | Left drag (round replay / analysis / utility) | Draw a freehand brush stroke on the ground |

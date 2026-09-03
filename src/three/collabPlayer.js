@@ -151,6 +151,7 @@ export function setCollabPlayerTeam(group, team) {
   const color = new THREE.Color(team === 'CT' ? '#5da9ff' : '#ffb347');
   const aimRay = group.userData.aimRay;
   if (aimRay) aimRay.material.color.copy(color);
-  const body = group.children[0];
-  body?.traverse((child) => { if (child.material?.color) child.material.color.copy(color); });
+  group.children.filter((child) => child.userData.collabBody).forEach((body) => {
+    body.traverse((child) => { if (child.material?.color) child.material.color.copy(color); });
+  });
 }

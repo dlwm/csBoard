@@ -93,28 +93,57 @@ const MAP_LABELS_ZH = {
   de_vertigo: '殒命大厦',
 };
 
-const MAP_FLOOR_HEIGHTS = {
-  [TUTORIAL_MAP_ID]: { main: 66.54, lower: 66.54 },
-  de_nuke: { main: -520, lower: -500 },
-  de_train: { main: -70, lower: -30 },
-  de_vertigo: { main: 11650, lower: 11650 },
+const MAP_FLOOR_BOUNDARIES = {
+  [TUTORIAL_MAP_ID]: 66.54,
+  de_nuke: -495,
+  de_train: -50,
+  de_vertigo: 11700,
 };
 const MAP_UNITS_TO_METERS = 0.0254;
-const FLOOR_FADE_HALF_WIDTH = 64 * MAP_UNITS_TO_METERS;
+const FLOOR_BOTTOM_PADDING = 64;
+const FLOOR_TOP_PADDING = 96;
+const floorRangeCache = new WeakMap();
 
-function updateFloorFadeState(state, mapName, floor, modelCenterY = 0) {
-  const height = MAP_FLOOR_HEIGHTS[mapName]?.[floor];
-  if (height == null) {
-    state.set(0, 0, FLOOR_FADE_HALF_WIDTH, 0);
+function updateFloorFadeState(state, mapName, floor, modelCenterY = 0, navData = null) {
+  if (floor === 'all' || !navData?.areas) {
+    state.set(0, 0, 0, 0);
     return;
   }
-  state.set(floor === 'lower' ? -1 : 1, height * MAP_UNITS_TO_METERS - modelCenterY, FLOOR_FADE_HALF_WIDTH, 1);
+  let cached = floorRangeCache.get(navData);
+  if (!cached || cached.mapName !== mapName) {
+    const boundary = MAP_FLOOR_BOUNDARIES[mapName];
+    let allMin = Infinity;
+    let allMax = -Infinity;
+    let lowerMin = Infinity;
+    let upperMax = -Infinity;
+    Object.values(navData.areas).forEach((area) => (area.corners || []).forEach((point) => {
+      const height = Number(point.z);
+      if (!Number.isFinite(height)) return;
+      allMin = Math.min(allMin, height);
+      allMax = Math.max(allMax, height);
+      if (boundary != null && height <= boundary) lowerMin = Math.min(lowerMin, height);
+      if (boundary != null && height >= boundary) upperMax = Math.max(upperMax, height);
+    }));
+    cached = {
+      mapName,
+      main: Number.isFinite(allMin) && Number.isFinite(allMax)
+        ? [boundary == null ? allMin - FLOOR_BOTTOM_PADDING : boundary, (boundary == null ? allMax : upperMax) + FLOOR_TOP_PADDING]
+        : null,
+      lower: boundary != null && Number.isFinite(lowerMin) ? [lowerMin - FLOOR_BOTTOM_PADDING, boundary] : null,
+    };
+    floorRangeCache.set(navData, cached);
+  }
+  const range = cached[floor];
+  if (!range || !range.every(Number.isFinite)) {
+    state.set(0, 0, 0, 0);
+    return;
+  }
+  state.set(range[0] * MAP_UNITS_TO_METERS - modelCenterY, range[1] * MAP_UNITS_TO_METERS - modelCenterY, 0, 1);
 }
 
 function floorVisibilityAtY(y, state) {
   if (state.w < 0.5) return 1;
-  const upper = THREE.MathUtils.smoothstep(y, state.y - state.z, state.y + state.z);
-  return state.x < 0 ? 1 - upper : upper;
+  return y >= state.x && y <= state.y ? 1 : 0;
 }
 
 function enableMaterialFloorFade(material, state) {
@@ -128,9 +157,9 @@ function enableMaterialFloorFade(material, state) {
     if (!shader.vertexShader.includes('#include <project_vertex>') || !shader.fragmentShader.includes('#include <dithering_fragment>')) return;
     shader.uniforms.floorFadeState = { value: state };
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying float csboardFloorWorldY;').replace('#include <project_vertex>', 'csboardFloorWorldY = (modelMatrix * vec4(transformed, 1.0)).y;\n#include <project_vertex>');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float csboardFloorWorldY;\nuniform vec4 floorFadeState;').replace('#include <dithering_fragment>', 'float csboardUpperFloor = smoothstep(floorFadeState.y - floorFadeState.z, floorFadeState.y + floorFadeState.z, csboardFloorWorldY);\nfloat csboardFloorAlpha = floorFadeState.x < 0.0 ? 1.0 - csboardUpperFloor : csboardUpperFloor;\ngl_FragColor.a *= mix(1.0, csboardFloorAlpha, floorFadeState.w);\nif (gl_FragColor.a < 0.01) discard;\n#include <dithering_fragment>');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float csboardFloorWorldY;\nuniform vec4 floorFadeState;').replace('#include <dithering_fragment>', 'float csboardFloorAlpha = step(floorFadeState.x, csboardFloorWorldY) * step(csboardFloorWorldY, floorFadeState.y);\ngl_FragColor.a *= mix(1.0, csboardFloorAlpha, floorFadeState.w);\nif (gl_FragColor.a < 0.01) discard;\n#include <dithering_fragment>');
   };
-  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}-csboard-floor-fade-v1`;
+  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}-csboard-floor-range-v2`;
   material.needsUpdate = true;
 }
 
@@ -151,7 +180,7 @@ const messages = {
   zh: {
     rounds: '回合浏览', analysis: '数据分析', collab: '协作面板', utilityNotes: '道具速记', loaded: '参考数据已加载', recentKills: '最近击杀', expand: '展开', collapse: '收起', cameraPositions: '摄像机位置', view: '视图', showNames: '显示名称', selectRound: '请选择回合', round: '回合', multiDemo: 'Demo 文件', chooseDemo: '选择文件', multiPartHint: '支持多选分片', noFileChosen: '尚未选择文件', play: '播放', pause: '暂停', loading: '加载中', allRounds: '全部回合', tRounds: 'T 回合', ctRounds: 'CT 回合', analysisHint: '选择选手后，所有回合会从冻结结束同时开始叠加播放。', heatmap: '热力图', killerPosition: '击杀时所在', victimPosition: '被击杀时所在', targetPosition: '击杀目标所在', opponentPosition: '被击杀时对方所在', saveFrame: '保存当前帧', leaveRoom: '离开房间', joinRoom: '加入房间', openRoom: '开放房间', roomPrompt: '输入 6 位房间号', currentMap: '当前地图', name: '名称', collabHint: '保存地图、镜头、编辑点位和当前 Demo 帧。Demo 文件本身不会写入浏览器存储。', owner: '房主', member: '成员',     noArchives: '暂无本地存档', guestNoArchive: '房间成员不能切换存档', restoreArchive: '恢复存档', deleteArchive: '删除存档', manualEdit: '手动地图编辑', addUtility: '添加道具', searchUtility: '搜索道具速记…', collabPlayer: '人物点位', frame: '帧', copy: '副本', nameExists: '名称已存在', insertFrame: '插帧', duplicateFrame: '复制帧', deleteFrame: '删除帧', frameName: '帧名', saveToArchive: '保存到存档', newArchive: '新建存档', archiveName: '存档名',     collabPlayers: '人物列表', noCollabPlayers: '暂无人物', frames: '帧列表', noFrames: '暂无帧', eraser: '橡皮擦', rename: '重命名', renameFrame: '重命名帧', room: '房间', roomOpened: '已公开', roomDestroyed: '房间已销毁', roomLeft: '已离开房间', roomExited: '已从房间退出', joiningRoom: '正在加入房间', joinedRoom: '已加入房间', connected: '已连接', connecting: '连接中', disconnected: '连接断开', analysisReady: '全场移动数据已就绪', analysisLoading: '正在读取全场移动数据…', parseFailed: '解析失败', combiningParts: '正在组合 {count} 个 Demo 分片…', readingDemo: '正在读取 Demo 文件…', smoke: '烟', fire: '火', flash: '闪', grenade: '雷', decoy: '诱', c4Planted: 'C4 安装', c4Exploded: 'C4 爆炸', roundEnd: '回合结束', world: '世界', unknown: '未知', language: 'EN', tacticalPoint: '战术点', team: '阵营', type: '类型', delete: '删除', map: '地图', reset: '重置', players: '选手', side: '阵营', model: '模型', c4Paused: '已拆除', noGrenades: '-', addUtilityNote: '添加速记', utilityIntro: '在 CS2 控制台输入 getpos，将输出粘贴到这里。相同位置可保存多个不同角度。', utilityEmpty: '当前地图暂无道具速记', getposOutput: 'getpos 输出', utilityName: '道具名称', throwSummary: '投掷简述', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: '例如：A 大过点烟', throwSummaryPlaceholder: '例如：贴墙站立，静步投掷', cancel: '取消', add: '添加', invalidGetpos: '无法识别 getpos，请包含 setpos 与 setang 数据', position: '位置', angles: '角度', localOnly: '数据仅保存在当前浏览器', utilityCount: '{count} 条速记',
     utilityIntro: '手动添加仍只需粘贴 getpos；从 Demo 保存的复杂投掷会与同一起点的手动记录归在一起。',
-    navGround: '导航地面', on: '开', off: '关', modelOff: '关闭模型', reachableSurface: '可达表面', mouseLens: '鼠标透镜', cameraLens: '镜头透镜', grid: '网格', trackpad: '触控板', areaEdges: '区域边界', resetView: '重置视图',
+    navGround: '导航地面', on: '开', off: '关', modelOff: '关闭模型', reachableSurface: '可达表面', mouseLens: '鼠标透镜', cameraLens: '镜头透镜', grid: '网格', trackpad: '触控板', areaEdges: '区域边界', resetView: '重置视图', upperFloor: '上层', lowerFloor: '下层', playableLayer: '可玩层',
     importNotes: '导入', exportNotes: '导出', utilityImportDone: '已导入 {added} 条，跳过 {skipped} 条重复数据', utilityImportFailed: '导入失败：文件格式不正确',
     importedUtilities: '已引入道具', noImportedUtilities: '暂无引入道具', selectUtility: '选择道具', confirmAdd: '确认添加',
     saveUtility: '保存道具', clickToReplay: '点击重播投掷', utilityStorageFailed: '保存失败，浏览器本地空间不足',
@@ -166,7 +195,7 @@ const messages = {
   en: {
     rounds: 'Round Replay', analysis: 'Analysis', collab: 'Collaboration', utilityNotes: 'Utility Notes', loaded: 'Reference Data Loaded', recentKills: 'Recent Kills', expand: 'Expand', collapse: 'Collapse', cameraPositions: 'Camera Positions', view: 'View', showNames: 'Show Names', selectRound: 'Select a round', round: 'Round', multiDemo: 'Demo Files', chooseDemo: 'Choose Files', multiPartHint: 'Multi-part selection supported', noFileChosen: 'No files selected', play: 'Play', pause: 'Pause', loading: 'Load', allRounds: 'All Rounds', tRounds: 'T Rounds', ctRounds: 'CT Rounds', analysisHint: 'Selected players are overlaid from freeze end across all rounds.', heatmap: 'Heatmap', killerPosition: 'Killer Position', victimPosition: 'Victim Position', targetPosition: 'Target Position', opponentPosition: 'Opponent Position', saveFrame: 'Save Frame', leaveRoom: 'Leave Room', joinRoom: 'Join Room', openRoom: 'Open Room', roomPrompt: 'Enter 6-digit room code', currentMap: 'Current map', name: 'Name', collabHint: 'Saves the map, camera presets, tactical edits and current Demo frame. The Demo file is not stored.', owner: 'Owner', member: 'Member',     noArchives: 'No local archives', guestNoArchive: 'Room members cannot switch archives', restoreArchive: 'Restore archive', deleteArchive: 'Delete archive', manualEdit: 'Manual map edit', addUtility: 'Add Utility', searchUtility: 'Search utility notes…', collabPlayer: 'Player Marker', frame: 'Frame', copy: 'Copy', nameExists: 'Name already exists', insertFrame: 'Insert Frame', duplicateFrame: 'Duplicate Frame', deleteFrame: 'Delete Frame', frameName: 'Frame Name', saveToArchive: 'Save to Archive', newArchive: 'New Archive', archiveName: 'Archive Name',     collabPlayers: 'Players', noCollabPlayers: 'No players yet', frames: 'Frames', noFrames: 'No frames yet', eraser: 'Eraser', rename: 'Rename', renameFrame: 'Rename Frame', room: 'Room', roomOpened: 'opened', roomDestroyed: 'Room destroyed', roomLeft: 'Left room', roomExited: 'Disconnected from room', joiningRoom: 'Joining room', joinedRoom: 'Joined room', connected: 'connected', connecting: 'connecting', disconnected: 'disconnected', analysisReady: 'Full-match movement data ready', analysisLoading: 'Reading full-match movement data...', parseFailed: 'Parse failed', combiningParts: 'Combining {count} Demo parts...', readingDemo: 'Reading Demo file...', smoke: 'SMK', fire: 'FIRE', flash: 'FL', grenade: 'HE', decoy: 'DEC', c4Planted: 'C4 planted', c4Exploded: 'C4 exploded', roundEnd: 'Round ended', world: 'WORLD', unknown: 'UNKNOWN', language: '中文', tacticalPoint: 'Tactical Point', team: 'Team', type: 'Type', delete: 'Delete', map: 'Map', reset: 'Reset', players: 'Players', side: 'Side', model: 'Model', c4Paused: 'DEFUSED', noGrenades: '-', addUtilityNote: 'Add Note', utilityIntro: 'Run getpos in the CS2 console and paste its output here. One position can store multiple angles.', utilityEmpty: 'No utility notes for this map', getposOutput: 'getpos output', utilityName: 'Utility name', throwSummary: 'Throw summary', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: 'Example: A Long cross smoke', throwSummaryPlaceholder: 'Example: Hug the wall, standing throw', cancel: 'Cancel', add: 'Add', invalidGetpos: 'Could not parse getpos. Include setpos and setang values.', position: 'Position', angles: 'Angles', localOnly: 'Stored only in this browser', utilityCount: '{count} notes',
     utilityIntro: 'Manual entry still accepts getpos only. Complex Demo throws are grouped with manual notes at the same start position.',
-    navGround: 'NAV', on: 'ON', off: 'OFF', modelOff: 'MODEL OFF', reachableSurface: 'REACHABLE SURFACE', mouseLens: 'MOUSE LENS', cameraLens: 'CAMERA LENS', grid: 'GRID', trackpad: 'TRACKPAD', areaEdges: 'AREA EDGES', resetView: 'RESET VIEW',
+    navGround: 'NAV', on: 'ON', off: 'OFF', modelOff: 'MODEL OFF', reachableSurface: 'REACHABLE SURFACE', mouseLens: 'MOUSE LENS', cameraLens: 'CAMERA LENS', grid: 'GRID', trackpad: 'TRACKPAD', areaEdges: 'AREA EDGES', resetView: 'RESET VIEW', upperFloor: 'UP', lowerFloor: 'LOW', playableLayer: 'LAYER',
     importNotes: 'Import', exportNotes: 'Export', utilityImportDone: 'Imported {added}; skipped {skipped} duplicates', utilityImportFailed: 'Import failed: invalid file format',
     importedUtilities: 'Imported Utilities', noImportedUtilities: 'No imported utilities', selectUtility: 'Select Utility', confirmAdd: 'Add Selected',
     saveUtility: 'Save Utility', clickToReplay: 'Click to replay throw', utilityStorageFailed: 'Could not save: browser storage is full',
@@ -866,7 +895,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   const modelRef = useRef(null);
   const modelBasePositionRef = useRef(null);
   const modelCenterYRef = useRef(0);
-  const floorFadeRef = useRef(new THREE.Vector4(0, 0, FLOOR_FADE_HALF_WIDTH, 0));
+  const floorFadeRef = useRef(new THREE.Vector4(0, 0, 0, 0));
   const mapFloorRef = useRef('all');
   const demoSnapshotRef = useRef(demoSnapshot);
   const demoSnapshotsRef = useRef(demoSnapshots || []);
@@ -956,7 +985,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   analysisRoundsRef.current = analysisRounds || [];
   analysisTimeRef.current = analysisTime || 0;
   analysisSideRef.current = analysisSide || 'ALL';
-  updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current);
+  updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current, navData);
   useEffect(() => {
     demoProjectileGroupsRef.current = groupDemoProjectiles(demoProjectiles);
   }, [demoProjectiles]);
@@ -965,7 +994,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     const onMapFloorChange = (event) => {
       if (event.detail?.mapName !== mapName) return;
       mapFloorRef.current = event.detail.floor;
-      updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current);
+      updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current, navData);
     };
     window.addEventListener('csboard-map-floor', onMapFloorChange);
     return () => window.removeEventListener('csboard-map-floor', onMapFloorChange);
@@ -1839,6 +1868,98 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     controls.touches.ONE = THREE.TOUCH.ROTATE;
     controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
     controls.enableZoom = window.matchMedia?.('(pointer: coarse)').matches === true;
+    const wrappedPanCursor = document.createElement('i');
+    wrappedPanCursor.className = 'wrapped-pan-cursor';
+    wrappedPanCursor.setAttribute('aria-hidden', 'true');
+    const wrappedPanAbortController = new AbortController();
+    let nativePanActive = false;
+    let wrappedPanRequested = false;
+    let wrappedPanDenied = false;
+    let wrappedPanActive = false;
+    let wrappedPanX = 0;
+    let wrappedPanY = 0;
+    const positionWrappedPanCursor = () => {
+      wrappedPanCursor.style.transform = `translate(${wrappedPanX}px, ${wrappedPanY}px)`;
+    };
+    const endWrappedPan = (exitPointerLock = true) => {
+      nativePanActive = false;
+      wrappedPanRequested = false;
+      if (!wrappedPanActive) return;
+      wrappedPanActive = false;
+      wrappedPanCursor.hidden = true;
+      renderer.domElement.style.cursor = '';
+      if (exitPointerLock && document.pointerLockElement === renderer.domElement) document.exitPointerLock?.();
+      if (!cameraTransition && !utilityFirstPersonRef.current?.player && !demoDirectorCameraActive) controls.enabled = true;
+    };
+    const requestWrappedPan = (event) => {
+      if (!nativePanActive || wrappedPanRequested || wrappedPanDenied || wrappedPanActive) return;
+      const bounds = renderer.domElement.getBoundingClientRect();
+      const localX = event.clientX - bounds.left;
+      const localY = event.clientY - bounds.top;
+      const edge = 1;
+      const atLeft = localX <= edge;
+      const atRight = localX >= bounds.width - edge;
+      const atTop = localY <= edge;
+      const atBottom = localY >= bounds.height - edge;
+      if (!atLeft && !atRight && !atTop && !atBottom) return;
+      wrappedPanX = atLeft ? Math.max(0, bounds.width - 2) : atRight ? 1 : THREE.MathUtils.clamp(localX, 0, Math.max(0, bounds.width - 1));
+      wrappedPanY = atTop ? Math.max(0, bounds.height - 2) : atBottom ? 1 : THREE.MathUtils.clamp(localY, 0, Math.max(0, bounds.height - 1));
+      wrappedPanRequested = true;
+      try {
+        const request = renderer.domElement.requestPointerLock();
+        request?.catch?.(() => {
+          wrappedPanRequested = false;
+          wrappedPanDenied = true;
+        });
+      } catch {
+        wrappedPanRequested = false;
+        wrappedPanDenied = true;
+      }
+    };
+    const onWrappedPanMove = (event) => {
+      if (!wrappedPanActive || document.pointerLockElement !== renderer.domElement) return;
+      const width = renderer.domElement.clientWidth;
+      const height = renderer.domElement.clientHeight;
+      if (!width || !height) return;
+      wrappedPanX = (wrappedPanX + event.movementX + width) % width;
+      wrappedPanY = (wrappedPanY + event.movementY + height) % height;
+      positionWrappedPanCursor();
+      const distance = camera.position.distanceTo(controls.target);
+      const scale = 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / height;
+      camera.updateMatrix();
+      const pan = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0).multiplyScalar(-event.movementX * scale);
+      pan.add(new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1).multiplyScalar(event.movementY * scale));
+      camera.position.add(pan);
+      controls.target.add(pan);
+      camera.lookAt(controls.target);
+      controls.update();
+    };
+    const onWrappedPanMouseUp = (event) => {
+      if (event.button === 1) endWrappedPan();
+    };
+    const onPointerLockChange = () => {
+      if (wrappedPanRequested && nativePanActive && document.pointerLockElement === renderer.domElement) {
+        wrappedPanRequested = false;
+        wrappedPanActive = true;
+        wrappedPanCursor.hidden = false;
+        renderer.domElement.style.cursor = 'none';
+        positionWrappedPanCursor();
+        controls.enabled = false;
+      } else if (!wrappedPanActive && document.pointerLockElement === renderer.domElement) {
+        document.exitPointerLock?.();
+      } else if (wrappedPanActive && document.pointerLockElement !== renderer.domElement) endWrappedPan(false);
+    };
+    const onPointerLockError = () => {
+      wrappedPanRequested = false;
+      wrappedPanDenied = true;
+    };
+    const disposeOrbitControls = controls.dispose.bind(controls);
+    controls.dispose = () => {
+      endWrappedPan();
+      wrappedPanAbortController.abort();
+      wrappedPanCursor.remove();
+      disposeOrbitControls();
+    };
     const onWheel = (event) => {
       if (demoCameraModeRef.current !== 'manual' || demoInEyePlayerRef.current) demoCameraInterruptRef.current?.();
       updateCameraSlotState(null);
@@ -2192,6 +2313,14 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       const point = pointsRef.current.find((item) => item.userData.pointId === pointId && item.userData.collabPlayer);
       if (point) { pushCollabHistory(); renameCollabPlayer(point, name); notifyCollabEdit(); }
     };
+    const setPlayerTeamPoint = (pointId, team) => {
+      const point = pointsRef.current.find((item) => item.userData.pointId === pointId && item.userData.collabPlayer);
+      if (!point || point.userData.team === team) return;
+      pushCollabHistory();
+      setCollabPlayerTeam(point, team);
+      notifyCollabEdit();
+    };
+    renamePlayerPoint.setTeam = setPlayerTeamPoint;
     const setCollabVisible = (visible) => {
       collabUtilitiesGroup.visible = visible !== false;
       pointsRef.current.forEach((point) => { if (point.userData.collabPlayer) point.visible = visible !== false; });
@@ -2574,6 +2703,12 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       pointerCurrent = pointerPosition(event);
       if (event.pointerType === 'touch') { updateCameraSlotState(null); return; }
       if ((event.button === 1 || event.button === 2) && (demoCameraModeRef.current !== 'manual' || demoInEyePlayerRef.current)) demoCameraInterruptRef.current?.();
+      if (event.button === 1) {
+        nativePanActive = event.shiftKey && typeof renderer.domElement.requestPointerLock === 'function';
+        wrappedPanRequested = false;
+        wrappedPanDenied = false;
+        if (nativePanActive) requestWrappedPan(event);
+      }
       if (event.button === 0) renderer.domElement.setPointerCapture?.(event.pointerId);
       if (event.button === 1 || event.button === 2) updateCameraSlotState(null);
       focusScreen.set(pointerCurrent.x * 0.5 + 0.5, pointerCurrent.y * 0.5 + 0.5);
@@ -2658,6 +2793,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
     };
     const onPointerMove = (event) => {
+      if (nativePanActive && !(event.buttons & 4)) endWrappedPan();
+      else if (nativePanActive) requestWrappedPan(event);
+      if (wrappedPanActive) return;
       pointerCurrent = pointerPosition(event);
       if (event.pointerType === 'touch') return;
       raycaster.setFromCamera(pointerCurrent, camera);
@@ -2786,6 +2924,11 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     };
     const onPointerUp = (event) => {
       if (event.pointerType === 'touch') return;
+      if (event.button === 1) {
+        const wasWrapped = wrappedPanActive;
+        endWrappedPan();
+        if (wasWrapped) return;
+      }
       if (event.button === 0 && eraserActive) {
         eraserActive = false;
         eraserLastPointer = null;
@@ -2851,6 +2994,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       if (!cameraTransition && !utilityFirstPersonRef.current?.player && !demoDirectorCameraActive) controls.enabled = true;
     };
     const cancelPointerInteraction = () => {
+      endWrappedPan();
       pressedKeys.clear();
       grenadeAdjusting = false;
       pointPointerTarget = null;
@@ -2880,11 +3024,17 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.domElement.setAttribute('aria-label', 'Dust II 3D tactical map');
     mount.appendChild(renderer.domElement);
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    wrappedPanCursor.hidden = true;
+    mount.appendChild(wrappedPanCursor);
+    renderer.domElement.addEventListener('pointerdown', onPointerDown, { capture: true, signal: wrappedPanAbortController.signal });
     renderer.domElement.addEventListener('pointermove', onPointerMove);
     renderer.domElement.addEventListener('pointerup', onPointerUp);
     renderer.domElement.addEventListener('pointercancel', cancelPointerInteraction);
     renderer.domElement.addEventListener('contextmenu', onContextMenu);
+    document.addEventListener('mousemove', onWrappedPanMove, { signal: wrappedPanAbortController.signal });
+    document.addEventListener('mouseup', onWrappedPanMouseUp, { signal: wrappedPanAbortController.signal });
+    document.addEventListener('pointerlockchange', onPointerLockChange, { signal: wrappedPanAbortController.signal });
+    document.addEventListener('pointerlockerror', onPointerLockError, { signal: wrappedPanAbortController.signal });
     const floor = new THREE.GridHelper(240, 48, '#354239', '#17231d');
     floor.position.y = -0.32;
     scene.add(floor);
@@ -2914,7 +3064,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       const modelBounds = new THREE.Box3().setFromObject(worldModel);
       modelCenter = modelBounds.getCenter(new THREE.Vector3());
       modelCenterYRef.current = modelCenter.y;
-      updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current);
+      updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current, navData);
       worldModel.position.sub(modelCenter);
       modelBasePositionRef.current = worldModel.position.clone();
       floor.position.y = -modelCenter.y - 0.35;
@@ -3177,7 +3327,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
       pointsRef.current.forEach((point) => { if (point.userData.collabPlayer) updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion); });
       updateAimTargetScreenSizes();
-      const interactionLocked = Boolean(cameraTransition || utilityFirstPersonRef.current?.player || demoDirectorCameraActive || placing || grenadeAdjusting || pointPointerTarget);
+      const interactionLocked = Boolean(cameraTransition || utilityFirstPersonRef.current?.player || demoDirectorCameraActive || placing || grenadeAdjusting || pointPointerTarget || wrappedPanActive);
       if (!interactionLocked && !controls.enabled) controls.enabled = true;
       const brushResolution = renderer.getDrawingBufferSize(new THREE.Vector2());
       brushStrokes.forEach((line) => { if (line.material) line.material.resolution.copy(brushResolution); });
@@ -3354,7 +3504,7 @@ function App() {
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [selectedPointScreen, setSelectedPointScreen] = useState(null);
   const [deletePointId, setDeletePointId] = useState(null);
-  const [pointUpdate, setPointUpdate] = useState(null);
+  const [pointUpdate, setPointUpdateState] = useState(null);
   const [grenadeWheel, setGrenadeWheel] = useState({ open: false, type: 'smoke' });
   const [cameraSlotState, setCameraSlotState] = useState(Array(10).fill(false));
   const [map2dLayer, setMap2dLayer] = useState(0);
@@ -3505,6 +3655,14 @@ function App() {
   const pendingArchiveRef = useRef(null);
   const roomSeedRef = useRef(null);
   const boardRef = useRef(null);
+  const setPointUpdate = (update) => {
+    if (activePanel === 'collab' && update?.team && boardRef.current?.renamePlayerPoint?.setTeam) {
+      boardRef.current.renamePlayerPoint.setTeam(update.id, update.team);
+      setCollabUtilityRevision((value) => value + 1);
+      return;
+    }
+    setPointUpdateState(update);
+  };
   roomOwnerRef.current = roomOwner;
   mapNameRef.current = mapName;
   const hasActiveFrameContext = Boolean(activeFrameId && frames.some((frame) => frame.id === activeFrameId) && (activeArchiveId || roomCode));
@@ -3781,7 +3939,8 @@ function App() {
   };
   const activeCollabPlayers = () => {
     const workspace = activeFrameWorkspace();
-    return (workspace.points || []).filter((point) => point.kind === 'player');
+    const liveTeams = new Map((boardRef.current?.getCollabPlayers?.() || []).map((player) => [player.id, player.team]));
+    return (workspace.points || []).filter((point) => point.kind === 'player').map((point) => ({ ...point, team: liveTeams.get(point.id) || point.team }));
   };
   const activeImportedUtilities = () => activeFrameWorkspace().collabUtilities || [];
   const confirmCollabUtilityImport = () => {
@@ -4639,6 +4798,28 @@ function App() {
       }
     });
   }, [activePanel, language]);
+  const currentMapLayers = map2dLayers[mapName] || [];
+  const floorOptions = currentMapLayers.length > 1 ? [['main', t('upperFloor')], ['lower', t('lowerFloor')]] : [['main', t('playableLayer')]];
+  const selectMapFloor = (floor) => {
+    const next = modelFloor === floor ? 'all' : floor;
+    setModelFloor(next);
+    if (next !== 'all') {
+      const layer = currentMapLayers.findIndex((item) => item.id === next);
+      if (layer >= 0) setMap2dLayer(layer);
+    }
+    window.dispatchEvent(new CustomEvent('csboard-map-floor', { detail: { mapName, floor: next } }));
+  };
+  const cycleMapFloor = () => {
+    if (currentMapLayers.length <= 1) {
+      selectMapFloor('main');
+      return;
+    }
+    const nextLayer = (map2dLayer + 1) % currentMapLayers.length;
+    const floor = currentMapLayers[nextLayer].id;
+    setMap2dLayer(nextLayer);
+    setModelFloor(floor);
+    window.dispatchEvent(new CustomEvent('csboard-map-floor', { detail: { mapName, floor } }));
+  };
   return <main className={`board-shell${isMobile ? ' is-mobile' : ''}${!hasLeftSidebar || !leftSidebarOpen ? ' left-sidebar-collapsed' : ''}${hasRightSidebar && !rightSidebarOpen ? ' right-sidebar-collapsed' : ''}`} data-panel={activePanel}>
     {tutorialOfferOpen && <TutorialOffer language={language} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
     <header className="board-header">
@@ -4660,7 +4841,7 @@ function App() {
       {renameModal && <div className="save-archive-modal" onClick={(event) => { if (event.target === event.currentTarget) setRenameModal(null); }}><div className="save-archive-dialog"><header><strong>{t('rename')}</strong><button type="button" onClick={() => setRenameModal(null)}>×</button></header><label className="collab-utility-search"><span>{t('name')}</span><input autoFocus value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') confirmRename(); else if (event.key === 'Escape') setRenameModal(null); }} /></label><div className="save-archive-actions"><button type="button" onClick={() => setRenameModal(null)}>{t('cancel')}</button><button type="button" onClick={confirmRename} disabled={!renameDraft.trim()}>{t('save')}</button></div></div></div>}
             <div className="view-tools">
              <div className="view-tools-top">
-                {map2dLayers[mapName]?.length ? <button type="button" className="map-preview-slot" aria-label={language === 'zh' ? '切换地图层级' : 'Switch map floor'} onClick={() => setMap2dLayer((layer) => { const next = (layer + 1) % map2dLayers[mapName].length; const floor = map2dLayers[mapName][next].id; setModelFloor(floor); window.dispatchEvent(new CustomEvent('csboard-map-floor', { detail: { mapName, floor } })); return next; })}>
+                 {currentMapLayers.length ? <button type="button" className="map-preview-slot" aria-label={language === 'zh' ? '切换地图层级' : 'Switch map floor'} onClick={cycleMapFloor}>
                  <img src={map2dLayers[mapName][map2dLayer]?.url} alt="" />
                  {radarOverlay && <svg className="map-radar-overlay" viewBox="0 0 100 100" aria-hidden="true">
                    {radarOverlay.players.map((player) => <g className={`map-player-base side-${player.team.toLowerCase()}`} key={`${player.source}-${player.id}`} transform={`translate(${player.x} ${player.y}) rotate(${player.angle})`}><circle r="3.1" /><path d="M2.2 0 5.2-1.6 5.2 1.6Z" /></g>)}
@@ -4668,7 +4849,7 @@ function App() {
                  </svg>}
                  {map2dLayers[mapName].length > 1 && <span>{map2dLayers[mapName][map2dLayer]?.id === 'lower' ? 'LOWER' : 'UPPER'}</span>}
                </button> : <div className="map-preview-slot map-preview-empty" aria-hidden="true" />}
-                 <div className="camera-slots"><span>{t('cameraPositions')}</span>{cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved} className={activeCameraSlot === index ? 'active' : ''} onClick={() => boardRef.current?.restoreCameraSlot?.(index)}>{index === 9 ? 0 : index + 1}</button>)}{MAP_FLOOR_HEIGHTS[mapName] != null && <div className="floor-controls">{[['main', 'UP'], ['lower', 'LOW']].map(([floor, label]) => <button type="button" key={floor} className={modelFloor === floor ? 'active' : ''} onClick={() => { const next = modelFloor === floor ? 'all' : floor; setModelFloor(next); if (next !== 'all') { const layer = map2dLayers[mapName].findIndex((item) => item.id === next); if (layer >= 0) setMap2dLayer(layer); } window.dispatchEvent(new CustomEvent('csboard-map-floor', { detail: { mapName, floor: next } })); }}>{label}</button>)}</div>}</div>
+                  <div className="camera-slots"><span>{t('cameraPositions')}</span>{cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved} className={activeCameraSlot === index ? 'active' : ''} onClick={() => boardRef.current?.restoreCameraSlot?.(index)}>{index === 9 ? 0 : index + 1}</button>)}<div className="floor-controls">{floorOptions.map(([floor, label]) => <button type="button" key={floor} className={modelFloor === floor ? 'active' : ''} onClick={() => selectMapFloor(floor)}>{label}</button>)}</div></div>
              </div>
              <div className="brush-controls"><div className="brush-swatches">{['#a5e0ff', '#ff6b6b', '#7cf29c', '#ffd166', '#ffffff', '#c084fc'].map((c) => <button type="button" key={c} className={`brush-swatch${brushColor.toLowerCase() === c ? ' active' : ''}`} style={{ background: c }} aria-label={c} title={c} onClick={() => { setBrushColor(c); localStorage.setItem('csboard-brush-color', c); }} />)}</div><div className="brush-util-row"><div className="brush-widths">{[2, 3, 5, 8].map((w) => <button type="button" key={w} className={`brush-width${brushWidth === w ? ' active' : ''}`} title={`${w}px`} onClick={() => { setBrushWidth(w); localStorage.setItem('csboard-brush-width', String(w)); }}><i style={{ width: Math.max(2, w), height: Math.max(2, w) }} /></button>)}</div><button type="button" className={`brush-eraser${eraserEnabled ? ' active' : ''}`} title={t('eraser')} aria-label={t('eraser')} onClick={() => setEraserEnabled((value) => !value)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M11 3 14 6l-5 5H5l-3-3z" /><path d="M8 6 11 9" /></svg></button></div></div>
            </div>
@@ -4691,7 +4872,7 @@ function App() {
           </div>
           {activePanel === 'analysis' && <aside className="analysis-panel"><div className="collab-heading"><div><span>DEMO ANALYSIS</span><h2>{t('analysis')}</h2></div><button type="button" disabled={!analysisSelectedPlayers.length || !analysisRows.length} onClick={() => setAnalysisPlaying((playing) => !playing)}>{analysisPlaying ? t('pause') : t('play')}</button></div><p className="collab-note">{t('analysisHint')}</p>{analysisStatus && <div className="analysis-status">{analysisStatus}</div>}<div className="analysis-select"><span>{t('players').toUpperCase()}</span><div className="analysis-player-list">{analysisPlayers.map((player) => <button type="button" key={player} className={analysisSelectedPlayers.includes(player) ? 'selected' : ''} aria-pressed={analysisSelectedPlayers.includes(player)} onClick={() => { setAnalysisSelectedPlayers((selected) => selected.includes(player) ? selected.filter((name) => name !== player) : [...selected, player]); setAnalysisTime(0); setAnalysisPlaying(false); }}>{player}</button>)}</div></div>{analysisSelectedPlayers.length > 0 && <label className="analysis-side"><span>{t('side').toUpperCase()}</span><select value={analysisSide} onChange={(event) => { setAnalysisSide(event.target.value); setAnalysisTime(0); setAnalysisPlaying(false); }}><option value="ALL">{t('allRounds')}</option><option value="T">{t('tRounds')}</option><option value="CT">{t('ctRounds')}</option></select></label>}{analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}</aside>}
           {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>{t('collab')}</h2></div><div className="collab-actions"><button type="button" onClick={() => openSaveArchiveModal()}>{t('saveFrame')}</button>{roomCode ? <button type="button" onClick={leaveRoom}>{t('leaveRoom')}</button> : <button type="button" onClick={() => { const code = window.prompt(t('roomPrompt'), roomJoinCode); if (code != null) { setRoomJoinCode(code); joinRoom(code); } }}>{t('joinRoom')}</button>}<button type="button" disabled={Boolean(roomCode)} onClick={openRoom}>{t('openRoom')}</button></div></div><p className="collab-note">{t('currentMap')}: {mapName} · {t('name')}: {clientName.current}<br />{t('collabHint')}</p>{roomStatus && <div className="analysis-status">{roomStatus}</div>}{roomCode && <div className="room-open"><strong>{t('room')} {roomCode}</strong><span>{roomOwner ? t('owner') : t('member')}</span></div>}<div className="archive-list">{archives.filter((archive) => archive.mapName === mapName).length === 0 ? <div className="archive-empty">{t('noArchives')}</div> : archives.filter((archive) => archive.mapName === mapName).map((archive) => <div className="archive-item" key={archive.id}><button type="button" className="archive-restore" disabled={Boolean(roomCode && !roomOwner)} title={roomCode && !roomOwner ? t('guestNoArchive') : t('restoreArchive')} onClick={() => restoreWorkspaceArchive(archive)}><strong>{archive.name || archive.mapName.toUpperCase()}</strong><span>{new Date(archive.savedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</span><small>{archive.frames && archive.frames.length ? `${archive.frames.length} ${t('frames')}${archive.demo ? ` · ${t('manualEdit')}` : ''}` : archive.demo ? `ROUND ${archive.demo.round || '-'} · TICK ${Math.round(archive.demo.tick)}` : t('manualEdit')}</small></button><button type="button" className="archive-delete" aria-label={t('deleteArchive')} title={t('deleteArchive')} onClick={() => deleteWorkspaceArchive(archive.id)}>×</button></div>)}</div></aside>}
-           {activePanel === 'collab' && hasActiveFrameContext && <aside className="collab-objects"><div className="collab-objects-tabs"><button type="button" className={collabObjectTab === 'players' ? 'active' : ''} onClick={() => setCollabObjectTab('players')}>{t('collabPlayers')}</button><button type="button" className={collabObjectTab === 'utility' ? 'active' : ''} onClick={() => setCollabObjectTab('utility')}>{t('addUtility')}</button></div>{collabObjectTab === 'players' ? <div className="collab-players">{activeCollabPlayers().length === 0 ? <div className="archive-empty">{t('noCollabPlayers')}</div> : <div className="collab-player-list">{activeCollabPlayers().map((player) => <div className="collab-player-item" key={player.name}><span className="collab-player-name">{player.name}</span><button type="button" className="collab-player-rename" onClick={() => openRenameModal(player.id, player.name)}>{t('rename')}</button><span>{player.team || 'T'}</span></div>)}</div>}</div> : <div className="collab-utility"><label className="collab-utility-search"><span>{t('addUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => setCollabUtilitySearch(event.target.value)} /><select value={''} onChange={(event) => { const id = event.target.value; if (!id) return; const note = currentUtilityNotes.find((candidate) => candidate.id === id); if (note) boardRef.current?.addCollabUtility?.(note); setCollabUtilitySearch(''); event.target.value = ''; }}>{[...currentUtilityNotes].sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0).filter((note) => `${note.name} ${note.summary || ''} ${note.thrower || ''}`.toLowerCase().includes(collabUtilitySearch.trim().toLowerCase())).map((note) => <option key={note.id} value={note.id}>{note.name} · {note.grenadeType || 'custom'}{note.thrower ? ` · ${note.thrower}` : ''}</option>)}</select></label></div>}</aside>}
+           {activePanel === 'collab' && hasActiveFrameContext && <aside className="collab-objects"><div className="collab-objects-tabs"><button type="button" className={collabObjectTab === 'players' ? 'active' : ''} onClick={() => setCollabObjectTab('players')}>{t('collabPlayers')}</button><button type="button" className={collabObjectTab === 'utility' ? 'active' : ''} onClick={() => setCollabObjectTab('utility')}>{t('addUtility')}</button></div>{collabObjectTab === 'players' ? <div className="collab-players">{activeCollabPlayers().length === 0 ? <div className="archive-empty">{t('noCollabPlayers')}</div> : <div className="collab-player-list">{activeCollabPlayers().map((player) => <div className="collab-player-item" key={player.name}><span className="collab-player-name">{player.name}</span><button type="button" className="collab-player-rename" onClick={() => openRenameModal(player.id, player.name)}>{t('rename')}</button><div className="collab-player-team" aria-label={t('team')}>{['T', 'CT'].map((team) => <button type="button" key={team} className={(player.team || 'T') === team ? 'active' : ''} aria-pressed={(player.team || 'T') === team} onClick={() => setPointUpdate({ id: player.id, team })}>{team}</button>)}</div></div>)}</div>}</div> : <div className="collab-utility"><label className="collab-utility-search"><span>{t('addUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => setCollabUtilitySearch(event.target.value)} /><select value={''} onChange={(event) => { const id = event.target.value; if (!id) return; const note = currentUtilityNotes.find((candidate) => candidate.id === id); if (note) boardRef.current?.addCollabUtility?.(note); setCollabUtilitySearch(''); event.target.value = ''; }}>{[...currentUtilityNotes].sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0).filter((note) => `${note.name} ${note.summary || ''} ${note.thrower || ''}`.toLowerCase().includes(collabUtilitySearch.trim().toLowerCase())).map((note) => <option key={note.id} value={note.id}>{note.name} · {note.grenadeType || 'custom'}{note.thrower ? ` · ${note.thrower}` : ''}</option>)}</select></label></div>}</aside>}
            {activePanel === 'collab' && hasActiveFrameContext && collabObjectTab === 'utility' && <CollabUtilityPortal><div className="collab-utility-manager"><header><strong>{t('importedUtilities')}</strong><button type="button" onClick={() => { setCollabUtilityPickerOpen(true); setCollabUtilitySelected(''); }}>{t('addUtility')}</button></header>{collabUtilityPickerOpen ? <div className="collab-utility-picker"><label className="collab-utility-search"><span>{t('selectUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => setCollabUtilitySearch(event.target.value)} /><select value={collabUtilitySelected} onChange={(event) => setCollabUtilitySelected(event.target.value)}><option value="">{t('selectUtility')}</option>{[...currentUtilityNotes].sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0).filter((note) => `${note.name} ${note.summary || ''} ${note.thrower || ''}`.toLowerCase().includes(collabUtilitySearch.trim().toLowerCase())).map((note) => <option key={note.id} value={note.id}>{note.name} · {note.grenadeType || 'custom'}{note.thrower ? ` · ${note.thrower}` : ''}</option>)}</select></label><div className="collab-utility-picker-actions"><button type="button" onClick={() => { setCollabUtilityPickerOpen(false); setCollabUtilitySelected(''); setCollabUtilitySearch(''); }}>{t('cancel')}</button><button type="button" disabled={!collabUtilitySelected} onClick={confirmCollabUtilityImport}>{t('confirmAdd')}</button></div></div> : activeImportedUtilities().length === 0 ? <div className="archive-empty">{t('noImportedUtilities')}</div> : <div className="collab-imported-list">{activeImportedUtilities().map((item) => <div className="collab-imported-item" key={item.id}><div><strong>{item.noteName || t('unknown')}</strong><span>{item.kind || 'custom'}</span></div><button type="button" onClick={() => deleteImportedUtility(item.id)}>{t('delete')}</button></div>)}</div>}</div></CollabUtilityPortal>}
              {activePanel === 'utility' && <UtilityNotesActionsPortal><div className="utility-io-actions"><button type="button" onClick={() => { setUtilityImportNotice(''); utilityImportInputRef.current?.click(); }}>{t('importNotes')}</button><button type="button" onClick={exportUtilityNotes}>{t('exportNotes')}</button><input ref={utilityImportInputRef} type="file" accept="application/json,.json" onChange={importUtilityNotes} />{utilityImportNotice && <span>{utilityImportNotice}</span>}</div></UtilityNotesActionsPortal>}
              {activePanel === 'collab' && roomCode && <RoomPresencePortal><div className="room-presence"><header><span>{t('currentUsers')}</span><b>{roomUsers.length}</b></header><div className="room-user-list">{roomUsers.map((user) => <div key={user.clientId}><i className={user.owner ? 'owner' : ''} /><strong>{user.name}</strong><span>{user.current ? t('you') : user.owner ? t('owner') : t('member')}</span></div>)}</div>{roomActivity.length > 0 && <div className="room-activity" aria-live="polite">{roomActivity.map((event) => <span key={event.id}>{event.text}</span>)}</div>}</div></RoomPresencePortal>}
