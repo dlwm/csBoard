@@ -73,7 +73,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - 从云存储加载受支持地图的 CS2 数据（在浏览器内解析），并限制编辑内容落在可达表面。
 - 从云存储加载 GLB 地图模型，并调节模型透明度。
 - 支持可达表面、鼠标透镜和摄像机透镜三种模型显示方式。
-- Nuke 与 Vertigo 支持完整、高层和低层 3D 显示；可点击小地图或使用机位栏 `UP` / `LOW` 按钮同步切换，人物、道具、轨迹和人工编辑也会遵循当前楼层。
+- Nuke、Train 与 Vertigo 支持完整、高层和低层 3D 显示；可点击小地图或使用机位栏 `UP` / `LOW` 按钮同步切换，人物、道具、轨迹和人工编辑也会遵循当前楼层。
 - 使用 `three-mesh-bvh` 高效查询视线最近墙体碰撞。
 - 显示 GLB 下载、处理和失败状态；模型不可用时继续使用 NAV 完成镜头取景、碰撞和表面编辑。
 - 在资源可用时显示内置 2D 雷达预览并支持楼层切换。
@@ -102,6 +102,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 仓库内包含以下地图的文件：
 
+- Training Ground（内置双层田字型教学地图，下层缓坡街道、上层屋顶连桥，无需外部资源）
 - Ancient
 - Anubis
 - Cache
@@ -114,6 +115,10 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - Vertigo
 
 GLB 地图模型不会提交到仓库。需要本地 `.nav`/`.glb` 时运行 `make resources` 下载到 `public/maps/<map>/`；Workers 应用运行时从云存储加载生产地图资源。
+
+Training Ground 仅在道具速记和协作面板中提供；切换到回合浏览或数据分析时会自动返回 Dust II。
+
+首次访问会询问是否进入教学，确认后直接打开 Training Ground 的协作练习帧。为方便本地调试，`localhost`、`127.0.0.1` 和 `::1` 每第 3 次加载都会重新按首次访问处理。教学地图内置独立的上层与下层 2D 雷达图，并与 `UP` / `LOW` 切换同步。
 
 ## 开始使用
 
@@ -187,12 +192,18 @@ make build
 ```text
 assets/
   readme/                 # README 截图与演示 GIF
+src/
+  default-data/           # 首次访问时导入的可提交默认数据
+    utility-notes/        # 道具速记 JSON
+    workspace-archives/   # 协作面板存档 JSON
 public/
   maps/
     <map>/
       <map>.nav           # 本地开发数据，由 Git 忽略（通过 `make resources` 下载）
       <map>.glb           # 本地开发数据，由 Git 忽略（通过 `make resources` 下载）
 ```
+
+贡献者可将默认道具速记或协作存档 JSON 直接放入 `src/default-data/` 对应子目录，具体格式见 [`src/default-data/README.md`](src/default-data/README.md)。这些文件只会在浏览器从未创建对应本地数据时导入，不会覆盖或重新填充现有用户数据。
 
 `public/` 目录整体被 Git 忽略。运行 `make resources` 时，`scripts/ensure-maps.js` 会检测各地图资源，并从 `.env.local` 的 `VITE_OSS_BASE_URL`（或 `MAP_DOWNLOAD_BASE_URL`）下载缺失文件。未配置下载源时命令会明确报错。
 

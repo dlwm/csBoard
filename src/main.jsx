@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createPortal } from 'react-dom';
 import * as THREE from 'three';
@@ -10,6 +10,7 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import fallbackNavData from './data/de_dust2.json';
 import { createNavMesh } from './three/navMesh.js';
+import { createTutorialMap, tutorialNavData, tutorialWorkspaceArchive, TUTORIAL_MAP_ID } from './three/tutorialMap.js';
 import { parseNavBuffer, fetchAndParseNav } from './navParser.js';
 import { createGhostMaterial } from './three/materials.js';
 import { createTacticalPoint, updateTacticalPoint } from './three/tacticalPoint.js';
@@ -17,11 +18,34 @@ import { createCollabPlayer, randomPlayerName, renameCollabPlayer, setCollabPlay
 import { createFireNavEffect, createGrenadeEffect, disposeGrenadeEffect, grenadeTypeFromPointer } from './three/grenadeEffects.js';
 import { countCachedDemoRounds, deleteCachedDemo, demoCacheId, getCachedDemo, getCachedDemoRound, listCachedDemos, putCachedDemo, putCachedDemoRound } from './demoCache.js';
 import SideGameHub from './SideGameHub.jsx';
+import TutorialGuide, { TutorialOffer } from './TutorialGuide.jsx';
 import './styles.css';
 import { csIconUrl } from './assets/cs-icon-urls.js';
 import { map2dLayers } from './assets/map-2d-urls.js';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
+
+const defaultUtilityNoteModules = import.meta.glob('./default-data/utility-notes/**/*.json', { eager: true, import: 'default' });
+const defaultWorkspaceArchiveModules = import.meta.glob('./default-data/workspace-archives/**/*.json', { eager: true, import: 'default' });
+
+const collectDefaultRecords = (modules, collectionKey) => Object.values(modules).flatMap((data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.[collectionKey])) return data[collectionKey];
+  return data && typeof data === 'object' ? [data] : [];
+}).filter((record) => record && typeof record === 'object' && !Array.isArray(record));
+
+const DEFAULT_UTILITY_NOTES = collectDefaultRecords(defaultUtilityNoteModules, 'notes');
+const DEFAULT_WORKSPACE_ARCHIVES = collectDefaultRecords(defaultWorkspaceArchiveModules, 'archives');
+
+function initialLocalRecords(storageKey, defaults) {
+  const stored = localStorage.getItem(storageKey);
+  if (stored !== null) {
+    try { const parsed = JSON.parse(stored); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+  }
+  const initial = JSON.parse(JSON.stringify(defaults));
+  try { localStorage.setItem(storageKey, JSON.stringify(initial)); } catch { /* Keep defaults available for this session. */ }
+  return initial;
+}
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -42,6 +66,7 @@ const collaborationUrl = () => {
 };
 
 const MAPS = [
+  { id: TUTORIAL_MAP_ID, label: 'Training Ground' },
   { id: 'de_dust2', label: 'Dust II' },
   { id: 'de_mirage', label: 'Mirage' },
   { id: 'de_nuke', label: 'Nuke' },
@@ -54,8 +79,24 @@ const MAPS = [
   { id: 'de_vertigo', label: 'Vertigo' },
 ];
 
+const MAP_LABELS_ZH = {
+  [TUTORIAL_MAP_ID]: '训练场',
+  de_dust2: '炙热沙城 II',
+  de_mirage: '荒漠迷城',
+  de_nuke: '核子危机',
+  de_ancient: '远古遗迹',
+  de_anubis: '阿努比斯',
+  de_cache: '死城之谜',
+  de_inferno: '炼狱小镇',
+  de_overpass: '死亡游乐园',
+  de_train: '列车停放站',
+  de_vertigo: '殒命大厦',
+};
+
 const MAP_FLOOR_HEIGHTS = {
+  [TUTORIAL_MAP_ID]: { main: 66.54, lower: 66.54 },
   de_nuke: { main: -520, lower: -500 },
+  de_train: { main: -70, lower: -30 },
   de_vertigo: { main: 11650, lower: 11650 },
 };
 const MAP_UNITS_TO_METERS = 0.0254;
@@ -79,7 +120,7 @@ function floorVisibilityAtY(y, state) {
 function enableMaterialFloorFade(material, state) {
   if (!material || material.userData.csboardFloorFade) return;
   material.userData.csboardFloorFade = true;
-  material.transparent = true;
+  if (!material.alphaHash && !material.alphaToCoverage) material.transparent = true;
   const previousCompile = material.onBeforeCompile;
   const previousCacheKey = material.customProgramCacheKey?.bind(material);
   material.onBeforeCompile = (shader, renderer) => {
@@ -110,6 +151,7 @@ const messages = {
   zh: {
     rounds: '回合浏览', analysis: '数据分析', collab: '协作面板', utilityNotes: '道具速记', loaded: '参考数据已加载', recentKills: '最近击杀', expand: '展开', collapse: '收起', cameraPositions: '摄像机位置', view: '视图', showNames: '显示名称', selectRound: '请选择回合', round: '回合', multiDemo: 'Demo 文件', chooseDemo: '选择文件', multiPartHint: '支持多选分片', noFileChosen: '尚未选择文件', play: '播放', pause: '暂停', loading: '加载中', allRounds: '全部回合', tRounds: 'T 回合', ctRounds: 'CT 回合', analysisHint: '选择选手后，所有回合会从冻结结束同时开始叠加播放。', heatmap: '热力图', killerPosition: '击杀时所在', victimPosition: '被击杀时所在', targetPosition: '击杀目标所在', opponentPosition: '被击杀时对方所在', saveFrame: '保存当前帧', leaveRoom: '离开房间', joinRoom: '加入房间', openRoom: '开放房间', roomPrompt: '输入 6 位房间号', currentMap: '当前地图', name: '名称', collabHint: '保存地图、镜头、编辑点位和当前 Demo 帧。Demo 文件本身不会写入浏览器存储。', owner: '房主', member: '成员',     noArchives: '暂无本地存档', guestNoArchive: '房间成员不能切换存档', restoreArchive: '恢复存档', deleteArchive: '删除存档', manualEdit: '手动地图编辑', addUtility: '添加道具', searchUtility: '搜索道具速记…', collabPlayer: '人物点位', frame: '帧', copy: '副本', nameExists: '名称已存在', insertFrame: '插帧', duplicateFrame: '复制帧', deleteFrame: '删除帧', frameName: '帧名', saveToArchive: '保存到存档', newArchive: '新建存档', archiveName: '存档名',     collabPlayers: '人物列表', noCollabPlayers: '暂无人物', frames: '帧列表', noFrames: '暂无帧', eraser: '橡皮擦', rename: '重命名', renameFrame: '重命名帧', room: '房间', roomOpened: '已公开', roomDestroyed: '房间已销毁', roomLeft: '已离开房间', roomExited: '已从房间退出', joiningRoom: '正在加入房间', joinedRoom: '已加入房间', connected: '已连接', connecting: '连接中', disconnected: '连接断开', analysisReady: '全场移动数据已就绪', analysisLoading: '正在读取全场移动数据…', parseFailed: '解析失败', combiningParts: '正在组合 {count} 个 Demo 分片…', readingDemo: '正在读取 Demo 文件…', smoke: '烟', fire: '火', flash: '闪', grenade: '雷', decoy: '诱', c4Planted: 'C4 安装', c4Exploded: 'C4 爆炸', roundEnd: '回合结束', world: '世界', unknown: '未知', language: 'EN', tacticalPoint: '战术点', team: '阵营', type: '类型', delete: '删除', map: '地图', reset: '重置', players: '选手', side: '阵营', model: '模型', c4Paused: '已拆除', noGrenades: '-', addUtilityNote: '添加速记', utilityIntro: '在 CS2 控制台输入 getpos，将输出粘贴到这里。相同位置可保存多个不同角度。', utilityEmpty: '当前地图暂无道具速记', getposOutput: 'getpos 输出', utilityName: '道具名称', throwSummary: '投掷简述', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: '例如：A 大过点烟', throwSummaryPlaceholder: '例如：贴墙站立，静步投掷', cancel: '取消', add: '添加', invalidGetpos: '无法识别 getpos，请包含 setpos 与 setang 数据', position: '位置', angles: '角度', localOnly: '数据仅保存在当前浏览器', utilityCount: '{count} 条速记',
     utilityIntro: '手动添加仍只需粘贴 getpos；从 Demo 保存的复杂投掷会与同一起点的手动记录归在一起。',
+    navGround: '导航地面', on: '开', off: '关', modelOff: '关闭模型', reachableSurface: '可达表面', mouseLens: '鼠标透镜', cameraLens: '镜头透镜', grid: '网格', trackpad: '触控板', areaEdges: '区域边界', resetView: '重置视图',
     importNotes: '导入', exportNotes: '导出', utilityImportDone: '已导入 {added} 条，跳过 {skipped} 条重复数据', utilityImportFailed: '导入失败：文件格式不正确',
     importedUtilities: '已引入道具', noImportedUtilities: '暂无引入道具', selectUtility: '选择道具', confirmAdd: '确认添加',
     saveUtility: '保存道具', clickToReplay: '点击重播投掷', utilityStorageFailed: '保存失败，浏览器本地空间不足',
@@ -124,6 +166,7 @@ const messages = {
   en: {
     rounds: 'Round Replay', analysis: 'Analysis', collab: 'Collaboration', utilityNotes: 'Utility Notes', loaded: 'Reference Data Loaded', recentKills: 'Recent Kills', expand: 'Expand', collapse: 'Collapse', cameraPositions: 'Camera Positions', view: 'View', showNames: 'Show Names', selectRound: 'Select a round', round: 'Round', multiDemo: 'Demo Files', chooseDemo: 'Choose Files', multiPartHint: 'Multi-part selection supported', noFileChosen: 'No files selected', play: 'Play', pause: 'Pause', loading: 'Load', allRounds: 'All Rounds', tRounds: 'T Rounds', ctRounds: 'CT Rounds', analysisHint: 'Selected players are overlaid from freeze end across all rounds.', heatmap: 'Heatmap', killerPosition: 'Killer Position', victimPosition: 'Victim Position', targetPosition: 'Target Position', opponentPosition: 'Opponent Position', saveFrame: 'Save Frame', leaveRoom: 'Leave Room', joinRoom: 'Join Room', openRoom: 'Open Room', roomPrompt: 'Enter 6-digit room code', currentMap: 'Current map', name: 'Name', collabHint: 'Saves the map, camera presets, tactical edits and current Demo frame. The Demo file is not stored.', owner: 'Owner', member: 'Member',     noArchives: 'No local archives', guestNoArchive: 'Room members cannot switch archives', restoreArchive: 'Restore archive', deleteArchive: 'Delete archive', manualEdit: 'Manual map edit', addUtility: 'Add Utility', searchUtility: 'Search utility notes…', collabPlayer: 'Player Marker', frame: 'Frame', copy: 'Copy', nameExists: 'Name already exists', insertFrame: 'Insert Frame', duplicateFrame: 'Duplicate Frame', deleteFrame: 'Delete Frame', frameName: 'Frame Name', saveToArchive: 'Save to Archive', newArchive: 'New Archive', archiveName: 'Archive Name',     collabPlayers: 'Players', noCollabPlayers: 'No players yet', frames: 'Frames', noFrames: 'No frames yet', eraser: 'Eraser', rename: 'Rename', renameFrame: 'Rename Frame', room: 'Room', roomOpened: 'opened', roomDestroyed: 'Room destroyed', roomLeft: 'Left room', roomExited: 'Disconnected from room', joiningRoom: 'Joining room', joinedRoom: 'Joined room', connected: 'connected', connecting: 'connecting', disconnected: 'disconnected', analysisReady: 'Full-match movement data ready', analysisLoading: 'Reading full-match movement data...', parseFailed: 'Parse failed', combiningParts: 'Combining {count} Demo parts...', readingDemo: 'Reading Demo file...', smoke: 'SMK', fire: 'FIRE', flash: 'FL', grenade: 'HE', decoy: 'DEC', c4Planted: 'C4 planted', c4Exploded: 'C4 exploded', roundEnd: 'Round ended', world: 'WORLD', unknown: 'UNKNOWN', language: '中文', tacticalPoint: 'Tactical Point', team: 'Team', type: 'Type', delete: 'Delete', map: 'Map', reset: 'Reset', players: 'Players', side: 'Side', model: 'Model', c4Paused: 'DEFUSED', noGrenades: '-', addUtilityNote: 'Add Note', utilityIntro: 'Run getpos in the CS2 console and paste its output here. One position can store multiple angles.', utilityEmpty: 'No utility notes for this map', getposOutput: 'getpos output', utilityName: 'Utility name', throwSummary: 'Throw summary', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: 'Example: A Long cross smoke', throwSummaryPlaceholder: 'Example: Hug the wall, standing throw', cancel: 'Cancel', add: 'Add', invalidGetpos: 'Could not parse getpos. Include setpos and setang values.', position: 'Position', angles: 'Angles', localOnly: 'Stored only in this browser', utilityCount: '{count} notes',
     utilityIntro: 'Manual entry still accepts getpos only. Complex Demo throws are grouped with manual notes at the same start position.',
+    navGround: 'NAV', on: 'ON', off: 'OFF', modelOff: 'MODEL OFF', reachableSurface: 'REACHABLE SURFACE', mouseLens: 'MOUSE LENS', cameraLens: 'CAMERA LENS', grid: 'GRID', trackpad: 'TRACKPAD', areaEdges: 'AREA EDGES', resetView: 'RESET VIEW',
     importNotes: 'Import', exportNotes: 'Export', utilityImportDone: 'Imported {added}; skipped {skipped} duplicates', utilityImportFailed: 'Import failed: invalid file format',
     importedUtilities: 'Imported Utilities', noImportedUtilities: 'No imported utilities', selectUtility: 'Select Utility', confirmAdd: 'Add Selected',
     saveUtility: 'Save Utility', clickToReplay: 'Click to replay throw', utilityStorageFailed: 'Could not save: browser storage is full',
@@ -2850,8 +2893,10 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     if (nav) {
       edgesRef.current = nav.edgeLines;
       navGroupRef.current = nav.group;
-       nav.group.visible = true;
-       nav.mesh.material.depthWrite = true;
+      nav.group.visible = true;
+      nav.mesh.visible = true;
+      nav.mesh.material.opacity = 1;
+      nav.mesh.material.depthWrite = true;
       scene.add(nav.group);
     }
     let worldModel;
@@ -2863,9 +2908,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       normalReset();
     };
     modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: 0, total: 0 });
-    new GLTFLoader().load(`${MAP_BASE}/${mapName}/${mapName}.glb`, (gltf) => {
+    const loadWorldModel = (loadedModel) => {
       if (disposed) return;
-      worldModel = gltf.scene;
+      worldModel = loadedModel;
       const modelBounds = new THREE.Box3().setFromObject(worldModel);
       modelCenter = modelBounds.getCenter(new THREE.Vector3());
       modelCenterYRef.current = modelCenter.y;
@@ -2892,9 +2937,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         collisionMeshes.push(object);
         object.frustumCulled = true;
         object.renderOrder = 3;
-         if (object.material) object.material = Array.isArray(object.material) ? object.material.map(() => createGhostMaterial(focusScreen, viewportSize, modelMode, nav?.distanceField)) : createGhostMaterial(focusScreen, viewportSize, modelMode, nav?.distanceField);
+         if (object.material && mapName !== TUTORIAL_MAP_ID) object.material = Array.isArray(object.material) ? object.material.map(() => createGhostMaterial(focusScreen, viewportSize, modelMode, nav?.distanceField)) : createGhostMaterial(focusScreen, viewportSize, modelMode, nav?.distanceField);
          const materials = Array.isArray(object.material) ? object.material : [object.material];
-         materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = true; });
+         materials.forEach((material) => { if (mapName === TUTORIAL_MAP_ID) material.transparent = true; material.opacity = modelOpacity; material.depthWrite = true; });
       });
       scene.add(worldModel);
       collisionVersion += 1;
@@ -2904,7 +2949,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       resetCamera();
       onReady({ reset: () => resetToDefault(resetCamera), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, clearCollabUtilities, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
       modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
-    }, (event) => {
+    };
+    if (mapName === TUTORIAL_MAP_ID) loadWorldModel(createTutorialMap());
+    else new GLTFLoader().load(`${MAP_BASE}/${mapName}/${mapName}.glb`, (gltf) => loadWorldModel(gltf.scene), (event) => {
       if (disposed) return;
       const now = performance.now();
       if (now - lastModelProgressAt < 80 && (!event.total || event.loaded < event.total)) return;
@@ -3178,6 +3225,16 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   }, [showEdges]);
 
   useEffect(() => {
+    const updateNavVisibility = (event) => {
+      const navMesh = navGroupRef.current?.children.find((child) => child.isMesh);
+      if (!navMesh?.material) return;
+      navMesh.visible = Boolean(event.detail);
+    };
+    window.addEventListener('csboard-nav-visibility', updateNavVisibility);
+    return () => window.removeEventListener('csboard-nav-visibility', updateNavVisibility);
+  }, []);
+
+  useEffect(() => {
     if (gridRef.current) gridRef.current.visible = showGrid;
   }, [showGrid]);
 
@@ -3218,10 +3275,23 @@ function App() {
   languageRef.current = language;
   const [mapName, setMapName] = useState('de_dust2');
   const [navData, setNavData] = useState(fallbackNavData);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialOfferOpen, setTutorialOfferOpen] = useState(() => {
+    const localhost = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
+    const firstVisit = !localStorage.getItem('csboard-tutorial-prompted') && !localStorage.getItem('csboard-tutorial-complete');
+    if (localhost) {
+      const visits = Number(localStorage.getItem('csboard-localhost-visits') || 0) + 1;
+      try { localStorage.setItem('csboard-localhost-visits', String(visits)); } catch { /* The current visit can still be evaluated. */ }
+      return firstVisit || visits % 3 === 0;
+    }
+    return firstVisit;
+  });
   const [showEdges, setShowEdges] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
+  const [showNav, setShowNav] = useState(true);
   const [showModel, setShowModel] = useState(true);
-  const [modelOpacity, setModelOpacity] = useState(0.72);
+  const [modelOpacity, setModelOpacity] = useState(0.9);
   const [modelViewMode, setModelViewMode] = useState(0);
   const [modelLoadState, setModelLoadState] = useState({ mapName: 'de_dust2', status: 'loading', loaded: 0, total: 0 });
   const [trackpadDetection, setTrackpadDetection] = useState(true);
@@ -3279,8 +3349,8 @@ function App() {
     return DEMO_SAMPLE_RATES.includes(saved) ? saved : 8;
   });
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
-  const modelModeLabels = ['REACHABLE SURFACE', 'MOUSE LENS', 'CAMERA LENS'];
-  const modeOptions = [{ label: 'MODEL OFF', value: -1 }, ...modelModeLabels.map((label, value) => ({ label, value }))];
+  const modelModeLabels = [t('reachableSurface'), t('mouseLens'), t('cameraLens')];
+  const modeOptions = [{ label: t('modelOff'), value: -1 }, ...modelModeLabels.map((label, value) => ({ label, value }))];
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [selectedPointScreen, setSelectedPointScreen] = useState(null);
   const [deletePointId, setDeletePointId] = useState(null);
@@ -3390,7 +3460,12 @@ function App() {
     if (activePanel !== 'collab') return;
     return () => flushCollabSave();
   }, [activePanel]);
-  const [utilityNotes, setUtilityNotes] = useState(() => { try { return JSON.parse(localStorage.getItem('csboard-utility-notes') || '[]'); } catch { return []; } });
+  const [utilityNotes, setUtilityNotes] = useState(() => {
+    const firstVisit = localStorage.getItem('csboard-utility-notes') === null;
+    const notes = initialLocalRecords('csboard-utility-notes', DEFAULT_UTILITY_NOTES);
+    if (firstVisit) try { localStorage.setItem('csboard-utility-notes-version', String(UTILITY_NOTES_VERSION)); } catch { /* Storage may be unavailable in private contexts. */ }
+    return notes;
+  });
   const utilityImportInputRef = useRef(null);
   const [utilityImportNotice, setUtilityImportNotice] = useState('');
   const [utilityModalOpen, setUtilityModalOpen] = useState(false);
@@ -3405,7 +3480,7 @@ function App() {
   const [selectedDemoGrenade, setSelectedDemoGrenade] = useState(null);
   const [selectedDemoGrenadeScreen, setSelectedDemoGrenadeScreen] = useState(null);
   const [utilityReplay, setUtilityReplay] = useState(null);
-  const [archives, setArchives] = useState(() => { try { return JSON.parse(localStorage.getItem('csboard-workspace-archives') || '[]'); } catch { return []; } });
+  const [archives, setArchives] = useState(() => initialLocalRecords('csboard-workspace-archives', DEFAULT_WORKSPACE_ARCHIVES));
   const [activeArchiveId, setActiveArchiveId] = useState(null);
   const [frames, setFrames] = useState([]);
   const [activeFrameId, setActiveFrameId] = useState(null);
@@ -4032,6 +4107,7 @@ function App() {
     if (activePanel === 'collab' && panel !== 'collab') boardRef.current?.clearWorkspaceState?.();
     if (panel !== 'collab' && roomCode) { const wasOwner = roomOwner; leaveRoom(); window.alert(wasOwner ? t('roomDestroyed') : t('roomExited')); }
     if (panel !== 'utility') { setUtilityModalOpen(false); setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); setUtilityError(''); }
+    if (mapName === TUTORIAL_MAP_ID && panel !== 'utility' && panel !== 'collab') setMapName('de_dust2');
     setActivePanel(panel);
   };
   const addUtilityNote = (event) => {
@@ -4123,6 +4199,35 @@ function App() {
       roomDocRef.current.transact(() => { room.set('mapName', canonicalArchive.mapName); room.set('cameraSlots', canonicalArchive.workspace?.cameraSlots || []); room.set('workspaceInitialized', true); room.set('revision', Number(room.get('revision') || 0) + 1); });
       publishFramesToRoom(restoredFrames, active.id, frameWorkspace(restoreWorkspace));
     }
+  };
+  const openTutorialWorkspace = () => {
+    let archive = archives.find((item) => item.id === tutorialWorkspaceArchive.id);
+    if (!archive) {
+      archive = tutorialWorkspaceArchive;
+      const next = [...archives, archive];
+      setArchives(next);
+      try { localStorage.setItem('csboard-workspace-archives', JSON.stringify(next)); } catch { /* The temporary practice frame still works this session. */ }
+    }
+    switchPanel('collab');
+    restoreWorkspaceArchive(archive);
+  };
+  const moveTutorial = (nextStep) => {
+    setTutorialStep(nextStep);
+    if (nextStep === 3 && activeArchiveId !== tutorialWorkspaceArchive.id) openTutorialWorkspace();
+  };
+  const rememberTutorialOffer = () => {
+    setTutorialOfferOpen(false);
+    try { localStorage.setItem('csboard-tutorial-prompted', '1'); } catch { /* Keep the dismissal state for this session. */ }
+  };
+  const beginTutorial = () => {
+    rememberTutorialOffer();
+    setTutorialStep(0);
+    setTutorialOpen(true);
+    openTutorialWorkspace();
+  };
+  const finishTutorial = () => {
+    setTutorialOpen(false);
+    try { localStorage.setItem('csboard-tutorial-prompted', '1'); localStorage.setItem('csboard-tutorial-complete', '1'); } catch { /* Keep the completion state for this session. */ }
   };
   const selectedMode = showModel ? modelViewMode : -1;
   const hasLeftSidebar = activePanel === 'utility' || (activePanel === 'collab' && hasActiveFrameContext);
@@ -4511,17 +4616,38 @@ function App() {
   }, [activeFrameId, activePanel, analysisDuration, analysisRows.length, analysisSelectedPlayers.length, demoData, demoRound, demoRoundLoading, frames, hasActiveFrameContext]);
   useEffect(() => {
     let cancelled = false;
+    if (mapName === TUTORIAL_MAP_ID) {
+      setNavData(tutorialNavData);
+      return undefined;
+    }
     setNavData(mapName === 'de_dust2' ? fallbackNavData : null);
     fetchAndParseNav(`${MAP_BASE}/${mapName}/${mapName}.nav`).then((data) => { if (!cancelled && data.areas) setNavData(data); }).catch(() => {});
     return () => { cancelled = true; };
   }, [mapName]);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('csboard-nav-visibility', { detail: showNav }));
+  }, [mapName, navData, showNav]);
+  useLayoutEffect(() => {
+    const allowed = activePanel === 'utility' || activePanel === 'collab';
+    document.querySelectorAll('.map-select option').forEach((option) => {
+      const map = MAPS.find((item) => item.id === option.value);
+      if (!map) return;
+      option.textContent = language === 'zh' ? MAP_LABELS_ZH[map.id] || map.label : map.label;
+      if (map.id === TUTORIAL_MAP_ID) {
+        option.disabled = !allowed;
+        option.hidden = !allowed;
+      }
+    });
+  }, [activePanel, language]);
   return <main className={`board-shell${isMobile ? ' is-mobile' : ''}${!hasLeftSidebar || !leftSidebarOpen ? ' left-sidebar-collapsed' : ''}${hasRightSidebar && !rightSidebarOpen ? ' right-sidebar-collapsed' : ''}`} data-panel={activePanel}>
+    {tutorialOfferOpen && <TutorialOffer language={language} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
     <header className="board-header">
       <div className="brand"><span className="brand-mark"><i /><i /><i /></span><span>CS<span>BOARD</span></span>{BUILD_VERSION && <small className="build-version" title={BUILD_VERSION}>{BUILD_VERSION}</small>}</div>
        <nav className="topbar-panels"><button type="button" className={activePanel === 'demo' ? 'active' : ''} onClick={() => switchPanel('demo')}>{t('rounds')}</button><button type="button" className={activePanel === 'analysis' ? 'active' : ''} onClick={() => switchPanel('analysis')}>{t('analysis')}</button><button type="button" className={activePanel === 'utility' ? 'active' : ''} onClick={() => switchPanel('utility')}>{t('utilityNotes')}</button><button type="button" className={activePanel === 'collab' ? 'active' : ''} onClick={() => switchPanel('collab')}>{t('collab')}</button></nav>
        <div className="header-right"><label className="map-select header-map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select><MapIcon map={mapName} /></label><a className="github-link" href="https://github.com/dlwm/csBoard" target="_blank" rel="noreferrer">GITHUB</a><button type="button" className={`game-switch${parseGameState !== 'hidden' ? ' active' : ''}`} title={language === 'zh' ? '小游戏' : 'Mini games'} aria-label={language === 'zh' ? '打开小游戏' : 'Open mini games'} aria-pressed={parseGameState !== 'hidden'} onClick={() => { if (parseGameState !== 'hidden') { setParseGameManual(false); setParseGameState('hidden'); } else { setParseGameManual(true); setParseGameState('visible'); } }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 8h9.6a4 4 0 0 1 3.8 5.2l-1.2 3.7a2.2 2.2 0 0 1-3.5 1.1l-2.1-1.7h-3.6L8.1 18a2.2 2.2 0 0 1-3.5-1.1l-1.2-3.7A4 4 0 0 1 7.2 8Z"/><path d="M8 11v4M6 13h4M16.5 11.5h.01M18 14h.01"/></svg></button><button type="button" className="language-switch" onClick={() => setLanguage((value) => value === 'zh' ? 'en' : 'zh')}>{t('language')}</button></div>
     </header>
     <section className="board-stage">
+         {mapName === TUTORIAL_MAP_ID && <TutorialGuide language={language} open={tutorialOpen} step={tutorialStep} onOpen={() => { setTutorialStep(0); setTutorialOpen(true); }} onStep={moveTutorial} onFinish={finishTutorial} onExit={() => { finishTutorial(); setMapName('de_dust2'); }} />}
          {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><SideGameHub language={language} stopped={!parseGameManual && parseGameState === 'stopped'} manual={parseGameManual} onClose={() => { setParseGameDismissed(true); setParseGameManual(false); setParseGameState('hidden'); }} /></div>}
         <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} brushEnabled={true} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
          {isMobile && <MobileCameraWheel slots={cameraSlotState} active={activeCameraSlot} language={language} onRestore={(slot) => boardRef.current?.restoreCameraSlot?.(slot)} onSave={(slot) => boardRef.current?.saveCameraSlot?.(slot)} onReset={() => boardRef.current?.reset?.()} />}
@@ -4551,7 +4677,7 @@ function App() {
            {activePanel === 'demo' && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} language={language} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} language={language} /></>}
           {selectedPoint && selectedPointScreen && <div className="point-actions" style={{ left: selectedPointScreen.x, top: selectedPointScreen.y }}><span>{activePanel === 'collab' ? t('collabPlayer') : t('tacticalPoint')}</span><div className="point-choice"><b>{t('team')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div>{activePanel === 'collab' ? null : <div className="point-choice"><b>{t('type')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div>}<button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); setSelectedPointScreen(null); }}>{t('delete')}</button></div>}
           {activePanel === 'demo' && selectedDemoGrenade && selectedDemoGrenadeScreen && <div className="demo-grenade-actions" style={{ left: selectedDemoGrenadeScreen.x, top: selectedDemoGrenadeScreen.y }}><div><strong>{selectedDemoGrenade.kind.toUpperCase()}</strong><span>{selectedDemoGrenade.throwEvent.user_name || t('unknown')} · T{selectedDemoGrenade.throwTick}</span></div><button type="button" onClick={saveDemoGrenade}>{t('saveUtility')}</button><button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedDemoGrenade(null); setSelectedDemoGrenadeScreen(null); }}>×</button></div>}
-        <div className="board-tools"><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)} className={showModel ? 'selected' : ''}><i /> {modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) setShowModel(false); else { setShowModel(true); setModelViewMode(option.value); } setModeMenuOpen(false); }} /> <span>{option.label}</span></label>)}</div>}</div>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}><i /> AREA EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET VIEW</button></div>
+        <div className="board-tools"><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> {t('grid')}</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> {t('trackpad')} {trackpadDetection ? t('on') : t('off')}</button><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)} className={showModel ? 'selected' : ''}><i /> {modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) setShowModel(false); else { setShowModel(true); setModelViewMode(option.value); } setModeMenuOpen(false); }} /> <span>{option.label}</span></label>)}</div>}</div>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}><i /> {t('areaEdges')}</button>}<button type="button" onClick={() => boardRef.current?.reset()}>{t('resetView')}</button></div>
           {activePanel === 'utility' && <aside className="utility-notes-panel"><div className="utility-notes-heading"><div><span>UTILITY NOTES</span><h2>{t('utilityNotes')}</h2></div><button type="button" onClick={() => { setUtilityDraft({ getpos: '', name: '', summary: '' }); setUtilityError(''); setUtilityModalOpen(true); }}>{t('addUtilityNote')}</button></div><p>{t('utilityIntro')}</p><div className="utility-notes-meta"><label className="map-select"><span>{t('map').toUpperCase()}</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><span>{t('utilityCount', { count: currentUtilityNotes.length })}</span></div><div className="utility-model-options"><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="utility-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div>{currentUtilityNotes.length === 0 && <div className="utility-empty">{t('utilityEmpty')}</div>}<small>{t('localOnly')}</small></aside>}
           {activePanel === 'utility' && <aside className="utility-location-panel"><header><strong>{t('utilityLocations')}</strong><span>{currentUtilityGroups.length}</span></header>{currentUtilityGroups.length === 0 ? <div className="utility-location-empty">{t('utilityEmpty')}</div> : <div className="utility-location-groups">{currentUtilityGroups.map(({ location, categories }) => <section key={location}><div className="utility-location-heading"><strong>{location}</strong><span>{categories.reduce((sum, [, entries]) => sum + entries.length, 0)}</span></div>{categories.map(([kind, entries]) => <div className="utility-category" key={kind}><span>{kind === 'smoke' ? 'SMOKE' : kind === 'flash' ? 'FLASH' : kind === 'fire' ? 'FIRE' : kind === 'he' ? 'HE' : kind === 'decoy' ? 'DECOY' : 'CUSTOM'}</span>{entries.map((note) => <button type="button" key={note.id} className={note.replay ? 'replayable' : ''} onClick={() => { setUtilityHover({ key: note.positionKey, entries: note.positionEntries, x: 330, y: Math.max(150, window.innerHeight / 2 - 36) }); setSelectedUtilityNote(note); setUtilityCopied(false); }}><b>{note.name}</b><small>{note.thrower || t('customUtility')}</small></button>)}</div>)}</section>)}</div>}</aside>}
            {activePanel === 'utility' && utilityHover && <div className="utility-hover-card" style={{ left: utilityHover.x, top: utilityHover.y }} onPointerEnter={() => { utilityHoverInsideRef.current = true; window.clearTimeout(utilityHoverTimerRef.current); }} onPointerLeave={() => { utilityHoverInsideRef.current = false; utilityHoverTimerRef.current = window.setTimeout(() => { setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); }, 180); }}><header><strong>{selectedUtilityNote ? t('utilityDetails') : 'LOCATION'}</strong><span>{selectedUtilityNote ? <button type="button" onClick={() => { setSelectedUtilityNote(null); setUtilityEditDraft(null); }}>←</button> : utilityHover.entries.length}</span></header>{selectedUtilityNote ? <div className="utility-detail">{utilityEditDraft ? <form className="utility-edit-form" onSubmit={saveUtilityEdit}><label><span>{t('utilityTitle')}</span><input required value={utilityEditDraft.name} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><label><span>{t('utilityDescription')}</span><textarea required value={utilityEditDraft.summary} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, summary: event.target.value }))} /></label><div><button type="button" onClick={() => setUtilityEditDraft(null)}>{t('cancel')}</button><button type="submit">{t('saveUtilityEdit')}</button></div></form> : <><strong>{selectedUtilityNote.name}</strong><p>{selectedUtilityNote.summary}</p></>}<dl><div><dt>{t('map')}</dt><dd>{selectedUtilityNote.mapName}</dd></div>{selectedUtilityNote.startPlace && <div><dt>{t('startPlace')}</dt><dd>{selectedUtilityNote.startPlace}</dd></div>}{selectedUtilityNote.throwPlace && <div><dt>{t('throwPlace')}</dt><dd>{selectedUtilityNote.throwPlace}</dd></div>}<div><dt>{t('position')}</dt><dd>{selectedUtilityNote.position.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('angles')}</dt><dd>{selectedUtilityNote.angles.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('exportedBy')}</dt><dd>{selectedUtilityNote.thrower || t('customUtility')}</dd></div>{selectedUtilityNote.demoSource && <div><dt>{t('sourceDemo')}</dt><dd>{selectedUtilityNote.demoSource.fileName} · R{selectedUtilityNote.demoSource.round || '-'} · T{selectedUtilityNote.demoSource.tick}</dd></div>}<div><dt>{t('exportedAt')}</dt><dd>{new Date(selectedUtilityNote.createdAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</dd></div></dl><div className="utility-detail-actions"><button type="button" onClick={() => setUtilityEditDraft({ name: selectedUtilityNote.name, summary: selectedUtilityNote.summary || '' })}>{t('editUtility')}</button><button type="button" onClick={() => copyUtilityCommand(selectedUtilityNote)}>{utilityCopied ? t('copied') : t('getposCommand')}</button><button type="button" className="utility-delete" onClick={() => deleteUtilityNote(selectedUtilityNote)}>{t('delete')}</button>{selectedUtilityNote.replay && <><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote)}>{t('replayUtility')}</button><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote, true)}>{t('replayUtilityFirstPerson')}</button></>}</div></div> : <div className="utility-hover-list">{utilityHover.entries.map((note) => <button type="button" key={note.id} className={`utility-list-entry${note.replay ? ' replayable' : ''}`} onClick={() => { setSelectedUtilityNote(note); setUtilityEditDraft(null); setUtilityCopied(false); }}><strong>{note.name}</strong><span>{t('angles')}: {(note.angles || [0, 0, 0]).map((value) => Number(value).toFixed(2)).join(' / ')}</span><p>{note.summary}</p></button>)}</div>}</div>}
@@ -4575,6 +4701,7 @@ function App() {
         <div className="workspace-bottom-bar">
           {activePanel === 'analysis' && analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-bottom-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}
         </div>
+        {navData && <ModelControlsPortal selector={modelControlsTarget}><div className="model-visual-controls nav-visual-controls"><button type="button" className={`nav-visibility-toggle${showNav ? ' selected' : ''}`} aria-pressed={showNav} onClick={() => setShowNav((visible) => !visible)}>{t('navGround')} {showNav ? t('on') : t('off')}</button></div></ModelControlsPortal>}
         <ModelControlsPortal selector={modelControlsTarget}><div className="model-visual-controls"><ModelLoadIndicator state={modelLoadState} language={language} /><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="workspace-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div></ModelControlsPortal>
         {hasLeftSidebar && <button type="button" className="sidebar-toggle sidebar-toggle-left" aria-label={leftSidebarOpen ? (language === 'zh' ? '收起左栏' : 'Collapse left sidebar') : (language === 'zh' ? '展开左栏' : 'Expand left sidebar')} onClick={() => setLeftSidebarOpen((open) => !open)}>{leftSidebarOpen ? '‹' : '›'}</button>}
         {hasRightSidebar && <button type="button" className="sidebar-toggle sidebar-toggle-right" aria-label={rightSidebarOpen ? (language === 'zh' ? '收起右栏' : 'Collapse right sidebar') : (language === 'zh' ? '展开右栏' : 'Expand right sidebar')} onClick={() => setRightSidebarOpen((open) => !open)}>{rightSidebarOpen ? '›' : '‹'}</button>}
