@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 
-export function createGhostMaterial(focusScreen, viewportSize, viewMode, distanceField = null) {
+const MAP_SCALE = 0.0254;
+const MODEL_FADE_START = 50 * MAP_SCALE;
+const MODEL_FADE_END = 70 * MAP_SCALE;
+
+export function createGhostMaterial(focusScreen, viewportSize, viewMode) {
   const material = new THREE.MeshStandardMaterial({
     color: new THREE.Color('#3b4858'),
     transparent: false,
@@ -16,29 +20,38 @@ export function createGhostMaterial(focusScreen, viewportSize, viewMode, distanc
     emissiveIntensity: 0.32,
   });
   material.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <common>',
-      '#include <common>\nvarying vec3 modelWorldPosition;',
-    ).replace(
-      '#include <project_vertex>',
-      'modelWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>',
-    );
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
-      '#include <common>\nvarying vec3 modelWorldPosition;\nuniform vec2 focusScreen;\nuniform vec2 viewportSize;\nuniform float modelViewMode;\nuniform sampler2D navDistanceTexture;\nuniform vec2 navDistanceOrigin;\nuniform vec2 navDistanceSize;\nuniform float navDistanceMax;\nuniform float navDistanceEnabled;',
+      '#include <common>\nuniform vec2 focusScreen;\nuniform vec2 viewportSize;\nuniform float modelViewMode;',
     ).replace(
       '#include <alphatest_fragment>',
-      'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat mouseFade = smoothstep(0.06, 0.34, modelFocusDistance);\nfloat cameraFade = smoothstep(18.0, 34.0, length(vViewPosition));\nvec2 navUv = (modelWorldPosition.xz - navDistanceOrigin) / navDistanceSize;\nfloat navInside = navDistanceEnabled * step(0.0, navUv.x) * step(navUv.x, 1.0) * step(0.0, navUv.y) * step(navUv.y, 1.0);\nfloat navDistance = texture2D(navDistanceTexture, navUv).r * navDistanceMax;\nfloat navFade = mix(1.0, smoothstep(1.5, 7.0, navDistance), navInside);\nfloat activeFade = navFade;\nactiveFade = mix(activeFade, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
+      'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat mouseFade = smoothstep(0.06, 0.34, modelFocusDistance);\nfloat cameraFade = smoothstep(18.0, 34.0, length(vViewPosition));\nfloat activeFade = 1.0;\nactiveFade = mix(activeFade, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
     );
     shader.uniforms.focusScreen = { value: focusScreen };
     shader.uniforms.viewportSize = { value: viewportSize };
     shader.uniforms.modelViewMode = viewMode;
-    shader.uniforms.navDistanceTexture = { value: distanceField?.texture || null };
-    shader.uniforms.navDistanceOrigin = { value: distanceField?.origin || new THREE.Vector2() };
-    shader.uniforms.navDistanceSize = { value: distanceField?.size || new THREE.Vector2(1, 1) };
-    shader.uniforms.navDistanceMax = { value: distanceField?.maxDistance || 1 };
-    shader.uniforms.navDistanceEnabled = { value: distanceField ? 1 : 0 };
   };
   material.customProgramCacheKey = () => 'model-screen-focus-alpha-to-coverage-v1';
   return material;
+}
+
+export function enableMapSquareFade(material, boundary, layerState) {
+  if (!material || !boundary || material.userData.csboardMapSquareFade) return;
+  material.userData.csboardMapSquareFade = true;
+  if (!material.alphaToCoverage) material.transparent = true;
+  const previousCompile = material.onBeforeCompile;
+  const previousCacheKey = material.customProgramCacheKey?.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    previousCompile?.(shader, renderer);
+    if (!shader.vertexShader.includes('#include <project_vertex>') || !shader.fragmentShader.includes('#include <alphatest_fragment>')) return;
+    shader.uniforms.navBoundaryMin = { value: boundary.min };
+    shader.uniforms.navBoundaryMax = { value: boundary.max };
+    shader.uniforms.navModelFadeStart = { value: MODEL_FADE_START };
+    shader.uniforms.navModelFadeEnd = { value: MODEL_FADE_END };
+    shader.uniforms.mapLayerState = { value: layerState };
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 navBoundaryWorldPosition;').replace('#include <project_vertex>', 'navBoundaryWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 navBoundaryWorldPosition;\nuniform vec2 navBoundaryMin;\nuniform vec2 navBoundaryMax;\nuniform float navModelFadeStart;\nuniform float navModelFadeEnd;\nuniform vec4 mapLayerState;').replace('#include <alphatest_fragment>', 'vec2 navBoundaryOutside = max(max(navBoundaryMin - navBoundaryWorldPosition.xz, navBoundaryWorldPosition.xz - navBoundaryMax), vec2(0.0));\nfloat navBoundaryDistance = length(navBoundaryOutside);\nfloat navBoundaryAlpha = 1.0 - smoothstep(navModelFadeStart, navModelFadeEnd, navBoundaryDistance);\ndiffuseColor.a *= mix(1.0, navBoundaryAlpha, step(0.5, mapLayerState.w));\nif (diffuseColor.a < 0.01) discard;\n#include <alphatest_fragment>');
+  };
+  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}-csboard-square-boundary-fade-v2`;
+  material.needsUpdate = true;
 }

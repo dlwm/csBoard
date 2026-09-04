@@ -9,6 +9,10 @@
 - Replace floor fading with binary NAV-derived bottom/top ranges: multi-floor maps clip each floor independently, while every other map can toggle a playable-layer clip to hide rooftop geometry.
 - Keep the native cursor during `Shift` + middle-mouse panning, then switch to pointer lock and a virtual cursor at the viewport edge for Blender-style continuous wrapping.
 - Replace the static team label in the Collaboration player list with explicit `T` / `CT` controls that do not conflict with player movement, aiming, or crouching gestures.
+- While layer selection is active, use an axis-aligned square covering the map extent instead of following the NAV outline; geometry starts fading 50 game units outside the square and finishes over the next 20 units. Rename the single-floor control from “Playable Layer” to “Layer”.
+- Prevent localized floor, model-mode, and toolbar button labels from wrapping; the single-map Layer control now spans the full floor-control width.
+- Localize the bottom-bar Grid and Trackpad controls, map-floor badge, mobile Reset action, and CSS-generated Display, Camera, and Side Switch labels.
+- Move Reset View below the layer controls, remove the Area Edges and Reachable Surface options, and make Camera Lens the default model view.
 
 ## [1.5.0] - 2026-09-03
 

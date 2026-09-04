@@ -71,8 +71,8 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 ### Map Rendering
 
 - Load CS2 data for supported maps (from cloud storage, parsed in the browser) and constrain tactical editing to reachable surfaces.
-- Render GLB map geometry loaded from cloud storage with configurable opacity.
-- Switch between reachable-surface, mouse-lens, and camera-lens model views.
+- Render GLB map geometry loaded from cloud storage with configurable opacity; when layer selection is active, geometry starts fading 50 game units beyond the map's axis-aligned square boundary and becomes fully transparent across the next 20 units.
+- Switch between mouse-lens and camera-lens model views, with camera lens selected by default.
 - Show Nuke, Train, Vertigo, and Training Ground as full, upper, or lower 3D floors with binary NAV-bounded clipping. Other maps expose a toggleable playable-layer range that removes obstructing rooftop geometry; players, utility, trajectories, and manual editing follow the active range.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
