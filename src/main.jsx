@@ -10,6 +10,7 @@ import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import fallbackNavData from './data/de_dust2.json';
 import { createNavMesh } from './three/navMesh.js';
+import { createZoneModel } from './three/zoneModel.js';
 import { createTutorialMap, tutorialNavData, tutorialWorkspaceArchive, TUTORIAL_MAP_ID } from './three/tutorialMap.js';
 import { parseNavBuffer, fetchAndParseNav } from './navParser.js';
 import { createGhostMaterial, enableMapSquareFade } from './three/materials.js';
@@ -3095,6 +3096,16 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
          materials.forEach((material) => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); if (mapName === TUTORIAL_MAP_ID) material.transparent = true; material.opacity = modelOpacity; material.depthWrite = true; });
       });
       scene.add(worldModel);
+      if (mapName !== TUTORIAL_MAP_ID) {
+        new GLTFLoader().load(`${MAP_BASE}/${mapName}/${mapName}.zones.glb`, (gltf) => {
+          if (disposed || !worldModel) return;
+          const zones = createZoneModel(gltf.scene, mapName);
+          if (zones.children.length) {
+            zones.position.copy(worldModel.position);
+            scene.add(zones);
+          }
+        }, undefined, () => {});
+      }
       collisionVersion += 1;
       modelRef.current = worldModel;
       worldModel.visible = modelVisibilityRef.current;
