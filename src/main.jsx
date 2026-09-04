@@ -79,6 +79,18 @@ const MAPS = [
   { id: 'de_train', label: 'Train' },
   { id: 'de_vertigo', label: 'Vertigo' },
 ];
+const VIEW_PREFERENCES_KEY = 'csboard-view-preferences';
+const MODEL_VIEW_RANGE_EVENT = 'csboard-model-view-range';
+const ANALYSIS_HEAT_DATA_EVENT = 'csboard-analysis-heat-data';
+
+function loadViewPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VIEW_PREFERENCES_KEY) || '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  } catch {
+    return {};
+  }
+}
 
 const MAP_LABELS_ZH = {
   [TUTORIAL_MAP_ID]: '训练场',
@@ -181,7 +193,7 @@ const messages = {
   zh: {
     rounds: '回合浏览', analysis: '数据分析', collab: '协作面板', utilityNotes: '道具速记', loaded: '参考数据已加载', recentKills: '最近击杀', expand: '展开', collapse: '收起', cameraPositions: '摄像机位置', view: '视图', showNames: '显示名称', selectRound: '请选择回合', round: '回合', multiDemo: 'Demo 文件', chooseDemo: '选择文件', multiPartHint: '支持多选分片', noFileChosen: '尚未选择文件', play: '播放', pause: '暂停', loading: '加载中', allRounds: '全部回合', tRounds: 'T 回合', ctRounds: 'CT 回合', analysisHint: '选择选手后，所有回合会从冻结结束同时开始叠加播放。', heatmap: '热力图', killerPosition: '击杀时所在', victimPosition: '被击杀时所在', targetPosition: '击杀目标所在', opponentPosition: '被击杀时对方所在', saveFrame: '保存当前帧', leaveRoom: '离开房间', joinRoom: '加入房间', openRoom: '开放房间', roomPrompt: '输入 6 位房间号', currentMap: '当前地图', name: '名称', collabHint: '保存地图、镜头、编辑点位和当前 Demo 帧。Demo 文件本身不会写入浏览器存储。', owner: '房主', member: '成员',     noArchives: '暂无本地存档', guestNoArchive: '房间成员不能切换存档', restoreArchive: '恢复存档', deleteArchive: '删除存档', manualEdit: '手动地图编辑', addUtility: '添加道具', searchUtility: '搜索道具速记…', collabPlayer: '人物点位', frame: '帧', copy: '副本', nameExists: '名称已存在', insertFrame: '插帧', duplicateFrame: '复制帧', deleteFrame: '删除帧', frameName: '帧名', saveToArchive: '保存到存档', newArchive: '新建存档', archiveName: '存档名',     collabPlayers: '人物列表', noCollabPlayers: '暂无人物', frames: '帧列表', noFrames: '暂无帧', eraser: '橡皮擦', rename: '重命名', renameFrame: '重命名帧', room: '房间', roomOpened: '已公开', roomDestroyed: '房间已销毁', roomLeft: '已离开房间', roomExited: '已从房间退出', joiningRoom: '正在加入房间', joinedRoom: '已加入房间', connected: '已连接', connecting: '连接中', disconnected: '连接断开', analysisReady: '全场移动数据已就绪', analysisLoading: '正在读取全场移动数据…', parseFailed: '解析失败', combiningParts: '正在组合 {count} 个 Demo 分片…', readingDemo: '正在读取 Demo 文件…', smoke: '烟', fire: '火', flash: '闪', grenade: '雷', decoy: '诱', c4Planted: 'C4 安装', c4Exploded: 'C4 爆炸', roundEnd: '回合结束', world: '世界', unknown: '未知', language: 'EN', tacticalPoint: '战术点', team: '阵营', type: '类型', delete: '删除', map: '地图', reset: '重置', players: '选手', side: '阵营', model: '模型', c4Paused: '已拆除', noGrenades: '-', addUtilityNote: '添加速记', utilityIntro: '在 CS2 控制台输入 getpos，将输出粘贴到这里。相同位置可保存多个不同角度。', utilityEmpty: '当前地图暂无道具速记', getposOutput: 'getpos 输出', utilityName: '道具名称', throwSummary: '投掷简述', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: '例如：A 大过点烟', throwSummaryPlaceholder: '例如：贴墙站立，静步投掷', cancel: '取消', add: '添加', invalidGetpos: '无法识别 getpos，请包含 setpos 与 setang 数据', position: '位置', angles: '角度', localOnly: '数据仅保存在当前浏览器', utilityCount: '{count} 条速记',
     utilityIntro: '手动添加仍只需粘贴 getpos；从 Demo 保存的复杂投掷会与同一起点的手动记录归在一起。',
-    navGround: '导航地面', on: '开', off: '关', modelOff: '关闭模型', mouseLens: '鼠标透镜', cameraLens: '镜头透视', grid: '网格', trackpad: '触控板', resetView: '重置视图', upperFloor: '上层', lowerFloor: '下层', layerSelection: '层选择',
+    navGround: '导航地面', on: '开', off: '关', modelOff: '关闭模型', mouseLens: '鼠标透镜', cameraLens: '镜头透视', viewRange: '范围', grid: '网格', trackpad: '触控板', resetView: '重置视图', upperFloor: '上层', lowerFloor: '下层', layerSelection: '层选择',
     importNotes: '导入', exportNotes: '导出', utilityImportDone: '已导入 {added} 条，跳过 {skipped} 条重复数据', utilityImportFailed: '导入失败：文件格式不正确',
     importedUtilities: '已引入道具', noImportedUtilities: '暂无引入道具', selectUtility: '选择道具', confirmAdd: '确认添加',
     saveUtility: '保存道具', clickToReplay: '点击重播投掷', utilityStorageFailed: '保存失败，浏览器本地空间不足',
@@ -196,7 +208,7 @@ const messages = {
   en: {
     rounds: 'Round Replay', analysis: 'Analysis', collab: 'Collaboration', utilityNotes: 'Utility Notes', loaded: 'Reference Data Loaded', recentKills: 'Recent Kills', expand: 'Expand', collapse: 'Collapse', cameraPositions: 'Camera Positions', view: 'View', showNames: 'Show Names', selectRound: 'Select a round', round: 'Round', multiDemo: 'Demo Files', chooseDemo: 'Choose Files', multiPartHint: 'Multi-part selection supported', noFileChosen: 'No files selected', play: 'Play', pause: 'Pause', loading: 'Load', allRounds: 'All Rounds', tRounds: 'T Rounds', ctRounds: 'CT Rounds', analysisHint: 'Selected players are overlaid from freeze end across all rounds.', heatmap: 'Heatmap', killerPosition: 'Killer Position', victimPosition: 'Victim Position', targetPosition: 'Target Position', opponentPosition: 'Opponent Position', saveFrame: 'Save Frame', leaveRoom: 'Leave Room', joinRoom: 'Join Room', openRoom: 'Open Room', roomPrompt: 'Enter 6-digit room code', currentMap: 'Current map', name: 'Name', collabHint: 'Saves the map, camera presets, tactical edits and current Demo frame. The Demo file is not stored.', owner: 'Owner', member: 'Member',     noArchives: 'No local archives', guestNoArchive: 'Room members cannot switch archives', restoreArchive: 'Restore archive', deleteArchive: 'Delete archive', manualEdit: 'Manual map edit', addUtility: 'Add Utility', searchUtility: 'Search utility notes…', collabPlayer: 'Player Marker', frame: 'Frame', copy: 'Copy', nameExists: 'Name already exists', insertFrame: 'Insert Frame', duplicateFrame: 'Duplicate Frame', deleteFrame: 'Delete Frame', frameName: 'Frame Name', saveToArchive: 'Save to Archive', newArchive: 'New Archive', archiveName: 'Archive Name',     collabPlayers: 'Players', noCollabPlayers: 'No players yet', frames: 'Frames', noFrames: 'No frames yet', eraser: 'Eraser', rename: 'Rename', renameFrame: 'Rename Frame', room: 'Room', roomOpened: 'opened', roomDestroyed: 'Room destroyed', roomLeft: 'Left room', roomExited: 'Disconnected from room', joiningRoom: 'Joining room', joinedRoom: 'Joined room', connected: 'connected', connecting: 'connecting', disconnected: 'disconnected', analysisReady: 'Full-match movement data ready', analysisLoading: 'Reading full-match movement data...', parseFailed: 'Parse failed', combiningParts: 'Combining {count} Demo parts...', readingDemo: 'Reading Demo file...', smoke: 'SMK', fire: 'FIRE', flash: 'FL', grenade: 'HE', decoy: 'DEC', c4Planted: 'C4 planted', c4Exploded: 'C4 exploded', roundEnd: 'Round ended', world: 'WORLD', unknown: 'UNKNOWN', language: '中文', tacticalPoint: 'Tactical Point', team: 'Team', type: 'Type', delete: 'Delete', map: 'Map', reset: 'Reset', players: 'Players', side: 'Side', model: 'Model', c4Paused: 'DEFUSED', noGrenades: '-', addUtilityNote: 'Add Note', utilityIntro: 'Run getpos in the CS2 console and paste its output here. One position can store multiple angles.', utilityEmpty: 'No utility notes for this map', getposOutput: 'getpos output', utilityName: 'Utility name', throwSummary: 'Throw summary', getposPlaceholder: 'setpos 123 456 78;setang -12 90 0', utilityNamePlaceholder: 'Example: A Long cross smoke', throwSummaryPlaceholder: 'Example: Hug the wall, standing throw', cancel: 'Cancel', add: 'Add', invalidGetpos: 'Could not parse getpos. Include setpos and setang values.', position: 'Position', angles: 'Angles', localOnly: 'Stored only in this browser', utilityCount: '{count} notes',
     utilityIntro: 'Manual entry still accepts getpos only. Complex Demo throws are grouped with manual notes at the same start position.',
-    navGround: 'NAV', on: 'ON', off: 'OFF', modelOff: 'MODEL OFF', mouseLens: 'MOUSE LENS', cameraLens: 'CAMERA LENS', grid: 'GRID', trackpad: 'TRACKPAD', resetView: 'RESET VIEW', upperFloor: 'UP', lowerFloor: 'LOW', layerSelection: 'LAYER',
+    navGround: 'NAV', on: 'ON', off: 'OFF', modelOff: 'MODEL OFF', mouseLens: 'MOUSE LENS', cameraLens: 'CAMERA LENS', viewRange: 'RANGE', grid: 'GRID', trackpad: 'TRACKPAD', resetView: 'RESET VIEW', upperFloor: 'UP', lowerFloor: 'LOW', layerSelection: 'LAYER',
     importNotes: 'Import', exportNotes: 'Export', utilityImportDone: 'Imported {added}; skipped {skipped} duplicates', utilityImportFailed: 'Import failed: invalid file format',
     importedUtilities: 'Imported Utilities', noImportedUtilities: 'No imported utilities', selectUtility: 'Select Utility', confirmAdd: 'Add Selected',
     saveUtility: 'Save Utility', clickToReplay: 'Click to replay throw', utilityStorageFailed: 'Could not save: browser storage is full',
@@ -327,13 +339,14 @@ const grenadeIconKey = (weapon = '') => {
   return null;
 };
 
-function playerGrenadeIcons(inventory, language) {
+function playerGrenadeIcons(inventory, language, hasC4 = false) {
   const counts = new Map();
   (inventory || []).forEach((item) => {
     const rawName = typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item;
     const key = grenadeIconKey(rawName);
     if (key) counts.set(key, (counts.get(key) || 0) + 1);
   });
+  if (hasC4) counts.set('c4', 1);
   if (!counts.size) return translate(language, 'noGrenades');
   return <span className="roster-grenades">{[...counts].map(([key, count]) => <span className="roster-grenade" key={key}><RawIcon name={key} /><i>{count > 1 ? count : ''}</i></span>)}</span>;
 }
@@ -562,12 +575,12 @@ function DemoRoster({ side, players, events, tick, round, tickRate, language, po
     const health = Math.max(0, Number(player.health) || 0);
     const reload = demoPlayerReload(demoRosterRuntime.reloads, player, tick);
     const playerId = String(player.steamid || player.name);
-    return <div className={`roster-player${health > 0 ? '' : ' dead'}${player.hasC4 ? ' has-c4' : ''}${selectedPovId === playerId ? ' pov-selected' : ''}`} key={playerId} role="button" tabIndex={health > 0 ? 0 : -1} onClick={(event) => { event.currentTarget.blur(); if (health > 0) selectPov?.(player); }} onKeyDown={(event) => { if (health > 0 && event.key === 'Enter') { event.preventDefault(); selectPov?.(player); } }}>
+    return <div className={`roster-player${health > 0 ? '' : ' dead'}${selectedPovId === playerId ? ' pov-selected' : ''}`} key={playerId} role="button" tabIndex={health > 0 ? 0 : -1} onClick={(event) => { event.currentTarget.blur(); if (health > 0) selectPov?.(player); }} onKeyDown={(event) => { if (health > 0 && event.key === 'Enter') { event.preventDefault(); selectPov?.(player); } }}>
       <div className="roster-health-track"><i style={{ width: `${delayedHealth}%` }} /><span style={{ width: `${health}%` }} /></div>
       <strong>{player.name}</strong><b>{health} HP</b>
-      <div className="roster-equipment"><span className="roster-armor">{player.armor > 0 && <><RosterIcon type={player.hasHelmet ? 'armorHelmet' : 'armor'} /><i>{player.armor}</i></>}</span>{player.hasDefuser && <RosterIcon type="defuser" />}</div>
+       <div className="roster-equipment"><span className="roster-armor">{player.armor > 0 && <><RosterIcon type={player.hasHelmet ? 'armorHelmet' : 'armor'} /><i>{player.armor}</i></>}</span>{player.hasDefuser && <RosterIcon type="defuser" />}</div>
       <div className="roster-money"><span>${Math.max(0, Number(player.balance) || 0)}</span>{moneyDelta !== 0 && <i key={moneyKey} className={moneyDelta > 0 ? 'gain' : 'spend'}>{moneyDelta > 0 ? '+' : ''}{moneyDelta}$</i>}</div>
-       <small>{playerGrenadeIcons(player.inventory, language)}</small><em><RosterWeaponIcon weapon={player.activeWeapon} side={player.side} />{player.activeWeaponAmmo != null && <span className="roster-ammo">{player.activeWeaponAmmo}</span>}</em>
+        <small>{playerGrenadeIcons(player.inventory, language, player.hasC4)}</small><em><RosterWeaponIcon weapon={player.activeWeapon} side={player.side} />{player.activeWeaponAmmo != null && <span className="roster-ammo">{player.activeWeaponAmmo}</span>}</em>
       {reload && <span className="roster-reload" style={{ '--reload-progress': `${reload.progress * 100}%` }}><i />RELOAD</span>}
       {flashOpacity > 0 && <span className="roster-flash" style={{ opacity: flashOpacity }} />}
     </div>;
@@ -890,6 +903,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   const mountRef = useRef(null);
   const edgesRef = useRef(null);
   const modelModeRef = useRef(null);
+  const modelRangeRef = useRef(null);
   const navFocusRef = useRef(null);
   const navGroupRef = useRef(null);
   const gridRef = useRef(null);
@@ -914,6 +928,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   const demoCameraInterruptRef = useRef(demoPovRuntime.interrupt || onDemoCameraInterrupt);
   const demoInEyePlayerRef = useRef(demoInEyePlayer || demoPovRuntime.player);
   const heatDeathsRef = useRef(heatDeaths || []);
+  const analysisHeatDeathsRef = useRef([]);
   const demoViewFlagsRef = useRef(demoViewFlags || {});
   const showDemoNamesRef = useRef(showDemoNames);
   const hoveredDemoPlayerRef = useRef(null);
@@ -937,7 +952,6 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   const modelLoadStateRef = useRef(onModelLoadState);
   modelLoadStateRef.current = onModelLoadState;
   const collabHistoryRef = useRef({ push: () => {}, undo: () => {}, redo: () => {} });
-  const analysisRoundsRef = useRef(analysisRounds || []);
   const analysisTimeRef = useRef(analysisTime || 0);
   const analysisSideRef = useRef(analysisSide || 'ALL');
   const demoProjectileGroupsRef = useRef(new Map());
@@ -983,7 +997,6 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   brushColorRef.current = brushColor || brushColorRef.current;
   brushWidthRef.current = brushWidth || brushWidthRef.current;
   brushEraserRef.current = eraserEnabled === true;
-  analysisRoundsRef.current = analysisRounds || [];
   analysisTimeRef.current = analysisTime || 0;
   analysisSideRef.current = analysisSide || 'ALL';
   updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current, navData);
@@ -1019,6 +1032,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     const demoFlashedHeadColor = new THREE.Color('#e4e7e5');
     const demoDeathMarkers = new Map();
     const demoHeatObjects = new Map();
+    let globalHeatOverlay = null;
+    let globalHeatSignature = '';
     const c4Group = new THREE.Group();
     const analysisGroup = new THREE.Group();
     const analysisPaths = new Map();
@@ -1513,24 +1528,136 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       const flags = demoViewFlagsRef.current;
       const selectedPlayers = new Set(analysisSelectedPlayersRef.current);
       const analysisMode = analysisEnabledRef.current;
+      const areaMode = analysisMode && flags.analysisMetric === 'area';
+      const globalHeat = areaMode || flags.analysisMetric === 'kd' && flags.heatStyle === 'global';
       const cells = new Map();
-      const add = (kind, x, y, z, color) => {
-        if (x == null || y == null || z == null) return;
-        const worldX = y * 0.0254 - modelCenter.x;
-        const worldZ = x * 0.0254 - modelCenter.z;
-        const cell = `${kind}-${Math.round(worldX / 1.2)}-${Math.round(worldZ / 1.2)}`;
-        const value = cells.get(cell) || { kind, x: worldX, z: worldZ, y: z * 0.0254 - modelCenter.y, count: 0, color };
-        value.count += 1;
+      const addWorld = (kind, worldX, worldY, worldZ, color, amount = 1) => {
+        const cell = `${globalHeat ? 'global' : kind}-${Math.round(worldX / 1.2)}-${Math.round(worldZ / 1.2)}`;
+        const value = cells.get(cell) || { kind, x: worldX, z: worldZ, y: worldY, count: 0, color, kinds: {} };
+        value.count += amount;
+        value.kinds[kind] = (value.kinds[kind] || 0) + amount;
         cells.set(cell, value);
       };
-      heatDeathsRef.current.forEach((event) => {
-        const selectedAttacker = !analysisMode || selectedPlayers.has(event.attacker_name);
-        const selectedVictim = !analysisMode || selectedPlayers.has(event.user_name);
-        if (flags.killerHeat && selectedAttacker) add('killerHeat', event.attacker_X, event.attacker_Y, event.attacker_Z, '#ffb347');
-        if (flags.targetHeat && selectedAttacker) add('targetHeat', event.user_X, event.user_Y, event.user_Z, '#ff6b6b');
-        if (flags.victimHeat && selectedVictim) add('victimHeat', event.user_X, event.user_Y, event.user_Z, '#5da9ff');
-        if (flags.opponentHeat && selectedVictim) add('opponentHeat', event.attacker_X, event.attacker_Y, event.attacker_Z, '#c58cff');
-      });
+      const addEvent = (kind, x, y, z, color) => {
+        if (x == null || y == null || z == null) return;
+        addWorld(kind, y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y, x * 0.0254 - modelCenter.z, color);
+      };
+      if (areaMode) {
+        const rows = analysisRowsRef.current;
+        rows.forEach((snapshot, index) => {
+          const player = snapshot.players.find((candidate) => selectedPlayers.has(candidate.name));
+          const next = rows[index + 1];
+          if (!player || player.health <= 0 || !next || next.analysisRound?.id !== snapshot.analysisRound?.id) return;
+          if (flags.economyMatchup !== 'ALL' && snapshot.analysisRound?.economyMatchup !== flags.economyMatchup) return;
+          const side = player.team === 2 ? 'T' : 'CT';
+          if (analysisSideRef.current !== 'ALL' && side !== analysisSideRef.current) return;
+          if (snapshot.tick >= snapshot.analysisRound.endTick) return;
+          const seconds = THREE.MathUtils.clamp((Math.min(next.tick, snapshot.analysisRound.endTick) - snapshot.tick) / 64, 0, 0.75);
+          if (seconds <= 0) return;
+          addWorld('areaHeat', player.position.x - modelCenter.x, player.position.y - modelCenter.y, player.position.z - modelCenter.z, '#ff6b47', seconds);
+        });
+      } else {
+        const deaths = analysisMode ? analysisHeatDeathsRef.current : heatDeathsRef.current;
+        deaths.forEach((event) => {
+          if (analysisMode && flags.economyMatchup !== 'ALL' && event.analysisEconomyMatchup !== flags.economyMatchup) return;
+          const requiredTeam = analysisSideRef.current === 'T' ? 2 : analysisSideRef.current === 'CT' ? 3 : null;
+          const selectedAttacker = (!analysisMode || selectedPlayers.has(event.attacker_name)) && (requiredTeam == null || Number(event.attacker_team_num) === requiredTeam);
+          const selectedVictim = (!analysisMode || selectedPlayers.has(event.user_name)) && (requiredTeam == null || Number(event.user_team_num) === requiredTeam);
+          if (flags.killerHeat && selectedAttacker) addEvent('killerHeat', event.attacker_X, event.attacker_Y, event.attacker_Z, '#ffb347');
+          if (flags.targetHeat && selectedAttacker) addEvent('targetHeat', event.user_X, event.user_Y, event.user_Z, '#ff6b6b');
+          if (flags.victimHeat && selectedVictim) addEvent('victimHeat', event.user_X, event.user_Y, event.user_Z, '#5da9ff');
+          if (flags.opponentHeat && selectedVictim) addEvent('opponentHeat', event.attacker_X, event.attacker_Y, event.attacker_Z, '#c58cff');
+        });
+      }
+      if (globalHeat && nav?.mesh && worldModel) {
+        const signature = [...cells].map(([key, cell]) => `${key}:${Object.entries(cell.kinds).map(([kind, count]) => `${kind}-${count}`).join(',')}`).join('|');
+        if (!globalHeatOverlay) {
+          const canvas = document.createElement('canvas');
+          canvas.width = 256;
+          canvas.height = 256;
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          const geometry = nav.geometry;
+          const positions = geometry.getAttribute('position');
+          const uvs = new Float32Array(positions.count * 2);
+          const width = Math.max(0.001, nav.modelBoundary.max.x - nav.modelBoundary.min.x);
+          const depth = Math.max(0.001, nav.modelBoundary.max.y - nav.modelBoundary.min.y);
+          for (let index = 0; index < positions.count; index += 1) {
+            uvs[index * 2] = (positions.getX(index) + nav.group.position.x - nav.modelBoundary.min.x) / width;
+            uvs[index * 2 + 1] = (positions.getZ(index) + nav.group.position.z - nav.modelBoundary.min.y) / depth;
+          }
+          geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+          const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+          globalHeatOverlay = new THREE.Mesh(geometry, material);
+          globalHeatOverlay.renderOrder = 4;
+          nav.group.add(globalHeatOverlay);
+          nav.mesh.material.addEventListener('dispose', () => { texture.dispose(); material.dispose(); });
+        }
+        globalHeatOverlay.visible = true;
+        if (signature !== globalHeatSignature) {
+          globalHeatSignature = signature;
+          const canvas = globalHeatOverlay.material.map.image;
+          const context = canvas.getContext('2d');
+          const size = canvas.width;
+          const kinds = areaMode ? ['areaHeat'] : ['killerHeat', 'victimHeat', 'targetHeat', 'opponentHeat'];
+          const values = kinds.map(() => new Float32Array(size * size));
+          const width = Math.max(0.001, nav.modelBoundary.max.x - nav.modelBoundary.min.x);
+          const depth = Math.max(0.001, nav.modelBoundary.max.y - nav.modelBoundary.min.y);
+          const radius = THREE.MathUtils.clamp(9 / Math.max(width, depth) * size, 22, 54);
+          cells.forEach((cell) => {
+            const centerX = (cell.x - nav.modelBoundary.min.x) / width * (size - 1);
+            const centerY = (1 - (cell.z - nav.modelBoundary.min.y) / depth) * (size - 1);
+            const minX = Math.max(0, Math.floor(centerX - radius));
+            const maxX = Math.min(size - 1, Math.ceil(centerX + radius));
+            const minY = Math.max(0, Math.floor(centerY - radius));
+            const maxY = Math.min(size - 1, Math.ceil(centerY + radius));
+            for (let y = minY; y <= maxY; y += 1) for (let x = minX; x <= maxX; x += 1) {
+              const distanceSquared = ((x - centerX) ** 2 + (y - centerY) ** 2) / (radius ** 2);
+              if (distanceSquared <= 1) {
+                const influence = Math.exp(-distanceSquared * 3.2);
+                kinds.forEach((kind, kindIndex) => { values[kindIndex][y * size + x] += influence * (cell.kinds[kind] || 0); });
+              }
+            }
+          });
+          let peak = 0.001;
+          for (let index = 0; index < size * size; index += 1) peak = Math.max(peak, values.reduce((sum, field) => sum + field[index], 0));
+          const image = context.createImageData(size, size);
+          const colorRamps = (areaMode ? [
+            ['#17345f', '#ff5a47'],
+          ] : [
+            ['#59367f', '#ffb347'],
+            ['#183f86', '#5da9ff'],
+            ['#65255f', '#ff6b6b'],
+            ['#2949a0', '#c58cff'],
+          ]).map(([cold, hot]) => [new THREE.Color(cold), new THREE.Color(hot)]);
+          for (let index = 0; index < size * size; index += 1) {
+            const total = values.reduce((sum, field) => sum + field[index], 0);
+            if (total < peak * 0.008) continue;
+            const density = THREE.MathUtils.clamp(Math.pow(total / peak, 0.52), 0, 1);
+            const mixed = new THREE.Color(0, 0, 0);
+            colorRamps.forEach(([cold, hot], kindIndex) => {
+              const weight = values[kindIndex][index] / total;
+              if (!weight) return;
+              const categoryDensity = THREE.MathUtils.clamp(Math.pow(values[kindIndex][index] / peak, 0.46), 0, 1);
+              const temperature = THREE.MathUtils.smoothstep(categoryDensity, 0.45, 0.88);
+              mixed.r += THREE.MathUtils.lerp(cold.r, hot.r, temperature) * weight;
+              mixed.g += THREE.MathUtils.lerp(cold.g, hot.g, temperature) * weight;
+              mixed.b += THREE.MathUtils.lerp(cold.b, hot.b, temperature) * weight;
+            });
+            const brightness = 0.72 + density * 0.38;
+            image.data[index * 4] = Math.round(Math.min(1, mixed.r * brightness) * 255);
+            image.data[index * 4 + 1] = Math.round(Math.min(1, mixed.g * brightness) * 255);
+            image.data[index * 4 + 2] = Math.round(Math.min(1, mixed.b * brightness) * 255);
+            image.data[index * 4 + 3] = Math.round(255 * THREE.MathUtils.smoothstep(density, 0.025, 0.72) * 0.9);
+          }
+          context.putImageData(image, 0, 0);
+          globalHeatOverlay.material.map.needsUpdate = true;
+        }
+        demoHeatObjects.forEach((heat, key) => { scene.remove(heat); heat.geometry.dispose(); heat.material.dispose(); demoHeatObjects.delete(key); });
+        return;
+      }
+      if (globalHeatOverlay) globalHeatOverlay.visible = false;
       const active = new Set(cells.keys());
       cells.forEach((cell, key) => {
         let heat = demoHeatObjects.get(key);
@@ -1553,6 +1680,10 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       demoHeatObjects.forEach((heat, key) => { if (!active.has(key)) { scene.remove(heat); heat.geometry.dispose(); heat.material.dispose(); demoHeatObjects.delete(key); } });
     };
     const updateAnalysis = () => {
+      if (analysisEnabledRef.current && demoViewFlagsRef.current.analysisMetric === 'area') {
+        analysisGroup.visible = false;
+        return;
+      }
       if (!analysisEnabledRef.current || !analysisRowsRef.current.length) {
         if (analysisGroup.visible) {
           analysisPaths.forEach((item) => { item.line.geometry.dispose(); item.line.material.dispose(); item.marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); }); analysisGroup.remove(item.line, item.marker); });
@@ -1564,17 +1695,20 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
       analysisGroup.visible = true;
       const selected = analysisSelectedPlayersRef.current;
-      const signature = `${selected.join('|')}:${analysisSideRef.current}:${analysisRowsRef.current.length}:${analysisRoundsRef.current.length}`;
+      const analysisRoundIds = [...new Set(analysisRowsRef.current.map((snapshot) => snapshot.analysisRound?.id).filter(Boolean))];
+      const signature = `${selected.join('|')}:${analysisSideRef.current}:${demoViewFlagsRef.current.economyMatchup}:${analysisRowsRef.current.length}:${analysisRoundIds.join('|')}`;
       if (signature !== analysisSignature) {
         analysisPaths.forEach((item) => { item.line.geometry.dispose(); item.line.material.dispose(); item.marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); }); analysisGroup.remove(item.line, item.marker); });
         analysisPaths.clear();
-        const rowsByRound = analysisRoundsRef.current.map(() => []);
+        const rowsByRound = new Map(analysisRoundIds.map((id) => [id, []]));
         analysisRowsRef.current.forEach((snapshot) => {
-          const roundIndex = analysisRoundsRef.current.findIndex((round) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick);
-          if (roundIndex >= 0) rowsByRound[roundIndex].push(snapshot);
+          if (snapshot.analysisRound?.id) rowsByRound.get(snapshot.analysisRound.id)?.push(snapshot);
         });
-        selected.forEach((name) => analysisRoundsRef.current.forEach((round, roundIndex) => {
-           const records = (rowsByRound[roundIndex] || []).flatMap((snapshot) => snapshot.players.filter((player) => player.name === name).map((player) => ({ time: snapshot.tick - round.startTick, health: player.health, team: player.team, yaw: player.yaw || 0, pitch: THREE.MathUtils.degToRad(player.pitch || 0), crouched: (player.duckAmount || 0) > 0.45, weapon: player.activeWeapon || '', position: new THREE.Vector3(player.position.x - modelCenter.x, player.position.y - modelCenter.y + 0.08, player.position.z - modelCenter.z) }))).sort((left, right) => left.time - right.time);
+        selected.forEach((name) => analysisRoundIds.forEach((roundId, roundIndex) => {
+           const roundRows = rowsByRound.get(roundId) || [];
+           const round = roundRows[0]?.analysisRound;
+           if (demoViewFlagsRef.current.economyMatchup !== 'ALL' && round?.economyMatchup !== demoViewFlagsRef.current.economyMatchup) return;
+           const records = roundRows.flatMap((snapshot) => snapshot.players.filter((player) => player.name === name).map((player) => ({ time: snapshot.tick - round.startTick, health: player.health, team: player.team, yaw: player.yaw || 0, pitch: THREE.MathUtils.degToRad(player.pitch || 0), crouched: (player.duckAmount || 0) > 0.45, weapon: player.activeWeapon || '', position: new THREE.Vector3(player.position.x - modelCenter.x, player.position.y - modelCenter.y + 0.08, player.position.z - modelCenter.z) }))).sort((left, right) => left.time - right.time);
           const roundSide = records[0]?.team === 2 ? 'T' : records[0] ? 'CT' : null;
           if (analysisSideRef.current !== 'ALL' && roundSide !== analysisSideRef.current) return;
           const deathIndex = records.findIndex((record) => record.health != null && record.health <= 0);
@@ -1586,7 +1720,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
           const line = new THREE.Line(geometry, new THREE.LineDashedMaterial({ color: '#c9f76b', dashSize: 0.28, gapSize: 0.16, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false }));
           line.renderOrder = 5;
           line.computeLineDistances();
-          const marker = createCollabPlayer({ position: new THREE.Vector3(), id: `analysis-${name}-${roundIndex}`, name, team: records[0].team === 2 ? 'T' : 'CT', crouched: records[0].crouched, pitch: records[0].pitch, weapon: records[0].weapon });
+           const marker = createCollabPlayer({ position: new THREE.Vector3(), id: `analysis-${name}-${roundIndex}`, name, team: records[0].team === 2 ? 'T' : 'CT', crouched: records[0].crouched, pitch: records[0].pitch, weapon: records[0].weapon, showName: false });
           marker.geometry = { dispose() {} };
           marker.material = { dispose() {} };
           marker.renderOrder = 5;
@@ -1956,6 +2090,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     };
     const disposeOrbitControls = controls.dispose.bind(controls);
     controls.dispose = () => {
+      saveCurrentCamera();
+      window.clearTimeout(currentCameraSaveTimer);
       endWrappedPan();
       wrappedPanAbortController.abort();
       wrappedPanCursor.remove();
@@ -2025,6 +2161,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     navFocusRef.current = focusEnabled;
     const modelMode = { value: modelViewMode };
     modelModeRef.current = modelMode;
+    const savedModelViewRange = Number(loadViewPreferences().modelViewRange);
+    const modelRange = { value: Number.isFinite(savedModelViewRange) ? THREE.MathUtils.clamp(savedModelViewRange, 0, 1) : 0.5 };
+    modelRangeRef.current = modelRange;
     const raycaster = new THREE.Raycaster();
     let previewPoint;
     let placementOrigin;
@@ -2380,6 +2519,30 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     };
     updateCameraSlotState(null);
     const getCameraState = () => ({ position: camera.position.toArray(), target: controls.target.toArray() });
+    const currentCameraStorageKey = `csboard-camera-current-${mapName}`;
+    let currentCameraSaveTimer;
+    let currentCameraPersistenceReady = false;
+    const saveCurrentCamera = () => {
+      if (!currentCameraPersistenceReady || utilityFirstPersonActive || demoDirectorCameraActive) return;
+      try { localStorage.setItem(currentCameraStorageKey, JSON.stringify(getCameraState())); } catch { /* Camera persistence is optional. */ }
+    };
+    const scheduleCurrentCameraSave = () => {
+      window.clearTimeout(currentCameraSaveTimer);
+      currentCameraSaveTimer = window.setTimeout(saveCurrentCamera, 180);
+    };
+    const restoreCurrentCamera = () => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(currentCameraStorageKey) || 'null');
+        if (!saved?.position?.every(Number.isFinite) || !saved?.target?.every(Number.isFinite) || saved.position.length !== 3 || saved.target.length !== 3) return false;
+        camera.position.fromArray(saved.position);
+        controls.target.fromArray(saved.target);
+        controls.update();
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    controls.addEventListener('change', scheduleCurrentCameraSave);
     const getRadarCameraState = () => {
       const demoRadarPlayers = (demoSnapshotRef.current?.players || []).filter((player) => player.health > 0).map((player) => {
         const yaw = THREE.MathUtils.degToRad(player.yaw || 0);
@@ -3091,7 +3254,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         collisionMeshes.push(object);
         object.frustumCulled = true;
         object.renderOrder = 3;
-         if (object.material && mapName !== TUTORIAL_MAP_ID) object.material = Array.isArray(object.material) ? object.material.map(() => createGhostMaterial(focusScreen, viewportSize, modelMode)) : createGhostMaterial(focusScreen, viewportSize, modelMode);
+         if (object.material && mapName !== TUTORIAL_MAP_ID) object.material = Array.isArray(object.material) ? object.material.map(() => createGhostMaterial(focusScreen, viewportSize, modelMode, modelRange)) : createGhostMaterial(focusScreen, viewportSize, modelMode, modelRange);
          const materials = Array.isArray(object.material) ? object.material : [object.material];
          materials.forEach((material) => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); if (mapName === TUTORIAL_MAP_ID) material.transparent = true; material.opacity = modelOpacity; material.depthWrite = true; });
       });
@@ -3110,7 +3273,10 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       modelRef.current = worldModel;
       worldModel.visible = modelVisibilityRef.current;
          worldModel.position.y = modelBasePositionRef.current.y + (modelMode.value === 0 ? -0.12 : 0);
+      worldModel.updateMatrixWorld(true);
       resetCamera();
+      restoreCurrentCamera();
+      currentCameraPersistenceReady = true;
       onReady({ reset: () => resetToDefault(resetCamera), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, clearCollabUtilities, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
       modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
     };
@@ -3139,6 +3305,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         controls.target.set(0, 0, 0);
         controls.maxDistance = Math.max(nav.size * 2.2, 70);
         controls.update();
+        restoreCurrentCamera();
+        currentCameraPersistenceReady = true;
          const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
          onReady({ reset: () => resetToDefault(normalReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, clearCollabUtilities, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
       }
@@ -3403,6 +3571,20 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   }, [showGrid]);
 
   useEffect(() => {
+    const updateModelRange = (event) => {
+      if (modelRangeRef.current) modelRangeRef.current.value = THREE.MathUtils.clamp(Number(event.detail), 0, 1);
+    };
+    window.addEventListener(MODEL_VIEW_RANGE_EVENT, updateModelRange);
+    return () => window.removeEventListener(MODEL_VIEW_RANGE_EVENT, updateModelRange);
+  }, []);
+
+  useEffect(() => {
+    const updateAnalysisHeatData = (event) => { analysisHeatDeathsRef.current = event.detail?.deaths || []; };
+    window.addEventListener(ANALYSIS_HEAT_DATA_EVENT, updateAnalysisHeatData);
+    return () => window.removeEventListener(ANALYSIS_HEAT_DATA_EVENT, updateAnalysisHeatData);
+  }, []);
+
+  useEffect(() => {
     modelVisibilityRef.current = showModel;
     if (modelRef.current) modelRef.current.visible = showModel;
     if (modelRef.current && modelBasePositionRef.current) modelRef.current.position.y = modelBasePositionRef.current.y + (modelViewMode === 0 ? -0.12 : 0);
@@ -3421,13 +3603,14 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
        navEdges.renderOrder = 2;
        }
         if (modelRef.current) modelRef.current.traverse((object) => { if (!object.material) return; const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = true; }); });
-   }, [showModel, modelOpacity, modelViewMode]);
+    }, [showModel, modelOpacity, modelViewMode]);
 
   const firstPersonVisible = Boolean(utilityFirstPerson?.player || demoInEyePlayer || demoPovRuntime.player);
   return <div ref={(node) => { mountRef.current = node; }} className="three-board">{error && <div className="board-error">{error}</div>}{firstPersonVisible && <div className="pov-crosshair" aria-hidden="true"><i /><i /><i /><i /></div>}</div>;
 }
 
 function App() {
+  const initialViewPreferences = useRef(loadViewPreferences()).current;
   const [language, setLanguage] = useState(() => localStorage.getItem('csboard-language') || 'zh');
   const [collabUtilitySearch, setCollabUtilitySearch] = useState('');
   const [collabUtilityPickerOpen, setCollabUtilityPickerOpen] = useState(false);
@@ -3437,7 +3620,7 @@ function App() {
   const t = (key, values) => translate(language, key, values);
   const languageRef = useRef(language);
   languageRef.current = language;
-  const [mapName, setMapName] = useState('de_dust2');
+  const [mapName, setMapName] = useState(() => MAPS.some((map) => map.id === initialViewPreferences.mapName) ? initialViewPreferences.mapName : 'de_dust2');
   const [navData, setNavData] = useState(fallbackNavData);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -3452,13 +3635,14 @@ function App() {
     return firstVisit;
   });
   const showEdges = false;
-  const [showGrid, setShowGrid] = useState(false);
-  const [showNav, setShowNav] = useState(true);
-  const [showModel, setShowModel] = useState(true);
-  const [modelOpacity, setModelOpacity] = useState(0.9);
-  const [modelViewMode, setModelViewMode] = useState(2);
+  const [showGrid, setShowGrid] = useState(() => typeof initialViewPreferences.showGrid === 'boolean' ? initialViewPreferences.showGrid : false);
+  const [showNav, setShowNav] = useState(() => typeof initialViewPreferences.showNav === 'boolean' ? initialViewPreferences.showNav : true);
+  const [showModel, setShowModel] = useState(() => typeof initialViewPreferences.showModel === 'boolean' ? initialViewPreferences.showModel : true);
+  const [modelOpacity, setModelOpacity] = useState(() => Number.isFinite(initialViewPreferences.modelOpacity) ? THREE.MathUtils.clamp(initialViewPreferences.modelOpacity, 0, 1) : 0.9);
+  const [modelViewMode, setModelViewMode] = useState(() => [1, 2].includes(initialViewPreferences.modelViewMode) ? initialViewPreferences.modelViewMode : 2);
+  const [modelViewRange, setModelViewRange] = useState(() => Number.isFinite(initialViewPreferences.modelViewRange) ? THREE.MathUtils.clamp(initialViewPreferences.modelViewRange, 0, 1) : 0.5);
   const [modelLoadState, setModelLoadState] = useState({ mapName: 'de_dust2', status: 'loading', loaded: 0, total: 0 });
-  const [trackpadDetection, setTrackpadDetection] = useState(true);
+  const [trackpadDetection, setTrackpadDetection] = useState(() => typeof initialViewPreferences.trackpadDetection === 'boolean' ? initialViewPreferences.trackpadDetection : true);
   const [demoData, setDemoData] = useState(null);
   const [demoTick, setDemoTick] = useState(0);
   const [demoPlaying, setDemoPlaying] = useState(false);
@@ -3472,7 +3656,7 @@ function App() {
   const parseGameTimerRef = useRef(null);
   const demoParseProgressRef = useRef({ startedAt: 0, real: 0, completed: 0, total: 0, lastRealAt: 0, msPerPercent: 3000, hasReal: false });
   const [demoKillsCollapsed, setDemoKillsCollapsed] = useState(false);
-  const [demoViewFlags, setDemoViewFlags] = useState({ deathVictim: true, deathKiller: true, killerHeat: false, victimHeat: false, targetHeat: false, opponentHeat: false });
+  const [demoViewFlags, setDemoViewFlags] = useState({ deathVictim: true, deathKiller: true, killerHeat: false, victimHeat: false, targetHeat: false, opponentHeat: false, analysisMetric: 'kd', heatStyle: 'points', economyMatchup: 'ALL' });
   const [showDemoNames, setShowDemoNames] = useState(false);
   const [demoSnapshots, setDemoSnapshots] = useState([]);
   const [demoThrowSnapshots, setDemoThrowSnapshots] = useState([]);
@@ -3485,7 +3669,8 @@ function App() {
   const [analysisRows, setAnalysisRows] = useState([]);
   const [analysisPlayers, setAnalysisPlayers] = useState([]);
   const [analysisSelectedPlayers, setAnalysisSelectedPlayers] = useState([]);
-  const [analysisLoadedFor, setAnalysisLoadedFor] = useState('');
+  const [analysisDemos, setAnalysisDemos] = useState([]);
+  const [analysisSelectedDemoIds, setAnalysisSelectedDemoIds] = useState([]);
   const [analysisPlaying, setAnalysisPlaying] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState('');
   const [analysisTime, setAnalysisTime] = useState(0);
@@ -3520,8 +3705,9 @@ function App() {
   const [pointUpdate, setPointUpdateState] = useState(null);
   const [grenadeWheel, setGrenadeWheel] = useState({ open: false, type: 'smoke' });
   const [cameraSlotState, setCameraSlotState] = useState(Array(10).fill(false));
-  const [map2dLayer, setMap2dLayer] = useState(0);
-  const [modelFloor, setModelFloor] = useState('all');
+  const [map2dLayer, setMap2dLayer] = useState(() => Number.isInteger(initialViewPreferences.map2dLayer) && initialViewPreferences.map2dLayer >= 0 ? initialViewPreferences.map2dLayer : 0);
+  const [modelFloor, setModelFloor] = useState(() => ['all', 'main', 'lower'].includes(initialViewPreferences.modelFloor) ? initialViewPreferences.modelFloor : 'all');
+  const initialMapOptionsRef = useRef(true);
   const [radarScene, setRadarScene] = useState(null);
   const [activeCameraSlot, setActiveCameraSlot] = useState(null);
   const [activePanel, setActivePanel] = useState(() => window.matchMedia?.('(max-width: 820px)').matches ? 'utility' : 'demo');
@@ -3561,7 +3747,14 @@ function App() {
     observer.observe(target);
     return () => { observer.disconnect(); window.cancelAnimationFrame(frame); stage?.removeAttribute('data-map-status-overlap'); stage?.style.removeProperty('--map-bar-height'); stage?.style.removeProperty('--map-bar-width'); stage?.style.removeProperty('--status-bar-height'); stage?.style.removeProperty('--frame-window-width'); };
   }, [activePanel, isMobile, leftSidebarOpen, mapName, navData]);
-  useEffect(() => { setMap2dLayer(0); setModelFloor('all'); }, [mapName]);
+  useEffect(() => {
+    if (initialMapOptionsRef.current) {
+      initialMapOptionsRef.current = false;
+      return;
+    }
+    setMap2dLayer(0);
+    setModelFloor('all');
+  }, [mapName]);
   useEffect(() => {
     const update = () => setRadarScene(boardRef.current?.getRadarCameraState?.() || null);
     update();
@@ -3687,6 +3880,12 @@ function App() {
     localStorage.setItem('csboard-language', language);
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
   }, [language]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_PREFERENCES_KEY, JSON.stringify({ mapName, showGrid, showNav, showModel, modelOpacity, modelViewMode, modelViewRange, trackpadDetection, map2dLayer, modelFloor }));
+    } catch { /* View preferences remain available for this session. */ }
+    window.dispatchEvent(new CustomEvent(MODEL_VIEW_RANGE_EVENT, { detail: modelViewRange }));
+  }, [mapName, showGrid, showNav, showModel, modelOpacity, modelViewMode, modelViewRange, trackpadDetection, map2dLayer, modelFloor]);
   useEffect(() => { localStorage.setItem('csboard-demo-sample-rate', String(demoSampleRate)); }, [demoSampleRate]);
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -3715,8 +3914,73 @@ function App() {
     });
     localStorage.setItem('csboard-utility-notes-version', String(UTILITY_NOTES_VERSION));
   }, []);
-  const refreshCachedDemos = () => listCachedDemos().then((entries) => setCachedDemos(entries.map((entry) => { const sampleRate = entry.sampleRate || Number(String(entry.id).match(/^(\d+)hz\|/)?.[1]) || 8; return { ...entry, sampleRate, map: `${entry.map} · ${sampleRate} Hz` }; }))).catch(() => setDemoStatus(t('cacheFailed')));
+  const refreshCachedDemos = () => listCachedDemos().then((entries) => setCachedDemos(entries.map((entry) => { const sampleRate = entry.sampleRate || Number(String(entry.id).match(/^(\d+)hz\|/)?.[1]) || 8; return { ...entry, sampleRate, rawMap: entry.map, map: `${entry.map} · ${sampleRate} Hz` }; }))).catch(() => setDemoStatus(t('cacheFailed')));
   useEffect(() => { refreshCachedDemos(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    setAnalysisDemos([]);
+    setAnalysisPlayers([]);
+    setAnalysisSelectedPlayers([]);
+    setAnalysisSelectedDemoIds([]);
+    setAnalysisRows([]);
+    const candidates = cachedDemos.filter((entry) => entry.rawMap === mapName);
+    if (!candidates.length) { setAnalysisStatus(''); return undefined; }
+    setAnalysisStatus(language === 'zh' ? '正在读取本地图的分析数据…' : 'Loading analysis data for this map...');
+    Promise.all(candidates.map((metadata) => getCachedDemo(metadata.id).catch(() => null))).then((entries) => {
+      if (cancelled) return;
+      const available = entries.filter((entry) => entry?.data?.cacheSchemaVersion === DEMO_CACHE_SCHEMA_VERSION && entry.data.demo.map === mapName && entry.analysisRows?.length).sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)));
+      setAnalysisDemos(available);
+      setAnalysisPlayers([...new Set(available.flatMap((entry) => entry.analysisRows.flatMap((snapshot) => snapshot.players.map((player) => player.name))).filter(Boolean))].sort((left, right) => left.localeCompare(right)));
+      setAnalysisStatus('');
+    });
+    return () => { cancelled = true; };
+  }, [cachedDemos, mapName]);
+  const analysisPlayerName = analysisSelectedPlayers[0] || '';
+  const analysisDemosForPlayer = useMemo(() => analysisPlayerName ? analysisDemos.filter((entry) => entry.analysisRows.some((snapshot) => snapshot.players.some((player) => player.name === analysisPlayerName))) : [], [analysisDemos, analysisPlayerName]);
+  const selectedAnalysisDemos = useMemo(() => analysisDemosForPlayer.filter((entry) => analysisSelectedDemoIds.includes(entry.id)), [analysisDemosForPlayer, analysisSelectedDemoIds]);
+  const combinedAnalysis = useMemo(() => {
+    const rows = [];
+    const deaths = [];
+    let cursor = 0;
+    selectedAnalysisDemos.forEach((entry) => {
+      const rounds = entry.data.rounds || [];
+      const sourceStart = rounds.length ? Math.min(...rounds.map((round) => round.startTick)) : 0;
+      const sourceEnd = Math.max(...rounds.map((round) => round.endTick), sourceStart);
+      const shift = cursor - sourceStart;
+      const roundMetadata = new Map(rounds.map((round) => {
+        const player = entry.analysisRows.find((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick)?.players.find((candidate) => candidate.name === analysisPlayerName);
+        const side = player?.team === 2 ? 'T' : player?.team === 3 ? 'CT' : null;
+        const economy = roundEconomy(round, entry.data.roundData?.find((item) => item.round === round.round));
+        const matchup = side ? `${economy[side].label}:${economy[side === 'T' ? 'CT' : 'T'].label}` : 'UNKNOWN:UNKNOWN';
+        const roundEndEvent = entry.data.events?.find((event) => event.event_name === 'round_end' && event.tick >= round.startTick && event.tick <= round.endTick);
+        return [round.round, { id: `${entry.id}:${round.round}`, startTick: round.startTick, endTick: roundEndEvent?.tick ?? round.endTick, economyMatchup: matchup }];
+      }));
+      entry.analysisRows.forEach((snapshot) => {
+        const round = rounds.find((candidate) => snapshot.tick >= candidate.startTick && snapshot.tick <= candidate.endTick);
+        if (!round) return;
+        const metadata = roundMetadata.get(round.round);
+        rows.push({ ...snapshot, tick: snapshot.tick + shift, players: snapshot.players.filter((player) => player.name === analysisPlayerName), analysisRound: { ...metadata, startTick: metadata.startTick + shift, endTick: metadata.endTick + shift } });
+      });
+      deaths.push(...(entry.data.events || []).filter((event) => event.event_name === 'player_death').map((event) => {
+        const round = rounds.find((candidate) => event.tick >= candidate.startTick && event.tick <= candidate.endTick);
+        return { ...event, analysisDemoId: entry.id, analysisEconomyMatchup: round ? roundMetadata.get(round.round)?.economyMatchup : 'UNKNOWN:UNKNOWN' };
+      }));
+      cursor += Math.max(256, sourceEnd - sourceStart + 256);
+    });
+    return { rows: rows.sort((left, right) => left.tick - right.tick), deaths };
+  }, [selectedAnalysisDemos, analysisPlayerName]);
+  const analysisEconomyOptions = useMemo(() => [...new Set(combinedAnalysis.rows.map((snapshot) => snapshot.analysisRound?.economyMatchup).filter((value) => value && !value.includes('UNKNOWN')))].sort(), [combinedAnalysis.rows]);
+  useEffect(() => {
+    setAnalysisRows(combinedAnalysis.rows);
+    setAnalysisTime(0);
+    setAnalysisPlaying(false);
+    window.dispatchEvent(new CustomEvent(ANALYSIS_HEAT_DATA_EVENT, { detail: { deaths: combinedAnalysis.deaths } }));
+  }, [combinedAnalysis, analysisSelectedDemoIds]);
+  const selectAnalysisPlayer = (name) => {
+    const matches = analysisDemos.filter((entry) => entry.analysisRows.some((snapshot) => snapshot.players.some((player) => player.name === name)));
+    setAnalysisSelectedPlayers(name ? [name] : []);
+    setAnalysisSelectedDemoIds(matches.slice(0, 3).map((entry) => entry.id));
+  };
   useEffect(() => {
     const buttons = document.querySelectorAll('.demo-view-options button');
     const directorButton = buttons[2];
@@ -3768,7 +4032,7 @@ function App() {
   }, [demoCacheOpen, demoRoundMenuOpen, modeMenuOpen]);
   useEffect(() => () => window.clearTimeout(utilityHoverTimerRef.current), []);
   useEffect(() => () => window.clearTimeout(parseGameTimerRef.current), []);
-  const applyDemoData = (data, cacheId, analysisRowsFromCache = [], hasSource = false) => {
+  const applyDemoData = (data, cacheId, _analysisRowsFromCache = [], hasSource = false) => {
     setDemoData(data);
     const firstRound = data.rounds?.[0] || null;
     setDemoRound(firstRound);
@@ -3779,11 +4043,6 @@ function App() {
     setDemoProjectiles([]);
     setDemoRoundLoading(false);
     setDemoPlaying(false);
-    setAnalysisRows(analysisRowsFromCache);
-    const players = [...new Set(analysisRowsFromCache.flatMap((snapshot) => snapshot.players.map((player) => player.name)).filter(Boolean))].sort();
-    setAnalysisPlayers(players);
-    setAnalysisSelectedPlayers([]);
-    setAnalysisLoadedFor(analysisRowsFromCache.length ? data.demo.fileName : '');
     activeDemoCacheIdRef.current = cacheId || '';
     setDemoSourceReady(hasSource);
   };
@@ -4586,13 +4845,24 @@ function App() {
   const defuseDurationTicks = (currentDefuser?.hasDefuser ? 5 : 10) * (demoData?.demo.tickRate || 64);
   const defuseProgress = currentDefuser && defuseStartTick != null ? THREE.MathUtils.clamp((demoTick - defuseStartTick) / defuseDurationTicks, 0, 1) : null;
   const deferredAnalysisSelectedPlayers = useDeferredValue(analysisSelectedPlayers);
-  const analysisDuration = useMemo(() => deferredAnalysisSelectedPlayers.length && analysisRows.length ? Math.max(0, ...deferredAnalysisSelectedPlayers.flatMap((name) => demoData?.rounds?.map((round) => {
-    const records = analysisRows.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick).flatMap((snapshot) => snapshot.players.filter((player) => player.name === name).map((player) => ({ ...player, tick: snapshot.tick }))).sort((left, right) => left.tick - right.tick);
-    const roundSide = records[0]?.team === 2 ? 'T' : records[0] ? 'CT' : null;
-    if (analysisSide !== 'ALL' && roundSide !== analysisSide) return 0;
-    const last = records.find((player) => player.health != null && player.health <= 0) || records.at(-1);
-    return last ? Math.min(last.tick - round.startTick, round.endTick - round.startTick) : 0;
-  }) || [])) : 0, [deferredAnalysisSelectedPlayers, analysisRows, analysisSide, demoData?.rounds]);
+  const analysisDuration = useMemo(() => {
+    const name = deferredAnalysisSelectedPlayers[0];
+    if (!name || !analysisRows.length) return 0;
+    const rowsByRound = new Map();
+    analysisRows.forEach((snapshot) => {
+      if (!snapshot.analysisRound?.id) return;
+      if (!rowsByRound.has(snapshot.analysisRound.id)) rowsByRound.set(snapshot.analysisRound.id, []);
+      rowsByRound.get(snapshot.analysisRound.id).push(snapshot);
+    });
+    return Math.max(0, ...[...rowsByRound.values()].map((rows) => {
+      const round = rows[0].analysisRound;
+      const records = rows.flatMap((snapshot) => snapshot.players.filter((player) => player.name === name).map((player) => ({ ...player, tick: snapshot.tick })));
+      const roundSide = records[0]?.team === 2 ? 'T' : records[0] ? 'CT' : null;
+      if (analysisSide !== 'ALL' && roundSide !== analysisSide) return 0;
+      const last = records.find((player) => player.health != null && player.health <= 0) || records.at(-1);
+      return last ? Math.min(last.tick - round.startTick, round.endTick - round.startTick) : 0;
+    }));
+  }, [deferredAnalysisSelectedPlayers, analysisRows, analysisSide]);
   useEffect(() => {
     const worker = new Worker(new URL('./demoWorker.js', import.meta.url), { type: 'module' });
     worker.onmessage = async (event) => {
@@ -4654,8 +4924,7 @@ function App() {
        }
        if (event.data.type === 'analysis') {
          const rows = event.data.rows || [];
-         const players = [...new Set(rows.flatMap((snapshot) => snapshot.players.map((player) => player.name)).filter(Boolean))].sort();
-         setAnalysisRows(rows); setAnalysisPlayers(players); setAnalysisSelectedPlayers((selected) => selected.filter((name) => players.includes(name))); setAnalysisStatus(translate(currentLanguage, 'analysisReady'));
+          setAnalysisStatus(translate(currentLanguage, 'analysisReady'));
          const cacheId = activeDemoCacheIdRef.current;
          if (cacheId) getCachedDemo(cacheId).then((entry) => entry && putCachedDemo({ ...entry, analysisRows: rows, analysisBytes: event.data.estimatedBytes || 0, updatedAt: new Date().toISOString() })).then(refreshCachedDemos).catch(() => {});
        }
@@ -4674,13 +4943,6 @@ function App() {
     demoWorkerRef.current = worker;
     return () => worker.terminate();
   }, []);
-  useEffect(() => {
-    if (activePanel !== 'analysis' || !demoData || analysisLoadedFor === demoData.demo.fileName) return;
-    if (!demoSourceReady) { setAnalysisStatus(t('analysisNeedsSource')); return; }
-    setAnalysisStatus(t('analysisLoading'));
-    setAnalysisLoadedFor(demoData.demo.fileName);
-    demoWorkerRef.current?.postMessage({ type: 'analysis', rounds: demoData.rounds });
-  }, [activePanel, demoData, analysisLoadedFor, demoSourceReady]);
   const loadDemo = async (event) => {
     const files = [...(event.target.files || [])].sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true }));
     if (files.length === 0) return;
@@ -4704,11 +4966,7 @@ function App() {
      setDemoSnapshots([]);
      setDemoThrowSnapshots([]);
      setDemoProjectiles([]);
-     setAnalysisRows([]);
-     setAnalysisPlayers([]);
-     setAnalysisSelectedPlayers([]);
-     setAnalysisLoadedFor('');
-     setAnalysisPlaying(false);
+      setAnalysisPlaying(false);
      setAnalysisTime(0);
      setDemoStatus(files.length > 1 ? t('combiningParts', { count: files.length }) : t('readingDemo'));
        window.clearTimeout(parseGameTimerRef.current);
@@ -4766,7 +5024,7 @@ function App() {
          event.preventDefault();
          event.stopImmediatePropagation();
          const direction = event.code === 'ArrowLeft' ? -1 : 1;
-         if (activePanel === 'analysis' && demoData && analysisSelectedPlayers.length && analysisRows.length) {
+          if (activePanel === 'analysis' && demoViewFlags.analysisMetric === 'kd' && analysisSelectedPlayers.length && analysisRows.length) {
            setAnalysisPlaying(false);
            setAnalysisTime((time) => THREE.MathUtils.clamp(time + direction * 16, 0, analysisDuration));
          } else if (activePanel === 'demo' && demoData && demoRound && !demoRoundLoading) {
@@ -4779,13 +5037,13 @@ function App() {
          }
          return;
        }
-       if (!demoData) return;
-        if (event.code === 'Space') { event.preventDefault(); event.stopPropagation(); if (event.repeat) return; if (activePanel === 'analysis') { if (analysisSelectedPlayers.length && analysisRows.length) setAnalysisPlaying((playing) => !playing); } else if (!demoRoundLoading && demoRound) setDemoPlaying((playing) => !playing); return; }
+        if (!demoData && activePanel !== 'analysis') return;
+         if (event.code === 'Space') { event.preventDefault(); event.stopPropagation(); if (event.repeat) return; if (activePanel === 'analysis') { if (demoViewFlags.analysisMetric === 'kd' && analysisSelectedPlayers.length && analysisRows.length) setAnalysisPlaying((playing) => !playing); } else if (!demoRoundLoading && demoRound) setDemoPlaying((playing) => !playing); return; }
          if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(event.target?.tagName)) return;
      };
     window.addEventListener('keydown', onDemoKeyDown, true);
     return () => window.removeEventListener('keydown', onDemoKeyDown, true);
-  }, [activeFrameId, activePanel, analysisDuration, analysisRows.length, analysisSelectedPlayers.length, demoData, demoRound, demoRoundLoading, frames, hasActiveFrameContext]);
+  }, [activeFrameId, activePanel, analysisDuration, analysisRows.length, analysisSelectedPlayers.length, demoData, demoRound, demoRoundLoading, demoViewFlags.analysisMetric, frames, hasActiveFrameContext]);
   useEffect(() => {
     let cancelled = false;
     if (mapName === TUTORIAL_MAP_ID) {
@@ -4799,6 +5057,9 @@ function App() {
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('csboard-nav-visibility', { detail: showNav }));
   }, [mapName, navData, showNav]);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('csboard-map-floor', { detail: { mapName, floor: modelFloor } }));
+  }, [mapName, navData, modelFloor]);
   useLayoutEffect(() => {
     const allowed = activePanel === 'utility' || activePanel === 'collab';
     document.querySelectorAll('.map-select option').forEach((option) => {
@@ -4838,7 +5099,7 @@ function App() {
     setModelFloor(floor);
     window.dispatchEvent(new CustomEvent('csboard-map-floor', { detail: { mapName, floor } }));
   };
-  return <main className={`board-shell${isMobile ? ' is-mobile' : ''}${!hasLeftSidebar || !leftSidebarOpen ? ' left-sidebar-collapsed' : ''}${hasRightSidebar && !rightSidebarOpen ? ' right-sidebar-collapsed' : ''}`} data-panel={activePanel}>
+  return <main className={`board-shell${isMobile ? ' is-mobile' : ''}${!hasLeftSidebar || !leftSidebarOpen ? ' left-sidebar-collapsed' : ''}${hasRightSidebar && !rightSidebarOpen ? ' right-sidebar-collapsed' : ''}`} data-panel={activePanel} data-analysis-metric={demoViewFlags.analysisMetric}>
     {tutorialOfferOpen && <TutorialOffer language={language} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
     <header className="board-header">
       <div className="brand"><span className="brand-mark"><i /><i /><i /></span><span>CS<span>BOARD</span></span>{BUILD_VERSION && <small className="build-version" title={BUILD_VERSION}>{BUILD_VERSION}</small>}</div>
@@ -4888,7 +5149,7 @@ function App() {
              {demoStatus && !demoData && <div className="demo-loading" role="progressbar" aria-label="Demo parsing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div>}
             <div className="demo-controls-row">{activePanel === 'demo' && demoData && <div className="demo-view-options"><span>{t('view')}</span><button type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t('showNames')}</button>{[['manual','cameraManual'],['follow','cameraFollow'],['fixed','cameraFixed'],['chase','cameraChase']].map(([mode,key]) => <button type="button" key={mode} className={demoCameraMode === mode ? 'selected' : ''} onClick={() => setDemoCameraMode(mode)}>{t(key)}</button>)}</div>}<div className="demo-options"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}>GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}>TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button><label className="model-opacity"><span>MODEL</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="demo-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div>{navData && <button type="button" onClick={() => setShowEdges((value) => !value)} className={showEdges ? 'selected' : ''}>EDGES</button>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET</button></div></div>
           </div>
-          {activePanel === 'analysis' && <aside className="analysis-panel"><div className="collab-heading"><div><span>DEMO ANALYSIS</span><h2>{t('analysis')}</h2></div><button type="button" disabled={!analysisSelectedPlayers.length || !analysisRows.length} onClick={() => setAnalysisPlaying((playing) => !playing)}>{analysisPlaying ? t('pause') : t('play')}</button></div><p className="collab-note">{t('analysisHint')}</p>{analysisStatus && <div className="analysis-status">{analysisStatus}</div>}<div className="analysis-select"><span>{t('players').toUpperCase()}</span><div className="analysis-player-list">{analysisPlayers.map((player) => <button type="button" key={player} className={analysisSelectedPlayers.includes(player) ? 'selected' : ''} aria-pressed={analysisSelectedPlayers.includes(player)} onClick={() => { setAnalysisSelectedPlayers((selected) => selected.includes(player) ? selected.filter((name) => name !== player) : [...selected, player]); setAnalysisTime(0); setAnalysisPlaying(false); }}>{player}</button>)}</div></div>{analysisSelectedPlayers.length > 0 && <label className="analysis-side"><span>{t('side').toUpperCase()}</span><select value={analysisSide} onChange={(event) => { setAnalysisSide(event.target.value); setAnalysisTime(0); setAnalysisPlaying(false); }}><option value="ALL">{t('allRounds')}</option><option value="T">{t('tRounds')}</option><option value="CT">{t('ctRounds')}</option></select></label>}{analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}</aside>}
+          {activePanel === 'analysis' && <aside className="analysis-panel"><div className="collab-heading"><div><span>DEMO ANALYSIS</span><h2>{t('analysis')}</h2></div><button type="button" disabled={demoViewFlags.analysisMetric === 'area' || !analysisPlayerName || !analysisRows.length} onClick={() => setAnalysisPlaying((playing) => !playing)}>{analysisPlaying ? t('pause') : t('play')}</button></div><p className="collab-note">{language === 'zh' ? `从 ${mapName.toUpperCase()} 已解析的 Demo 中按用户名聚合分析。` : `Aggregate a player across parsed ${mapName.toUpperCase()} Demos.`}</p>{analysisStatus && <div className="analysis-status">{analysisStatus}</div>}<label className="analysis-side analysis-player-picker"><span>{language === 'zh' ? '用户名' : 'PLAYER NAME'}</span><select value={analysisPlayerName} onChange={(event) => selectAnalysisPlayer(event.target.value)}><option value="">{analysisPlayers.length ? (language === 'zh' ? '选择用户名' : 'Select player') : (language === 'zh' ? '当前地图暂无分析用户' : 'No analyzed players on this map')}</option>{analysisPlayers.map((player) => <option value={player} key={player}>{player}</option>)}</select></label>{analysisPlayerName && <section className="analysis-demo-picker"><header><span>{language === 'zh' ? '分析 Demo' : 'ANALYSIS DEMOS'}</span><b>{analysisSelectedDemoIds.length}/{analysisDemosForPlayer.length}</b></header><div>{analysisDemosForPlayer.map((entry, index) => <label key={entry.id} className={analysisSelectedDemoIds.includes(entry.id) ? 'selected' : ''}><input type="checkbox" checked={analysisSelectedDemoIds.includes(entry.id)} onChange={() => setAnalysisSelectedDemoIds((selected) => selected.includes(entry.id) ? selected.filter((id) => id !== entry.id) : [...selected, entry.id])} /><span><strong>{entry.fileName}</strong><small>{new Date(entry.updatedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')} · {entry.data.rounds?.length || entry.rounds || 0} {t('round')}{index < 3 ? ` · ${language === 'zh' ? '最近' : 'RECENT'}` : ''}</small></span></label>)}</div></section>}{analysisPlayerName && <label className="analysis-side"><span>{t('side').toUpperCase()}</span><select value={analysisSide} onChange={(event) => { setAnalysisSide(event.target.value); setAnalysisTime(0); setAnalysisPlaying(false); }}><option value="ALL">{t('allRounds')}</option><option value="T">{t('tRounds')}</option><option value="CT">{t('ctRounds')}</option></select></label>}{demoViewFlags.analysisMetric === 'kd' && analysisPlayerName && analysisRows.length > 0 && <div className="analysis-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}</aside>}
           {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>{t('collab')}</h2></div><div className="collab-actions"><button type="button" onClick={() => openSaveArchiveModal()}>{t('saveFrame')}</button>{roomCode ? <button type="button" onClick={leaveRoom}>{t('leaveRoom')}</button> : <button type="button" onClick={() => { const code = window.prompt(t('roomPrompt'), roomJoinCode); if (code != null) { setRoomJoinCode(code); joinRoom(code); } }}>{t('joinRoom')}</button>}<button type="button" disabled={Boolean(roomCode)} onClick={openRoom}>{t('openRoom')}</button></div></div><p className="collab-note">{t('currentMap')}: {mapName} · {t('name')}: {clientName.current}<br />{t('collabHint')}</p>{roomStatus && <div className="analysis-status">{roomStatus}</div>}{roomCode && <div className="room-open"><strong>{t('room')} {roomCode}</strong><span>{roomOwner ? t('owner') : t('member')}</span></div>}<div className="archive-list">{archives.filter((archive) => archive.mapName === mapName).length === 0 ? <div className="archive-empty">{t('noArchives')}</div> : archives.filter((archive) => archive.mapName === mapName).map((archive) => <div className="archive-item" key={archive.id}><button type="button" className="archive-restore" disabled={Boolean(roomCode && !roomOwner)} title={roomCode && !roomOwner ? t('guestNoArchive') : t('restoreArchive')} onClick={() => restoreWorkspaceArchive(archive)}><strong>{archive.name || archive.mapName.toUpperCase()}</strong><span>{new Date(archive.savedAt).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US')}</span><small>{archive.frames && archive.frames.length ? `${archive.frames.length} ${t('frames')}${archive.demo ? ` · ${t('manualEdit')}` : ''}` : archive.demo ? `ROUND ${archive.demo.round || '-'} · TICK ${Math.round(archive.demo.tick)}` : t('manualEdit')}</small></button><button type="button" className="archive-delete" aria-label={t('deleteArchive')} title={t('deleteArchive')} onClick={() => deleteWorkspaceArchive(archive.id)}>×</button></div>)}</div></aside>}
            {activePanel === 'collab' && hasActiveFrameContext && <aside className="collab-objects"><div className="collab-objects-tabs"><button type="button" className={collabObjectTab === 'players' ? 'active' : ''} onClick={() => setCollabObjectTab('players')}>{t('collabPlayers')}</button><button type="button" className={collabObjectTab === 'utility' ? 'active' : ''} onClick={() => setCollabObjectTab('utility')}>{t('addUtility')}</button></div>{collabObjectTab === 'players' ? <div className="collab-players">{activeCollabPlayers().length === 0 ? <div className="archive-empty">{t('noCollabPlayers')}</div> : <div className="collab-player-list">{activeCollabPlayers().map((player) => <div className="collab-player-item" key={player.name}><span className="collab-player-name">{player.name}</span><button type="button" className="collab-player-rename" onClick={() => openRenameModal(player.id, player.name)}>{t('rename')}</button><div className="collab-player-team" aria-label={t('team')}>{['T', 'CT'].map((team) => <button type="button" key={team} className={(player.team || 'T') === team ? 'active' : ''} aria-pressed={(player.team || 'T') === team} onClick={() => setPointUpdate({ id: player.id, team })}>{team}</button>)}</div></div>)}</div>}</div> : <div className="collab-utility"><label className="collab-utility-search"><span>{t('addUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => setCollabUtilitySearch(event.target.value)} /><select value={''} onChange={(event) => { const id = event.target.value; if (!id) return; const note = currentUtilityNotes.find((candidate) => candidate.id === id); if (note) boardRef.current?.addCollabUtility?.(note); setCollabUtilitySearch(''); event.target.value = ''; }}>{[...currentUtilityNotes].sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0).filter((note) => `${note.name} ${note.summary || ''} ${note.thrower || ''}`.toLowerCase().includes(collabUtilitySearch.trim().toLowerCase())).map((note) => <option key={note.id} value={note.id}>{note.name} · {note.grenadeType || 'custom'}{note.thrower ? ` · ${note.thrower}` : ''}</option>)}</select></label></div>}</aside>}
            {activePanel === 'collab' && hasActiveFrameContext && collabObjectTab === 'utility' && <CollabUtilityPortal><div className="collab-utility-manager"><header><strong>{t('importedUtilities')}</strong><button type="button" onClick={() => { setCollabUtilityPickerOpen(true); setCollabUtilitySelected(''); }}>{t('addUtility')}</button></header>{collabUtilityPickerOpen ? <div className="collab-utility-picker"><label className="collab-utility-search"><span>{t('selectUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => setCollabUtilitySearch(event.target.value)} /><select value={collabUtilitySelected} onChange={(event) => setCollabUtilitySelected(event.target.value)}><option value="">{t('selectUtility')}</option>{[...currentUtilityNotes].sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0).filter((note) => `${note.name} ${note.summary || ''} ${note.thrower || ''}`.toLowerCase().includes(collabUtilitySearch.trim().toLowerCase())).map((note) => <option key={note.id} value={note.id}>{note.name} · {note.grenadeType || 'custom'}{note.thrower ? ` · ${note.thrower}` : ''}</option>)}</select></label><div className="collab-utility-picker-actions"><button type="button" onClick={() => { setCollabUtilityPickerOpen(false); setCollabUtilitySelected(''); setCollabUtilitySearch(''); }}>{t('cancel')}</button><button type="button" disabled={!collabUtilitySelected} onClick={confirmCollabUtilityImport}>{t('confirmAdd')}</button></div></div> : activeImportedUtilities().length === 0 ? <div className="archive-empty">{t('noImportedUtilities')}</div> : <div className="collab-imported-list">{activeImportedUtilities().map((item) => <div className="collab-imported-item" key={item.id}><div><strong>{item.noteName || t('unknown')}</strong><span>{item.kind || 'custom'}</span></div><button type="button" onClick={() => deleteImportedUtility(item.id)}>{t('delete')}</button></div>)}</div>}</div></CollabUtilityPortal>}
@@ -4896,12 +5157,16 @@ function App() {
              {activePanel === 'collab' && roomCode && <RoomPresencePortal><div className="room-presence"><header><span>{t('currentUsers')}</span><b>{roomUsers.length}</b></header><div className="room-user-list">{roomUsers.map((user) => <div key={user.clientId}><i className={user.owner ? 'owner' : ''} /><strong>{user.name}</strong><span>{user.current ? t('you') : user.owner ? t('owner') : t('member')}</span></div>)}</div>{roomActivity.length > 0 && <div className="room-activity" aria-live="polite">{roomActivity.map((event) => <span key={event.id}>{event.text}</span>)}</div>}</div></RoomPresencePortal>}
             <CameraHintsPortal><span><kbd>1-0</kbd>{t('hintCameraRestore')}</span><span><kbd>CTRL+1-0</kbd>{t('hintCameraSave')}</span></CameraHintsPortal>
             {activePanel === 'collab' && hasActiveFrameContext && <div className="collab-frame-strip"><div className="collab-frame-timeline">{frames.map((frame, index) => <button type="button" key={frame.id} aria-label={`${t('frame')} ${index + 1}`} className={`collab-frame-dot${frame.id === activeFrameId ? ' active' : ''}`} onClick={() => switchFrame(frame.id)}><i /><small>{index + 1}</small></button>)}</div><div className="collab-frame-actions"><button type="button" title="Ctrl+Z" onClick={() => boardRef.current?.undoCollab?.()}>{t('hintUndo')}</button><button type="button" title="Ctrl+Y" onClick={() => boardRef.current?.redoCollab?.()}>{t('hintRedo')}</button><button type="button" onClick={insertFrame}>{t('insertFrame')}</button><button type="button" onClick={duplicateFrame}>{t('duplicateFrame')}</button><button type="button" onClick={deleteFrame} disabled={frames.length <= 1}>{t('deleteFrame')}</button></div></div>}
-        {activePanel === 'analysis' && demoData && <AnalysisOptionsPortal><div className="analysis-view-options"><span>{t('heatmap')}</span><button type="button" className={`heat-killer${demoViewFlags.killerHeat ? ' selected' : ''}`} onClick={() => setDemoViewFlags((flags) => ({ ...flags, killerHeat: !flags.killerHeat }))}>{t('killerPosition')}</button><button type="button" className={`heat-victim${demoViewFlags.victimHeat ? ' selected' : ''}`} onClick={() => setDemoViewFlags((flags) => ({ ...flags, victimHeat: !flags.victimHeat }))}>{t('victimPosition')}</button><button type="button" className={`heat-target${demoViewFlags.targetHeat ? ' selected' : ''}`} onClick={() => setDemoViewFlags((flags) => ({ ...flags, targetHeat: !flags.targetHeat }))}>{t('targetPosition')}</button><button type="button" className={`heat-opponent${demoViewFlags.opponentHeat ? ' selected' : ''}`} onClick={() => setDemoViewFlags((flags) => ({ ...flags, opponentHeat: !flags.opponentHeat }))}>{t('opponentPosition')}</button></div></AnalysisOptionsPortal>}
+        {activePanel === 'analysis' && <AnalysisOptionsPortal><div className="analysis-view-options">
+          <section className="analysis-control-section"><span>{language === 'zh' ? '分析类型' : 'ANALYSIS TYPE'}</span><div className="analysis-mode-tabs"><button type="button" className={demoViewFlags.analysisMetric === 'area' ? 'selected' : ''} onClick={() => { setAnalysisPlaying(false); setDemoViewFlags((flags) => ({ ...flags, analysisMetric: 'area', heatStyle: 'global' })); }}>{language === 'zh' ? '区域时间' : 'AREA TIME'}</button><button type="button" className={demoViewFlags.analysisMetric === 'kd' ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, analysisMetric: 'kd' }))}>{language === 'zh' ? 'KD 事件' : 'KD EVENTS'}</button></div></section>
+          <section className="analysis-control-section"><span>{language === 'zh' ? '显示方式' : 'DISPLAY'}</span><div className="analysis-mode-tabs"><button type="button" disabled={demoViewFlags.analysisMetric === 'area'} className={demoViewFlags.heatStyle === 'points' ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, heatStyle: 'points' }))}>{language === 'zh' ? '位置' : 'POSITIONS'}</button><button type="button" className={demoViewFlags.heatStyle === 'global' ? 'selected' : ''} onClick={() => setDemoViewFlags((flags) => ({ ...flags, heatStyle: 'global', ...(!flags.killerHeat && !flags.victimHeat && !flags.targetHeat && !flags.opponentHeat ? { killerHeat: true, victimHeat: true } : {}) }))}>{language === 'zh' ? '热力' : 'HEATMAP'}</button></div></section>
+          {demoViewFlags.analysisMetric === 'kd' && <section className="analysis-control-section analysis-event-filters"><span>{language === 'zh' ? '事件位置' : 'EVENT POSITIONS'}</span><div><button type="button" className={`heat-killer${demoViewFlags.killerHeat ? ' selected' : ''}`} onClick={() => setDemoViewFlags((flags) => ({ ...flags, killerHeat: !flags.killerHeat }))}>{t('killerPosition')}</button><button type="button" className={`heat-victim${demoViewFlags.victimHeat ? ' selected' : ''}`} onClick={() => setDemoViewFlags((flags) => ({ ...flags, victimHeat: !flags.victimHeat }))}>{t('victimPosition')}</button><button type="button" className={`heat-target${demoViewFlags.targetHeat ? ' selected' : ''}`} onClick={() => setDemoViewFlags((flags) => ({ ...flags, targetHeat: !flags.targetHeat }))}>{t('targetPosition')}</button><button type="button" className={`heat-opponent${demoViewFlags.opponentHeat ? ' selected' : ''}`} onClick={() => setDemoViewFlags((flags) => ({ ...flags, opponentHeat: !flags.opponentHeat }))}>{t('opponentPosition')}</button></div></section>}
+        </div></AnalysisOptionsPortal>}
         <div className="workspace-bottom-bar">
-          {activePanel === 'analysis' && analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-bottom-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}
+          {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'kd' && analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-bottom-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}
         </div>
         {navData && <ModelControlsPortal selector={modelControlsTarget}><div className="model-visual-controls nav-visual-controls"><button type="button" className={`nav-visibility-toggle${showNav ? ' selected' : ''}`} aria-pressed={showNav} onClick={() => setShowNav((visible) => !visible)}>{t('navGround')} {showNav ? t('on') : t('off')}</button></div></ModelControlsPortal>}
-        <ModelControlsPortal selector={modelControlsTarget}><div className="model-visual-controls"><ModelLoadIndicator state={modelLoadState} language={language} /><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="workspace-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div></ModelControlsPortal>
+        <ModelControlsPortal selector={modelControlsTarget}><div className="model-visual-controls"><ModelLoadIndicator state={modelLoadState} language={language} /><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><label className="model-opacity"><span>{t('viewRange')}</span><input type="range" min="0" max="1" step="0.01" value={modelViewRange} onChange={(event) => setModelViewRange(Number(event.target.value))} /><b>{Math.round(modelViewRange * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="workspace-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div></ModelControlsPortal>
         {hasLeftSidebar && <button type="button" className="sidebar-toggle sidebar-toggle-left" aria-label={leftSidebarOpen ? (language === 'zh' ? '收起左栏' : 'Collapse left sidebar') : (language === 'zh' ? '展开左栏' : 'Expand left sidebar')} onClick={() => setLeftSidebarOpen((open) => !open)}>{leftSidebarOpen ? '‹' : '›'}</button>}
         {hasRightSidebar && <button type="button" className="sidebar-toggle sidebar-toggle-right" aria-label={rightSidebarOpen ? (language === 'zh' ? '收起右栏' : 'Collapse right sidebar') : (language === 'zh' ? '展开右栏' : 'Expand right sidebar')} onClick={() => setRightSidebarOpen((open) => !open)}>{rightSidebarOpen ? '›' : '‹'}</button>}
      </section>

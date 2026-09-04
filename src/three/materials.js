@@ -4,7 +4,7 @@ const MAP_SCALE = 0.0254;
 const MODEL_FADE_START = 50 * MAP_SCALE;
 const MODEL_FADE_END = 70 * MAP_SCALE;
 
-export function createGhostMaterial(focusScreen, viewportSize, viewMode) {
+export function createGhostMaterial(focusScreen, viewportSize, viewMode, viewRange) {
   const material = new THREE.MeshStandardMaterial({
     color: new THREE.Color('#3b4858'),
     transparent: false,
@@ -22,16 +22,17 @@ export function createGhostMaterial(focusScreen, viewportSize, viewMode) {
   material.onBeforeCompile = (shader) => {
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
-      '#include <common>\nuniform vec2 focusScreen;\nuniform vec2 viewportSize;\nuniform float modelViewMode;',
+      '#include <common>\nuniform vec2 focusScreen;\nuniform vec2 viewportSize;\nuniform float modelViewMode;\nuniform float modelViewRange;',
     ).replace(
       '#include <alphatest_fragment>',
-      'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat mouseFade = smoothstep(0.06, 0.34, modelFocusDistance);\nfloat cameraFade = smoothstep(18.0, 34.0, length(vViewPosition));\nfloat activeFade = 1.0;\nactiveFade = mix(activeFade, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
+      'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat viewRangeScale = mix(0.5, 1.5, modelViewRange);\nfloat mouseFade = smoothstep(0.06 * viewRangeScale, 0.34 * viewRangeScale, modelFocusDistance);\nfloat cameraFade = smoothstep(18.0 * viewRangeScale, 34.0 * viewRangeScale, length(vViewPosition));\nfloat activeFade = 1.0;\nactiveFade = mix(activeFade, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
     );
     shader.uniforms.focusScreen = { value: focusScreen };
     shader.uniforms.viewportSize = { value: viewportSize };
     shader.uniforms.modelViewMode = viewMode;
+    shader.uniforms.modelViewRange = viewRange;
   };
-  material.customProgramCacheKey = () => 'model-screen-focus-alpha-to-coverage-v1';
+  material.customProgramCacheKey = () => 'model-screen-focus-alpha-to-coverage-v2';
   return material;
 }
 

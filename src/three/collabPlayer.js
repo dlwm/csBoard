@@ -18,7 +18,7 @@ function createNameLabel(name) {
   return label;
 }
 
-export function createCollabPlayer({ position, id, name, team = 'T', crouched = false, pitch = 0, weapon = 'ak47' }) {
+export function createCollabPlayer({ position, id, name, team = 'T', crouched = false, pitch = 0, weapon = 'ak47', showName = true }) {
   const group = new THREE.Group();
   group.userData.collabPlayer = true;
   group.userData.pointId = id;
@@ -79,7 +79,8 @@ export function createCollabPlayer({ position, id, name, team = 'T', crouched = 
 
   standingBody.visible = !crouched;
   crouchedBody.visible = crouched;
-  group.add(standingBody, crouchedBody, equipment, aimRay, aimTarget, createNameLabel(name));
+  group.add(standingBody, crouchedBody, equipment, aimRay, aimTarget);
+  if (showName) group.add(createNameLabel(name));
   group.position.copy(position);
   group.rotation.y = 0;
   applyPitch(group, pitch);
