@@ -7,10 +7,8 @@ build/
 .env.local
 deploy.cloudflare.env
 *.dem
-ref/*
-public/
-tools/
-docs/
+ref
 .idea/
 .DS_Store
+.local
 exceptions.txt

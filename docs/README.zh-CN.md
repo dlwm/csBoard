@@ -4,7 +4,7 @@
 
 [English README](README.md) · [更新日志](CHANGELOG.md)
 
-![CSBoard 使用演示](assets/readme/demo.gif)
+![CSBoard 使用演示](docs/readme/demo.gif)
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
@@ -12,7 +12,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 回合浏览
 
-![回合浏览](assets/readme/round-replay.png)
+![回合浏览](docs/readme/round-replay.png)
 
 - 导入单个 Demo，或多选 Demo 分片并合并为一场比赛。
 - 通过 Rust/WASM 一次性解析全部可播放回合，将各回合持久化到 IndexedDB，之后无需重新解析 Demo 即可切换。
@@ -24,7 +24,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 战术编辑
 
-![战术编辑](assets/readme/collaboration.png)
+![战术编辑](docs/readme/collaboration.png)
 
 - 放置 T 或 CT 战术点（仅限协作面板）。
 - 在回合浏览/数据分析/道具速查面板左键拖拽绘制手绘笔迹，支持撤销与重做。
@@ -36,7 +36,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 道具速记
 
-![道具速记](assets/readme/utility-notes.png)
+![道具速记](docs/readme/utility-notes.png)
 
 - 可通过粘贴 `getpos` 输出或从 Demo 投掷中保存地图专属道具记录。
 - 支持搜索和重播站位、视角、投掷者、事件及投掷物轨迹。
@@ -47,7 +47,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 数据分析
 
-![数据分析](assets/readme/analysis.png)
+![数据分析](docs/readme/analysis.png)
 
 - 进入数据分析页面后再懒加载分析正文、选手汇总和逐回合道具轨迹；支持按前缀、包含关系或字符顺序模糊搜索选手，并明确展示加载状态。
 - 为选手选择最近或指定的已解析 Demo，并按全部回合、T/CT 方及双方经济类型筛选。
@@ -60,7 +60,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 多人协作
 
-![协作面板](assets/readme/collaboration.png)
+![协作面板](docs/readme/collaboration.png)
 
 - 创建或加入 6 位房间号的 Yjs WebSocket 房间。
 - 同步人物、引入道具、自定义道具、画笔、帧顺序和当前帧。
@@ -81,6 +81,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - 使用 `three-mesh-bvh` 高效查询视线最近墙体碰撞。
 - 显示 GLB 下载、处理和失败状态；模型不可用时继续使用 NAV 完成镜头取景、碰撞和表面编辑。
 - 在资源可用时显示内置 2D 雷达预览并支持楼层切换。
+- 在支持的地图中标记 T/CT 出生区域与 A/B 炸弹安放区域。
 - 支持 Blender 风格鼠标控制、触控板手势和 WASD 移动。
 
 ### 界面信息
@@ -94,7 +95,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 手机 / H5
 
-![移动端协作](assets/readme/mobile.jpeg)
+![移动端协作](docs/readme/mobile.jpeg)
 
 - 使用独立移动端布局：上方为 4:3 Three.js 视窗，下方为操作面板。
 - 单指拖动旋转镜头，双指支持缩放与平移。
@@ -119,7 +120,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - Train
 - Vertigo
 
-GLB 地图模型不会提交到仓库。需要本地 `.nav`/`.glb` 时运行 `make resources` 下载到 `public/maps/<map>/`；Workers 应用运行时从云存储加载生产地图资源。
+GLB 地图模型不会提交到仓库。需要本地 `.nav`/`.glb` 时运行 `make resources` 下载到 `.local/maps/<map>/`；Workers 应用运行时从云存储加载生产地图资源。
 
 Training Ground 仅在道具速记和协作面板中提供；切换到回合浏览或数据分析时会自动返回 Dust II。
 
@@ -147,7 +148,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，确保 NAV/GLB 继续读取 `public/maps`。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
+默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，确保 NAV/GLB 继续读取 `.local/maps`。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
 
 相同的 API 与 Yjs 协议核心也可以通过传统 Node.js HTTP/WebSocket 入口运行：
 
@@ -212,7 +213,7 @@ public/
 
 `public/` 目录整体被 Git 忽略。运行 `make resources` 时，`scripts/ensure-maps.js` 会检测各地图资源，并从 `.env.local` 的 `VITE_OSS_BASE_URL`（或 `MAP_DOWNLOAD_BASE_URL`）下载缺失文件。未配置下载源时命令会明确报错。
 
-本地构建从 `public/maps` 加载 `/maps/<map>/<map>.nav` 和 `/maps/<map>/<map>.glb`；远程构建使用云存储地址：
+本地构建从 `.local/maps` 加载 `/maps/<map>/<map>.nav` 和 `/maps/<map>/<map>.glb`；远程构建使用云存储地址：
 
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.nav`
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
@@ -224,6 +225,7 @@ NAV 以原始字节拉取并在浏览器内解析（`src/navParser.js`）。存�
 ## 技术架构
 
 - React 与 Vite：应用外壳和界面。
+- `src/analysis/` 收纳分析组件与计算逻辑，`src/demo/` 放置 Demo 领域逻辑和 HUD，`src/components/` 放置共享 UI，`src/three/` 放置 Three.js 辅助模块，`src/utility/` 放置道具速记逻辑，`src/hooks/` 放置跨面板 DOM 行为。
 - Three.js：地图、战术对象、效果和回放渲染。
 - Rust/WASM `demoparser2`：解析 Demo 事件、Tick、玩家、库存和投掷物。
 - `three-mesh-bvh`：地图射线检测加速。
@@ -249,7 +251,7 @@ make workers-deploy
 - Node.js Runtime 的协作房间保存在进程内存中；Cloudflare Workers 使用 Durable Object Storage，并在最后一个客户端离开五分钟后清理。
 - 房主身份目前主要由客户端管理，尚未使用服务端签发的 owner token。
 - 解析器没有暴露 C4 实体逐 Tick 坐标，因此掉落轨迹只能根据事件近似。
-- 生产环境地图 NAV 与 GLB 依赖云存储可用；开发模式使用 `public/maps/` 本地数据（缺失时自动下载）。
+- 生产环境地图 NAV 与 GLB 依赖云存储可用；开发模式使用 `.local/maps/` 本地数据（缺失时自动下载）。
 - Demo 初次解析后会缓存全部回合，大型 Demo 可能占用较多内存。
 - 回合浏览和数据分析仅在桌面端提供；H5 提供道具速记与协作。
 
@@ -258,7 +260,3 @@ make workers-deploy
 ### 模型尺寸缩减
 
 - 缩减地图模型资源体积、下载开销和运行时内存占用。
-
-### 地图区域标记
-
-- 在支持的地图中标记 C4 安放区域和双方出生区域。

@@ -2,9 +2,9 @@
 
 > A 3D tactical board, CS2 Demo replay viewer, analysis workspace, and real-time collaboration tool.
 
-[中文说明](README.zh-CN.md) · [Changelog](CHANGELOG.en.md)
+[中文说明](docs/README.zh-CN.md) · [Changelog](CHANGELOG.en.md)
 
-![CSBoard demonstration](assets/readme/demo.gif)
+![CSBoard demonstration](docs/readme/demo.gif)
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
 
@@ -12,7 +12,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Round Replay
 
-![Round replay](assets/readme/round-replay.png)
+![Round replay](docs/readme/round-replay.png)
 
 - Import one Demo or select multiple Demo parts and merge them into one match.
 - Parse playable rounds once through Rust/WASM, persist each round in IndexedDB, and switch rounds without reparsing the Demo.
@@ -24,7 +24,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Tactical Editing
 
-![Tactical editing](assets/readme/collaboration.png)
+![Tactical editing](docs/readme/collaboration.png)
 
 - Place T or CT tactical points directly on surfaces (Collaboration panel only).
 - Draw freehand brush strokes on the ground in round replay / analysis / utility panels, with undo/redo.
@@ -36,7 +36,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Utility Notes
 
-![Utility notes](assets/readme/utility-notes.png)
+![Utility notes](docs/readme/utility-notes.png)
 
 - Save map-specific utility setups from pasted `getpos` output or Demo throws.
 - Search and replay saved lineups with setup positions, view angles, thrower details, events, and projectile paths.
@@ -47,7 +47,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Demo Analysis
 
-![Demo analysis](assets/readme/analysis.png)
+![Demo analysis](docs/readme/analysis.png)
 
 - Lazily load Analysis payloads, aggregated players, and per-round utility trajectories only after opening the Analysis page. Find a player through prefix, substring, or ordered-character fuzzy matching with an explicit loading state.
 - Select recent or specific parsed Demos for that player, then filter rounds by T/CT side and both teams' economy classes.
@@ -60,7 +60,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Collaboration
 
-![Collaboration panel](assets/readme/collaboration.png)
+![Collaboration panel](docs/readme/collaboration.png)
 
 - Create or join a six-character Yjs WebSocket room.
 - Synchronize player markers, imported utility, custom utility, brushes, frame order, and active frames.
@@ -81,6 +81,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
 - Show bundled 2D radar previews and floor switching where map assets provide them.
+- Mark T/CT spawn areas and A/B bomb-plant zones on supported maps.
 - Navigate with Blender-style mouse controls, trackpad gestures, and WASD movement.
 
 ### Interface
@@ -94,7 +95,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Mobile / H5
 
-![Mobile collaboration](assets/readme/mobile.jpeg)
+![Mobile collaboration](docs/readme/mobile.jpeg)
 
 - Use a dedicated mobile layout with a 4:3 Three.js viewport above the operation panels.
 - Rotate with one finger; use two fingers to zoom and pan.
@@ -119,7 +120,7 @@ The repository includes files for:
 - Train
 - Vertigo
 
-GLB map models are intentionally not committed. Run `make resources` when local `.nav`/`.glb` files are needed under `public/maps/<map>/`; the Workers application loads production map resources from cloud storage.
+GLB map models are intentionally not committed. Run `make resources` when local `.nav`/`.glb` files are needed under `.local/maps/<map>/`; the Workers application loads production map resources from cloud storage.
 
 Training Ground is available only in Utility Notes and Collaboration. Switching to Round Replay or Analysis automatically returns to Dust II.
 
@@ -147,7 +148,7 @@ Build the frontend and start the APIs and collaboration service with the default
 npm run dev
 ```
 
-The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` so NAV/GLB requests continue to use `public/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
+The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` so NAV/GLB requests continue to use `.local/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
 
 The same API and Yjs protocol core can also run behind a traditional Node.js HTTP/WebSocket entry:
 
@@ -212,7 +213,7 @@ Contributors can place default utility-note or Collaboration-archive JSON files 
 
 The whole `public/` directory is ignored by Git. Running `make resources` checks each map and downloads missing files from `VITE_OSS_BASE_URL` (or `MAP_DOWNLOAD_BASE_URL`) configured in `.env.local`. The command fails clearly when no download origin is configured.
 
-Local builds load NAV and GLB from `public/maps` (`/maps/<map>/<map>.nav`, `/maps/<map>/<map>.glb`). Remote builds use cloud storage:
+Local builds load NAV and GLB from `.local/maps` (`/maps/<map>/<map>.nav`, `/maps/<map>/<map>.glb`). Remote builds use cloud storage:
 
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.nav`
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
@@ -224,6 +225,7 @@ Map extraction tools and raw game resources remain local-only. Do not commit VPK
 ## Architecture
 
 - React and Vite for the application shell and UI.
+- Feature-scoped Analysis components and calculations under `src/analysis/`; Demo domain logic and HUD under `src/demo/`; shared UI under `src/components/`; Three.js helpers under `src/three/`; utility-note logic under `src/utility/`; and reusable cross-panel DOM behavior under `src/hooks/`.
 - Three.js for map rendering, tactical objects, effects, and replay visualization.
 - Rust/WASM `demoparser2` for Demo events, ticks, players, inventory, and projectiles.
 - `three-mesh-bvh` for accelerated map raycasting.
@@ -255,7 +257,7 @@ The native `@laihoe/demoparser2` package is used only by the Node.js Runtime ada
 - Node.js Runtime rooms are held in process memory. Cloudflare Workers rooms use Durable Object storage and are deleted five minutes after the final client disconnects.
 - Room ownership is currently client-managed rather than protected by a server-issued owner token.
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
-- Production loads map NAV and GLB from cloud storage; development uses local files under `public/maps/` (auto-downloaded when missing).
+- Production loads map NAV and GLB from cloud storage; development uses local files under `.local/maps/` (auto-downloaded when missing).
 - Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
 - Round Replay and Demo Analysis are desktop-only; H5 exposes Utility Notes and Collaboration.
 
@@ -264,7 +266,3 @@ The native `@laihoe/demoparser2` package is used only by the Node.js Runtime ada
 ### Model Size Reduction
 
 - Reduce map model asset size, download cost, and runtime memory usage.
-
-### Map Area Markers
-
-- Mark C4 bombsites and team spawn areas on supported maps.

@@ -1,0 +1,27 @@
+services:
+  resources:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    command: node scripts/ensure-maps.js
+    volumes:
+      - ./.local/maps:/app/.local/maps
+
+  csboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: csboard
+    restart: unless-stopped
+
+    ports:
+      - "${PORT:-3000}:3000"
+
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+
+    volumes:
+      - ./.local/maps:/app/.local/maps:ro

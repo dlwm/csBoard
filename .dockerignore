@@ -1,0 +1,16 @@
+.git
+.github
+
+node_modules
+dist
+build
+.wrangler
+.local
+
+ref/dem
+ref/vpk
+
+.env*
+!.env.example
+
+.DS_Store

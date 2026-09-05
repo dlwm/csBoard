@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
-const versionFile = path.join(projectRoot, '.build-version');
+const versionFile = path.join(projectRoot, '..local/maps');
 const buildVersion = String(process.env.VITE_BUILD_VERSION || (fs.existsSync(versionFile) ? fs.readFileSync(versionFile, 'utf8') : '')).trim();
 
 export default defineConfig({

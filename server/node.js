@@ -12,7 +12,7 @@ const PORT = Number(process.env.PORT) || 3001;
 const ROOM_EXPIRY_MS = 300_000;
 const ROOM_PATH = /^\/rooms\/([0-9A-F]{6})$/i;
 const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
-const LOCAL_MAPS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'maps');
+const LOCAL_MAPS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.local', 'maps');
 const env = { MAP_BASE_URL: process.env.MAP_BASE_URL || '' };
 const handleHttp = createHttpHandler({
   parseHeader,
