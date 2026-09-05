@@ -2,6 +2,54 @@
 
 [中文](CHANGELOG.md)
 
+## [1.9.0] - 2026-09-05
+
+### Added
+
+- Add Utility Events to Demo Analysis with smoke, flash, fire, HE, and decoy filters. Position mode shows distinct throw markers, colored landing markers, and full trajectories; heatmap mode aggregates landing points only.
+- Save complete utility throws directly from Analysis landing markers. Nearby markers remain separate but expose a hover selection list so overlapping points stay reachable.
+- Split Area Time into combinable Early, Mid, and Post-plant phases. A gear control adjusts the Early/Mid boundary from 10 to 90 seconds.
+- Add a 2–24 metre planar heat-spread slider. Dragging previews the value and heat textures are recomputed only after release.
+- Add dynamic top and bottom gradient masks to the main vertically scrollable panels and lists, shown only while more content remains in that direction.
+- Explain in the bilingual tutorial prompt that development builds repeat the reminder every third visit.
+
+### Changed
+
+- Render heatmaps through a 64-height-slice texture atlas sampled by NAV surface height, preventing upper-floor events from bleeding onto lower floors.
+- Defer Analysis payload, player aggregation, and per-round utility trajectory loading until the Analysis page is opened. Reuse loaded results until the map or Demo cache changes.
+- Replace the player select with a searchable picker supporting prefix, substring, and ordered-character fuzzy matching, including an explicit loading state.
+- Keep the KD path-time timeline available across every analysis type so Area, KD, and Utility views share playback and stepping controls.
+- Preserve the actual trajectory-end height for smoke, flash, HE, and decoy Analysis markers instead of forcing airbursts onto the nearest ground. Fire remains ground-aligned.
+
+### Fixed
+
+- Fix Analysis playback when it uses only IndexedDB analysis caches and no current Demo is open.
+- Prefer the NAV intersection closest to an event's height instead of the highest surface when matching points on multi-level maps.
+
+## [1.8.0] - 2026-09-05
+
+### Added
+
+- Let Demo Analysis select data from multiple parsed Demos on the same map and aggregate rounds for a player across those Demos.
+- Add economy-matchup filters that independently combine the selected player's and opposing side's ECO, SEMI, FULL, and other economy states.
+- Add Heatmap and Position display modes for switching between aggregated density and individual event markers.
+- Add Area Time analysis, generating spatial heat from how long a player remains in each area.
+
+## [1.7.1] - 2026-09-05
+
+### Added
+
+- Show T/CT spawn areas and A/B bomb-plant zones on supported maps.
+
+## [1.7.0] - 2026-09-04
+
+### Added
+
+- While layer selection is active, use an axis-aligned square covering the map extent instead of following the NAV outline; geometry starts fading 50 game units outside the square and finishes over the next 20 units. Rename the single-floor control from “Playable Layer” to “Layer”.
+- Prevent localized floor, model-mode, and toolbar button labels from wrapping; the single-map Layer control now spans the full floor-control width.
+- Localize the bottom-bar Grid and Trackpad controls, map-floor badge, mobile Reset action, and CSS-generated Display, Camera, and Side Switch labels.
+- Move Reset View below the layer controls, remove the Area Edges and Reachable Surface options, and make Camera Lens the default model view.
+
 ## [1.6.0] - 2026-09-04
 
 ### Added
@@ -9,10 +57,6 @@
 - Replace floor fading with binary NAV-derived bottom/top ranges: multi-floor maps clip each floor independently, while every other map can toggle a playable-layer clip to hide rooftop geometry.
 - Keep the native cursor during `Shift` + middle-mouse panning, then switch to pointer lock and a virtual cursor at the viewport edge for Blender-style continuous wrapping.
 - Replace the static team label in the Collaboration player list with explicit `T` / `CT` controls that do not conflict with player movement, aiming, or crouching gestures.
-- While layer selection is active, use an axis-aligned square covering the map extent instead of following the NAV outline; geometry starts fading 50 game units outside the square and finishes over the next 20 units. Rename the single-floor control from “Playable Layer” to “Layer”.
-- Prevent localized floor, model-mode, and toolbar button labels from wrapping; the single-map Layer control now spans the full floor-control width.
-- Localize the bottom-bar Grid and Trackpad controls, map-floor badge, mobile Reset action, and CSS-generated Display, Camera, and Side Switch labels.
-- Move Reset View below the layer controls, remove the Area Edges and Reachable Surface options, and make Camera Lens the default model view.
 
 ## [1.5.0] - 2026-09-03
 

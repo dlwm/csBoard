@@ -49,10 +49,14 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ![Demo analysis](assets/readme/analysis.png)
 
-- Select one or more players and overlay movement from every round starting at freeze end.
-- Filter analysis by all rounds, T-side rounds, or CT-side rounds.
-- Inspect synchronized movement paths and aggregated spatial heatmaps.
-- Visualize killer positions, victim positions, target positions, and opposing-player positions at kill time.
+- Lazily load Analysis payloads, aggregated players, and per-round utility trajectories only after opening the Analysis page. Find a player through prefix, substring, or ordered-character fuzzy matching with an explicit loading state.
+- Select recent or specific parsed Demos for that player, then filter rounds by T/CT side and both teams' economy classes.
+- Switch between Area Time, KD Events, and Utility Events while keeping shared path playback, timeline scrubbing, and stepping controls.
+- Combine Early, Mid, and Post-plant Area Time phases. The Early/Mid boundary defaults to 30 seconds after freeze end and can be adjusted from 10 to 90 seconds.
+- Inspect killer, victim, target, and opposing-player locations for KD events.
+- Filter Utility Events by smoke, flash, fire, HE, and decoy. Position mode renders distinct throw markers, colored landing markers, and full trajectories; heatmap mode counts landings only.
+- Keep nearby utility landings separate while choosing them from a hover list, then click a landing to save the complete throw to Utility Notes.
+- Sample heatmaps by NAV height to prevent cross-floor bleeding and adjust planar spread from 2 to 24 metres. Expensive heat recomputation occurs only after releasing the slider.
 
 ### Collaboration
 
@@ -86,6 +90,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Jump directly to kills, C4 plants, explosions, and round-end events from the timeline.
 - Keep desktop tool panels in dedicated columns around the 3D viewport and collapse available sidebars independently.
 - Offer a non-blocking replay-control prompt when the loaded Demo map differs from the current map.
+- Show black gradient cues on the top or bottom of primary vertical scrollers while more content remains in that direction, hiding each cue at its respective edge.
 
 ### Mobile / H5
 
@@ -118,7 +123,7 @@ GLB map models are intentionally not committed. Run `make resources` when local 
 
 Training Ground is available only in Utility Notes and Collaboration. Switching to Round Replay or Analysis automatically returns to Dust II.
 
-First-time visitors are asked whether to open the tutorial, which starts directly in the Training Ground Collaboration practice frame. For local testing, every third load on `localhost`, `127.0.0.1`, or `::1` is treated as a first visit. The tutorial map includes separate upper and lower 2D radar images synchronized with `UP` / `LOW`.
+First-time visitors are asked whether to open the tutorial, which starts directly in the Training Ground Collaboration practice frame. For local testing, Vite DEV or `localhost`, `127.0.0.1`, and `::1` environments repeat the prompt every third visit and show that trigger condition in small text inside the dialog. The tutorial map includes separate upper and lower 2D radar images synchronized with `UP` / `LOW`.
 
 ## Getting Started
 

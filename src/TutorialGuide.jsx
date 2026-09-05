@@ -21,13 +21,14 @@ const STEPS = {
   ],
 };
 
-export function TutorialOffer({ language, onAccept, onDecline }) {
+export function TutorialOffer({ language, devMode = false, onAccept, onDecline }) {
   const zh = language === 'zh';
   return <div className="tutorial-offer-backdrop" role="presentation">
     <section className="tutorial-offer" role="dialog" aria-modal="true" aria-labelledby="tutorial-offer-title">
       <span>{zh ? '首次访问' : 'FIRST VISIT'}</span>
       <h2 id="tutorial-offer-title">{zh ? '是否前往操作教学？' : 'Open the interactive tutorial?'}</h2>
       <p>{zh ? '进入双层训练场的协作面板，学习人物、道具、相机机位、战术帧和本地存档。' : 'Open Collaboration on the two-level Training Ground to learn players, utility, camera positions, tactical frames, and local archives.'}</p>
+      {devMode && <small className="tutorial-offer-dev-note">{zh ? '开发模式：该提醒每访问 3 次显示一次。' : 'Development mode: this reminder appears once every 3 visits.'}</small>}
       <footer><button type="button" onClick={onDecline}>{zh ? '暂不前往' : 'NOT NOW'}</button><button type="button" onClick={onAccept}>{zh ? '前往教学' : 'START TUTORIAL'}</button></footer>
     </section>
   </div>;
