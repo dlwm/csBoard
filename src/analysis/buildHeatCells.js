@@ -61,7 +61,7 @@ export default function buildHeatCells({
         if (flags.utilityLanding !== false && utility.landing) addWorld(`utility-${utility.kind}`, utility.landing.x - modelCenter.x, utility.landing.y - modelCenter.y, utility.landing.z - modelCenter.z, color);
         return;
       }
-      if (flags.utilityThrow !== false && utility.throwPosition) addWorld(`utilityThrow-${utility.kind}`, utility.throwPosition.x - modelCenter.x, utility.throwPosition.y - modelCenter.y, utility.throwPosition.z - modelCenter.z, '#d8e6d3');
+      if (flags.utilityThrow !== false && utility.throwPosition) addWorld(`utilityThrow-${utility.kind}`, utility.throwPosition.x - modelCenter.x, utility.throwPosition.y - modelCenter.y, utility.throwPosition.z - modelCenter.z, '#d8e6d3', 1, utility.id);
       if (flags.utilityLanding !== false && utility.landing) addWorld(`utility-${utility.kind}`, utility.landing.x - modelCenter.x, utility.landing.y - modelCenter.y, utility.landing.z - modelCenter.z, color, 1, utility.id);
     });
   } else if (areaMode) {

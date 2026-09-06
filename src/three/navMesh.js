@@ -62,5 +62,5 @@ export function createNavMesh(navData, focusScreen, focusEnabled, viewportSize) 
   const boundsSize = bounds.getSize(new THREE.Vector3());
   const halfSide = Math.max(boundsSize.x, boundsSize.z) * 0.5;
   const modelBoundary = { min: new THREE.Vector2(center.x - halfSide, center.z - halfSide), max: new THREE.Vector2(center.x + halfSide, center.z + halfSide) };
-  return { group, mesh, edgeLines, geometry, edgeGeometry, modelBoundary, center, size: boundsSize.length() };
+  return { group, mesh, edgeLines, geometry, edgeGeometry, modelBoundary, bounds, center, size: boundsSize.length() };
 }

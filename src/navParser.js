@@ -1,3 +1,4 @@
+// Parses Source 2 NAV binaries for the build-time bundled-data generator.
 export function parseNavBuffer(buffer) {
   const view = new DataView(buffer);
   const length = buffer.byteLength;
@@ -92,11 +93,4 @@ export function parseNavBuffer(buffer) {
     areas[areaId] = { area_id: areaId, hull_index: hullIndex, dynamic_attribute_flags: Number(dynamicFlags), corners: points, connections, ladders_above: above, ladders_below: below };
   }
   return { version, sub_version: subVersion, is_analyzed: Boolean(analyzedFlags & 1), areas };
-}
-
-export function fetchAndParseNav(url) {
-  return fetch(url).then((response) => {
-    if (!response.ok) throw new Error(`NAV 加载失败：${response.status}`);
-    return response.arrayBuffer();
-  }).then(parseNavBuffer);
 }

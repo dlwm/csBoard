@@ -61,6 +61,7 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
       if (sourcePoints.length < 2) return;
       const points = sourcePoints.map((point) => new THREE.Vector3(point.x - modelCenter.x, point.y - modelCenter.y + 0.08, point.z - modelCenter.z));
       const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: ANALYSIS_UTILITY_COLORS[utility.kind] || '#c9f76b', transparent: true, opacity: 0.82, depthTest: true, depthWrite: false }));
+      line.userData.utilityKind = utility.kind;
       line.renderOrder = 5;
       utilityGroup.add(line);
       utilityPaths.set(utility.id, line);
@@ -69,6 +70,15 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
       if (active.has(id)) return;
       disposeLine(line);
       utilityPaths.delete(id);
+    });
+    const highlightedId = refs.highlightedUtilityId.current;
+    utilityPaths.forEach((line, id) => {
+      const highlighted = id === highlightedId;
+      const baseColor = ANALYSIS_UTILITY_COLORS[line.userData.utilityKind] || '#c9f76b';
+      line.material.color.set(highlighted ? '#f4ffd1' : baseColor);
+      line.material.opacity = highlighted ? 1 : highlightedId ? 0.16 : 0.82;
+      line.material.depthTest = !highlighted;
+      line.renderOrder = highlighted ? 20 : 5;
     });
   };
 

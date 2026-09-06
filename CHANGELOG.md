@@ -2,11 +2,33 @@
 
 [中文](docs/CHANGELOG.zh-CN.md)
 
+## [1.10.1] - 2026-09-06
+
+### Changed
+
+- Bundle parsed NAV data for all supported maps into the frontend, removing the runtime NAV download and legacy parsing API dependency while preserving offline map geometry.
+- Add an offline region-data generation pipeline that preserves `env_cs_place` height bounds and associates each region with bundled NAV areas.
+- Make the Docker service read GLB models directly from the read-only `.local/maps` bind mount instead of running a resource downloader at startup.
+- Temporarily hide T/CT spawn and bombsite zone models while a clearer replacement visualization is designed.
+
+### Fixed
+
+- Fix Docker builds so the supplied v1.10.0 build version reaches Vite even when `.git` is excluded from the build context.
+- Fix map switches mounting the new GLB with the previous map's bundled NAV data when both NAV files share the same format version.
+- Anchor Anubis's default 3D orbit height to its highest playable NAV surface so non-playable bottom geometry cannot displace it.
+- Remove the duplicate generic crosshair from Demo first-person playback while retaining its animated POV HUD crosshair.
+- Align the remaining Demo POV crosshair to the actual 3D viewport instead of the taller stage that also contains bottom controls.
+- Freeze a utility's first-person camera at the release view for 0.3 seconds, then immediately return to the original replay camera instead of following the thrower's post-release movement.
+- Preserve the model perspective range in saved camera positions and make 0% disable the perspective opening completely.
+- Let five-die Farkle straights score together with a sixth scoring 1 or 5, and make Reaction Test measure the response on press instead of release.
+- Allow Analysis utility records to be opened and saved from either throw or landing markers; hovering a nearby-list entry now highlights its exact trajectory.
+- Make the Analysis nearby-utility list smaller and translucent, and close it immediately after the pointer leaves the entered list.
+
 ## [1.10.0] - 2026-09-06
 
 ### Changed
 
-- Begin decomposing the oversized `main.jsx`: move Analysis UI and calculations, Demo domain logic and HUD, shared UI, floor clipping, NAV boundaries, Analysis, death-heat, Demo utility, utility-note, and C4 scene controllers, camera input and state persistence, and scroll-edge detection into dedicated modules.
+- Begin decomposing the oversized `main.jsx`: move Analysis UI and calculations, Demo domain logic and HUD, shared UI, floor clipping, NAV boundaries, Analysis, death-heat, Demo utility, utility-note, collaboration-utility, and C4 scene controllers, camera input and state persistence, and scroll-edge detection into dedicated modules.
 - Reorganized the development tooling structure: project scripts have been consolidated under scripts/, while local third-party tools are now stored under .local/.
 
 ### Fixed

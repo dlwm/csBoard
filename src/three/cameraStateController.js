@@ -4,6 +4,7 @@ import * as THREE from 'three';
 const serializeSlot = (slot) => slot ? {
   position: slot.position.toArray(),
   target: slot.target.toArray(),
+  ...(Number.isFinite(slot.viewRange) ? { viewRange: slot.viewRange } : {}),
 } : null;
 
 const parseSlot = (slot) => {
@@ -11,6 +12,7 @@ const parseSlot = (slot) => {
   return {
     position: new THREE.Vector3(...slot.position),
     target: new THREE.Vector3(...slot.target),
+    viewRange: Number.isFinite(slot.viewRange) ? THREE.MathUtils.clamp(slot.viewRange, 0, 1) : null,
   };
 };
 
@@ -20,6 +22,8 @@ export default function createCameraStateController({
   controls,
   onSlotsChange,
   onRestoreSlot,
+  getViewRange,
+  onRestoreViewRange,
   isPersistenceBlocked,
 }) {
   const slotsStorageKey = `csboard-camera-slots-${mapName}`;
@@ -35,7 +39,11 @@ export default function createCameraStateController({
   const persistSlots = () => localStorage.setItem(slotsStorageKey, JSON.stringify(serializeSlots()));
 
   const saveSlot = (slot) => {
-    slots[slot] = { position: camera.position.clone(), target: controls.target.clone() };
+    slots[slot] = {
+      position: camera.position.clone(),
+      target: controls.target.clone(),
+      viewRange: THREE.MathUtils.clamp(Number(getViewRange?.()), 0, 1),
+    };
     persistSlots();
     notifySlots(slot);
   };
@@ -56,6 +64,7 @@ export default function createCameraStateController({
   const getCameraState = () => ({
     position: camera.position.toArray(),
     target: controls.target.toArray(),
+    viewRange: THREE.MathUtils.clamp(Number(getViewRange?.()), 0, 1),
   });
 
   const saveCurrent = () => {
@@ -76,6 +85,7 @@ export default function createCameraStateController({
       if (!saved?.position?.every(Number.isFinite) || !saved?.target?.every(Number.isFinite) || saved.position.length !== 3 || saved.target.length !== 3) return false;
       camera.position.fromArray(saved.position);
       controls.target.fromArray(saved.target);
+      if (Number.isFinite(saved.viewRange)) onRestoreViewRange?.(saved.viewRange);
       controls.update();
       return true;
     } catch {

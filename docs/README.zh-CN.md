@@ -81,7 +81,6 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - 使用 `three-mesh-bvh` 高效查询视线最近墙体碰撞。
 - 显示 GLB 下载、处理和失败状态；模型不可用时继续使用 NAV 完成镜头取景、碰撞和表面编辑。
 - 在资源可用时显示内置 2D 雷达预览并支持楼层切换。
-- 在支持的地图中标记 T/CT 出生区域与 A/B 炸弹安放区域。
 - 支持 Blender 风格鼠标控制、触控板手势和 WASD 移动。
 
 ### 界面信息
@@ -120,7 +119,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - Train
 - Vertigo
 
-GLB 地图模型不会提交到仓库。需要本地 `.nav`/`.glb` 时运行 `make resources` 下载到 `.local/maps/<map>/`；Workers 应用运行时从云存储加载生产地图资源。
+所有支持地图的 NAV 解析数据均已提交并构建进前端，可离线使用。GLB 地图模型不会提交到仓库；需要本地源 `.nav` 与 `.glb` 时运行 `make resources` 下载到 `.local/maps/<map>/`。生产环境仅从云存储加载 GLB 资源。
 
 Training Ground 仅在道具速记和协作面板中提供；切换到回合浏览或数据分析时会自动返回 Dust II。
 
@@ -148,7 +147,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，确保 NAV/GLB 继续读取 `.local/maps`。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
+默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，为前端提供 `.local/maps` 中的 GLB。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
 
 相同的 API 与 Yjs 协议核心也可以通过传统 Node.js HTTP/WebSocket 入口运行：
 
@@ -168,6 +167,8 @@ make build
 该命令会将前端构建到 `dist/`、校验 Node.js Runtime 适配层，并将 Cloudflare Workers bundle 输出到 `build/workers/`。Make 构建会从 Git 生成标题栏版本：干净且 HEAD 有精确 tag 时使用该 tag；dirty 或无 tag 的交互构建会先询问，再使用 `git describe`。
 
 `npm run build` 与 `npm run build:local` 使用本地 `/maps` 和同源 API；`npm run build:remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
+
+通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/maps`；只有需要覆盖镜像默认的 `v1.10.0` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式
 
@@ -199,26 +200,26 @@ make build
 assets/
   readme/                 # README 截图与演示 GIF
 src/
+  data/nav/               # 由脚本生成并提交、由 Vite 构建的 NAV JSON
   default-data/           # 首次访问时导入的可提交默认数据
     utility-notes/        # 道具速记 JSON
     workspace-archives/   # 协作面板存档 JSON
-public/
-  maps/
+.local/
+  maps/                   # Git 忽略的本地源文件/模型目录
     <map>/
-      <map>.nav           # 本地开发数据，由 Git 忽略（通过 `make resources` 下载）
-      <map>.glb           # 本地开发数据，由 Git 忽略（通过 `make resources` 下载）
+      <map>.nav           # `make nav-data` 的生成源
+      <map>.glb           # 本地与 Docker 构建的运行时模型
 ```
 
 贡献者可将默认道具速记或协作存档 JSON 直接放入 `src/default-data/` 对应子目录，具体格式见 [`src/default-data/README.md`](src/default-data/README.md)。这些文件只会在浏览器从未创建对应本地数据时导入，不会覆盖或重新填充现有用户数据。
 
-`public/` 目录整体被 Git 忽略。运行 `make resources` 时，`scripts/ensure-maps.js` 会检测各地图资源，并从 `.env.local` 的 `VITE_OSS_BASE_URL`（或 `MAP_DOWNLOAD_BASE_URL`）下载缺失文件。未配置下载源时命令会明确报错。
+运行 `make resources` 时，`scripts/ensure-maps.js` 会检测本地地图源文件与模型，并从 `.env.local` 的 `VITE_OSS_BASE_URL`（或 `MAP_DOWNLOAD_BASE_URL`）下载缺失文件。未配置下载源时命令会明确报错。替换源 NAV 后，运行 `make nav-data` 重新生成需要提交的前端数据。
 
-本地构建从 `.local/maps` 加载 `/maps/<map>/<map>.nav` 和 `/maps/<map>/<map>.glb`；远程构建使用云存储地址：
+NAV JSON 会直接包含在前端 bundle 中，并只在选中对应地图时解析；浏览器不会在运行时请求 NAV。本地构建通过 `/maps/<map>/<map>.glb` 从 `.local/maps` 加载 GLB，远程构建使用：
 
-- `<VITE_OSS_BASE_URL>/maps/<map>/<map>.nav`
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
 
-NAV 以原始字节拉取并在浏览器内解析（`src/navParser.js`）。存储桶需返回 `Access-Control-Allow-Origin` 头。旧的 `/api/maps/:map/nav` 接口仅作为回退，运行时非必需。
+GLB 存储桶需返回 `Access-Control-Allow-Origin` 头。`src/navParser.js` 仅保留给构建期 NAV 生成脚本使用，不再暴露运行时解析接口。
 
 地图导出工具和原始游戏资源继续仅保存在本地。请勿提交 VPK、解包后的游戏资源、Demo 文件或 GLB 模型。
 
@@ -251,7 +252,7 @@ make workers-deploy
 - Node.js Runtime 的协作房间保存在进程内存中；Cloudflare Workers 使用 Durable Object Storage，并在最后一个客户端离开五分钟后清理。
 - 房主身份目前主要由客户端管理，尚未使用服务端签发的 owner token。
 - 解析器没有暴露 C4 实体逐 Tick 坐标，因此掉落轨迹只能根据事件近似。
-- 生产环境地图 NAV 与 GLB 依赖云存储可用；开发模式使用 `.local/maps/` 本地数据（缺失时自动下载）。
+- 生产环境仍依赖云存储提供 GLB 模型；模型或网络不可用时，前端内置 NAV 几何仍可正常使用。
 - Demo 初次解析后会缓存全部回合，大型 Demo 可能占用较多内存。
 - 回合浏览和数据分析仅在桌面端提供；H5 提供道具速记与协作。
 

@@ -1,3 +1,4 @@
+// Node.js adapter for static assets, local models, Demo APIs, and Yjs rooms.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,7 +13,8 @@ const PORT = Number(process.env.PORT) || 3001;
 const ROOM_EXPIRY_MS = 300_000;
 const ROOM_PATH = /^\/rooms\/([0-9A-F]{6})$/i;
 const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
-const LOCAL_MAPS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.local', 'maps');
+// Docker and local development can point this at an external read-only model mount.
+const LOCAL_MAPS_DIR = path.resolve(process.env.LOCAL_MAPS_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.local', 'maps'));
 const env = { MAP_BASE_URL: process.env.MAP_BASE_URL || '' };
 const handleHttp = createHttpHandler({
   parseHeader,

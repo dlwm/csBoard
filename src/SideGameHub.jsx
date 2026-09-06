@@ -82,7 +82,7 @@ function ReactionGame({ zh, stopped }) {
   const [best, setBest] = useState(null);
   const [lastMs, setLastMs] = useState(null);
   const [latestAverage, setLatestAverage] = useState(null);
-  const [message, setMessage] = useState(zh ? '按下开始，等它变绿后松开。' : 'Press to start, release once it turns green.');
+  const [message, setMessage] = useState(zh ? '按下开始，等它变绿后再次按下。' : 'Press to start, then press again once it turns green.');
   const timeoutRef = useRef(null);
   const goAtRef = useRef(0);
   const groupRef = useRef([]);
@@ -97,24 +97,20 @@ function ReactionGame({ zh, stopped }) {
     return () => window.clearTimeout(timeoutRef.current);
   }, [stopped, zh]);
 
-  const handleDown = (event) => {
+  const handleDown = () => {
     if (stopped) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
     if (phase === 'idle') {
       window.clearTimeout(timeoutRef.current);
       setPhase('waiting');
-      setMessage(zh ? '按住… 变绿时立即松开！' : 'Hold… release the instant it turns green!');
+      setMessage(zh ? '等待变绿… 不要提前按下！' : 'Wait for green… do not press early!');
       const delay = 700 + Math.random() * 1600;
       timeoutRef.current = window.setTimeout(() => {
         setPhase('go');
-        setMessage(zh ? '松开！' : 'RELEASE!');
+        setMessage(zh ? '按下！' : 'PRESS!');
         goAtRef.current = performance.now();
       }, delay);
+      return;
     }
-  };
-
-  const handleUp = () => {
-    if (stopped) return;
     if (phase === 'waiting') {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -150,10 +146,10 @@ function ReactionGame({ zh, stopped }) {
   const attemptNumber = successfulCount % 3 + 1;
 
   return <div className="reaction-game">
-    <div className={`reaction-area reaction-${phase}`} role="button" tabIndex="0" onPointerDown={handleDown} onPointerUp={handleUp} onPointerCancel={handleCancel}>
+    <div className={`reaction-area reaction-${phase}`} role="button" tabIndex="0" onPointerDown={handleDown} onPointerCancel={handleCancel}>
       {phase === 'idle' && <span className="reaction-hint">{successfulCount ? (zh ? '按下再试一次' : 'Press to try again') : (zh ? '按下开始' : 'Press to start')}</span>}
-      {phase === 'waiting' && <span className="reaction-hint">{zh ? '按住…' : 'Hold…'}</span>}
-      {phase === 'go' && <span className="reaction-hint">{zh ? '松开!' : 'RELEASE!'}</span>}
+      {phase === 'waiting' && <span className="reaction-hint">{zh ? '等待…' : 'Wait…'}</span>}
+      {phase === 'go' && <span className="reaction-hint">{zh ? '按下!' : 'PRESS!'}</span>}
     </div>
     <div className="reaction-stats"><dl><div><dt>{zh ? '最新' : 'LATEST'}</dt><dd>{lastMs != null ? `${lastMs.toFixed(0)}ms` : '—'}</dd></div><div><dt>{zh ? '最佳' : 'BEST'}</dt><dd>{best != null ? `${best.toFixed(0)}ms` : '—'}</dd></div><div><dt>{zh ? '组/次' : 'GROUP / ATTEMPT'}</dt><dd>{groupNumber} / {attemptNumber}</dd></div><div><dt>{zh ? '上组平均' : 'LATEST 3 AVG'}</dt><dd>{latestAverage != null ? `${latestAverage.toFixed(0)}ms` : '—'}</dd></div></dl></div>
     <p className="reaction-msg">{message}</p>

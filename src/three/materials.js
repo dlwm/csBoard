@@ -25,14 +25,14 @@ export function createGhostMaterial(focusScreen, viewportSize, viewMode, viewRan
       '#include <common>\nuniform vec2 focusScreen;\nuniform vec2 viewportSize;\nuniform float modelViewMode;\nuniform float modelViewRange;',
     ).replace(
       '#include <alphatest_fragment>',
-      'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat viewRangeScale = mix(0.5, 1.5, modelViewRange);\nfloat mouseFade = smoothstep(0.06 * viewRangeScale, 0.34 * viewRangeScale, modelFocusDistance);\nfloat cameraFade = smoothstep(18.0 * viewRangeScale, 34.0 * viewRangeScale, length(vViewPosition));\nfloat activeFade = 1.0;\nactiveFade = mix(activeFade, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
+      'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat viewRangeScale = mix(modelViewRange * 2.0, modelViewRange + 0.5, step(0.5, modelViewRange));\nfloat safeViewRangeScale = max(viewRangeScale, 0.0001);\nfloat viewRangeEnabled = step(0.001, modelViewRange);\nfloat mouseFade = mix(1.0, smoothstep(0.06 * safeViewRangeScale, 0.34 * safeViewRangeScale, modelFocusDistance), viewRangeEnabled);\nfloat cameraFade = mix(1.0, smoothstep(18.0 * safeViewRangeScale, 34.0 * safeViewRangeScale, length(vViewPosition)), viewRangeEnabled);\nfloat activeFade = 1.0;\nactiveFade = mix(activeFade, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
     );
     shader.uniforms.focusScreen = { value: focusScreen };
     shader.uniforms.viewportSize = { value: viewportSize };
     shader.uniforms.modelViewMode = viewMode;
     shader.uniforms.modelViewRange = viewRange;
   };
-  material.customProgramCacheKey = () => 'model-screen-focus-alpha-to-coverage-v2';
+  material.customProgramCacheKey = () => 'model-screen-focus-alpha-to-coverage-v3';
   return material;
 }
 

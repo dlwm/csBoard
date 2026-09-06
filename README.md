@@ -81,7 +81,6 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
 - Show bundled 2D radar previews and floor switching where map assets provide them.
-- Mark T/CT spawn areas and A/B bomb-plant zones on supported maps.
 - Navigate with Blender-style mouse controls, trackpad gestures, and WASD movement.
 
 ### Interface
@@ -120,7 +119,7 @@ The repository includes files for:
 - Train
 - Vertigo
 
-GLB map models are intentionally not committed. Run `make resources` when local `.nav`/`.glb` files are needed under `.local/maps/<map>/`; the Workers application loads production map resources from cloud storage.
+Parsed NAV data for every supported map is committed and bundled into the frontend for offline use. GLB map models are intentionally not committed; run `make resources` when local source `.nav` and `.glb` files are needed under `.local/maps/<map>/`. Production loads only GLB resources from cloud storage.
 
 Training Ground is available only in Utility Notes and Collaboration. Switching to Round Replay or Analysis automatically returns to Dust II.
 
@@ -148,7 +147,7 @@ Build the frontend and start the APIs and collaboration service with the default
 npm run dev
 ```
 
-The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` so NAV/GLB requests continue to use `.local/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
+The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` for GLB files under `.local/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
 
 The same API and Yjs protocol core can also run behind a traditional Node.js HTTP/WebSocket entry:
 
@@ -168,6 +167,8 @@ make build
 This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and writes the Cloudflare Workers bundle to `build/workers/`. Make builds derive the header version from Git: a clean exact-tag build uses that tag, while dirty or untagged interactive builds ask before using `git describe`.
 
 `npm run build` and `npm run build:local` use local `/maps` resources and same-origin APIs. `npm run build:remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
+
+To run the Node.js Runtime in Docker, place the GLB models under `.local/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/maps`; set `BUILD_VERSION` only when overriding the default `v1.10.0` image version.
 
 ## Controls
 
@@ -199,26 +200,26 @@ This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and
 assets/
   readme/                 # README screenshots and demonstration GIF
 src/
+  data/nav/               # generated, committed NAV JSON bundled by Vite
   default-data/           # committable data imported on first visit
     utility-notes/        # utility-note JSON files
     workspace-archives/   # Collaboration archive JSON files
-public/
-  maps/
+.local/
+  maps/                   # ignored local source/model directory
     <map>/
-      <map>.nav           # local dev data, ignored by Git (auto-downloaded on dev)
-      <map>.glb           # local dev data, ignored by Git (auto-downloaded on dev)
+      <map>.nav           # source for `make nav-data`
+      <map>.glb           # runtime model for local and Docker builds
 ```
 
 Contributors can place default utility-note or Collaboration-archive JSON files directly in the corresponding `src/default-data/` subdirectory. See [`src/default-data/README.md`](src/default-data/README.md) for accepted formats. These files are imported only when the browser has never created the corresponding local data, so existing user data is never replaced or repopulated.
 
-The whole `public/` directory is ignored by Git. Running `make resources` checks each map and downloads missing files from `VITE_OSS_BASE_URL` (or `MAP_DOWNLOAD_BASE_URL`) configured in `.env.local`. The command fails clearly when no download origin is configured.
+Running `make resources` checks each local map source/model and downloads missing files from `VITE_OSS_BASE_URL` (or `MAP_DOWNLOAD_BASE_URL`) configured in `.env.local`. The command fails clearly when no download origin is configured. After replacing source NAV files, run `make nav-data` to regenerate the committed frontend data.
 
-Local builds load NAV and GLB from `.local/maps` (`/maps/<map>/<map>.nav`, `/maps/<map>/<map>.glb`). Remote builds use cloud storage:
+NAV JSON is included in the frontend bundle and parsed only when its map is selected; the browser makes no runtime NAV request. Local builds load GLB files from `.local/maps` through `/maps/<map>/<map>.glb`. Remote builds use:
 
-- `<VITE_OSS_BASE_URL>/maps/<map>/<map>.nav`
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
 
-NAV files are fetched as raw bytes and parsed in the browser (`src/navParser.js`). The bucket must send `Access-Control-Allow-Origin` headers. The legacy `/api/maps/:map/nav` endpoint remains as a fallback but is not required at runtime.
+The GLB bucket must send `Access-Control-Allow-Origin` headers. `src/navParser.js` is retained for the build-time NAV generator rather than exposed as a runtime API.
 
 Map extraction tools and raw game resources remain local-only. Do not commit VPK files, extracted game assets, Demo files, or GLB models.
 
@@ -257,7 +258,7 @@ The native `@laihoe/demoparser2` package is used only by the Node.js Runtime ada
 - Node.js Runtime rooms are held in process memory. Cloudflare Workers rooms use Durable Object storage and are deleted five minutes after the final client disconnects.
 - Room ownership is currently client-managed rather than protected by a server-issued owner token.
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
-- Production loads map NAV and GLB from cloud storage; development uses local files under `.local/maps/` (auto-downloaded when missing).
+- Production still depends on cloud storage for GLB models; bundled NAV geometry remains available when a model or the network is unavailable.
 - Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
 - Round Replay and Demo Analysis are desktop-only; H5 exposes Utility Notes and Collaboration.
 

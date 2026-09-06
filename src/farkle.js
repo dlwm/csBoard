@@ -10,9 +10,17 @@ export function scoreDice(dice) {
   dice.forEach((die) => { counts[die] += 1; });
   if (dice.length === 6 && counts.slice(1).every((count) => count === 1)) return 1500;
   if (dice.length === 6 && counts.slice(1).filter((count) => count === 2).length === 3) return 1500;
-  if (dice.length === 5 && [1, 2, 3, 4, 5].every((face) => counts[face] === 1)) return 500;
-  if (dice.length === 5 && [2, 3, 4, 5, 6].every((face) => counts[face] === 1)) return 750;
   let score = 0;
+  // Consume the straight first so an extra scoring 1 or 5 can be selected with it.
+  const straight = [1, 2, 3, 4, 5].every((face) => counts[face] >= 1)
+    ? { faces: [1, 2, 3, 4, 5], score: 500 }
+    : [2, 3, 4, 5, 6].every((face) => counts[face] >= 1)
+      ? { faces: [2, 3, 4, 5, 6], score: 750 }
+      : null;
+  if (straight) {
+    straight.faces.forEach((face) => { counts[face] -= 1; });
+    score += straight.score;
+  }
   for (let face = 1; face <= 6; face += 1) {
     const count = counts[face];
     if (count >= 3) {

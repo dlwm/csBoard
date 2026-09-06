@@ -108,6 +108,7 @@ export default function createDeathHeatSceneController({ scene, refs, floorFadeR
       }
       heat.position.copy(origin);
       heat.userData.analysisUtilityId = cell.utilityId || '';
+      heat.userData.analysisUtilityEndpoint = cell.kind.startsWith('utilityThrow-') ? 'throw' : 'landing';
       heat.scale.setScalar((cell.kind.startsWith('utilityThrow-') ? 0.78 : 0.85) + Math.min(cell.count, 8) * 0.14);
       heat.material.opacity = Math.min(0.78, 0.24 + cell.count * 0.09);
     });

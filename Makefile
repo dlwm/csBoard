@@ -9,7 +9,7 @@ COMPOSE ?= $(DOCKER) compose
 
 .PHONY: \
 	help \
-	setup install resources map-export \
+	setup install resources nav-data map-export \
 	build build-version frontend-build backend-build workers-build \
 	dev node-dev workers-dev workers-deploy \
 	docker docker-build docker-up docker-down docker-restart docker-logs docker-ps docker-clean \
@@ -23,6 +23,7 @@ help:
 		'  make setup              Install dependencies and download map resources' \
 		'  make install            Install npm dependencies' \
 		'  make resources          Download missing local NAV/GLB map resources' \
+		'  make nav-data           Rebuild bundled NAV JSON from .local/maps' \
 		'  make map-export         Export NAV/GLB map resources from local VPK files' \
 		'' \
 		'Build:' \
@@ -61,6 +62,9 @@ install:
 
 resources:
 	node scripts/ensure-maps.js
+
+nav-data:
+	node scripts/generate-nav-data.js
 
 map-export:
 	bash scripts/export-map.sh

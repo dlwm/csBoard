@@ -7,11 +7,10 @@ import { Line2 } from 'three/addons/lines/Line2.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
-import fallbackNavData from './data/de_dust2.json';
+import { getBundledNavData } from './data/navData.js';
 import { createNavMesh } from './three/navMesh.js';
 import { createZoneModel } from './three/zoneModel.js';
 import { createTutorialMap, tutorialNavData, tutorialWorkspaceArchive, TUTORIAL_MAP_ID } from './three/tutorialMap.js';
-import { parseNavBuffer, fetchAndParseNav } from './navParser.js';
 import { createGhostMaterial, enableMapSquareFade } from './three/materials.js';
 import { createTacticalPoint, updateTacticalPoint } from './three/tacticalPoint.js';
 import { createCollabPlayer, randomPlayerName, renameCollabPlayer, setCollabPlayerCrouch, setCollabPlayerPitch, setCollabPlayerTeam, updateCollabPlayerAim } from './three/collabPlayer.js';
@@ -48,6 +47,7 @@ import buildRadarCameraState from './three/radarCameraState.js';
 import createDeathHeatSceneController from './three/deathHeatSceneController.js';
 import createDemoGrenadeSceneController from './three/demoGrenadeSceneController.js';
 import createUtilityNotesSceneController from './three/utilityNotesSceneController.js';
+import createCollabUtilitySceneController from './three/collabUtilitySceneController.js';
 import './styles.css';
 import { map2dLayers } from './assets/map-2d-urls.js';
 import * as Y from 'yjs';
@@ -110,6 +110,11 @@ const MAPS = [
 const VIEW_PREFERENCES_KEY = 'csboard-view-preferences';
 const MODEL_VIEW_RANGE_EVENT = 'csboard-model-view-range';
 const ANALYSIS_HEAT_DATA_EVENT = 'csboard-analysis-heat-data';
+const UTILITY_THROW_VIEW_HOLD_SECONDS = 0.3;
+// Temporarily hide zone volumes until their replacement visualization is ready.
+const MAP_ZONE_MODELS_ENABLED = false;
+// Anubis has non-playable bottom geometry, so its orbit height must not follow the GLB bounds.
+const NAV_TOP_CAMERA_TARGET_MAPS = new Set(['de_anubis']);
 
 function loadViewPreferences() {
   try {
@@ -196,7 +201,7 @@ const stableHash = (value) => {
   for (const character of value) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); }
   return (hash >>> 0).toString(16).padStart(8, '0');
 };
-function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, trackpadDetection, showDemoNames, demoSnapshot, demoSnapshots, demoTick, demoFires, demoHurts, demoGrenades, demoProjectiles, demoGrenadeSegments, onDemoGrenadeSelect, demoDeaths, demoC4Events, demoHltvEvents, demoCameraMode, demoInEyePlayer, onDemoCameraInterrupt, utilityNotes, utilityNotesEnabled, onUtilityHover, utilityFirstPerson, heatDeaths, demoViewFlags, analysisRows, analysisUtilities, onAnalysisUtilitySelect, analysisSelectedPlayers, analysisSide, analysisEnabled, analysisRounds, analysisTime, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onCameraSlots, onReady, onModelLoadState, pointPlacementEnabled, brushEnabled, brushColor, brushWidth, eraserEnabled, onBrushChange, onCollabEdit }) {
+function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, onModelViewRangeChange, trackpadDetection, showDemoNames, demoSnapshot, demoSnapshots, demoTick, demoFires, demoHurts, demoGrenades, demoProjectiles, demoGrenadeSegments, onDemoGrenadeSelect, demoDeaths, demoC4Events, demoHltvEvents, demoCameraMode, demoInEyePlayer, onDemoCameraInterrupt, utilityNotes, utilityNotesEnabled, onUtilityHover, utilityFirstPerson, heatDeaths, demoViewFlags, analysisRows, analysisUtilities, analysisHighlightedUtilityId, onAnalysisUtilitySelect, analysisSelectedPlayers, analysisSide, analysisEnabled, analysisRounds, analysisTime, deletePointId, pointUpdate, onPointSelect, onGrenadeWheel, onCameraSlots, onReady, onModelLoadState, pointPlacementEnabled, brushEnabled, brushColor, brushWidth, eraserEnabled, onBrushChange, onCollabEdit }) {
   const mountRef = useRef(null);
   const edgesRef = useRef(null);
   const modelModeRef = useRef(null);
@@ -235,6 +240,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   const utilityFirstPersonRef = useRef(utilityFirstPerson);
   const analysisRowsRef = useRef(analysisRows || []);
   const analysisUtilitiesRef = useRef(analysisUtilities || []);
+  const analysisHighlightedUtilityIdRef = useRef(analysisHighlightedUtilityId || '');
   const analysisUtilitySelectRef = useRef(onAnalysisUtilitySelect);
   const analysisUtilityHoverRef = useRef(analysisUtilityRuntime.onHover);
   const analysisSelectedPlayersRef = useRef(analysisSelectedPlayers || []);
@@ -251,6 +257,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   onCollabEditRef.current = onCollabEdit;
   const modelLoadStateRef = useRef(onModelLoadState);
   modelLoadStateRef.current = onModelLoadState;
+  const modelViewRangeChangeRef = useRef(onModelViewRangeChange);
+  modelViewRangeChangeRef.current = onModelViewRangeChange;
   const collabHistoryRef = useRef({ push: () => {}, undo: () => {}, redo: () => {} });
   const analysisTimeRef = useRef(analysisTime || 0);
   const analysisSideRef = useRef(analysisSide || 'ALL');
@@ -290,6 +298,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
   utilityFirstPersonRef.current = utilityFirstPerson;
   analysisRowsRef.current = analysisRows || [];
   analysisUtilitiesRef.current = analysisUtilities || [];
+  analysisHighlightedUtilityIdRef.current = analysisHighlightedUtilityId || '';
   analysisUtilitySelectRef.current = onAnalysisUtilitySelect || analysisUtilityRuntime.onSelect;
   analysisUtilityHoverRef.current = analysisUtilityRuntime.onHover;
   analysisSelectedPlayersRef.current = analysisSelectedPlayers || [];
@@ -332,8 +341,6 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     const demoMarkers = new Map();
     const demoMovementTrails = new Map();
     const demoFlashedHeadColor = new THREE.Color('#e4e7e5');
-    const collabUtilitiesGroup = new THREE.Group();
-    const collabUtilities = [];
     let frameTween = null;
     const collisionMeshes = [];
     const isInteractiveFloorPoint = (point) => floorVisibilityAtY(point.y, floorFadeRef.current) > 0.05;
@@ -342,7 +349,6 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     aimRaycaster.firstHitOnly = true;
     let collisionVersion = 0;
     scene.add(demoPlayers);
-    scene.add(collabUtilitiesGroup);
     demoPlayersRef.current = demoPlayers;
     let modelCenter = new THREE.Vector3();
     const analysisScene = createAnalysisSceneController({
@@ -350,6 +356,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       refs: {
         rows: analysisRowsRef,
         utilities: analysisUtilitiesRef,
+        highlightedUtilityId: analysisHighlightedUtilityIdRef,
         selectedPlayers: analysisSelectedPlayersRef,
         enabled: analysisEnabledRef,
         flags: demoViewFlagsRef,
@@ -782,6 +789,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     scene.add(camera);
     const controls = new OrbitControls(camera, renderer.domElement);
     let utilityFirstPersonActive = false;
+    let utilityReturnCamera = null;
     let demoDirectorCameraActive = false;
     let demoDirectorEventKey = '';
     let cameraTransition = null;
@@ -820,6 +828,12 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     const savedModelViewRange = Number(loadViewPreferences().modelViewRange);
     const modelRange = { value: Number.isFinite(savedModelViewRange) ? THREE.MathUtils.clamp(savedModelViewRange, 0, 1) : 0.5 };
     modelRangeRef.current = modelRange;
+    const restoreModelViewRange = (value) => {
+      if (!Number.isFinite(value)) return;
+      const range = THREE.MathUtils.clamp(value, 0, 1);
+      modelRange.value = range;
+      modelViewRangeChangeRef.current?.(range);
+    };
     const raycaster = new THREE.Raycaster();
     let previewPoint;
     let placementOrigin;
@@ -1039,71 +1053,19 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       const rect = renderer.domElement.getBoundingClientRect();
       return new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     };
-    const noteWorldPosition = (note) => {
-      const [x, y, z] = note?.position || [0, 0, 0];
-      return new THREE.Vector3(y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y, x * 0.0254 - modelCenter.z);
-    };
-    const createCollabUtility = (note, itemId, kind, originPosition, savedEffectPosition = null) => {
-      const group = new THREE.Group();
-      const rawKind = kind || note?.grenadeType || 'smoke';
-      const normalizedKind = grenadeKind(rawKind);
-      const effectKind = normalizedKind === 'he' ? 'explosion' : normalizedKind;
-      const projectiles = (note?.replay?.projectiles || []).filter((record) => record.x != null && record.y != null && record.z != null);
-      const landing = [...(note?.replay?.events || [])].reverse().find((event) => event.event_name !== 'grenade_thrown' && event.x != null && event.y != null && event.z != null);
-      const endpoint = landing || projectiles.at(-1);
-      const effectPosition = savedEffectPosition ? new THREE.Vector3().fromArray(savedEffectPosition) : endpoint ? new THREE.Vector3(endpoint.y * 0.0254 - modelCenter.x, endpoint.z * 0.0254 - modelCenter.y, endpoint.x * 0.0254 - modelCenter.z) : originPosition.clone();
-      const effect = createGrenadeEffect(effectPosition, effectKind, navData, nav);
-      effect.position.sub(originPosition);
-      effect.userData.collabUtilityEffect = true;
-      enableObjectFloorFade(effect, floorFadeRef.current);
-      group.add(effect);
-      let trajectory = null;
-      if (projectiles.length >= 2) {
-        const points = projectiles.map((record) => new THREE.Vector3(record.y * 0.0254 - modelCenter.x, record.z * 0.0254 - modelCenter.y, record.x * 0.0254 - modelCenter.z).sub(originPosition));
-        trajectory = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: '#c58cff', transparent: true, opacity: 0.9 }));
-        trajectory.userData.collabUtilityTrajectory = true;
-        enableObjectFloorFade(trajectory, floorFadeRef.current);
-        group.add(trajectory);
-      }
-      group.userData.collabUtility = true;
-      group.userData.collabUtilityId = itemId;
-      group.userData.noteId = note?.id;
-      group.userData.noteName = note?.name || '';
-      group.userData.noteSummary = note?.summary || '';
-      group.userData.utilityKind = effectKind;
-      group.userData.collabUtilityEffect = effect;
-      group.userData.utilityEffectPosition = effectPosition.toArray();
-      group.userData.utilityProjectiles = projectiles.map((record) => ({ ...record }));
-      return group;
-    };
-    const disposeCollabUtility = (group) => {
-      group.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); });
-      group.removeFromParent();
-    };
-    const addCollabUtility = (note, itemId) => {
-      if (!note || !collabEditingEnabledRef.current) return;
-      pushCollabHistory();
-      const origin = noteWorldPosition(note);
-      const group = createCollabUtility(note, itemId || `collab-util-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, undefined, origin);
-      group.position.copy(origin);
-      collabUtilitiesGroup.add(group);
-      collabUtilities.push(group);
-      notifyCollabEdit();
-      return group;
-    };
-    const removeCollabUtility = (itemId) => {
-      if (!itemId || !collabEditingEnabledRef.current) return;
-      const index = collabUtilities.findIndex((group) => group.userData.collabUtilityId === itemId);
-      if (index < 0) return;
-      pushCollabHistory();
-      const [group] = collabUtilities.splice(index, 1);
-      disposeCollabUtility(group);
-      notifyCollabEdit();
-    };
-    const clearCollabUtilities = () => {
-      collabUtilities.forEach((group) => disposeCollabUtility(group));
-      collabUtilities.length = 0;
-    };
+    const collabUtilityScene = createCollabUtilitySceneController({
+      scene,
+      navData,
+      editingRef: collabEditingEnabledRef,
+      floorFadeRef,
+      getModelCenter: () => modelCenter,
+      getNav: () => nav,
+      pushHistory: () => pushCollabHistory(),
+      notifyEdit: notifyCollabEdit,
+    });
+    const addCollabUtility = collabUtilityScene.add;
+    const removeCollabUtility = collabUtilityScene.remove;
+    const clearCollabUtilities = collabUtilityScene.clear;
     const getCollabPlayers = () => pointsRef.current.filter((point) => point.userData.collabPlayer && point.userData.pointId).map((point) => ({ id: point.userData.pointId, name: point.userData.playerName, team: point.userData.team, position: point.position.toArray(), rotationY: point.rotation.y, pitch: point.userData.collabPitch || 0 }));
     const renamePlayerPoint = (pointId, name) => {
       const point = pointsRef.current.find((item) => item.userData.pointId === pointId && item.userData.collabPlayer);
@@ -1118,7 +1080,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     };
     renamePlayerPoint.setTeam = setPlayerTeamPoint;
     const setCollabVisible = (visible) => {
-      collabUtilitiesGroup.visible = visible !== false;
+      collabUtilityScene.setVisible(visible);
       pointsRef.current.forEach((point) => { if (point.userData.collabPlayer) point.visible = visible !== false; });
     };
     const setCollabEditingEnabled = (enabled) => { collabEditingEnabledRef.current = enabled === true; };
@@ -1136,8 +1098,8 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       finalizeFrameTween();
       let previousByName = new Map();
       try { previousByName = new Map(getCollabPlayers().map((player) => [player.name, { position: new THREE.Vector3().fromArray(player.position), rotationY: player.rotationY, pitch: player.pitch }])); } catch (error) { console.error('smoothRestoreFrame getCollabPlayers', error); }
-      const savedCamera = saved?.camera && saved.camera.position && saved.camera.target ? { position: new THREE.Vector3().fromArray(saved.camera.position), target: new THREE.Vector3().fromArray(saved.camera.target) } : null;
-      const overrideCamera = cameraOverride?.position && cameraOverride?.target ? { position: new THREE.Vector3().fromArray(cameraOverride.position), target: new THREE.Vector3().fromArray(cameraOverride.target) } : null;
+      const savedCamera = saved?.camera && saved.camera.position && saved.camera.target ? { position: new THREE.Vector3().fromArray(saved.camera.position), target: new THREE.Vector3().fromArray(saved.camera.target), viewRange: saved.camera.viewRange } : null;
+      const overrideCamera = cameraOverride?.position && cameraOverride?.target ? { position: new THREE.Vector3().fromArray(cameraOverride.position), target: new THREE.Vector3().fromArray(cameraOverride.target), viewRange: cameraOverride.viewRange } : null;
       const targetCamera = overrideCamera || (includeCurrentCamera ? savedCamera : null);
       restoreWorkspaceState(saved, false);
       const tweenEntries = [];
@@ -1149,6 +1111,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       });
       frameTween = { start: performance.now(), duration: 420, entries: tweenEntries };
       if (targetCamera) {
+        restoreModelViewRange(targetCamera.viewRange);
         cameraTransition = { elapsed: 0, duration: 500, fromPosition: camera.position.clone(), fromTarget: controls.target.clone(), toPosition: targetCamera.position.clone(), toTarget: targetCamera.target.clone() };
         controls.enabled = false;
       }
@@ -1159,7 +1122,10 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       controls,
       onSlotsChange: onCameraSlots,
       isPersistenceBlocked: () => utilityFirstPersonActive || demoDirectorCameraActive,
+      getViewRange: () => modelRange.value,
+      onRestoreViewRange: restoreModelViewRange,
       onRestoreSlot: (saved) => {
+      restoreModelViewRange(saved.viewRange);
       cameraTransition = { elapsed: 0, duration: 450, fromPosition: camera.position.clone(), fromTarget: controls.target.clone(), toPosition: saved.position.clone(), toTarget: saved.target.clone() };
       controls.enabled = false;
       },
@@ -1182,7 +1148,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
     const getRadarCameraState = () => buildRadarCameraState({ camera, controls, snapshot: demoSnapshotRef.current, collabPoints: pointsRef.current, modelCenter, sourceBounds: radarSourceBounds });
     const collabSnapshot = () => {
       const workspace = getWorkspaceState();
-      return { points: workspace.points.filter((p) => p.kind === 'player'), paths: [], grenades: grenadeEffects.map((effect, index) => ({ id: effect.userData.grenadeId || `grenade-${index}`, type: effect.userData.grenadeEffect, position: effect.position.toArray(), range: effect.userData.grenadeRange || effect.scale.x || 1 })), collabUtilities: collabUtilities.map((group) => ({ id: group.userData.collabUtilityId, noteId: group.userData.noteId, noteName: group.userData.noteName, noteSummary: group.userData.noteSummary, kind: group.userData.utilityKind, position: group.position.toArray(), effectPosition: group.userData.utilityEffectPosition, projectiles: group.userData.utilityProjectiles || [] })), brushStrokes: workspace.brushStrokes };
+      return { points: workspace.points.filter((p) => p.kind === 'player'), paths: [], grenades: grenadeEffects.map((effect, index) => ({ id: effect.userData.grenadeId || `grenade-${index}`, type: effect.userData.grenadeEffect, position: effect.position.toArray(), range: effect.userData.grenadeRange || effect.scale.x || 1 })), collabUtilities: collabUtilityScene.serialize(), brushStrokes: workspace.brushStrokes };
     };
     const pushCollabHistory = (snapshot = collabSnapshot()) => { collabUndoStack.push(snapshot); if (collabUndoStack.length > 60) collabUndoStack.shift(); collabRedoStack.length = 0; };
     const restoreCollabSnapshot = (snap) => {
@@ -1202,15 +1168,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         pointsRef.current.push(point);
         if (item.crouched) setCollabPlayerCrouch(point, true);
       });
-      (snap.collabUtilities || []).forEach((item) => {
-        const origin = new THREE.Vector3().fromArray(item.position || [0, 0, 0]);
-        const note = (utilityNotesRef.current || []).find((candidate) => candidate.id === item.noteId);
-        const sourceNote = { ...(note || { name: item.noteName, summary: item.noteSummary, grenadeType: item.kind }), replay: { ...(note?.replay || {}), projectiles: item.projectiles || note?.replay?.projectiles || [] } };
-        const group = createCollabUtility(sourceNote, item.id, item.kind, origin, item.effectPosition);
-        group.position.copy(origin);
-        collabUtilitiesGroup.add(group);
-        collabUtilities.push(group);
-      });
+      collabUtilityScene.restore(snap.collabUtilities, utilityNotesRef.current);
       (snap.grenades || []).forEach((item, index) => {
         const position = new THREE.Vector3().fromArray(item.position || [0, 0, 0]);
         const effect = createGrenadeEffect(position, item.type || 'smoke', navData, nav);
@@ -1262,7 +1220,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
           grenades.push({ id: `demo-grenade-${event.event_name}-${event.tick}-${event.entityid || event.user_steamid || grenades.length}`, type, position: [y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y, x * 0.0254 - modelCenter.z], range: 1, source: 'demo' });
         });
       }
-      return { cameraSlots: cameraState.serializeSlots(), camera: getCameraState(), points, paths: [], grenades, collabUtilities: collabUtilities.map((group) => ({ id: group.userData.collabUtilityId, noteId: group.userData.noteId, noteName: group.userData.noteName, noteSummary: group.userData.noteSummary, kind: group.userData.utilityKind, position: group.position.toArray(), effectPosition: group.userData.utilityEffectPosition, projectiles: group.userData.utilityProjectiles || [] })), brushStrokes: brushStrokes.map((line) => ({ id: line.userData.brushStrokeId, color: line.userData.brushColor, width: line.userData.brushWidth, points: (line.userData.worldPoints || []).map((point) => point.toArray()) })) };
+      return { cameraSlots: cameraState.serializeSlots(), camera: getCameraState(), points, paths: [], grenades, collabUtilities: collabUtilityScene.serialize(), brushStrokes: brushStrokes.map((line) => ({ id: line.userData.brushStrokeId, color: line.userData.brushColor, width: line.userData.brushWidth, points: (line.userData.worldPoints || []).map((point) => point.toArray()) })) };
     };
     const getLiveBrushData = () => {
       const data = brushStrokes.map((line) => ({ id: line.userData.brushStrokeId, color: line.userData.brushColor, width: line.userData.brushWidth, points: (line.userData.worldPoints || []).map((point) => point.toArray()) }));
@@ -1352,15 +1310,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         scene.add(effect);
         grenadeEffects.push(effect);
       });
-      (saved.collabUtilities || []).forEach((item) => {
-        const note = (utilityNotesRef.current || []).find((candidate) => candidate.id === item.noteId);
-        const origin = new THREE.Vector3().fromArray(item.position || [0, 0, 0]);
-        const sourceNote = { ...(note || { name: item.noteName, summary: item.noteSummary, grenadeType: item.kind }), replay: { ...(note?.replay || {}), projectiles: item.projectiles || note?.replay?.projectiles || [] } };
-        const group = createCollabUtility(sourceNote, item.id, item.kind, origin, item.effectPosition);
-        group.position.copy(origin);
-        collabUtilitiesGroup.add(group);
-        collabUtilities.push(group);
-      });
+      collabUtilityScene.restore(saved.collabUtilities, utilityNotesRef.current);
       if (saved.cameraSlots) {
         cameraState.replaceSlots(saved.cameraSlots);
       }
@@ -1384,7 +1334,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         brushStrokes.push(line);
         brushUndoStack.push(line);
       });
-      if (includeCurrentCamera && saved.camera) { camera.position.fromArray(saved.camera.position); controls.target.fromArray(saved.camera.target); controls.update(); }
+      if (includeCurrentCamera && saved.camera) { camera.position.fromArray(saved.camera.position); controls.target.fromArray(saved.camera.target); restoreModelViewRange(saved.camera.viewRange); controls.update(); }
     };
     const onKeyDown = (event) => {
       const tag = event.target?.tagName;
@@ -1600,8 +1550,14 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       });
       if (nearbyMarker) {
         const anchor = analysisUtilitiesRef.current.find((utility) => utility.id === nearbyMarker.marker.userData.analysisUtilityId);
+        const endpoint = nearbyMarker.marker.userData.analysisUtilityEndpoint === 'throw' ? 'throwPosition' : 'landing';
+        const anchorPosition = anchor?.[endpoint];
         const visibleIds = new Set([...deathHeatScene.heatObjects.values()].filter((marker) => marker.visible && marker.userData.analysisUtilityId).map((marker) => marker.userData.analysisUtilityId));
-        const utilities = anchor ? analysisUtilitiesRef.current.filter((utility) => visibleIds.has(utility.id) && Math.hypot(utility.landing.x - anchor.landing.x, utility.landing.z - anchor.landing.z) <= 0.9 && Math.abs(utility.landing.y - anchor.landing.y) <= 0.8) : [];
+        // Group against the endpoint being hovered; throw markers must not borrow a landing cluster.
+        const utilities = anchorPosition ? analysisUtilitiesRef.current.filter((utility) => {
+          const position = utility[endpoint];
+          return position && visibleIds.has(utility.id) && Math.hypot(position.x - anchorPosition.x, position.z - anchorPosition.z) <= 0.9 && Math.abs(position.y - anchorPosition.y) <= 0.8;
+        }) : [];
         analysisUtilityHoverRef.current?.({ utilities, x: nearbyMarker.screenX, y: nearbyMarker.screenY });
       } else analysisUtilityHoverRef.current?.(null);
       if (utilityNotesEnabledRef.current) {
@@ -1870,12 +1826,14 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         nav.modelBoundary.max.sub(horizontalCenter);
       }
       const modelSize = modelBounds.getSize(new THREE.Vector3()).length();
+      const cameraTarget = new THREE.Vector3();
+      if (NAV_TOP_CAMERA_TARGET_MAPS.has(mapName) && nav?.bounds) cameraTarget.y = nav.bounds.max.y - modelCenter.y;
       const resetCamera = () => {
         const distance = Math.max(modelSize * 0.72, 18);
-        camera.position.set(distance * 0.68, distance * 0.9, distance);
+        camera.position.copy(cameraTarget).add(new THREE.Vector3(distance * 0.68, distance * 0.9, distance));
         camera.far = Math.max(modelSize * 4, 200);
         camera.updateProjectionMatrix();
-        controls.target.set(0, 0, 0);
+        controls.target.copy(cameraTarget);
         controls.maxDistance = Math.max(modelSize * 2.2, 70);
         controls.update();
       };
@@ -1890,7 +1848,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
          materials.forEach((material) => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); if (mapName === TUTORIAL_MAP_ID) material.transparent = true; material.opacity = modelOpacity; material.depthWrite = true; });
       });
       scene.add(worldModel);
-      if (mapName !== TUTORIAL_MAP_ID) {
+      if (MAP_ZONE_MODELS_ENABLED && mapName !== TUTORIAL_MAP_ID) {
         new GLTFLoader().load(`${MAP_BASE}/${mapName}/${mapName}.zones.glb`, (gltf) => {
           if (disposed || !worldModel) return;
           const zones = createZoneModel(gltf.scene, mapName);
@@ -1999,8 +1957,24 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       }
       const firstPerson = utilityFirstPersonRef.current;
       const manualPovPlayer = demoInEyePlayerRef.current;
+      if (!firstPerson && utilityFirstPersonActive) {
+        controls.enabled = true;
+        // Return directly to the view that was active before the throw preview.
+        if (utilityReturnCamera) {
+          camera.position.copy(utilityReturnCamera.position);
+          controls.target.copy(utilityReturnCamera.target);
+          camera.fov = utilityReturnCamera.fov;
+          controls.update();
+          utilityReturnCamera = null;
+        } else camera.fov = 38;
+        camera.updateProjectionMatrix();
+        utilityFirstPersonActive = false;
+      }
       const povPlayer = firstPerson?.player || manualPovPlayer;
       if (povPlayer) {
+        if (firstPerson && !utilityFirstPersonActive) {
+          utilityReturnCamera = { position: camera.position.clone(), target: controls.target.clone(), fov: camera.fov };
+        }
         const eye = new THREE.Vector3(povPlayer.position.x - modelCenter.x, povPlayer.position.y - modelCenter.y + 1.62 - (povPlayer.duckAmount || 0) * 0.34, povPlayer.position.z - modelCenter.z);
         const direction = cs2AnglesToSceneDirection(povPlayer.pitch, povPlayer.yaw);
         camera.position.copy(eye);
@@ -2009,7 +1983,11 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         camera.updateProjectionMatrix();
         camera.lookAt(controls.target);
         controls.enabled = false;
-        demoDirectorCameraActive = true;
+        // Utility POV has its own lifecycle and must not trigger Demo director cleanup on exit.
+        if (firstPerson) {
+          demoDirectorCameraActive = false;
+          demoDirectorEventKey = '';
+        } else demoDirectorCameraActive = true;
         utilityFirstPersonActive = Boolean(firstPerson);
         const marker = demoMarkers.get(povPlayer.name);
         const equipment = marker?.children.find((child) => child.userData.demoEquipment);
@@ -2053,7 +2031,6 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         demoPovEquipment.rotation.x = (firing ? -0.14 : -0.08) + reloadDrop * 0.68;
         demoPovMuzzleFlash.visible = firing && weaponKind !== 'melee' && !weaponKind.startsWith('utility-') && weaponKind !== 'c4';
       } else {
-        if (utilityFirstPersonActive) { controls.enabled = true; camera.fov = 38; camera.updateProjectionMatrix(); utilityFirstPersonActive = false; }
         demoPovEquipment.visible = false;
         povThrownUtility.visible = false;
       }
@@ -2157,7 +2134,7 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
       renderer.render(scene, camera);
     };
     animate(performance.now());
-     return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', onPointerDown, true); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('pointercancel', cancelPointerInteraction); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.edgeGeometry.dispose(); nav.mesh.material.dispose(); nav.edgeLines.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', onPointerDown, true); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('pointercancel', cancelPointerInteraction); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.edgeGeometry.dispose(); nav.mesh.material.dispose(); nav.edgeLines.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {
@@ -2237,8 +2214,9 @@ function ThreeBoard({ mapName, navData, showEdges, showGrid, showModel, modelOpa
         if (modelRef.current) modelRef.current.traverse((object) => { if (!object.material) return; const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = true; }); });
     }, [showModel, modelOpacity, modelViewMode]);
 
-  const firstPersonVisible = Boolean(utilityFirstPerson?.player || demoInEyePlayer || demoPovRuntime.player);
-  return <div ref={(node) => { mountRef.current = node; }} className="three-board">{error && <div className="board-error">{error}</div>}{firstPersonVisible && <div className="pov-crosshair" aria-hidden="true"><i /><i /><i /><i /></div>}</div>;
+  // Demo POV owns its animated HUD crosshair; this simpler one is only for utility replay.
+  const utilityCrosshairVisible = Boolean(utilityFirstPerson?.player);
+  return <div ref={(node) => { mountRef.current = node; }} className="three-board">{error && <div className="board-error">{error}</div>}{utilityCrosshairVisible && <div className="pov-crosshair" aria-hidden="true"><i /><i /><i /><i /></div>}</div>;
 }
 
 function App() {
@@ -2253,7 +2231,8 @@ function App() {
   const languageRef = useRef(language);
   languageRef.current = language;
   const [mapName, setMapName] = useState(() => MAPS.some((map) => map.id === initialViewPreferences.mapName) ? initialViewPreferences.mapName : 'de_dust2');
-  const [navData, setNavData] = useState(fallbackNavData);
+  // Resolve NAV in the same render as the map name so a new GLB never mounts with the previous map's geometry.
+  const navData = useMemo(() => mapName === TUTORIAL_MAP_ID ? tutorialNavData : getBundledNavData(mapName), [mapName]);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialOfferOpen, setTutorialOfferOpen] = useState(() => {
@@ -2497,6 +2476,7 @@ function App() {
   const [selectedAnalysisUtility, setSelectedAnalysisUtility] = useState(null);
   const [selectedAnalysisUtilityScreen, setSelectedAnalysisUtilityScreen] = useState(null);
   const [analysisUtilityHover, setAnalysisUtilityHover] = useState(null);
+  const [analysisHighlightedUtilityId, setAnalysisHighlightedUtilityId] = useState('');
   const analysisUtilityHoverInsideRef = useRef(false);
   const analysisUtilityHoverTimerRef = useRef(null);
   const [utilityReplay, setUtilityReplay] = useState(null);
@@ -2598,6 +2578,7 @@ function App() {
     setSelectedAnalysisUtility(null);
     setSelectedAnalysisUtilityScreen(null);
     setAnalysisUtilityHover(null);
+    setAnalysisHighlightedUtilityId('');
     window.dispatchEvent(new CustomEvent(ANALYSIS_HEAT_DATA_EVENT, { detail: { deaths: combinedAnalysis.deaths } }));
   }, [combinedAnalysis, analysisSelectedDemoIds]);
   useEffect(() => {
@@ -2605,6 +2586,7 @@ function App() {
     setSelectedAnalysisUtility(null);
     setSelectedAnalysisUtilityScreen(null);
     setAnalysisUtilityHover(null);
+    setAnalysisHighlightedUtilityId('');
   }, [demoViewFlags.analysisMetric, demoViewFlags.heatStyle]);
   const toggleAnalysisEconomy = (side, economy) => {
     const key = side === 'own' ? 'economyOwn' : 'economyOpponent';
@@ -3322,11 +3304,11 @@ function App() {
   demoRosterRuntime.reloads = demoReloads;
   const demoGrenadeSegments = useMemo(() => buildDemoGrenadeSegments(demoProjectiles, demoData?.events || [], demoThrowSnapshots, demoRound, demoData?.demo.tickRate || 64), [demoProjectiles, demoData?.events, demoThrowSnapshots, demoRound, demoData?.demo.tickRate]);
   const onDemoGrenadeSelect = (id, screen) => { setSelectedDemoGrenade(demoGrenadeSegments.find((segment) => segment.id === id) || null); setSelectedDemoGrenadeScreen(screen); setDemoPlaying(false); };
-  const onAnalysisUtilitySelect = (id, screen) => { setSelectedAnalysisUtility(combinedAnalysis.utilities.find((utility) => utility.id === id) || null); setSelectedAnalysisUtilityScreen(screen); setAnalysisPlaying(false); };
+  const onAnalysisUtilitySelect = (id, screen) => { setSelectedAnalysisUtility(combinedAnalysis.utilities.find((utility) => utility.id === id) || null); setSelectedAnalysisUtilityScreen(screen); setAnalysisHighlightedUtilityId(''); setAnalysisPlaying(false); };
   const onAnalysisUtilityHover = (hover) => {
     window.clearTimeout(analysisUtilityHoverTimerRef.current);
     if (hover?.utilities?.length) { setAnalysisUtilityHover(hover); return; }
-    analysisUtilityHoverTimerRef.current = window.setTimeout(() => { if (!analysisUtilityHoverInsideRef.current) setAnalysisUtilityHover(null); }, 160);
+    analysisUtilityHoverTimerRef.current = window.setTimeout(() => { if (!analysisUtilityHoverInsideRef.current) { setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId(''); } }, 160);
   };
   analysisUtilityRuntime.onSelect = onAnalysisUtilitySelect;
   analysisUtilityRuntime.onHover = onAnalysisUtilityHover;
@@ -3422,11 +3404,15 @@ function App() {
   const utilityReplaySnapshot = utilityReplay && utilityReplay.tick <= utilityReplay.note.replay.throwTick + 64 ? interpolateDemoSnapshot(utilityReplay.note.replay.snapshots, utilityReplay.tick) : null;
   const utilityFirstPerson = useMemo(() => {
     if (!utilityReplay?.firstPerson) return null;
-    const cameraSnapshot = utilityReplaySnapshot || interpolateDemoSnapshot(utilityReplay.note.replay.snapshots, Math.min(utilityReplay.tick, utilityReplay.note.replay.throwTick + 64));
+    const replay = utilityReplay.note.replay;
+    const tickRate = replay.tickRate || 64;
+    if (utilityReplay.tick > replay.throwTick + tickRate * UTILITY_THROW_VIEW_HOLD_SECONDS) return null;
+    // Once released, freeze the exact throw view instead of following the player's movement.
+    const cameraSnapshot = interpolateDemoSnapshot(replay.snapshots, Math.min(utilityReplay.tick, replay.throwTick));
     const player = cameraSnapshot?.players[0];
     if (!player) return null;
-    return { player, grenadeType: utilityReplay.note.grenadeType || 'he', replayId: utilityReplay.note.id, tick: utilityReplay.tick, throwTick: utilityReplay.note.replay.throwTick, tickRate: utilityReplay.note.replay.tickRate || 64 };
-  }, [utilityReplay, utilityReplaySnapshot]);
+    return { player, grenadeType: utilityReplay.note.grenadeType || 'he', replayId: utilityReplay.note.id, tick: utilityReplay.tick, throwTick: replay.throwTick, tickRate };
+  }, [utilityReplay]);
   const utilityReplaySegments = useMemo(() => utilityReplay ? buildDemoGrenadeSegments(utilityReplay.note.replay.projectiles, utilityReplay.note.replay.events, utilityReplay.note.replay.snapshots, { startTick: 0, endTick: utilityReplay.note.replay.endTick }, utilityReplay.note.replay.tickRate) : [], [utilityReplay?.note]);
   const demoTeams = { T: demoSnapshot?.players.filter((player) => player.team === 2) || [], CT: demoSnapshot?.players.filter((player) => player.team === 3) || [] };
   const demoPovPlayer = demoSnapshot?.players.find((player) => String(player.steamid || player.name) === demoPovPlayerId && player.health > 0) || null;
@@ -3659,16 +3645,6 @@ function App() {
     return () => window.removeEventListener('keydown', onDemoKeyDown, true);
   }, [activeFrameId, activePanel, analysisDuration, analysisRows.length, analysisSelectedPlayers.length, demoData, demoRound, demoRoundLoading, demoViewFlags.analysisMetric, frames, hasActiveFrameContext]);
   useEffect(() => {
-    let cancelled = false;
-    if (mapName === TUTORIAL_MAP_ID) {
-      setNavData(tutorialNavData);
-      return undefined;
-    }
-    setNavData(mapName === 'de_dust2' ? fallbackNavData : null);
-    fetchAndParseNav(`${MAP_BASE}/${mapName}/${mapName}.nav`).then((data) => { if (!cancelled && data.areas) setNavData(data); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [mapName]);
-  useEffect(() => {
     window.dispatchEvent(new CustomEvent('csboard-nav-visibility', { detail: showNav }));
   }, [mapName, navData, showNav]);
   useEffect(() => {
@@ -3723,7 +3699,7 @@ function App() {
     <section className="board-stage">
          {mapName === TUTORIAL_MAP_ID && <TutorialGuide language={language} open={tutorialOpen} step={tutorialStep} onOpen={() => { setTutorialStep(0); setTutorialOpen(true); }} onStep={moveTutorial} onFinish={finishTutorial} onExit={() => { finishTutorial(); setMapName('de_dust2'); }} />}
          {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><SideGameHub language={language} stopped={!parseGameManual && parseGameState === 'stopped'} manual={parseGameManual} onClose={() => { setParseGameDismissed(true); setParseGameManual(false); setParseGameState('hidden'); }} /></div>}
-        <ThreeBoard key={`${mapName}-${navData ? navData.version : 'loading'}`} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={combinedAnalysis.utilities} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} brushEnabled={true} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
+        <ThreeBoard key={mapName} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={combinedAnalysis.utilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} brushEnabled={true} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
          {isMobile && <MobileCameraWheel slots={cameraSlotState} active={activeCameraSlot} language={language} onRestore={(slot) => boardRef.current?.restoreCameraSlot?.(slot)} onSave={(slot) => boardRef.current?.saveCameraSlot?.(slot)} onReset={() => boardRef.current?.reset?.()} />}
          <div className="stage-vignette" />
           {activePanel === 'demo' && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} />}
@@ -3751,7 +3727,7 @@ function App() {
            {activePanel === 'demo' && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /></>}
           {selectedPoint && selectedPointScreen && <div className="point-actions" style={{ left: selectedPointScreen.x, top: selectedPointScreen.y }}><span>{activePanel === 'collab' ? t('collabPlayer') : t('tacticalPoint')}</span><div className="point-choice"><b>{t('team')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div>{activePanel === 'collab' ? null : <div className="point-choice"><b>{t('type')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div>}<button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); setSelectedPointScreen(null); }}>{t('delete')}</button></div>}
           {activePanel === 'demo' && selectedDemoGrenade && selectedDemoGrenadeScreen && <div className="demo-grenade-actions" style={{ left: selectedDemoGrenadeScreen.x, top: selectedDemoGrenadeScreen.y }}><div><strong>{selectedDemoGrenade.kind.toUpperCase()}</strong><span>{selectedDemoGrenade.throwEvent.user_name || t('unknown')} · T{selectedDemoGrenade.throwTick}</span></div><button type="button" onClick={saveDemoGrenade}>{t('saveUtility')}</button><button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedDemoGrenade(null); setSelectedDemoGrenadeScreen(null); }}>×</button></div>}
-          {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && demoViewFlags.heatStyle === 'points' && analysisUtilityHover && !selectedAnalysisUtility && <div className="utility-hover-card analysis-utility-hover-card" style={{ left: analysisUtilityHover.x, top: analysisUtilityHover.y }} onPointerEnter={() => { analysisUtilityHoverInsideRef.current = true; window.clearTimeout(analysisUtilityHoverTimerRef.current); }} onPointerLeave={() => { analysisUtilityHoverInsideRef.current = false; analysisUtilityHoverTimerRef.current = window.setTimeout(() => setAnalysisUtilityHover(null), 160); }}><header><strong>{language === 'zh' ? '附近道具' : 'NEARBY UTILITIES'}</strong><span>{analysisUtilityHover.utilities.length}</span></header><div className="utility-hover-list">{analysisUtilityHover.utilities.map((utility) => <button type="button" key={utility.id} className="replayable" onClick={() => { setSelectedAnalysisUtility(utility); setSelectedAnalysisUtilityScreen({ x: analysisUtilityHover.x, y: analysisUtilityHover.y }); setAnalysisUtilityHover(null); setAnalysisPlaying(false); }}><strong><RawIcon name={ANALYSIS_UTILITY_ICONS[utility.kind]} />{utility.kind.toUpperCase()}</strong><span>{utility.segment.throwEvent.user_name || t('unknown')} · R{utility.source.round} · T{utility.segment.throwTick}</span><p>{utility.source.fileName}</p></button>)}</div></div>}
+          {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && demoViewFlags.heatStyle === 'points' && analysisUtilityHover && !selectedAnalysisUtility && <div className="utility-hover-card analysis-utility-hover-card" style={{ left: analysisUtilityHover.x, top: analysisUtilityHover.y }} onPointerEnter={() => { analysisUtilityHoverInsideRef.current = true; window.clearTimeout(analysisUtilityHoverTimerRef.current); }} onPointerLeave={() => { analysisUtilityHoverInsideRef.current = false; window.clearTimeout(analysisUtilityHoverTimerRef.current); setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId(''); }}><header><strong>{language === 'zh' ? '附近道具' : 'NEARBY UTILITIES'}</strong><span>{analysisUtilityHover.utilities.length}</span></header><div className="utility-hover-list">{analysisUtilityHover.utilities.map((utility) => <button type="button" key={utility.id} className="replayable" onPointerEnter={() => setAnalysisHighlightedUtilityId(utility.id)} onPointerLeave={() => setAnalysisHighlightedUtilityId('')} onFocus={() => setAnalysisHighlightedUtilityId(utility.id)} onBlur={() => setAnalysisHighlightedUtilityId('')} onClick={() => { setSelectedAnalysisUtility(utility); setSelectedAnalysisUtilityScreen({ x: analysisUtilityHover.x, y: analysisUtilityHover.y }); setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId(''); setAnalysisPlaying(false); }}><strong><RawIcon name={ANALYSIS_UTILITY_ICONS[utility.kind]} />{utility.kind.toUpperCase()}</strong><span>{utility.segment.throwEvent.user_name || t('unknown')} · R{utility.source.round} · T{utility.segment.throwTick}</span><p>{utility.source.fileName}</p></button>)}</div></div>}
           {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && demoViewFlags.heatStyle === 'points' && selectedAnalysisUtility && selectedAnalysisUtilityScreen && <div className="demo-grenade-actions analysis-grenade-actions" style={{ left: selectedAnalysisUtilityScreen.x, top: selectedAnalysisUtilityScreen.y }}><div><strong>{selectedAnalysisUtility.kind.toUpperCase()}</strong><span>{selectedAnalysisUtility.segment.throwEvent.user_name || t('unknown')} · {selectedAnalysisUtility.source.fileName} · R{selectedAnalysisUtility.source.round}</span></div><button type="button" onClick={saveAnalysisUtility}>{t('saveUtility')}</button><button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedAnalysisUtility(null); setSelectedAnalysisUtilityScreen(null); }}>×</button></div>}
         <div className="board-tools"><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> {t('grid')}</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> {t('trackpad')} {trackpadDetection ? t('on') : t('off')}</button><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)} className={showModel ? 'selected' : ''}><i /> {modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) setShowModel(false); else { setShowModel(true); setModelViewMode(option.value); } setModeMenuOpen(false); }} /> <span>{option.label}</span></label>)}</div>}</div></div>
           {activePanel === 'utility' && <aside className="utility-notes-panel"><div className="utility-notes-heading"><div><span>UTILITY NOTES</span><h2>{t('utilityNotes')}</h2></div><button type="button" onClick={() => { setUtilityDraft({ getpos: '', name: '', summary: '' }); setUtilityError(''); setUtilityModalOpen(true); }}>{t('addUtilityNote')}</button></div><p>{t('utilityIntro')}</p><div className="utility-notes-meta"><label className="map-select"><span>{t('map').toUpperCase()}</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><span>{t('utilityCount', { count: currentUtilityNotes.length })}</span></div><div className="utility-model-options"><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="utility-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div>{currentUtilityNotes.length === 0 && <div className="utility-empty">{t('utilityEmpty')}</div>}<small>{t('localOnly')}</small></aside>}

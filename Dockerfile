@@ -1,14 +1,15 @@
 FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
+ARG BUILD_VERSION=v1.10.0
 
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
 
-RUN scripts/resolve-build-version.sh > .build-version \
-    && VITE_BUILD_VERSION="$(cat .build-version)" npm run build
+RUN printf '%s\n' "$BUILD_VERSION" > .build-version \
+    && VITE_BUILD_VERSION="$BUILD_VERSION" npm run build
 
 RUN node --check server/node.js \
     && node --check server/core/http.js \
@@ -29,7 +30,6 @@ RUN npm ci --omit=dev \
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
-COPY --from=builder /app/src ./src
 
 EXPOSE 3000
 

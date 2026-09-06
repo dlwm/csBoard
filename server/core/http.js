@@ -1,6 +1,4 @@
-import { parseNavBuffer } from '../../src/navParser.js';
-
-const MAP_NAME = /^de_(dust2|mirage|nuke|ancient|anubis|cache|inferno|overpass|train|vertigo)$/;
+// Runtime-neutral HTTP routes shared by the Node.js and Cloudflare adapters.
 const json = (body, status = 200) => Response.json(body, { status });
 const toPlainObject = (value) => value instanceof Map ? Object.fromEntries(value) : value;
 
@@ -38,25 +36,12 @@ async function parseDemo(request, parser) {
   }
 }
 
-async function parseMapNav(mapName, mapBaseUrl) {
-  if (!MAP_NAME.test(mapName)) return json({ error: '地图不存在' }, 404);
-  try {
-    const response = await fetch(`${mapBaseUrl}/maps/${mapName}/${mapName}.nav`);
-    if (!response.ok) return json({ error: '地图没有 NAV 数据' }, 404);
-    return json(parseNavBuffer(await response.arrayBuffer()));
-  } catch (error) {
-    return json({ error: `NAV 解析失败：${error.message}` }, 500);
-  }
-}
-
 export function createHttpHandler(parser) {
   return async function handleHttp(request, env = {}) {
     const url = new URL(request.url);
     const mapBaseUrl = String(env.MAP_BASE_URL || '').replace(/\/$/, '');
     if (request.method === 'GET' && url.pathname === '/api/health') return json({ ok: true, parser: 'demoparser2' });
     if (request.method === 'POST' && url.pathname === '/api/parse') return parseDemo(request, parser);
-    const navMatch = request.method === 'GET' ? url.pathname.match(/^\/api\/maps\/([^/]+)\/nav$/) : null;
-    if (navMatch) return mapBaseUrl ? parseMapNav(navMatch[1], mapBaseUrl) : json({ error: '未配置地图资源地址' }, 503);
     if (request.method === 'GET' && url.pathname.startsWith('/maps/')) return mapBaseUrl ? fetch(`${mapBaseUrl}${url.pathname}`) : json({ error: '未配置地图资源地址' }, 503);
     return null;
   };

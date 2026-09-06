@@ -1,7 +1,7 @@
 {
   "name": "csboard",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.10.0",
   "type": "module",
   "scripts": {
     "dev": "npm run dev:node",
@@ -13,6 +13,7 @@
     "build": "npm run build:local",
     "build:local": "VITE_USE_LOCAL_MAPS=true VITE_BACKEND_BASE_URL=/ vite build",
     "build:remote": "VITE_USE_LOCAL_MAPS=false vite build",
+    "nav:generate": "node scripts/generate-nav-data.js",
     "preview": "vite preview"
   },
   "dependencies": {

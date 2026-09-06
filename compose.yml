@@ -1,17 +1,10 @@
 services:
-  resources:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: builder
-    command: node scripts/ensure-maps.js
-    volumes:
-      - ./.local/maps:/app/.local/maps
-
   csboard:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILD_VERSION: ${BUILD_VERSION:-v1.10.0}
 
     container_name: csboard
     restart: unless-stopped
@@ -22,6 +15,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      LOCAL_MAPS_DIR: /app/.local/maps
 
     volumes:
-      - ./.local/maps:/app/.local/maps:ro
+      - type: bind
+        source: ./.local/maps
+        target: /app/.local/maps
+        read_only: true
