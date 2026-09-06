@@ -38,6 +38,45 @@ export function groupDemoProjectiles(projectiles = []) {
   return groups;
 }
 
+const projectilePoint = (record) => {
+  const point = { x: Number(record?.x), y: Number(record?.y), z: Number(record?.z) };
+  return Object.values(point).every(Number.isFinite) ? point : null;
+};
+
+const subtractPoint = (end, start) => ({ x: end.x - start.x, y: end.y - start.y, z: end.z - start.z });
+const lerpPoint = (start, end, amount) => ({ x: start.x + (end.x - start.x) * amount, y: start.y + (end.y - start.y) * amount, z: start.z + (end.z - start.z) * amount });
+
+// Returns raw CS coordinates so the scene can apply its current map-model offset.
+export function utilityProjectileAtTick(replay, tick) {
+  const records = (replay?.projectiles || []).filter(projectilePoint).sort((left, right) => left.tick - right.tick);
+  if (records.length) {
+    let upperIndex = records.findIndex((record) => record.tick >= tick);
+    if (upperIndex < 0) upperIndex = records.length - 1;
+    const lowerIndex = Math.max(0, upperIndex - 1);
+    const lower = records[lowerIndex];
+    const upper = records[upperIndex];
+    const lowerPoint = projectilePoint(lower);
+    const upperPoint = projectilePoint(upper);
+    const amount = upper.tick > lower.tick ? Math.min(1, Math.max(0, (tick - lower.tick) / (upper.tick - lower.tick))) : 0;
+    const directionStart = projectilePoint(records[Math.max(0, upperIndex - 1)]) || lowerPoint;
+    const directionEnd = projectilePoint(records[Math.min(records.length - 1, upperIndex + 1)]) || upperPoint;
+    return { position: lerpPoint(lowerPoint, upperPoint, amount), direction: subtractPoint(directionEnd, directionStart) };
+  }
+
+  const throwEvent = replay?.events?.find((event) => event.event_name === 'grenade_thrown');
+  const landingEvent = replay?.events?.find((event) => event.event_name !== 'grenade_thrown' && event.x != null);
+  const start = projectilePoint({ x: throwEvent?.user_X, y: throwEvent?.user_Y, z: throwEvent?.user_Z });
+  const end = projectilePoint(landingEvent);
+  if (!start || !end) return null;
+  const duration = Math.max(1, Number(landingEvent.tick) - Number(throwEvent.tick));
+  const amount = Math.min(1, Math.max(0, (tick - Number(throwEvent.tick)) / duration));
+  const control = lerpPoint(start, end, 0.5);
+  control.z += Math.max(32, Math.hypot(end.x - start.x, end.y - start.y) * 0.22);
+  const first = lerpPoint(start, control, amount);
+  const second = lerpPoint(control, end, amount);
+  return { position: lerpPoint(first, second, amount), direction: subtractPoint(second, first) };
+}
+
 export function buildDemoGrenadeSegments(projectiles = [], events = [], snapshots = [], round, tickRate = 64) {
   if (!round) return [];
   const grenadeEvents = events.filter((event) => event.tick >= round.startTick && event.tick <= round.endTick);

@@ -1,5 +1,5 @@
 // Converts analysis snapshots into per-player movement tracks for scene playback.
-import { ECONOMY_CATEGORIES } from './constants.js';
+import { ANALYSIS_PLAYER_COLORS, ECONOMY_CATEGORIES } from './constants.js';
 
 export function getAnalysisTrackSignature({ rows, selectedPlayers, side, economyOwn, economyOpponent }) {
   const roundIds = [...new Set(rows.map((snapshot) => snapshot.analysisRound?.id).filter(Boolean))];
@@ -7,15 +7,19 @@ export function getAnalysisTrackSignature({ rows, selectedPlayers, side, economy
 }
 
 export function buildAnalysisTracks({ rows, selectedPlayers, side, economyOwn, economyOpponent, modelCenter }) {
+  const selected = new Set(selectedPlayers);
+  const playerColors = new Map(selectedPlayers.map((name, index) => [name, ANALYSIS_PLAYER_COLORS[index % ANALYSIS_PLAYER_COLORS.length]]));
   const roundIds = [...new Set(rows.map((snapshot) => snapshot.analysisRound?.id).filter(Boolean))];
   const rowsByRound = new Map(roundIds.map((id) => [id, []]));
   rows.forEach((snapshot) => {
     if (snapshot.analysisRound?.id) rowsByRound.get(snapshot.analysisRound.id)?.push(snapshot);
   });
   const tracks = [];
-  selectedPlayers.forEach((name) => roundIds.forEach((roundId, roundIndex) => {
+  roundIds.forEach((roundId, roundIndex) => {
     const roundRows = rowsByRound.get(roundId) || [];
     const round = roundRows[0]?.analysisRound;
+    const name = round?.playerName || roundRows[0]?.players[0]?.name;
+    if (!name || !selected.has(name)) return;
     const [ownEconomy, opponentEconomy] = String(round?.economyMatchup || '').split(':');
     if (!(economyOwn || ECONOMY_CATEGORIES).includes(ownEconomy) || !(economyOpponent || ECONOMY_CATEGORIES).includes(opponentEconomy)) return;
     const records = roundRows.flatMap((snapshot) => snapshot.players
@@ -40,7 +44,7 @@ export function buildAnalysisTracks({ rows, selectedPlayers, side, economyOwn, e
     const deathIndex = records.findIndex((record) => record.health != null && record.health <= 0);
     const visibleRecords = deathIndex >= 0 ? records.slice(0, deathIndex + 1) : records;
     if (visibleRecords.length < 2) return;
-    tracks.push({ key: `${name}-${roundIndex}`, name, team: records[0].team, records: visibleRecords });
-  }));
+    tracks.push({ key: `${name}-${roundIndex}`, name, team: records[0].team, color: playerColors.get(name), records: visibleRecords });
+  });
   return tracks;
 }

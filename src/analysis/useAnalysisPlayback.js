@@ -1,8 +1,9 @@
 // Owns the shared KD/area/utility analysis timeline and its derived duration.
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 
-function calculateAnalysisDuration(rows, playerName, side, economyOwn, economyOpponent) {
-  if (!playerName || !rows.length) return 0;
+function calculateAnalysisDuration(rows, selectedPlayers, side, economyOwn, economyOpponent) {
+  if (!selectedPlayers.length || !rows.length) return 0;
+  const selected = new Set(selectedPlayers);
   const rowsByRound = new Map();
   rows.forEach((snapshot) => {
     if (!snapshot.analysisRound?.id) return;
@@ -14,7 +15,7 @@ function calculateAnalysisDuration(rows, playerName, side, economyOwn, economyOp
     const [ownEconomy, opponentEconomy] = String(round.economyMatchup || '').split(':');
     if (!economyOwn.includes(ownEconomy) || !economyOpponent.includes(opponentEconomy)) return 0;
     const records = roundRows.flatMap((snapshot) => snapshot.players
-      .filter((player) => player.name === playerName)
+      .filter((player) => selected.has(player.name))
       .map((player) => ({ ...player, tick: snapshot.tick })));
     const roundSide = records[0]?.team === 2 ? 'T' : records[0] ? 'CT' : null;
     if (side !== 'ALL' && roundSide !== side) return 0;
@@ -29,7 +30,7 @@ export default function useAnalysisPlayback({ rows, selectedPlayers, side, econo
   const deferredSelectedPlayers = useDeferredValue(selectedPlayers);
   const duration = useMemo(() => calculateAnalysisDuration(
     rows,
-    deferredSelectedPlayers[0],
+    deferredSelectedPlayers,
     side,
     economyOwn,
     economyOpponent,

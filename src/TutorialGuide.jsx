@@ -1,3 +1,5 @@
+import { localize, normalizeLanguage } from './i18n.js';
+
 const STEPS = {
   zh: [
     ['欢迎', '你可以在这里简单尝试视角控制、人物与道具放置、相机机位、战术绘制和帧管理等功能。需要离开时，点击右上角“结束教学”即可返回常规地图。'],
@@ -19,35 +21,45 @@ const STEPS = {
     ['Organize tactical frames', 'Insert Frame creates the next phase; Duplicate Frame preserves positions before editing. Arrow keys switch adjacent frames.'],
     ['Save and collaborate', 'Archive the practice frames locally for later restore. Open a room for live viewers while the owner controls archives and frames.'],
   ],
+  ru: [
+    ['Добро пожаловать', 'Здесь можно попробовать управление камерой, размещение игроков и гранат, сохранение ракурсов, тактическое рисование и работу с кадрами. Чтобы вернуться к обычной карте, нажмите «Выйти из обучения» справа вверху.'],
+    ['Движение и обзор', 'WASD перемещает камеру, средняя кнопка мыши вращает её, колесо меняет масштаб. NAV включает навигационную поверхность, а ползунок MODEL меняет прозрачность зданий.'],
+    ['Сохранение камер', 'Выберите удобный ракурс и нажмите Ctrl + цифру для сохранения. Эта цифра восстановит камеру. Позиции хранятся отдельно для каждой карты в этом браузере.'],
+    ['Игроки', 'Учебный кадр уже открыт. Нажмите E, чтобы поставить игрока; перетаскивайте для перемещения, Ctrl + ЛКМ меняет направление, двойной клик переключает приседание.'],
+    ['Гранаты', 'Нажмите Q и проведите по колесу гранат. В заметках можно сохранить getpos, импортировать JSON и добавить сохранённую гранату в совместный кадр.'],
+    ['Рисование и отмена', 'Удерживайте ЛКМ для рисования маршрутов, выбирайте цвет и толщину. Ctrl + ЛКМ стирает. Ctrl + Z и Ctrl + Y отменяют и возвращают действие.'],
+    ['Тактические кадры', '«Вставить кадр» создаёт следующий этап, а «Дублировать кадр» сохраняет позиции перед правкой. Стрелки переключают соседние кадры.'],
+    ['Сохранение и совместная работа', 'Сохраните учебные кадры в локальный архив, чтобы восстановить их позже. Откройте комнату для совместного просмотра; архивами и кадрами управляет владелец.'],
+  ],
 };
 
 export function TutorialOffer({ language, devMode = false, onAccept, onDecline }) {
-  const zh = language === 'zh';
+  const text = (zh, en, ru) => localize(language, { zh, en, ru });
   return <div className="tutorial-offer-backdrop" role="presentation">
     <section className="tutorial-offer" role="dialog" aria-modal="true" aria-labelledby="tutorial-offer-title">
-      <span>{zh ? '首次访问' : 'FIRST VISIT'}</span>
-      <h2 id="tutorial-offer-title">{zh ? '是否前往操作教学？' : 'Open the interactive tutorial?'}</h2>
-      <p>{zh ? '进入双层训练场的协作面板，学习人物、道具、相机机位、战术帧和本地存档。' : 'Open Collaboration on the two-level Training Ground to learn players, utility, camera positions, tactical frames, and local archives.'}</p>
-      {devMode && <small className="tutorial-offer-dev-note">{zh ? '开发模式：该提醒每访问 3 次显示一次。' : 'Development mode: this reminder appears once every 3 visits.'}</small>}
-      <footer><button type="button" onClick={onDecline}>{zh ? '暂不前往' : 'NOT NOW'}</button><button type="button" onClick={onAccept}>{zh ? '前往教学' : 'START TUTORIAL'}</button></footer>
+      <span>{text('首次访问', 'FIRST VISIT', 'ПЕРВЫЙ ВИЗИТ')}</span>
+      <h2 id="tutorial-offer-title">{text('是否前往操作教学？', 'Open the interactive tutorial?', 'Открыть интерактивное обучение?')}</h2>
+      <p>{text('进入双层训练场的协作面板，学习人物、道具、相机机位、战术帧和本地存档。', 'Open Collaboration on the two-level Training Ground to learn players, utility, camera positions, tactical frames, and local archives.', 'Откройте совместный режим на двухуровневой тренировочной карте, чтобы изучить игроков, гранаты, камеры, тактические кадры и локальные архивы.')}</p>
+      {devMode && <small className="tutorial-offer-dev-note">{text('开发模式：该提醒每访问 3 次显示一次。', 'Development mode: this reminder appears once every 3 visits.', 'Режим разработки: напоминание показывается раз в 3 посещения.')}</small>}
+      <footer><button type="button" onClick={onDecline}>{text('暂不前往', 'NOT NOW', 'НЕ СЕЙЧАС')}</button><button type="button" onClick={onAccept}>{text('前往教学', 'START TUTORIAL', 'НАЧАТЬ ОБУЧЕНИЕ')}</button></footer>
     </section>
   </div>;
 }
 
 export default function TutorialGuide({ language, open, step, onOpen, onStep, onFinish, onExit }) {
-  const zh = language === 'zh';
-  if (!open) return <button type="button" className="tutorial-reopen" onClick={onOpen}>{zh ? '操作教学' : 'TUTORIAL'}</button>;
-  const steps = STEPS[zh ? 'zh' : 'en'];
+  const text = (zh, en, ru) => localize(language, { zh, en, ru });
+  if (!open) return <button type="button" className="tutorial-reopen" onClick={onOpen}>{text('操作教学', 'TUTORIAL', 'ОБУЧЕНИЕ')}</button>;
+  const steps = STEPS[normalizeLanguage(language)];
   const [title, body] = steps[step];
   return <aside className="tutorial-guide" aria-live="polite">
-    <header><span>{zh ? '训练场 / 操作教学' : 'TRAINING / TUTORIAL'}</span><button type="button" onClick={onExit}>{zh ? '结束教学' : 'EXIT TUTORIAL'}</button></header>
+    <header><span>{text('训练场 / 操作教学', 'TRAINING / TUTORIAL', 'ТРЕНИРОВКА / ОБУЧЕНИЕ')}</span><button type="button" onClick={onExit}>{text('结束教学', 'EXIT TUTORIAL', 'ВЫЙТИ ИЗ ОБУЧЕНИЯ')}</button></header>
     <div className="tutorial-progress">{steps.map((_, index) => <i key={index} className={index <= step ? 'active' : ''} />)}</div>
     <strong>{String(step + 1).padStart(2, '0')} / {String(steps.length).padStart(2, '0')}</strong>
     <h2>{title}</h2>
     <p>{body}</p>
     <footer>
-      <button type="button" disabled={step === 0} onClick={() => onStep(step - 1)}>{zh ? '上一步' : 'BACK'}</button>
-      <button type="button" onClick={() => step === steps.length - 1 ? onFinish() : onStep(step + 1)}>{step === steps.length - 1 ? (zh ? '开始练习' : 'START') : (zh ? '下一步' : 'NEXT')}</button>
+      <button type="button" disabled={step === 0} onClick={() => onStep(step - 1)}>{text('上一步', 'BACK', 'НАЗАД')}</button>
+      <button type="button" onClick={() => step === steps.length - 1 ? onFinish() : onStep(step + 1)}>{step === steps.length - 1 ? text('开始练习', 'START', 'НАЧАТЬ') : text('下一步', 'NEXT', 'ДАЛЕЕ')}</button>
     </footer>
   </aside>;
 }

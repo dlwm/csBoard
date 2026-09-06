@@ -1,5 +1,6 @@
 // Owns Demo utility trajectories, landing effects, playback progress, and cleanup.
 import * as THREE from 'three';
+import { effectEndTick, isEffectStartEvent } from '../demo/effectLifetime.js';
 import { createGrenadeEffect, disposeGrenadeEffect } from './grenadeEffects.js';
 import { enableObjectFloorFade } from './floorFade.js';
 
@@ -47,7 +48,6 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
         trajectory.material.opacity = 0.9 * (1 - fade);
       }
     });
-    const durations = { smokegrenade_detonate: 1152, inferno_startburn: 448, flashbang_detonate: 20, hegrenade_detonate: 20 };
     segments.filter((segment) => !segment.groupKey).forEach((segment) => {
       const event = segment.throwEvent;
       const landing = segment.landing;
@@ -75,10 +75,8 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       trajectory.geometry.dispose();
       trajectory.geometry = new THREE.BufferGeometry().setFromPoints(trajectoryData.curve.getPoints(Math.max(2, Math.ceil(progress * 20))));
     });
-    grenadeEvents.filter((event) => event.event_name !== 'grenade_thrown' && event.event_name !== 'decoy_detonate').forEach((event) => {
-      const decoyEnd = event.event_name === 'decoy_started' ? grenadeEvents.find((candidate) => candidate.event_name === 'decoy_detonate' && candidate.tick > event.tick && candidate.tick - event.tick <= 1280 && (candidate.entityid == null || event.entityid == null || candidate.entityid === event.entityid)) : null;
-      const duration = event.event_name === 'decoy_started' ? (decoyEnd?.tick - event.tick || 960) : durations[event.event_name] || 20;
-      if (tick < event.tick || tick > event.tick + duration || event.x == null) return;
+    grenadeEvents.filter(isEffectStartEvent).forEach((event) => {
+      if (tick < event.tick || tick > effectEndTick(event, grenadeEvents) || event.x == null) return;
       const key = `${event.event_name}-${event.tick}-${event.entityid || event.user_steamid}`;
       active.add(key);
       let effect = objects.get(key);

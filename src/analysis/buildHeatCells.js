@@ -65,11 +65,18 @@ export default function buildHeatCells({
       if (flags.utilityLanding !== false && utility.landing) addWorld(`utility-${utility.kind}`, utility.landing.x - modelCenter.x, utility.landing.y - modelCenter.y, utility.landing.z - modelCenter.z, color, 1, utility.id);
     });
   } else if (areaMode) {
-    analysisRows.forEach((snapshot, index) => {
+    // Rows from multiple players interleave by tick, so duration must be measured within each player-round track.
+    const rowsByRound = new Map();
+    analysisRows.forEach((snapshot) => {
+      const id = snapshot.analysisRound?.id;
+      if (!id) return;
+      if (!rowsByRound.has(id)) rowsByRound.set(id, []);
+      rowsByRound.get(id).push(snapshot);
+    });
+    rowsByRound.forEach((roundRows) => roundRows.forEach((snapshot, index) => {
       const player = snapshot.players.find((candidate) => selected.has(candidate.name));
-      const next = analysisRows[index + 1];
-      if (!player || player.health <= 0 || !next || next.analysisRound?.id !== snapshot.analysisRound?.id) return;
-      if (!economyMatches(snapshot.analysisRound?.economyMatchup)) return;
+      const next = roundRows[index + 1];
+      if (!player || player.health <= 0 || !next || !economyMatches(snapshot.analysisRound?.economyMatchup)) return;
       const elapsedTicks = snapshot.tick - snapshot.analysisRound.startTick;
       const postPlant = Number.isFinite(snapshot.analysisRound.plantTick) && snapshot.tick >= snapshot.analysisRound.plantTick;
       const earlySeconds = clamp(Number(flags.areaEarlySeconds) || 30, 10, 90);
@@ -79,16 +86,16 @@ export default function buildHeatCells({
       if (side !== 'ALL' && playerSide !== side) return;
       if (snapshot.tick >= snapshot.analysisRound.endTick) return;
       const seconds = clamp((Math.min(next.tick, snapshot.analysisRound.endTick) - snapshot.tick) / 64, 0, 0.75);
-      if (seconds <= 0) return;
-      addWorld('areaHeat', player.position.x - modelCenter.x, player.position.y - modelCenter.y, player.position.z - modelCenter.z, '#ff6b47', seconds);
-    });
+      if (seconds > 0) addWorld('areaHeat', player.position.x - modelCenter.x, player.position.y - modelCenter.y, player.position.z - modelCenter.z, '#ff6b47', seconds);
+    }));
   } else {
     const deaths = analysisEnabled ? analysisDeaths : heatDeaths;
     deaths.forEach((event) => {
-      if (analysisEnabled && !economyMatches(event.analysisEconomyMatchup)) return;
       const requiredTeam = side === 'T' ? 2 : side === 'CT' ? 3 : null;
-      const selectedAttacker = (!analysisEnabled || selected.has(event.attacker_name)) && (requiredTeam == null || Number(event.attacker_team_num) === requiredTeam);
-      const selectedVictim = (!analysisEnabled || selected.has(event.user_name)) && (requiredTeam == null || Number(event.user_team_num) === requiredTeam);
+      const attackerEconomy = event.analysisEconomyByPlayer?.[event.attacker_name] || event.analysisEconomyMatchup;
+      const victimEconomy = event.analysisEconomyByPlayer?.[event.user_name] || event.analysisEconomyMatchup;
+      const selectedAttacker = (!analysisEnabled || selected.has(event.attacker_name) && economyMatches(attackerEconomy)) && (requiredTeam == null || Number(event.attacker_team_num) === requiredTeam);
+      const selectedVictim = (!analysisEnabled || selected.has(event.user_name) && economyMatches(victimEconomy)) && (requiredTeam == null || Number(event.user_team_num) === requiredTeam);
       if (flags.killerHeat && selectedAttacker) addEvent('killerHeat', event.attacker_X, event.attacker_Y, event.attacker_Z, '#ffb347');
       if (flags.targetHeat && selectedAttacker) addEvent('targetHeat', event.user_X, event.user_Y, event.user_Z, '#ff6b6b');
       if (flags.victimHeat && selectedVictim) addEvent('victimHeat', event.user_X, event.user_Y, event.user_Z, '#5da9ff');

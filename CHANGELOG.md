@@ -2,9 +2,16 @@
 
 [中文](docs/CHANGELOG.zh-CN.md)
 
-## [1.10.1] - 2026-09-06
+## [1.11.0] - 2026-09-06
+
+### Added
+
+- Add Russian interface localization across the main workspace, Demo analysis, tutorial, parser settings, camera controls, round results, and parsing side games, with persisted three-language switching and locale-aware dates.
+- Allow selecting multiple Analysis players through a searchable chip picker. Player names, paths, per-player round economy, KD events, utility events, area-time heat, Demo availability, and the shared timeline now aggregate correctly across the selection.
 
 ### Changed
+
+- Index player names once per loaded Demo, defer expensive dataset rebuilding during selection updates, group multi-player area calculations by player-round, and reuse selected Demo filters when players are added or removed.
 
 - Bundle parsed NAV data for all supported maps into the frontend, removing the runtime NAV download and legacy parsing API dependency while preserving offline map geometry.
 - Add an offline region-data generation pipeline that preserves `env_cs_place` height bounds and associates each region with bundled NAV areas.
@@ -13,16 +20,17 @@
 
 ### Fixed
 
-- Fix Docker builds so the supplied v1.10.0 build version reaches Vite even when `.git` is excluded from the build context.
+- Fix Docker builds so the supplied v1.11.0 build version reaches Vite even when `.git` is excluded from the build context.
 - Fix map switches mounting the new GLB with the previous map's bundled NAV data when both NAV files share the same format version.
 - Anchor Anubis's default 3D orbit height to its highest playable NAV surface so non-playable bottom geometry cannot displace it.
 - Remove the duplicate generic crosshair from Demo first-person playback while retaining its animated POV HUD crosshair.
 - Align the remaining Demo POV crosshair to the actual 3D viewport instead of the taller stage that also contains bottom controls.
-- Freeze a utility's first-person camera at the release view for 0.3 seconds, then immediately return to the original replay camera instead of following the thrower's post-release movement.
+- Freeze a utility's first-person camera at the release view for 0.3 seconds, then cut to a projectile chase camera without following the thrower's post-release movement; restore the original map view after detonation.
 - Preserve the model perspective range in saved camera positions and make 0% disable the perspective opening completely.
 - Let five-die Farkle straights score together with a sixth scoring 1 or 5, and make Reaction Test measure the response on press instead of release.
 - Allow Analysis utility records to be opened and saved from either throw or landing markers; hovering a nearby-list entry now highlights its exact trajectory.
 - Make the Analysis nearby-utility list smaller and translucent, and close it immediately after the pointer leaves the entered list.
+- Make the language-switch button identify the active Chinese, English, or Russian locale while its tooltip announces the next locale.
 
 ## [1.10.0] - 2026-09-06
 

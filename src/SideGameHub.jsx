@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import FarkleGame from './FarkleGame.jsx';
+import { localize } from './i18n.js';
 
 const shuffledNumbers = (size) => {
   const numbers = Array.from({ length: size * size }, (_value, index) => index + 1);
@@ -10,7 +11,8 @@ const shuffledNumbers = (size) => {
   return numbers;
 };
 
-function SchulteGame({ zh, stopped }) {
+function SchulteGame({ language, stopped }) {
+  const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const [size, setSize] = useState(4);
   const [numbers, setNumbers] = useState(() => shuffledNumbers(4));
   const [next, setNext] = useState(1);
@@ -67,22 +69,23 @@ function SchulteGame({ zh, stopped }) {
 
   return <div className="schulte-game">
     <div className="schulte-toolbar">
-      <div><span>{zh ? '网格' : 'GRID'}</span>{[3, 4, 5, 6].map((value) => <button type="button" key={value} className={size === value ? 'active' : ''} onClick={() => { setSize(value); reset(value); }}>{value}×{value}</button>)}</div>
-      <button type="button" className="schulte-reset" onClick={() => reset()}>{zh ? '重新洗牌' : 'RESHUFFLE'}</button>
+      <div><span>{text('网格', 'GRID', 'СЕТКА')}</span>{[3, 4, 5, 6].map((value) => <button type="button" key={value} className={size === value ? 'active' : ''} onClick={() => { setSize(value); reset(value); }}>{value}×{value}</button>)}</div>
+      <button type="button" className="schulte-reset" onClick={() => reset()}>{text('重新洗牌', 'RESHUFFLE', 'ПЕРЕМЕШАТЬ')}</button>
     </div>
-    <div className="schulte-status"><div><span>{complete ? zh ? '完成' : 'COMPLETE' : zh ? '下一个' : 'NEXT'}</span><strong>{complete ? '✓' : next}</strong></div><div><span>{zh ? '用时' : 'TIME'}</span><strong>{(elapsed / 1000).toFixed(2)}s</strong></div><div><span>{zh ? '最佳' : 'BEST'}</span><strong>{bestBySize[size] == null ? '—' : `${(bestBySize[size] / 1000).toFixed(2)}s`}</strong></div></div>
+    <div className="schulte-status"><div><span>{complete ? text('完成', 'COMPLETE', 'ГОТОВО') : text('下一个', 'NEXT', 'ДАЛЕЕ')}</span><strong>{complete ? '✓' : next}</strong></div><div><span>{text('用时', 'TIME', 'ВРЕМЯ')}</span><strong>{(elapsed / 1000).toFixed(2)}s</strong></div><div><span>{text('最佳', 'BEST', 'РЕКОРД')}</span><strong>{bestBySize[size] == null ? '—' : `${(bestBySize[size] / 1000).toFixed(2)}s`}</strong></div></div>
     <div className="schulte-grid" style={{ '--schulte-size': size }}>{numbers.map((number) => <button type="button" key={number} className={`${number < next ? 'done ' : ''}${mistake === number ? 'mistake' : ''}`.trim()} disabled={stopped} onClick={() => choose(number)}>{number}</button>)}</div>
-    <p>{stopped ? zh ? '解析已停止。' : 'Parsing stopped.' : complete ? zh ? '完成！重新洗牌再来一轮。' : 'Complete! Reshuffle for another run.' : next === 1 ? zh ? '从 1 开始，按顺序找到所有数字。首次点击开始计时。' : 'Start at 1 and find every number in order. Timing begins on the first tap.' : zh ? `继续寻找 ${next}` : `Find ${next} next`}</p>
+    <p>{stopped ? text('解析已停止。', 'Parsing stopped.', 'Разбор остановлен.') : complete ? text('完成！重新洗牌再来一轮。', 'Complete! Reshuffle for another run.', 'Готово! Перемешайте и попробуйте снова.') : next === 1 ? text('从 1 开始，按顺序找到所有数字。首次点击开始计时。', 'Start at 1 and find every number in order. Timing begins on the first tap.', 'Начните с 1 и найдите все числа по порядку. Таймер запустится при первом нажатии.') : text(`继续寻找 ${next}`, `Find ${next} next`, `Найдите ${next}`)}</p>
   </div>;
 }
 
-function ReactionGame({ zh, stopped }) {
+function ReactionGame({ language, stopped }) {
+  const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const [phase, setPhase] = useState('idle');
   const [successfulCount, setSuccessfulCount] = useState(0);
   const [best, setBest] = useState(null);
   const [lastMs, setLastMs] = useState(null);
   const [latestAverage, setLatestAverage] = useState(null);
-  const [message, setMessage] = useState(zh ? '按下开始，等它变绿后再次按下。' : 'Press to start, then press again once it turns green.');
+  const [message, setMessage] = useState(() => text('按下开始，等它变绿后再次按下。', 'Press to start, then press again once it turns green.', 'Нажмите для старта, затем нажмите снова, когда поле станет зелёным.'));
   const timeoutRef = useRef(null);
   const goAtRef = useRef(0);
   const groupRef = useRef([]);
@@ -92,21 +95,21 @@ function ReactionGame({ zh, stopped }) {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
       setPhase('idle');
-      setMessage(zh ? '解析已停止。' : 'Parsing stopped.');
+      setMessage(text('解析已停止。', 'Parsing stopped.', 'Разбор остановлен.'));
     }
     return () => window.clearTimeout(timeoutRef.current);
-  }, [stopped, zh]);
+  }, [stopped, language]);
 
   const handleDown = () => {
     if (stopped) return;
     if (phase === 'idle') {
       window.clearTimeout(timeoutRef.current);
       setPhase('waiting');
-      setMessage(zh ? '等待变绿… 不要提前按下！' : 'Wait for green… do not press early!');
+      setMessage(text('等待变绿… 不要提前按下！', 'Wait for green… do not press early!', 'Ждите зелёного… не нажимайте раньше!'));
       const delay = 700 + Math.random() * 1600;
       timeoutRef.current = window.setTimeout(() => {
         setPhase('go');
-        setMessage(zh ? '按下！' : 'PRESS!');
+        setMessage(text('按下！', 'PRESS!', 'ЖМИТЕ!'));
         goAtRef.current = performance.now();
       }, delay);
       return;
@@ -115,7 +118,7 @@ function ReactionGame({ zh, stopped }) {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
       setPhase('idle');
-      setMessage(zh ? '太早了，再试一次。' : 'Too early — try again.');
+      setMessage(text('太早了，再试一次。', 'Too early — try again.', 'Слишком рано — попробуйте ещё раз.'));
       return;
     }
     if (phase === 'go') {
@@ -130,7 +133,7 @@ function ReactionGame({ zh, stopped }) {
       } else {
         groupRef.current = group;
       }
-      setMessage(zh ? `反应时间 ${ms.toFixed(0)}ms` : `Reaction ${ms.toFixed(0)}ms`);
+      setMessage(text(`反应时间 ${ms.toFixed(0)}ms`, `Reaction ${ms.toFixed(0)}ms`, `Реакция: ${ms.toFixed(0)} мс`));
       setPhase('idle');
     }
   };
@@ -139,7 +142,7 @@ function ReactionGame({ zh, stopped }) {
     window.clearTimeout(timeoutRef.current);
     timeoutRef.current = null;
     setPhase('idle');
-    setMessage(zh ? '已取消。' : 'Cancelled.');
+    setMessage(text('已取消。', 'Cancelled.', 'Отменено.'));
   };
 
   const groupNumber = Math.floor(successfulCount / 3) + 1;
@@ -147,33 +150,33 @@ function ReactionGame({ zh, stopped }) {
 
   return <div className="reaction-game">
     <div className={`reaction-area reaction-${phase}`} role="button" tabIndex="0" onPointerDown={handleDown} onPointerCancel={handleCancel}>
-      {phase === 'idle' && <span className="reaction-hint">{successfulCount ? (zh ? '按下再试一次' : 'Press to try again') : (zh ? '按下开始' : 'Press to start')}</span>}
-      {phase === 'waiting' && <span className="reaction-hint">{zh ? '等待…' : 'Wait…'}</span>}
-      {phase === 'go' && <span className="reaction-hint">{zh ? '按下!' : 'PRESS!'}</span>}
+      {phase === 'idle' && <span className="reaction-hint">{successfulCount ? text('按下再试一次', 'Press to try again', 'Нажмите, чтобы повторить') : text('按下开始', 'Press to start', 'Нажмите для старта')}</span>}
+      {phase === 'waiting' && <span className="reaction-hint">{text('等待…', 'Wait…', 'Ждите…')}</span>}
+      {phase === 'go' && <span className="reaction-hint">{text('按下!', 'PRESS!', 'ЖМИТЕ!')}</span>}
     </div>
-    <div className="reaction-stats"><dl><div><dt>{zh ? '最新' : 'LATEST'}</dt><dd>{lastMs != null ? `${lastMs.toFixed(0)}ms` : '—'}</dd></div><div><dt>{zh ? '最佳' : 'BEST'}</dt><dd>{best != null ? `${best.toFixed(0)}ms` : '—'}</dd></div><div><dt>{zh ? '组/次' : 'GROUP / ATTEMPT'}</dt><dd>{groupNumber} / {attemptNumber}</dd></div><div><dt>{zh ? '上组平均' : 'LATEST 3 AVG'}</dt><dd>{latestAverage != null ? `${latestAverage.toFixed(0)}ms` : '—'}</dd></div></dl></div>
+    <div className="reaction-stats"><dl><div><dt>{text('最新', 'LATEST', 'ПОСЛЕДНЯЯ')}</dt><dd>{lastMs != null ? `${lastMs.toFixed(0)}ms` : '—'}</dd></div><div><dt>{text('最佳', 'BEST', 'ЛУЧШАЯ')}</dt><dd>{best != null ? `${best.toFixed(0)}ms` : '—'}</dd></div><div><dt>{text('组/次', 'GROUP / ATTEMPT', 'ГРУППА / ПОПЫТКА')}</dt><dd>{groupNumber} / {attemptNumber}</dd></div><div><dt>{text('上组平均', 'LATEST 3 AVG', 'СРЕДНЕЕ ЗА 3')}</dt><dd>{latestAverage != null ? `${latestAverage.toFixed(0)}ms` : '—'}</dd></div></dl></div>
     <p className="reaction-msg">{message}</p>
   </div>;
 }
 
 export default function SideGameHub({ language = 'zh', stopped = false, manual = false, onClose }) {
-  const zh = language === 'zh';
+  const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const [game, setGame] = useState('reaction');
   const games = [
     { id: 'farkle', label: 'FARKLE' },
-    { id: 'reaction', label: zh ? '反应测试' : 'REACTION' },
-    { id: 'schulte', label: zh ? '舒尔特方块' : 'SCHULTE' },
+    { id: 'reaction', label: text('反应测试', 'REACTION', 'РЕАКЦИЯ') },
+    { id: 'schulte', label: text('舒尔特方块', 'SCHULTE', 'ТАБЛИЦА ШУЛЬТЕ') },
   ];
   return <section className="side-games">
     <header>
       <div className="side-games-tabs">{games.map((g) => <button type="button" key={g.id} className={game === g.id ? 'active' : ''} onClick={() => setGame(g.id)}>{g.label}</button>)}</div>
-      <small>{manual ? zh ? '专注训练' : 'FOCUS TRAINING' : stopped ? zh ? '解析已停止' : 'Parsing stopped' : zh ? '解析在后台继续' : 'Parsing continues in background'}</small>
-      {onClose && <button type="button" className="farkle-close" aria-label={zh ? '关闭' : 'Close'} onClick={onClose}>×</button>}
+      <small>{manual ? text('专注训练', 'FOCUS TRAINING', 'ТРЕНИРОВКА ВНИМАНИЯ') : stopped ? text('解析已停止', 'Parsing stopped', 'Разбор остановлен') : text('解析在后台继续', 'Parsing continues in background', 'Разбор продолжается в фоне')}</small>
+      {onClose && <button type="button" className="farkle-close" aria-label={text('关闭', 'Close', 'Закрыть')} onClick={onClose}>×</button>}
     </header>
     <div className="side-games-body">
       {game === 'farkle' ? <FarkleGame language={language} stopped={stopped} onClose={null} embedded /> : null}
-      {game === 'reaction' ? <ReactionGame zh={zh} stopped={stopped} /> : null}
-      {game === 'schulte' ? <SchulteGame zh={zh} stopped={stopped} /> : null}
+      {game === 'reaction' ? <ReactionGame language={language} stopped={stopped} /> : null}
+      {game === 'schulte' ? <SchulteGame language={language} stopped={stopped} /> : null}
     </div>
   </section>;
 }

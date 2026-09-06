@@ -49,8 +49,8 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ![Demo analysis](docs/readme/analysis.png)
 
-- Lazily load Analysis payloads, aggregated players, and per-round utility trajectories only after opening the Analysis page. Find a player through prefix, substring, or ordered-character fuzzy matching with an explicit loading state.
-- Select recent or specific parsed Demos for that player, then filter rounds by T/CT side and both teams' economy classes.
+- Lazily load Analysis payloads, aggregated players, and per-round utility trajectories only after opening the Analysis page. Search and select multiple players through prefix, substring, or ordered-character fuzzy matching, with removable colored chips and an explicit loading state.
+- Select recent or specific parsed Demos available to any selected player, then filter rounds by T/CT side and each player's own/opponent economy classes.
 - Switch between Area Time, KD Events, and Utility Events while keeping shared path playback, timeline scrubbing, and stepping controls.
 - Combine Early, Mid, and Post-plant Area Time phases. The Early/Mid boundary defaults to 30 seconds after freeze end and can be adjusted from 10 to 90 seconds.
 - Inspect killer, victim, target, and opposing-player locations for KD events.
@@ -85,7 +85,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Interface
 
-- Switch the application between English and Chinese at runtime.
+- Switch the application between English, Chinese, and Russian at runtime.
 - Inspect live T/CT rosters, score, health, active weapons, remaining utility, deaths, and C4 ownership.
 - Jump directly to kills, C4 plants, explosions, and round-end events from the timeline.
 - Keep desktop tool panels in dedicated columns around the 3D viewport and collapse available sidebars independently.
@@ -168,7 +168,7 @@ This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and
 
 `npm run build` and `npm run build:local` use local `/maps` resources and same-origin APIs. `npm run build:remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
-To run the Node.js Runtime in Docker, place the GLB models under `.local/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/maps`; set `BUILD_VERSION` only when overriding the default `v1.10.0` image version.
+To run the Node.js Runtime in Docker, place the GLB models under `.local/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/maps`; set `BUILD_VERSION` only when overriding the default `v1.11.0` image version.
 
 ## Controls
 

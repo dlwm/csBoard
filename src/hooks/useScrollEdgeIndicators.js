@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 const SCROLL_EDGE_SELECTOR = [
   '.analysis-panel', '.utility-notes-panel', '.collab-panel', '.utility-location-groups', '.utility-hover-list',
   '.demo-cache-list', '.demo-round-list', '.collab-imported-list', '.analysis-player-list', '.analysis-demo-picker>div',
-  '.analysis-player-results', '.board-shell.is-mobile .demo-kills', '.board-shell.is-mobile .demo-panel',
+  '.analysis-player-results', '.analysis-player-chips', '.board-shell.is-mobile .demo-kills', '.board-shell.is-mobile .demo-panel',
   '.board-shell.is-mobile .team-roster', '.board-shell.is-mobile .parse-game-layer', '.board-shell.is-mobile .side-games',
 ].join(',');
 

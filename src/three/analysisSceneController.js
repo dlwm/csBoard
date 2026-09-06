@@ -108,7 +108,7 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
         const geometry = new THREE.BufferGeometry().setFromPoints(records.map((record) => record.position));
         geometry.setDrawRange(0, 0);
         geometry.computeBoundingSphere();
-        const line = new THREE.Line(geometry, new THREE.LineDashedMaterial({ color: '#c9f76b', dashSize: 0.28, gapSize: 0.16, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false }));
+        const line = new THREE.Line(geometry, new THREE.LineDashedMaterial({ color: track.color || '#c9f76b', dashSize: 0.28, gapSize: 0.16, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false }));
         line.renderOrder = 5;
         line.computeLineDistances();
         const marker = createCollabPlayer({ position: new THREE.Vector3(), id: `analysis-${track.key}`, name: track.name, team: track.team === 2 ? 'T' : 'CT', crouched: records[0].crouched, pitch: records[0].pitch, weapon: records[0].weapon, showName: false });

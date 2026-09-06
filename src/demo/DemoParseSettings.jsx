@@ -1,9 +1,11 @@
 // Popover for Demo sampling and parser options.
 import { useEffect, useRef, useState } from 'react';
+import { localize } from '../i18n.js';
 
 export const DEMO_SAMPLE_RATES = [1, 2, 4, 8, 16, 32];
 
 export default function DemoParseSettings({ value, onChange, language }) {
+  const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const index = Math.max(0, DEMO_SAMPLE_RATES.indexOf(value));
@@ -20,7 +22,7 @@ export default function DemoParseSettings({ value, onChange, language }) {
     };
   }, [open]);
   return <div ref={rootRef} className={`demo-parse-settings${open ? ' open' : ''}${slow ? ' slow' : ''}`}>
-    <button type="button" className="demo-parse-settings-toggle" aria-label={language === 'zh' ? '解析采样设置' : 'Parse sampling settings'} title={language === 'zh' ? '解析采样设置' : 'Parse sampling settings'} onClick={() => setOpen((current) => !current)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.7 1.5h2.6l.4 1.7c.4.1.8.3 1.2.5l1.5-.9 1.8 1.8-.9 1.5c.2.4.4.8.5 1.2l1.7.4v2.6l-1.7.4c-.1.4-.3.8-.5 1.2l.9 1.5-1.8 1.8-1.5-.9c-.4.2-.8.4-1.2.5l-.4 1.7H6.7l-.4-1.7c-.4-.1-.8-.3-1.2-.5l-1.5.9-1.8-1.8.9-1.5c-.2-.4-.4-.8-.5-1.2l-1.7-.4V7.7l1.7-.4c.1-.4.3-.8.5-1.2l-.9-1.5 1.8-1.8 1.5.9c.4-.2.8-.4 1.2-.5z" /><circle cx="8" cy="9" r="2.2" /></svg></button>
-    {open && <div className="demo-parse-settings-popover"><header><span>{language === 'zh' ? '主回放每秒采样' : 'Replay samples / second'}</span><strong>{value}/s</strong></header><input type="range" min="0" max={DEMO_SAMPLE_RATES.length - 1} step="1" value={index} onChange={(event) => onChange(DEMO_SAMPLE_RATES[Number(event.target.value)])} /><div className="demo-sample-ticks">{DEMO_SAMPLE_RATES.map((rate) => <button type="button" className={rate === value ? 'active' : ''} data-slow={rate >= 16 || undefined} key={rate} onClick={() => onChange(rate)}>{rate}</button>)}</div><p className={slow ? 'warning' : ''}>{slow ? language === 'zh' ? '高采样率可能需要较长解析时间并占用更多内存。' : 'High sampling rates may take much longer and use more memory.' : language === 'zh' ? `每 ${64 / value} tick 记录一次主回放。` : `One replay sample every ${64 / value} ticks.`}</p></div>}
+    <button type="button" className="demo-parse-settings-toggle" aria-label={text('解析采样设置', 'Parse sampling settings', 'Настройки частоты разбора')} title={text('解析采样设置', 'Parse sampling settings', 'Настройки частоты разбора')} onClick={() => setOpen((current) => !current)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.7 1.5h2.6l.4 1.7c.4.1.8.3 1.2.5l1.5-.9 1.8 1.8-.9 1.5c.2.4.4.8.5 1.2l1.7.4v2.6l-1.7.4c-.1.4-.3.8-.5 1.2l.9 1.5-1.8 1.8-1.5-.9c-.4.2-.8.4-1.2.5l-.4 1.7H6.7l-.4-1.7c-.4-.1-.8-.3-1.2-.5l-1.5.9-1.8-1.8.9-1.5c-.2-.4-.4-.8-.5-1.2l-1.7-.4V7.7l1.7-.4c.1-.4.3-.8.5-1.2l-.9-1.5 1.8-1.8 1.5.9c.4-.2.8-.4 1.2-.5z" /><circle cx="8" cy="9" r="2.2" /></svg></button>
+    {open && <div className="demo-parse-settings-popover"><header><span>{text('主回放每秒采样', 'Replay samples / second', 'Сэмплов повтора в секунду')}</span><strong>{value}/s</strong></header><input type="range" min="0" max={DEMO_SAMPLE_RATES.length - 1} step="1" value={index} onChange={(event) => onChange(DEMO_SAMPLE_RATES[Number(event.target.value)])} /><div className="demo-sample-ticks">{DEMO_SAMPLE_RATES.map((rate) => <button type="button" className={rate === value ? 'active' : ''} data-slow={rate >= 16 || undefined} key={rate} onClick={() => onChange(rate)}>{rate}</button>)}</div><p className={slow ? 'warning' : ''}>{slow ? text('高采样率可能需要较长解析时间并占用更多内存。', 'High sampling rates may take much longer and use more memory.', 'Высокая частота может значительно увеличить время разбора и расход памяти.') : text(`每 ${64 / value} tick 记录一次主回放。`, `One replay sample every ${64 / value} ticks.`, `Один сэмпл повтора на каждые ${64 / value} тиков.`)}</p></div>}
   </div>;
 }

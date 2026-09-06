@@ -1,5 +1,6 @@
 // Composes the Analysis sidebar without owning data loading or scene rendering.
 import AnalysisPlayerPicker from './AnalysisPlayerPicker.jsx';
+import { localeForLanguage, localize } from '../i18n.js';
 
 export default function AnalysisPanel({
   language,
@@ -8,10 +9,11 @@ export default function AnalysisPanel({
   status,
   players,
   playersLoading,
-  playerName,
+  selectedPlayers,
   playerQuery,
   onPlayerQueryChange,
-  onPlayerSelect,
+  onPlayerToggle,
+  onPlayersClear,
   demos,
   selectedDemoIds,
   onToggleDemo,
@@ -24,26 +26,27 @@ export default function AnalysisPanel({
   duration,
   onTimeChange,
 }) {
-  const zh = language === 'zh';
+  const text = (zh, en, ru) => localize(language, { zh, en, ru });
+  const hasPlayers = selectedPlayers.length > 0;
   return <aside className="analysis-panel">
     <div className="collab-heading">
       <div><span>DEMO ANALYSIS</span><h2>{translate('analysis')}</h2></div>
-      <button type="button" disabled={!playerName || !rowsAvailable} onClick={onTogglePlay}>{playing ? translate('pause') : translate('play')}</button>
+      <button type="button" disabled={!hasPlayers || !rowsAvailable} onClick={onTogglePlay}>{playing ? translate('pause') : translate('play')}</button>
     </div>
-    <p className="collab-note">{zh ? `从 ${mapName.toUpperCase()} 已解析的 Demo 中按用户名聚合分析。` : `Aggregate a player across parsed ${mapName.toUpperCase()} Demos.`}</p>
+    <p className="collab-note">{text(`从 ${mapName.toUpperCase()} 已解析的 Demo 中按用户名聚合多名选手。`, `Aggregate selected players across parsed ${mapName.toUpperCase()} Demos.`, `Объединяет выбранных игроков из разобранных Demo на ${mapName.toUpperCase()}.`)}</p>
     {status && <div className="analysis-status">{status}</div>}
-    <AnalysisPlayerPicker language={language} players={players} loading={playersLoading} value={playerName} query={playerQuery} onQueryChange={onPlayerQueryChange} onSelect={onPlayerSelect} />
-    {playerName && <section className="analysis-demo-picker">
-      <header><span>{zh ? '分析 Demo' : 'ANALYSIS DEMOS'}</span><b>{selectedDemoIds.length}/{demos.length}</b></header>
+    <AnalysisPlayerPicker language={language} players={players} loading={playersLoading} values={selectedPlayers} query={playerQuery} onQueryChange={onPlayerQueryChange} onToggle={onPlayerToggle} onClear={onPlayersClear} />
+    {hasPlayers && <section className="analysis-demo-picker">
+      <header><span>{text('分析 Demo', 'ANALYSIS DEMOS', 'DEMO ДЛЯ АНАЛИЗА')}</span><b>{selectedDemoIds.length}/{demos.length}</b></header>
       <div>{demos.map((entry, index) => <label key={entry.id} className={selectedDemoIds.includes(entry.id) ? 'selected' : ''}>
         <input type="checkbox" checked={selectedDemoIds.includes(entry.id)} onChange={() => onToggleDemo(entry.id)} />
-        <span><strong>{entry.fileName}</strong><small>{new Date(entry.updatedAt).toLocaleString(zh ? 'zh-CN' : 'en-US')} · {entry.data.rounds?.length || entry.rounds || 0} {translate('round')}{index < 3 ? ` · ${zh ? '最近' : 'RECENT'}` : ''}</small></span>
+        <span><strong>{entry.fileName}</strong><small>{new Date(entry.updatedAt).toLocaleString(localeForLanguage(language))} · {entry.data.rounds?.length || entry.rounds || 0} {translate('round')}{index < 3 ? ` · ${text('最近', 'RECENT', 'НЕДАВНЕЕ')}` : ''}</small></span>
       </label>)}</div>
     </section>}
-    {playerName && <label className="analysis-side">
+    {hasPlayers && <label className="analysis-side">
       <span>{translate('side').toUpperCase()}</span>
       <select value={side} onChange={(event) => onSideChange(event.target.value)}><option value="ALL">{translate('allRounds')}</option><option value="T">{translate('tRounds')}</option><option value="CT">{translate('ctRounds')}</option></select>
     </label>}
-    {playerName && rowsAvailable && <div className="analysis-timeline"><span>{(time / 64).toFixed(1)}s</span><input type="range" min="0" max={duration} value={time} onChange={(event) => onTimeChange(Number(event.target.value))} /><span>{(duration / 64).toFixed(1)}s</span></div>}
+    {hasPlayers && rowsAvailable && <div className="analysis-timeline"><span>{(time / 64).toFixed(1)}s</span><input type="range" min="0" max={duration} value={time} onChange={(event) => onTimeChange(Number(event.target.value))} /><span>{(duration / 64).toFixed(1)}s</span></div>}
   </aside>;
 }

@@ -1,5 +1,7 @@
-// Searchable player picker with lightweight ordered-character fuzzy matching.
-import { useEffect, useMemo, useState } from 'react';
+// Searchable multi-player picker with deferred fuzzy matching for large Demo libraries.
+import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { localize } from '../i18n.js';
+import { ANALYSIS_PLAYER_COLORS } from './constants.js';
 
 function fuzzyPlayerScore(name, query) {
   const candidate = String(name).toLocaleLowerCase();
@@ -16,28 +18,31 @@ function fuzzyPlayerScore(name, query) {
   return Number.POSITIVE_INFINITY;
 }
 
-export default function AnalysisPlayerPicker({ language, players, loading, value, query, onQueryChange, onSelect }) {
+function AnalysisPlayerPicker({ language, players, loading, values, query, onQueryChange, onToggle, onClear }) {
+  const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const searchQuery = open && query === value ? '' : query;
+  const deferredQuery = useDeferredValue(query);
+  const selected = useMemo(() => new Set(values), [values]);
   const matches = useMemo(() => players
-    .map((name) => ({ name, score: fuzzyPlayerScore(name, searchQuery) }))
+    .map((name) => ({ name, score: fuzzyPlayerScore(name, deferredQuery) }))
     .filter((item) => Number.isFinite(item.score))
-    .sort((left, right) => left.score - right.score || left.name.localeCompare(right.name))
-    .slice(0, 100), [players, searchQuery]);
+    .sort((left, right) => left.score - right.score || Number(selected.has(right.name)) - Number(selected.has(left.name)) || left.name.localeCompare(right.name))
+    .slice(0, 100), [players, deferredQuery, selected]);
 
-  useEffect(() => setActiveIndex(0), [searchQuery]);
+  useEffect(() => setActiveIndex(0), [deferredQuery]);
 
   const choose = (name) => {
-    onQueryChange(name);
-    onSelect(name);
-    setOpen(false);
+    onToggle(name);
+    onQueryChange('');
+    setOpen(true);
   };
 
-  return <label className="analysis-side analysis-player-picker">
-    <span>{language === 'zh' ? '用户名' : 'PLAYER NAME'}</span>
+  return <section className="analysis-side analysis-player-picker">
+    <header><span>{text('选手', 'PLAYERS', 'ИГРОКИ')} · {values.length}</span>{values.length > 0 && <button type="button" onClick={onClear}>{text('清空', 'CLEAR', 'ОЧИСТИТЬ')}</button>}</header>
+    {values.length > 0 && <div className="analysis-player-chips">{values.map((name, index) => <button type="button" key={name} style={{ '--player-color': ANALYSIS_PLAYER_COLORS[index % ANALYSIS_PLAYER_COLORS.length] }} title={text(`移除 ${name}`, `Remove ${name}`, `Удалить ${name}`)} onClick={() => onToggle(name)}><span>{name}</span><b>×</b></button>)}</div>}
     <div className="analysis-player-combobox" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
-      <input type="search" value={query} disabled={loading} role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls="analysis-player-results" placeholder={loading ? (language === 'zh' ? '加载中…' : 'Loading…') : (language === 'zh' ? '搜索选手用户名…' : 'Search player name…')} onFocus={(event) => { event.currentTarget.select(); setOpen(true); }} onChange={(event) => { onQueryChange(event.target.value); setOpen(true); }} onKeyDown={(event) => {
+      <input type="search" value={query} disabled={loading} role="combobox" aria-label={text('搜索选手用户名', 'Search player name', 'Поиск игрока')} aria-autocomplete="list" aria-expanded={open} aria-controls="analysis-player-results" placeholder={loading ? text('加载中…', 'Loading…', 'Загрузка…') : text('搜索并添加选手…', 'Search and add players…', 'Найти и добавить игроков…')} onFocus={() => setOpen(true)} onChange={(event) => { onQueryChange(event.target.value); setOpen(true); }} onKeyDown={(event) => {
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
           event.preventDefault();
           setOpen(true);
@@ -49,12 +54,14 @@ export default function AnalysisPlayerPicker({ language, players, loading, value
           setOpen(false);
         }
       }} />
-      {query && <button type="button" className="analysis-player-clear" aria-label={language === 'zh' ? '清除选手' : 'Clear player'} onClick={() => { onQueryChange(''); onSelect(''); setOpen(true); }}>×</button>}
-      {open && <div id="analysis-player-results" className="analysis-player-results" role="listbox">
-        {loading ? <div className="analysis-player-message">{language === 'zh' ? '选手列表加载中…' : 'Loading player list…'}</div> : matches.length ? matches.map((item, index) => <button type="button" role="option" aria-selected={item.name === value} className={`${item.name === value ? 'selected ' : ''}${index === activeIndex ? 'active' : ''}`.trim()} key={item.name} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setActiveIndex(index)} onClick={() => choose(item.name)}>{item.name}</button>) : <div className="analysis-player-message">{players.length ? (language === 'zh' ? '没有匹配的选手' : 'No matching players') : (language === 'zh' ? '当前地图暂无分析用户' : 'No analyzed players on this map')}</div>}
-        {!loading && matches.length === 100 && <small>{language === 'zh' ? '仅显示前 100 项，请继续输入以缩小范围' : 'Showing the first 100 results. Type more to narrow them.'}</small>}
+      {query && <button type="button" className="analysis-player-clear" aria-label={text('清除搜索', 'Clear search', 'Очистить поиск')} onClick={() => { onQueryChange(''); setOpen(true); }}>×</button>}
+      {open && <div id="analysis-player-results" className="analysis-player-results" role="listbox" aria-multiselectable="true">
+        {loading ? <div className="analysis-player-message">{text('选手列表加载中…', 'Loading player list…', 'Загрузка списка игроков…')}</div> : matches.length ? matches.map((item, index) => { const selectedIndex = values.indexOf(item.name); return <button type="button" role="option" aria-selected={selectedIndex >= 0} style={selectedIndex < 0 ? undefined : { '--player-color': ANALYSIS_PLAYER_COLORS[selectedIndex % ANALYSIS_PLAYER_COLORS.length] }} className={`${selectedIndex >= 0 ? 'selected ' : ''}${index === activeIndex ? 'active ' : ''}`.trim()} key={item.name} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setActiveIndex(index)} onClick={() => choose(item.name)}><span>{item.name}</span><b>{selectedIndex >= 0 ? '✓' : '+'}</b></button>; }) : <div className="analysis-player-message">{players.length ? text('没有匹配的选手', 'No matching players', 'Совпадений нет') : text('当前地图暂无分析用户', 'No analyzed players on this map', 'Нет данных по игрокам на этой карте')}</div>}
+        {!loading && matches.length === 100 && <small>{text('仅显示前 100 项，请继续输入以缩小范围', 'Showing the first 100 results. Type more to narrow them.', 'Показаны первые 100 результатов. Уточните запрос.')}</small>}
       </div>}
     </div>
-    {loading && <small className="analysis-player-loading">{language === 'zh' ? '选手列表加载中…' : 'Loading player list…'}</small>}
-  </label>;
+    {loading && <small className="analysis-player-loading">{text('选手列表加载中…', 'Loading player list…', 'Загрузка списка игроков…')}</small>}
+  </section>;
 }
+
+export default memo(AnalysisPlayerPicker);

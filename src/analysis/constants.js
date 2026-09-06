@@ -1,6 +1,8 @@
 // Shared analysis option values, labels, colors, and display metadata.
 export const ANALYSIS_AREA_PHASES = ['early', 'mid', 'post'];
 
+export const ANALYSIS_PLAYER_COLORS = ['#c9f76b', '#5da9ff', '#ffb347', '#c58cff', '#ff6b6b', '#72d4ff', '#f4e99b', '#83c56b'];
+
 export const ANALYSIS_UTILITY_KINDS = ['smoke', 'flash', 'fire', 'he', 'decoy'];
 
 export const ANALYSIS_UTILITY_COLORS = {
