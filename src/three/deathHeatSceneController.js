@@ -34,19 +34,19 @@ export default function createDeathHeatSceneController({ scene, refs, floorFadeR
         let marker = deathMarkers.get(key);
         if (!marker) {
           const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthTest: true, depthWrite: false });
-          const ring = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.38, 20), material);
-          ring.rotation.x = -Math.PI / 2;
+          // A plain ground-level X stays readable without suggesting an area or radius.
           const cross = new THREE.Group();
-          cross.add(new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.045, 0.09), material), new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.045, 0.09), material));
+          cross.add(new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.045, 0.1), material), new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.045, 0.1), material));
           cross.children[0].rotation.y = Math.PI / 4;
           cross.children[1].rotation.y = -Math.PI / 4;
           marker = new THREE.Group();
-          marker.add(ring, cross);
+          marker.add(cross);
           marker.renderOrder = 20;
           scene.add(marker);
           deathMarkers.set(key, marker);
         }
-        marker.position.set(y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y + 0.32, x * 0.0254 - modelCenter.z);
+        // Demo feet coordinates can sit slightly below the visual model floor.
+        marker.position.set(y * 0.0254 - modelCenter.x, z * 0.0254 - modelCenter.y + 0.28, x * 0.0254 - modelCenter.z);
         marker.visible = true;
       });
     });

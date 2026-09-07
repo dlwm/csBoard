@@ -11,6 +11,7 @@ const packageVersion = process.env.npm_package_version ? `v${process.env.npm_pac
 const buildVersion = String(process.env.VITE_BUILD_VERSION || packageVersion || (fs.existsSync(versionFile) ? fs.readFileSync(versionFile, 'utf8') : '')).trim();
 
 export default defineConfig({
+  base: './',
   define: {
     'import.meta.env.VITE_BUILD_VERSION': JSON.stringify(buildVersion),
   },

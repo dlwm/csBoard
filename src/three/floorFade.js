@@ -56,11 +56,15 @@ export function floorVisibilityAtY(y, state) {
 }
 
 export function enableMaterialFloorFade(material, state) {
-  if (!material || material.userData.csboardFloorFade) return;
+  // Imported scenes can expose placeholder material-like values; only patch real Three materials.
+  if (!material?.isMaterial) return;
+  // Some loaders/cloners omit userData even though core Three materials normally initialize it.
+  if (!material.userData) material.userData = {};
+  if (material.userData.csboardFloorFade) return;
   material.userData.csboardFloorFade = true;
   if (!material.alphaHash && !material.alphaToCoverage) material.transparent = true;
-  const previousCompile = material.onBeforeCompile;
-  const previousCacheKey = material.customProgramCacheKey?.bind(material);
+  const previousCompile = typeof material.onBeforeCompile === 'function' ? material.onBeforeCompile.bind(material) : null;
+  const previousCacheKey = typeof material.customProgramCacheKey === 'function' ? material.customProgramCacheKey.bind(material) : null;
   material.onBeforeCompile = (shader, renderer) => {
     previousCompile?.(shader, renderer);
     if (!shader.vertexShader.includes('#include <project_vertex>') || !shader.fragmentShader.includes('#include <dithering_fragment>')) return;

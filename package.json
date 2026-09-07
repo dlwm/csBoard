@@ -1,8 +1,40 @@
 {
   "name": "csboard",
+  "description": "CS2 demo analysis and visualization tool",
+  "author": "colvin chen",
   "private": true,
   "version": "1.11.0",
   "type": "module",
+  "main": "electron/main.js",
+  "build": {
+    "appId": "com.csboard.app",
+    "productName": "CSBoard",
+    "directories": {
+      "output": "build/desktop"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "src/assets/favicon.svg",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64"]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    }
+  },
   "scripts": {
     "dev": "npm run dev:node",
     "dev:workers": "node scripts/dev-workers.js",
@@ -14,7 +46,10 @@
     "build:local": "VITE_USE_LOCAL_MAPS=true VITE_BACKEND_BASE_URL=/ vite build",
     "build:remote": "VITE_USE_LOCAL_MAPS=false vite build",
     "nav:generate": "node scripts/generate-nav-data.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "desktop:build:mac": "electron-builder --mac",
+    "desktop:build:win": "electron-builder --win",
+    "desktop:build": "electron-builder --mac --win"
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.42.0",
@@ -30,6 +65,8 @@
     "yjs": "latest"
   },
   "devDependencies": {
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
     "vite": "latest",
     "wrangler": "^4.37.1"
   }

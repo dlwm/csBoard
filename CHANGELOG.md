@@ -2,6 +2,30 @@
 
 [中文](docs/CHANGELOG.zh-CN.md)
 
+## [1.12.0] - 2026-09-07
+
+### Added
+
+- Preview the complete trajectory and landing effect when hovering or keyboard-focusing an entry in Utility Notes, focus the camera on that landing effect, and restore the previous camera after leaving the list. Legacy manual notes without landing data fall back to their saved throw position.
+- Replay utilities contained in the destination Collaboration frame when switching frames: trajectories advance from their throw positions using the recorded tick timing and irregular sample intervals, effects appear at their recorded detonation ticks, smoke grows for its recorded post-detonation interval, and the completed target-frame state remains visible. Ordinary panel/archive restoration stays static.
+- Enter the corresponding player's saved first-person eye position and aim direction when hovering a Collaboration player-list entry, temporarily using a first-person field of view and hiding that player's own model; restore the previous camera when the pointer leaves the list.
+- Preserve active Demo utilities as anonymous Collaboration utility entries when saving a round frame, including their trajectories and recorded smoke voxel shape. Hovering an anonymous entry focuses its existing scene effect, temporarily switches visualization to a 20% camera lens, and orbits the effect at a constant speed; leaving the list restores the prior camera and visualization settings. Anonymous entries can be deleted or saved beside the delete action; saving requires a title and throw description, adds the completed entry to Utility Notes, and promotes it to a regular imported utility.
+- Add an explicit save action beside every Collaboration archive: it confirms before overwriting the selected archive, while the button at the bottom of the archive list always creates a new archive.
+- Preview saved utilities directly from Collaboration's import list: hovering an option temporarily renders its effect and trajectory while smoothly focusing the camera on its landing point; only confirmation adds it to the tactical frame.
+- Add downloader-style batch Demo parsing: unrelated files become independent jobs, numbered parts remain grouped, capable desktop devices run two parsers in parallel while constrained devices process sequentially, and completion reports success/failure counts without auto-playing a match. Development builds can expand each job's source, parser, cache, environment, timing, match summary, warnings, and error diagnostics for tracing.
+- Replay recorded CS2 smoke shapes from each smoke projectile's networked voxel seed. The bundled parser now preserves and incrementally emits the voxel journal, while the 3D board renders its environment-aware occupancy without depending on a GLB map model. Each recorded occupancy voxel contributes exactly one correctly spaced density source; three stronger relaxation passes close gaps before marching cubes extracts one continuous irregular outer shell. The shell is opaque, front-face-only, and softly lit so internal and rear contours cannot overlap while its coverage remains legible. Newly saved Demo/Analysis throws retain their matching smoke voxel frames, while older notes, manual utilities, and previews use the same shell renderer with a deterministic fallback volume instead of separate spheres. The complete volume is uniformly displayed at 1.1× scale, preserving the proportions between cell size, spacing, and silhouette. The visually verified coordinate mapping converts decoded A/B/C to scene +B/+A/+C.
+
+### Fixed
+
+- Simplify Round Replay death positions to a clear ground-level X marker without the surrounding ring.
+- Compact anonymous Demo utility storage by keeping trajectory samples and the final smoke voxel frame only once instead of duplicating the full smoke journal inside embedded note metadata; existing anonymous archives are compacted on their next save. Reconstruct the portable note only when the user completes it, and keep the item anonymous if the Utility Notes write fails.
+- Keep Collaboration drawing authorization synchronized with the active tactical frame on every render, restoring left-drag ground drawing after panel/frame transitions and cleanly releasing camera controls when a stroke ends.
+- Keep saved-throw smoke expansion and editable collaboration smoke ranges at the calibrated 1.1× proportion, and preserve the latest recorded voxel frame when a smoke note is imported into Collaboration so its deformation is not replaced by a generic volume.
+- Fix missing runtime dependencies exposed by the entry-point and Three.js board refactor, including Analysis grenade-segment construction and point-selection callbacks.
+- Ignore placeholder or partially initialized scene materials when installing floor-fade shaders, preventing the animation loop from repeatedly failing on imported objects.
+- Fix Source 2 entity handles above index 2047 in the bundled Demo parser by using the full 14-bit index, restoring missing player coordinates, state, equipment ownership, and event associations; retain the controller fallback and explicit warning for genuinely unavailable pawn data.
+- Warn during Demo parsing that switching tabs, minimizing the browser, or locking the screen can significantly slow background-page processing; show the reminder beside both the progress bar and parsing mini games.
+
 ## [1.11.0] - 2026-09-06
 
 ### Added
@@ -12,7 +36,7 @@
 ### Changed
 
 - Index player names once per loaded Demo, defer expensive dataset rebuilding during selection updates, group multi-player area calculations by player-round, and reuse selected Demo filters when players are added or removed.
-
+- Continue reducing `main.jsx` by moving the complete Three.js board, runtime configuration, default-record loading, localization dictionaries, collaboration workspace normalization, responsive/radar/floor hooks, Demo presentation state, saved-throw conversion, utility replay timing, the global header, viewport controls, loading status, and workspace modals behind dedicated module boundaries. Split changing scene inputs, Demo player rendering, and brush-line lifecycle out of the Three.js board as well.
 - Bundle parsed NAV data for all supported maps into the frontend, removing the runtime NAV download and legacy parsing API dependency while preserving offline map geometry.
 - Add an offline region-data generation pipeline that preserves `env_cs_place` height bounds and associates each region with bundled NAV areas.
 - Make the Docker service read GLB models directly from the read-only `.local/maps` bind mount instead of running a resource downloader at startup.

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { effectEndTick, isEffectStartEvent } from '../demo/effectLifetime.js';
 import { createGrenadeEffect, disposeGrenadeEffect } from './grenadeEffects.js';
 import { enableObjectFloorFade } from './floorFade.js';
+import { createSmokeVoxelVolume, SMOKE_VOLUME_SCALE } from './smokeVoxelVolume.js';
 
 export default function createDemoGrenadeSceneController({ scene, navData, refs, floorFadeRef, getModelCenter, getNav }) {
   const objects = new Map();
@@ -12,8 +13,38 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
     const tick = refs.tick.current;
     const segments = refs.segments.current;
     const grenadeEvents = refs.grenades.current;
+    const smokeVoxelFrames = refs.smokeVoxelFrames.current;
     const modelCenter = getModelCenter();
     const nav = getNav();
+    const latestSmokeFrames = new Map();
+    smokeVoxelFrames.forEach((frame) => {
+      if (frame.tick <= tick) latestSmokeFrames.set(frame.entityId, frame);
+    });
+    latestSmokeFrames.forEach((frame, entityId) => {
+      const detonation = grenadeEvents.findLast((event) => {
+        if (event.event_name !== 'smokegrenade_detonate' || event.tick > frame.tick) return false;
+        if (event.entityid != null && Number(event.entityid) === Number(entityId)) return true;
+        return [event.x, event.y, event.z].every(Number.isFinite)
+          && (event.x - frame.origin[0]) ** 2 + (event.y - frame.origin[1]) ** 2 + (event.z - frame.origin[2]) ** 2 < 128 ** 2;
+      });
+      if (detonation ? tick > effectEndTick(detonation, grenadeEvents) : tick > frame.tick + 1152) return;
+      const key = `smoke-voxels-${entityId}`;
+      active.add(key);
+      let smoke = objects.get(key);
+      if (!smoke || smoke.userData.smokeVoxelSeq !== frame.seq || smoke.userData.smokeVoxelCount !== frame.voxels.length) {
+        if (smoke) { scene.remove(smoke); disposeGrenadeEffect(smoke); }
+        smoke = createSmokeVoxelVolume(frame, modelCenter);
+        smoke.userData.demoGrenadeSegmentId = segments.find((segment) => Number(segment.entityId) === Number(entityId))?.id;
+        scene.add(smoke);
+        objects.set(key, smoke);
+      }
+      // Voxel journal updates describe deformation, not a new smoke birth. Anchor
+      // growth to detonation so every update cannot restart the expansion animation.
+      const growth = THREE.MathUtils.smoothstep((tick - (detonation?.tick ?? frame.tick)) / 64, 0, 1);
+      // Scale the complete volume around its detonation origin so voxel size,
+      // spacing, and the outer silhouette all remain in the same proportion.
+      smoke.scale.setScalar((0.18 + growth * 0.82) * SMOKE_VOLUME_SCALE);
+    });
     refs.projectileGroups.current.forEach((records, groupKey) => {
       const entityId = records[0].entity_id;
       const first = records[0];
@@ -77,6 +108,11 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
     });
     grenadeEvents.filter(isEffectStartEvent).forEach((event) => {
       if (tick < event.tick || tick > effectEndTick(event, grenadeEvents) || event.x == null) return;
+      // Once the authoritative voxel seed arrives, it replaces the generic smoke sphere.
+      if (event.event_name === 'smokegrenade_detonate' && [...latestSmokeFrames.entries()].some(([entityId, frame]) => (
+        frame.tick >= event.tick && ((event.entityid != null && Number(event.entityid) === Number(entityId))
+        || ((event.x - frame.origin[0]) ** 2 + (event.y - frame.origin[1]) ** 2 + (event.z - frame.origin[2]) ** 2 < 128 ** 2))
+      ))) return;
       const key = `${event.event_name}-${event.tick}-${event.entityid || event.user_steamid}`;
       active.add(key);
       let effect = objects.get(key);
