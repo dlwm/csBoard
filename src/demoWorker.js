@@ -1,4 +1,5 @@
 import init, { parseEvents, parseGrenades, parseHeader, parseTicks } from './wasm/demoparser2.js';
+import { smokeVoxelFramesFromRow } from './demo/smokeVoxels.js';
 
 let parserReady;
 let wasmInstance;
@@ -9,17 +10,25 @@ let partSkips = [];
 let partEvents = [];
 let allEvents = [];
 let allProjectiles = [];
+let allSmokeVoxelFrames = [];
 let activeWeaponNamesByPart = [];
 let equippedWeaponsByPlayer = new Map();
 let currentPhase = 'idle';
 let phaseStartedAt = 0;
-const CACHE_SCHEMA_VERSION = 24;
+const CACHE_SCHEMA_VERSION = 28;
 const ACTIVE_WEAPON_HANDLE_PROP = 'CCSPlayerPawn.CCSPlayer_WeaponServices.m_hActiveWeapon';
-const GRENADE_ENTITY_PROPS = ['Grenade.m_flThrowStrength', 'Grenade.m_bJumpThrow', 'Grenade.m_fThrowTime', 'Grenade.m_vInitialVelocity'];
+// Some GOTV demos retain the player controller but lose its pawn association.
+// These controller fields keep the roster/state truthful even when coordinates cannot be recovered.
+const CONTROLLER_TEAM_PROP = 'CCSPlayerController.m_iTeamNum';
+const CONTROLLER_PENDING_TEAM_PROP = 'CCSPlayerController.m_iPendingTeamNum';
+const CONTROLLER_HEALTH_PROP = 'CCSPlayerController.m_iPawnHealth';
+const CONTROLLER_ALIVE_PROP = 'CCSPlayerController.m_bPawnIsAlive';
+const controllerFallbackProps = [CONTROLLER_TEAM_PROP, CONTROLLER_PENDING_TEAM_PROP, CONTROLLER_HEALTH_PROP, CONTROLLER_ALIVE_PROP];
+const GRENADE_ENTITY_PROPS = ['Grenade.m_flThrowStrength', 'Grenade.m_bJumpThrow', 'Grenade.m_fThrowTime', 'Grenade.m_vInitialVelocity', 'Grenade.m_vSmokeDetonationPos', 'Grenade.m_VoxelFrameData', 'Grenade.m_nVoxelFrameDataSize', 'Grenade.m_nVoxelUpdate'];
 const eventNames = ['round_start', 'round_freeze_end', 'round_end', 'player_death', 'player_hurt', 'player_blind', 'weapon_fire', 'weapon_reload', 'fire_bullets', 'item_equip', 'item_pickup', 'item_purchase', 'hltv_fixed', 'hltv_chase', 'grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate', 'bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused'];
-const replayProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'user_id', 'team_rounds_total', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'inventory', 'armor_value', 'has_helmet', 'has_defuser', 'flash_duration', 'flash_max_alpha', 'is_scoped', 'is_walking', 'active_weapon_ammo', 'is_alive', 'is_defusing', 'balance', 'cash_spent_this_round', 'round_start_equip_value', 'current_equip_value'];
-const analysisProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'is_alive'];
-const throwProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'is_airborne', 'is_walking', 'FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'WALK', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'has_defuser', 'last_place_name'];
+const replayProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'user_id', 'team_rounds_total', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'inventory', 'armor_value', 'has_helmet', 'has_defuser', 'flash_duration', 'flash_max_alpha', 'is_scoped', 'is_walking', 'active_weapon_ammo', 'is_alive', 'is_defusing', 'balance', 'cash_spent_this_round', 'round_start_equip_value', 'current_equip_value', ...controllerFallbackProps];
+const analysisProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'is_alive', ...controllerFallbackProps];
+const throwProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'is_airborne', 'is_walking', 'FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'WALK', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'has_defuser', 'last_place_name', ...controllerFallbackProps];
 const PARSE_TICK_BATCH_SIZE = 32768;
 const parseProgressStages = [
   { percent: 0, zh: '正在展开 Demo 时间轴并校准起始 tick…', en: 'Expanding the demo timeline and calibrating its first tick...' },
@@ -119,27 +128,33 @@ function grenadeWeaponName(type = '') {
 
 function parsePartGrenades(part, includeHeldGrenades) {
   const projectiles = [];
+  const smokeVoxelFrames = [];
   const throwStates = new Map();
   const lastProjectileByEntity = new Map();
   for (const value of parseGrenades(part, GRENADE_ENTITY_PROPS, includeHeldGrenades) || []) {
     const row = toPlainObject(value);
+    const readProp = (name) => row[name] ?? row[`Grenade.${name}`];
+    if (String(row.grenade_type || '') === 'CSmokeGrenadeProjectile') {
+      smokeVoxelFrames.push(...smokeVoxelFramesFromRow(row, readProp));
+    }
     if (String(row.grenade_type || '').includes('Projectile')) {
       if (row.x != null && row.y != null && row.z != null) {
         const entityId = row.entity_id ?? row.grenade_entity_id;
         const previous = lastProjectileByEntity.get(entityId);
         const startsLifecycle = !previous || row.tick - previous.tick > 2 || row.grenade_type !== previous.grenade_type;
         const projectile = { ...row };
-        GRENADE_ENTITY_PROPS.forEach((prop) => { delete projectile[prop.split('.').at(-1)]; });
-        projectiles.push({ ...projectile, entity_id: entityId, thrower_steamid: String(row.thrower_steamid ?? row.steamid ?? ''), thrower_name: row.thrower_name ?? row.name ?? '', ...(startsLifecycle && row.m_vInitialVelocity ? { initial_velocity: row.m_vInitialVelocity } : {}) });
+        GRENADE_ENTITY_PROPS.forEach((prop) => { delete projectile[prop]; delete projectile[prop.split('.').at(-1)]; });
+        const initialVelocity = readProp('m_vInitialVelocity');
+        projectiles.push({ ...projectile, entity_id: entityId, thrower_steamid: String(row.thrower_steamid ?? row.steamid ?? ''), thrower_name: row.thrower_name ?? row.name ?? '', ...(startsLifecycle && initialVelocity ? { initial_velocity: initialVelocity } : {}) });
         lastProjectileByEntity.set(entityId, row);
       }
       continue;
     }
-    if (!includeHeldGrenades || !(Number(row.m_fThrowTime) > 0)) continue;
+    if (!includeHeldGrenades || !(Number(readProp('m_fThrowTime')) > 0)) continue;
     const steamid = String(row.thrower_steamid ?? row.steamid ?? '');
-    throwStates.set(`${row.tick}:${steamid}:${grenadeWeaponName(row.grenade_type)}`, { strength: row.m_flThrowStrength, jumpThrow: row.m_bJumpThrow, throwTime: row.m_fThrowTime });
+    throwStates.set(`${row.tick}:${steamid}:${grenadeWeaponName(row.grenade_type)}`, { strength: readProp('m_flThrowStrength'), jumpThrow: readProp('m_bJumpThrow'), throwTime: readProp('m_fThrowTime') });
   }
-  return { projectiles, throwStates };
+  return { projectiles, smokeVoxelFrames, throwStates };
 }
 
 function inferProjectileThrows(projectiles, events, throwStates) {
@@ -290,20 +305,34 @@ function normalizeRows(rows, round) {
     row = toPlainObject(row);
     if (!snapshots.has(row.tick)) snapshots.set(row.tick, []);
     const inventory = Array.isArray(row.inventory) ? row.inventory.map((item) => String(typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item)).filter(Boolean) : [];
+    const parsedTeam = Number(row.team_num ?? row[CONTROLLER_TEAM_PROP] ?? row[CONTROLLER_PENDING_TEAM_PROP]);
+    const team = Number.isFinite(parsedTeam) ? parsedTeam : null;
+    const parsedHealth = Number(row.health ?? row[CONTROLLER_HEALTH_PROP]);
+    const health = Number.isFinite(parsedHealth) ? parsedHealth : null;
+    const rawPosition = [row.X, row.Y, row.Z];
+    const hasPosition = rawPosition.every((value) => value != null && value !== '' && Number.isFinite(Number(value)));
+    const numericPosition = rawPosition.map(Number);
+    // `is_alive` defaults to false when pawn lookup fails; only override it for that failure mode.
+    const alive = hasPosition
+      ? row.is_alive ?? row[CONTROLLER_ALIVE_PROP] ?? (health != null && health > 0)
+      : row[CONTROLLER_ALIVE_PROP] ?? row.is_alive ?? (health != null && health > 0);
     snapshots.get(row.tick).push({
       name: row.name, steamid: row.steamid, userId: row.user_id ?? null,
-      team: row.team_num, side: row.team_num === 2 ? 'T' : 'CT', health: row.health, armor: row.armor_value ?? 0,
+      team, side: team === 2 ? 'T' : team === 3 ? 'CT' : '', health, armor: row.armor_value ?? 0,
       hasHelmet: Boolean(row.has_helmet), hasDefuser: Boolean(row.has_defuser), pitch: row.pitch ?? 0, yaw: row.yaw ?? 0,
       duckAmount: row.duck_amount ?? 0, isAirborne: Boolean(row.is_airborne), movement: ['FORWARD', 'BACK', 'LEFT', 'RIGHT'].filter((key) => Boolean(row[key])),
       walking: Boolean(row.WALK || row.is_walking), fire: Boolean(row.FIRE), secondaryFire: Boolean(row.RIGHTCLICK),
       flashDuration: row.flash_duration ?? 0, flashMaxAlpha: row.flash_max_alpha ?? 0, scoped: Boolean(row.is_scoped),
-      placeName: row.last_place_name || '', activeWeaponAmmo: row.active_weapon_ammo ?? null, alive: row.is_alive ?? Number(row.health) > 0,
+      placeName: row.last_place_name || '', activeWeaponAmmo: row.active_weapon_ammo ?? null, alive: Boolean(alive),
       defusing: Boolean(row.is_defusing), balance: row.balance ?? null,
       cashSpentThisRound: row.cash_spent_this_round ?? null, roundStartEquipValue: row.round_start_equip_value ?? null, currentEquipValue: row.current_equip_value ?? null,
       score: row.team_rounds_total ?? 0,
        activeWeapon: row.active_weapon_name || '', inventory,
       hasC4: inventory.some((item) => String(typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item).toLowerCase().includes('c4')),
-      raw: { x: row.X, y: row.Y, z: row.Z }, position: { x: row.Y * 0.0254, y: row.Z * 0.0254, z: row.X * 0.0254 },
+      // Keep a stable position shape for consumers, but never render/analyse the zero fallback.
+      hasPosition,
+      raw: { x: hasPosition ? numericPosition[0] : null, y: hasPosition ? numericPosition[1] : null, z: hasPosition ? numericPosition[2] : null },
+      position: { x: hasPosition ? numericPosition[1] * 0.0254 : 0, y: hasPosition ? numericPosition[2] * 0.0254 : 0, z: hasPosition ? numericPosition[0] * 0.0254 : 0 },
     });
   });
   return restoreEquippedWeapons([...snapshots.entries()].map(([tick, players]) => ({ tick, timeSeconds: tick / 64, players })));
@@ -347,6 +376,7 @@ self.onmessage = async ({ data }) => {
             allEvents = partEvents.flatMap((events, index) => events.filter((event) => includesPartTick(event.tick, index)).map((event) => ({ ...event, tick: event.tick + partOffsets[index], timeSeconds: (event.tick + partOffsets[index]) / 64 }))).sort((left, right) => left.tick - right.tick);
             equippedWeaponsByPlayer = indexEquippedWeapons(allEvents);
             allProjectiles = projectilesByPart.flatMap((projectiles, index) => projectiles.filter((projectile) => includesPartTick(projectile.tick, index)).map((projectile) => ({ ...projectile, tick: projectile.tick + partOffsets[index] })));
+            allSmokeVoxelFrames = grenadeDataByPart.flatMap((data, index) => data.smokeVoxelFrames.filter((frame) => includesPartTick(frame.tick, index)).map((frame) => ({ ...frame, tick: frame.tick + partOffsets[index] })));
             activeWeaponNamesByPart = demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index]));
         const sampleRate = [1, 2, 4, 8, 16, 32].includes(Number(data.sampleRate)) ? Number(data.sampleRate) : 8;
        const sampleStep = 64 / sampleRate;
@@ -385,16 +415,25 @@ self.onmessage = async ({ data }) => {
              const throwRows = throwPlans.flatMap(({ part, index, offset, localTicks, throwers }) => localTicks.length && throwers.length ? parseTicksBatched(part, throwProps, localTicks, throwers, reportProgress).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset })) : []);
             const throwSnapshots = normalizeRows(throwRows, 0);
             const playerNameSet = new Set();
+            const playerPositionCoverage = new Map();
             const roundData = [];
             let snapshotCount = 0;
-            let estimatedBytes = throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128;
+            let estimatedBytes = throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128 + estimateDataBytes(allSmokeVoxelFrames);
              rounds.forEach((round, roundIndex) => {
                 const rows = roundTickPlans[roundIndex].flatMap(({ part, index, offset, localTicks }) => localTicks.length ? parseTicksBatched(part, replayProps, localTicks, null, reportProgress).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset })) : []);
               const snapshots = normalizeRows(rows, 0);
-              snapshots.forEach((snapshot) => snapshot.players.forEach((player) => { if (player.name) playerNameSet.add(player.name); }));
+              snapshots.forEach((snapshot) => snapshot.players.forEach((player) => {
+                if (player.name) playerNameSet.add(player.name);
+                if (!player.name || ![2, 3].includes(player.team)) return;
+                const key = String(player.steamid || player.name);
+                const coverage = playerPositionCoverage.get(key) || { name: player.name, steamid: player.steamid || '', samples: 0, positionedSamples: 0 };
+                coverage.samples += 1;
+                if (player.hasPosition) coverage.positionedSamples += 1;
+                playerPositionCoverage.set(key, coverage);
+              }));
               snapshotCount += snapshots.length;
               estimatedBytes += estimateDataBytes(snapshots);
-              const dataForRound = { round: round.round, snapshots, throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick) };
+              const dataForRound = { round: round.round, snapshots, throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick), smokeVoxelFrames: allSmokeVoxelFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick) };
               const representative = snapshots.find((snapshot) => snapshot.players.filter((player) => player.team === 2 || player.team === 3).length >= 8) || snapshots[0];
                roundData.push({ round: round.round, snapshots: representative ? [representative] : [] });
                self.postMessage({ type: 'round', data: dataForRound });
@@ -411,10 +450,16 @@ self.onmessage = async ({ data }) => {
                return parseTicksBatched(part, analysisProps, localTicks).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset }));
             });
             const analysis = normalizeRows(analysisRows, 0);
+             // Report only players with no usable position in any gameplay sample; brief spawn/disconnect gaps are normal.
+             const missingPositionPlayers = [...playerPositionCoverage.values()]
+               .filter((player) => player.samples > 0 && player.positionedSamples === 0)
+               .map(({ name, steamid }) => ({ name, steamid }));
+             const warnings = missingPositionPlayers.length ? [{ type: 'missing-player-position', players: missingPositionPlayers }] : [];
              self.postMessage({ type: 'diagnostic', phase: 'ticks', data: { elapsedMs: performance.now() - phaseStartedAt, throwSnapshots: throwSnapshots.length, snapshots: snapshotCount, analysis: analysis.length, memory: memoryDiagnostics() } });
             self.postMessage({ type: 'status', message: `Demo 已读取，${rounds.length} 个回合已全部就绪` });
             allProjectiles = [];
-             const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
+            allSmokeVoxelFrames = [];
+             const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, warnings, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
              self.postMessage({ type: 'loaded', data: result, estimatedBytes });
      }
      if (data.type === 'analysis') {

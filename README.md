@@ -4,7 +4,7 @@
 
 [中文说明](docs/README.zh-CN.md) · [Changelog](CHANGELOG.en.md)
 
-![CSBoard demonstration](docs/readme/demo.gif)
+![CSBoard demonstration](docs/img/demo.gif)
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
 
@@ -12,7 +12,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Round Replay
 
-![Round replay](docs/readme/round-replay.png)
+![Round replay](docs/img/round-replay.png)
 
 - Import one Demo or select multiple Demo parts and merge them into one match.
 - Parse playable rounds once through Rust/WASM, persist each round in IndexedDB, and switch rounds without reparsing the Demo.
@@ -24,7 +24,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Tactical Editing
 
-![Tactical editing](docs/readme/collaboration.png)
+![Tactical editing](docs/img/collaboration.png)
 
 - Place T or CT tactical points directly on surfaces (Collaboration panel only).
 - Draw freehand brush strokes on the ground in round replay / analysis / utility panels, with undo/redo.
@@ -36,7 +36,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Utility Notes
 
-![Utility notes](docs/readme/utility-notes.png)
+![Utility notes](docs/img/utility-notes.png)
 
 - Save map-specific utility setups from pasted `getpos` output or Demo throws.
 - Search and replay saved lineups with setup positions, view angles, thrower details, events, and projectile paths.
@@ -47,7 +47,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Demo Analysis
 
-![Demo analysis](docs/readme/analysis.png)
+![Demo analysis](docs/img/analysis.png)
 
 - Lazily load Analysis payloads, aggregated players, and per-round utility trajectories only after opening the Analysis page. Search and select multiple players through prefix, substring, or ordered-character fuzzy matching, with removable colored chips and an explicit loading state.
 - Select recent or specific parsed Demos available to any selected player, then filter rounds by T/CT side and each player's own/opponent economy classes.
@@ -60,7 +60,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Collaboration
 
-![Collaboration panel](docs/readme/collaboration.png)
+![Collaboration panel](docs/img/collaboration.png)
 
 - Create or join a six-character Yjs WebSocket room.
 - Synchronize player markers, imported utility, custom utility, brushes, frame order, and active frames.
@@ -94,7 +94,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 
 ### Mobile / H5
 
-![Mobile collaboration](docs/readme/mobile.jpeg)
+![Mobile collaboration](docs/img/mobile.jpeg)
 
 - Use a dedicated mobile layout with a 4:3 Three.js viewport above the operation panels.
 - Rotate with one finger; use two fingers to zoom and pan.

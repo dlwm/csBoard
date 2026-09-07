@@ -1,6 +1,6 @@
 // Creates the serializable camera/player snapshot consumed by the 2D radar overlay.
 export default function buildRadarCameraState({ camera, controls, snapshot, collabPoints, modelCenter, sourceBounds }) {
-  const demoPlayers = (snapshot?.players || []).filter((player) => player.health > 0).map((player) => {
+  const demoPlayers = (snapshot?.players || []).filter((player) => player.health > 0 && player.hasPosition !== false && [player.position?.x, player.position?.y, player.position?.z].every(Number.isFinite)).map((player) => {
     const yaw = (Number(player.yaw) || 0) * Math.PI / 180;
     const position = [player.position.x - modelCenter.x, player.position.y - modelCenter.y, player.position.z - modelCenter.z];
     return {

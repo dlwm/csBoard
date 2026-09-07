@@ -29,6 +29,11 @@ export function interpolateDemoSnapshot(snapshots, tick) {
       const next = afterByName.get(player.name);
       if (!next) return player;
       const discrete = amount >= 1 ? next : player;
+      const playerHasPosition = player.hasPosition !== false && [player.position?.x, player.position?.y, player.position?.z].every(Number.isFinite);
+      const nextHasPosition = next.hasPosition !== false && [next.position?.x, next.position?.y, next.position?.z].every(Number.isFinite);
+      const hasPosition = playerHasPosition || nextHasPosition;
+      const fromPosition = playerHasPosition ? player.position : next.position;
+      const toPosition = nextHasPosition ? next.position : player.position;
       const flashPlayer = amount >= 1 ? next : player;
       const flashSnapshot = amount >= 1 ? after : before;
       const currentFlashDuration = Number(flashPlayer.flashDuration) || 0;
@@ -47,11 +52,12 @@ export function interpolateDemoSnapshot(snapshots, tick) {
         flashDuration: flashRemaining,
         flashInitialDuration,
         flashMaxAlpha: THREE.MathUtils.lerp(Number(player.flashMaxAlpha) || 0, Number(next.flashMaxAlpha) || 0, amount),
-        position: {
-          x: THREE.MathUtils.lerp(player.position.x, next.position.x, amount),
-          y: THREE.MathUtils.lerp(player.position.y, next.position.y, amount),
-          z: THREE.MathUtils.lerp(player.position.z, next.position.z, amount),
-        },
+        hasPosition,
+        position: hasPosition ? {
+          x: THREE.MathUtils.lerp(fromPosition.x, toPosition.x, amount),
+          y: THREE.MathUtils.lerp(fromPosition.y, toPosition.y, amount),
+          z: THREE.MathUtils.lerp(fromPosition.z, toPosition.z, amount),
+        } : { x: 0, y: 0, z: 0 },
         yaw: lerpAngleDegrees(player.yaw, next.yaw, amount),
         pitch: THREE.MathUtils.lerp(player.pitch, next.pitch, amount),
         duckAmount: THREE.MathUtils.lerp(player.duckAmount || 0, next.duckAmount || 0, amount),

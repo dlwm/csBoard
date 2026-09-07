@@ -58,6 +58,7 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
           roundGrenades[round.round] = {
             projectiles: cachedRound?.projectiles || [],
             throwSnapshots: cachedRound?.throwSnapshots || [],
+            smokeVoxelFrames: cachedRound?.smokeVoxelFrames || [],
           };
         }));
         return { ...entry, analysisRoundGrenades: roundGrenades };
@@ -120,6 +121,7 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
     selectedPlayers,
     setPlayerQuery,
     setSelectedDemoIds,
+    setStatus,
     status,
   };
 }

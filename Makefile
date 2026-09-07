@@ -8,12 +8,13 @@ COMPOSE ?= $(DOCKER) compose
 .DEFAULT_GOAL := help
 
 .PHONY: \
-	help \
-	setup install resources nav-data map-export \
-	build build-version frontend-build backend-build workers-build \
-	dev node-dev workers-dev workers-deploy \
-	docker docker-build docker-up docker-down docker-restart docker-logs docker-ps docker-clean \
-	clean
+    help \
+    setup install resources nav-data map-export \
+    build build-version frontend-build backend-build workers-build \
+    desktop desktop-build \
+    dev node-dev workers-dev workers-deploy \
+    docker docker-build docker-up docker-down docker-restart docker-logs docker-ps docker-clean \
+    clean
 
 help:
 	@printf '%s\n' \
@@ -31,6 +32,8 @@ help:
 		'  make frontend-build     Build the Vite frontend into dist/' \
 		'  make backend-build      Validate the Node.js Runtime adapter and shared core' \
 		'  make workers-build      Build and validate the Cloudflare Workers bundle' \
+	    '  make desktop            Build frontend and run Electron' \
+	    '  make desktop-build      Build desktop distributable' \
 		'' \
 		'Development:' \
 		'  make dev                Build and run the default Node.js Runtime adapter' \
@@ -111,6 +114,22 @@ workers-dev: build-version
 
 workers-deploy: build-version
 	VITE_BUILD_VERSION="$$(< .build-version)" bash scripts/deploy-cloudflare.sh
+
+# -----------------------------------------------------------------------------
+# Desktop
+# -----------------------------------------------------------------------------
+
+desktop: frontend-build
+	$(NPM) run desktop
+
+desktop-build-mac: frontend-build
+	$(NPM) run desktop:build:mac
+
+desktop-build-win: frontend-build
+	$(NPM) run desktop:build:win
+
+desktop-build: frontend-build
+	$(NPM) run desktop:build
 
 # -----------------------------------------------------------------------------
 # Docker

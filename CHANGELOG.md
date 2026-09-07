@@ -2,6 +2,20 @@
 
 [中文](docs/CHANGELOG.zh-CN.md)
 
+## [1.12.0] - 2026-09-07
+
+### Added
+
+- Add downloader-style batch Demo parsing: unrelated files become independent jobs, numbered parts remain grouped, capable desktop devices run two parsers in parallel while constrained devices process sequentially, and completion reports success/failure counts without auto-playing a match. Development builds can expand each job's source, parser, cache, environment, timing, match summary, warnings, and error diagnostics for tracing.
+- Replay recorded CS2 smoke shapes from each smoke projectile's networked voxel seed. The bundled parser now preserves and incrementally emits the voxel journal, while the 3D board renders its environment-aware occupancy without depending on a GLB map model. Each recorded occupancy voxel contributes exactly one correctly spaced density source; three stronger relaxation passes close gaps before marching cubes extracts one continuous irregular outer shell. The shell is opaque, front-face-only, and softly lit so internal and rear contours cannot overlap while its coverage remains legible. Newly saved Demo/Analysis throws retain their matching smoke voxel frames, while older notes, manual utilities, and previews use the same shell renderer with a deterministic fallback volume instead of separate spheres. The complete volume is uniformly displayed at 1.1× scale, preserving the proportions between cell size, spacing, and silhouette. The visually verified coordinate mapping converts decoded A/B/C to scene +B/+A/+C.
+
+### Fixed
+
+- Fix missing runtime dependencies exposed by the entry-point and Three.js board refactor, including Analysis grenade-segment construction and point-selection callbacks.
+- Ignore placeholder or partially initialized scene materials when installing floor-fade shaders, preventing the animation loop from repeatedly failing on imported objects.
+- Fix Source 2 entity handles above index 2047 in the bundled Demo parser by using the full 14-bit index, restoring missing player coordinates, state, equipment ownership, and event associations; retain the controller fallback and explicit warning for genuinely unavailable pawn data.
+- Warn during Demo parsing that switching tabs, minimizing the browser, or locking the screen can significantly slow background-page processing; show the reminder beside both the progress bar and parsing mini games.
+
 ## [1.11.0] - 2026-09-06
 
 ### Added
@@ -12,7 +26,7 @@
 ### Changed
 
 - Index player names once per loaded Demo, defer expensive dataset rebuilding during selection updates, group multi-player area calculations by player-round, and reuse selected Demo filters when players are added or removed.
-
+- Continue reducing `main.jsx` by moving the complete Three.js board, runtime configuration, default-record loading, localization dictionaries, collaboration workspace normalization, responsive/radar/floor hooks, Demo presentation state, saved-throw conversion, utility replay timing, the global header, viewport controls, loading status, and workspace modals behind dedicated module boundaries. Split changing scene inputs, Demo player rendering, and brush-line lifecycle out of the Three.js board as well.
 - Bundle parsed NAV data for all supported maps into the frontend, removing the runtime NAV download and legacy parsing API dependency while preserving offline map geometry.
 - Add an offline region-data generation pipeline that preserves `env_cs_place` height bounds and associates each region with bundled NAV areas.
 - Make the Docker service read GLB models directly from the read-only `.local/maps` bind mount instead of running a resource downloader at startup.

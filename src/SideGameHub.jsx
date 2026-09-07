@@ -170,9 +170,10 @@ export default function SideGameHub({ language = 'zh', stopped = false, manual =
   return <section className="side-games">
     <header>
       <div className="side-games-tabs">{games.map((g) => <button type="button" key={g.id} className={game === g.id ? 'active' : ''} onClick={() => setGame(g.id)}>{g.label}</button>)}</div>
-      <small>{manual ? text('专注训练', 'FOCUS TRAINING', 'ТРЕНИРОВКА ВНИМАНИЯ') : stopped ? text('解析已停止', 'Parsing stopped', 'Разбор остановлен') : text('解析在后台继续', 'Parsing continues in background', 'Разбор продолжается в фоне')}</small>
+      <small>{manual ? text('专注训练', 'FOCUS TRAINING', 'ТРЕНИРОВКА ВНИМАНИЯ') : stopped ? text('解析已停止', 'Parsing stopped', 'Разбор остановлен') : text('Demo 正在解析', 'Demo parsing', 'Разбор Demo')}</small>
       {onClose && <button type="button" className="farkle-close" aria-label={text('关闭', 'Close', 'Закрыть')} onClick={onClose}>×</button>}
     </header>
+    {!manual && !stopped && <p className="parse-foreground-hint">{text('请保持本页在前台；切换标签页、最小化窗口或锁屏可能让解析明显变慢。', 'Keep this page in the foreground; switching tabs, minimizing the window, or locking the screen may significantly slow parsing.', 'Держите эту страницу на переднем плане: переключение вкладок, сворачивание окна или блокировка экрана могут заметно замедлить разбор.')}</p>}
     <div className="side-games-body">
       {game === 'farkle' ? <FarkleGame language={language} stopped={stopped} onClose={null} embedded /> : null}
       {game === 'reaction' ? <ReactionGame language={language} stopped={stopped} /> : null}

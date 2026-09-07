@@ -25,6 +25,19 @@ export function DemoKillFeed({ kills, round, collapsed, onToggle, translate }) {
   </div>)}</div>;
 }
 
+export function DemoDataWarning({ warnings, translate }) {
+  const players = [...new Set((warnings || [])
+    .filter((warning) => warning.type === 'missing-player-position')
+    .flatMap((warning) => warning.players || [])
+    .map((player) => player.name)
+    .filter(Boolean))];
+  if (!players.length) return null;
+  return <div className="demo-data-warning" role="alert">
+    <b>! {translate('demoDataIncomplete')}</b>
+    <span>{translate('demoMissingPlayerPosition', { players: players.join(', ') })}</span>
+  </div>;
+}
+
 export function DemoRoster({ side, players, events, tick, round, tickRate, povPlayerId, onPlayerPov, noGrenadesLabel }) {
   const snapshots = demoRosterRuntime.snapshots;
   const selectedPovId = povPlayerId ?? demoPovRuntime.playerId;
@@ -47,7 +60,8 @@ export function DemoRoster({ side, players, events, tick, round, tickRate, povPl
     const health = Math.max(0, Number(player.health) || 0);
     const reload = demoPlayerReload(demoRosterRuntime.reloads, player, tick);
     const playerId = String(player.steamid || player.name);
-    return <div className={`roster-player${health > 0 ? '' : ' dead'}${selectedPovId === playerId ? ' pov-selected' : ''}`} key={playerId} role="button" tabIndex={health > 0 ? 0 : -1} onClick={(event) => { event.currentTarget.blur(); if (health > 0) selectPov?.(player); }} onKeyDown={(event) => { if (health > 0 && event.key === 'Enter') { event.preventDefault(); selectPov?.(player); } }}>
+    const canSelectPov = health > 0 && player.hasPosition !== false;
+    return <div className={`roster-player${health > 0 ? '' : ' dead'}${selectedPovId === playerId ? ' pov-selected' : ''}`} key={playerId} role="button" tabIndex={canSelectPov ? 0 : -1} onClick={(event) => { event.currentTarget.blur(); if (canSelectPov) selectPov?.(player); }} onKeyDown={(event) => { if (canSelectPov && event.key === 'Enter') { event.preventDefault(); selectPov?.(player); } }}>
       <div className="roster-health-track"><i style={{ width: `${delayedHealth}%` }} /><span style={{ width: `${health}%` }} /></div>
       <strong>{player.name}</strong><b>{health} HP</b>
       <div className="roster-equipment"><span className="roster-armor">{player.armor > 0 && <><RosterIcon type={player.hasHelmet ? 'armorHelmet' : 'armor'} /><i>{player.armor}</i></>}</span>{player.hasDefuser && <RosterIcon type="defuser" />}</div>

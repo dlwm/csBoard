@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import { createFallbackSmokeVolume } from './smokeVoxelVolume.js';
 
 const MAP_SCALE = 0.0254;
 
 export function createGrenadeEffect(position, type, navData, nav) {
+  if (type === 'smoke') return createFallbackSmokeVolume(position);
   const group = new THREE.Group();
-  const smokeMaterial = new THREE.MeshStandardMaterial({ color: type === 'smoke' ? '#b9c7d6' : '#202832', roughness: 1, metalness: 0, transparent: true, opacity: type === 'smoke' ? 0.24 : 0.38, depthWrite: false, flatShading: true });
+  const smokeMaterial = new THREE.MeshStandardMaterial({ color: '#202832', roughness: 1, metalness: 0, transparent: true, opacity: 0.38, depthWrite: false, flatShading: true });
   const addPulseRing = (radius, color, opacity = 0.7) => {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.035, 8, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }));
     ring.rotation.x = Math.PI / 2;
@@ -45,8 +47,8 @@ export function createGrenadeEffect(position, type, navData, nav) {
     group.add(decoy);
     addPulseRing(0.52, '#b9c7d6', 0.55);
   } else {
-    const count = type === 'smoke' ? 14 : 8;
-    const smokeScale = type === 'smoke' ? 2.7 : 1;
+    const count = 8;
+    const smokeScale = 1;
     if (type === 'explosion') {
       const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.72, 2), new THREE.MeshBasicMaterial({ color: '#ffcf5a', transparent: true, opacity: 0.72, depthWrite: false }));
       core.position.y = 0.3;
@@ -55,8 +57,8 @@ export function createGrenadeEffect(position, type, navData, nav) {
       addPulseRing(1.35, '#ffb347', 0.42);
     }
     for (let index = 0; index < count; index += 1) {
-      const puff = new THREE.Mesh(new THREE.SphereGeometry((type === 'smoke' ? 0.75 : 0.62) * smokeScale, 16, 10), smokeMaterial.clone());
-      const puffHeight = type === 'smoke' ? 0.48 + (index % 3) * 0.25 : 0.55 + (index % 3) * 0.3;
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.62 * smokeScale, 16, 10), smokeMaterial.clone());
+      const puffHeight = 0.55 + (index % 3) * 0.3;
       puff.position.set(Math.sin(index * 2.4) * 0.38 * smokeScale, puffHeight * smokeScale, Math.cos(index * 1.7) * 0.38 * smokeScale);
       puff.scale.y = 0.62;
       puff.scale.x = 0.85 + (index % 4) * 0.16;

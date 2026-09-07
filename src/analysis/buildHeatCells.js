@@ -76,7 +76,7 @@ export default function buildHeatCells({
     rowsByRound.forEach((roundRows) => roundRows.forEach((snapshot, index) => {
       const player = snapshot.players.find((candidate) => selected.has(candidate.name));
       const next = roundRows[index + 1];
-      if (!player || player.health <= 0 || !next || !economyMatches(snapshot.analysisRound?.economyMatchup)) return;
+      if (!player || player.health <= 0 || player.hasPosition === false || ![player.position?.x, player.position?.y, player.position?.z].every(Number.isFinite) || !next || !economyMatches(snapshot.analysisRound?.economyMatchup)) return;
       const elapsedTicks = snapshot.tick - snapshot.analysisRound.startTick;
       const postPlant = Number.isFinite(snapshot.analysisRound.plantTick) && snapshot.tick >= snapshot.analysisRound.plantTick;
       const earlySeconds = clamp(Number(flags.areaEarlySeconds) || 30, 10, 90);

@@ -23,7 +23,7 @@ export function buildAnalysisTracks({ rows, selectedPlayers, side, economyOwn, e
     const [ownEconomy, opponentEconomy] = String(round?.economyMatchup || '').split(':');
     if (!(economyOwn || ECONOMY_CATEGORIES).includes(ownEconomy) || !(economyOpponent || ECONOMY_CATEGORIES).includes(opponentEconomy)) return;
     const records = roundRows.flatMap((snapshot) => snapshot.players
-      .filter((player) => player.name === name)
+      .filter((player) => player.name === name && player.hasPosition !== false && [player.position?.x, player.position?.y, player.position?.z].every(Number.isFinite))
       .map((player) => ({
         time: snapshot.tick - round.startTick,
         health: player.health,

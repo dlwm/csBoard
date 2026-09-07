@@ -1,32 +1,221 @@
+diff --git a/src/parser/src/first_pass/prop_controller.rs b/src/parser/src/first_pass/prop_controller.rs
+index 2a974d3..fcb858e 100644
+--- a/src/parser/src/first_pass/prop_controller.rs
++++ b/src/parser/src/first_pass/prop_controller.rs
+@@ -12 +12,4 @@ use ahash::AHashMap;
+-pub const PLAYER_ENTITY_HANDLE_MISSING: i32 = 2047;
++// Source 2 reserves 14 bits for the entity index inside a 24-bit entity handle.
++// The previous 11-bit mask aliased valid entities above 2047 to unrelated slots.
++pub const ENTITY_HANDLE_INDEX_MASK: u32 = (1 << 14) - 1;
++pub const PLAYER_ENTITY_HANDLE_MISSING: i32 = ENTITY_HANDLE_INDEX_MASK as i32;
+@@ -303,2 +306,3 @@ impl PropController {
+-                prop_name: "grenade_entity_id".to_string(),
+-                prop_friendly_name: "grenade_entity_id".to_string(),
++                // Keep the projectile stream compatible with CSBoard's original WASM bundle.
++                prop_name: "entity_id".to_string(),
++                prop_friendly_name: "entity_id".to_string(),
 diff --git a/src/parser/src/parse_demo.rs b/src/parser/src/parse_demo.rs
+index 3a20303..ea6bd53 100644
 --- a/src/parser/src/parse_demo.rs
 +++ b/src/parser/src/parse_demo.rs
-@@
--        let _t = std::time::Instant::now();
+@@ -67,0 +68 @@ impl<'a> Parser<'a> {
 +        #[cfg(not(target_arch = "wasm32"))]
-+        let _t = std::time::Instant::now();
-@@
--        if _prof {
+@@ -70,0 +72 @@ impl<'a> Parser<'a> {
 +        #[cfg(not(target_arch = "wasm32"))]
-+        if _prof {
-@@
--        let mut t = std::time::Instant::now();
+@@ -134,0 +137 @@ impl<'a> Parser<'a> {
 +        #[cfg(not(target_arch = "wasm32"))]
-        let mut t = std::time::Instant::now();
-@@
--        if prof { eprintln!("[prof] second_pass start(): {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
+@@ -137,0 +141 @@ impl<'a> Parser<'a> {
 +        #[cfg(not(target_arch = "wasm32"))]
-        if prof { eprintln!("[prof] second_pass start(): {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
-@@
--        if prof { eprintln!("[prof] create_output: {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
+@@ -139,0 +144 @@ impl<'a> Parser<'a> {
 +        #[cfg(not(target_arch = "wasm32"))]
-        if prof { eprintln!("[prof] create_output: {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
-@@
--        if prof { eprintln!("[prof] combine_outputs: {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
+@@ -141,0 +147 @@ impl<'a> Parser<'a> {
 +        #[cfg(not(target_arch = "wasm32"))]
-        if prof { eprintln!("[prof] combine_outputs: {:.3}s", t.elapsed().as_secs_f64()); t = std::time::Instant::now(); }
-@@
--        if prof { eprintln!("[prof] post-proc: {:.3}s", t.elapsed().as_secs_f64()); }
+@@ -147,0 +154 @@ impl<'a> Parser<'a> {
 +        #[cfg(not(target_arch = "wasm32"))]
-        if prof { eprintln!("[prof] post-proc: {:.3}s", t.elapsed().as_secs_f64()); }
-+        let mut t = std::time::Instant::now();
+diff --git a/src/parser/src/second_pass/collect_data.rs b/src/parser/src/second_pass/collect_data.rs
+index 385c0bb..f97bbf6 100644
+--- a/src/parser/src/second_pass/collect_data.rs
++++ b/src/parser/src/second_pass/collect_data.rs
+@@ -239 +239 @@ impl<'a> SecondPassParser<'a> {
+-            Ok(Variant::U32(prop)) => Ok(prop & 0x7FF),
++            Ok(Variant::U32(prop)) => Ok(prop & ENTITY_HANDLE_INDEX_MASK),
+@@ -544 +544 @@ impl<'a> SecondPassParser<'a> {
+-                    let weapon_entity_id = (weap_handle & 0x7FF) as i32;
++                    let weapon_entity_id = (weap_handle & ENTITY_HANDLE_INDEX_MASK) as i32;
+@@ -952 +952 @@ impl<'a> SecondPassParser<'a> {
+-                    return Some((u & 0x7FF) as i32);
++                    return Some((u & ENTITY_HANDLE_INDEX_MASK) as i32);
+@@ -1006 +1006 @@ impl<'a> SecondPassParser<'a> {
+-                let weapon_entity_id = (weap_handle & 0x7FF) as i32;
++                let weapon_entity_id = (weap_handle & ENTITY_HANDLE_INDEX_MASK) as i32;
+@@ -1034 +1034 @@ impl<'a> SecondPassParser<'a> {
+-                let weapon_entity_id = (weap_handle & 0x7FF) as i32;
++                let weapon_entity_id = (weap_handle & ENTITY_HANDLE_INDEX_MASK) as i32;
+@@ -1097 +1097 @@ impl<'a> SecondPassParser<'a> {
+-                let weapon_entity_id = (weap_handle & 0x7FF) as i32;
++                let weapon_entity_id = (weap_handle & ENTITY_HANDLE_INDEX_MASK) as i32;
+@@ -1184 +1184 @@ impl<'a> SecondPassParser<'a> {
+-                    Ok(Variant::U32(handle)) => Some((handle & 0x7FF) as i32),
++                    Ok(Variant::U32(handle)) => Some((handle & ENTITY_HANDLE_INDEX_MASK) as i32),
+diff --git a/src/parser/src/second_pass/game_events.rs b/src/parser/src/second_pass/game_events.rs
+index 718d8fd..770ac5d 100644
+--- a/src/parser/src/second_pass/game_events.rs
++++ b/src/parser/src/second_pass/game_events.rs
+@@ -0,0 +1 @@
++use crate::first_pass::prop_controller::ENTITY_HANDLE_INDEX_MASK;
+@@ -78 +79 @@ static REMOVEDEVENTS: &'static [&str] = &["server_cvar", "player_connect"];
+-const ENTITYIDNONE: i32 = 2047;
++const ENTITYIDNONE: i32 = PLAYER_ENTITY_HANDLE_MISSING;
+@@ -266 +267 @@ impl<'a> SecondPassParser<'a> {
+-        Some(pawn_handle & 0x7FF)
++        Some(pawn_handle & ENTITY_HANDLE_INDEX_MASK as i32)
+@@ -275 +276 @@ impl<'a> SecondPassParser<'a> {
+-                return Some((entity_id & 0x7ff) as i32);
++                return Some((entity_id & ENTITY_HANDLE_INDEX_MASK) as i32);
+@@ -542 +543 @@ impl<'a> SecondPassParser<'a> {
+-                let entity_id = &(id & 0x7ff);
++                let entity_id = &(*id & ENTITY_HANDLE_INDEX_MASK as i32);
+@@ -577 +578 @@ impl<'a> SecondPassParser<'a> {
+-                            Variant::U32(handle) => Some((handle & 0x7FF) as i32),
++                            Variant::U32(handle) => Some((handle & ENTITY_HANDLE_INDEX_MASK) as i32),
+@@ -700 +701 @@ impl<'a> SecondPassParser<'a> {
+-                                weapon_entid: (handle & 0x7ff) as i32,
++                                weapon_entid: (*handle & u64::from(ENTITY_HANDLE_INDEX_MASK)) as i32,
+@@ -709 +710 @@ impl<'a> SecondPassParser<'a> {
+-                                weapon_entid: (handle & 0x7ff) as i32,
++                                weapon_entid: (*handle & u64::from(ENTITY_HANDLE_INDEX_MASK)) as i32,
+@@ -1345 +1346 @@ impl<'a> SecondPassParser<'a> {
+-        let entity_id = (msg.player.unwrap_or(0) & 0x7FF) as i32;
++        let entity_id = (msg.player.unwrap_or(0) & ENTITY_HANDLE_INDEX_MASK) as i32;
+diff --git a/src/parser/src/second_pass/parser.rs b/src/parser/src/second_pass/parser.rs
+index e7cf1eb..c7a9c50 100644
+--- a/src/parser/src/second_pass/parser.rs
++++ b/src/parser/src/second_pass/parser.rs
+@@ -332 +332 @@ impl<'a> SecondPassParser<'a> {
+-        let entity_id = base.pawn_entity_handle() & 0x7ff;
++        let entity_id = base.pawn_entity_handle() & ENTITY_HANDLE_INDEX_MASK;
+diff --git a/src/wasm/src/lib.rs b/src/wasm/src/lib.rs
+index d52cc1f..967a29a 100644
+--- a/src/wasm/src/lib.rs
++++ b/src/wasm/src/lib.rs
+@@ -324 +324 @@ pub fn parseGrenades(
+-        parse_projectiles: false,
++        parse_projectiles: true,
+diff --git a/src/parser/src/first_pass/prop_controller.rs b/src/parser/src/first_pass/prop_controller.rs
+index 2a974d3..dd2e78c 100644
+--- a/src/parser/src/first_pass/prop_controller.rs
++++ b/src/parser/src/first_pass/prop_controller.rs
+@@ -509,0 +510,3 @@ impl PropController {
++                "m_VoxelFrameData" => self.special_ids.smoke_voxel_data = Some(id),
++                "m_nVoxelFrameDataSize" => self.special_ids.smoke_voxel_size = Some(id),
++                "m_nVoxelUpdate" => self.special_ids.smoke_voxel_update = Some(id),
+diff --git a/src/parser/src/second_pass/collect_data.rs b/src/parser/src/second_pass/collect_data.rs
+index 385c0bb..3c1d548 100644
+--- a/src/parser/src/second_pass/collect_data.rs
++++ b/src/parser/src/second_pass/collect_data.rs
+@@ -299,0 +300,34 @@ impl<'a> SecondPassParser<'a> {
++            let smoke_voxel_delta = if grenade_type == "CSmokeGrenadeProjectile" {
++                let update = self
++                    .prop_controller
++                    .special_ids
++                    .smoke_voxel_update
++                    .and_then(|id| self.get_prop_from_ent(&id, projectile_entid).ok())
++                    .and_then(|value| match value {
++                        Variant::U32(value) => Some(value),
++                        Variant::I32(value) if value >= 0 => Some(value as u32),
++                        Variant::U64(value) => u32::try_from(value).ok(),
++                        _ => None,
++                    });
++                let size = self
++                    .prop_controller
++                    .special_ids
++                    .smoke_voxel_size
++                    .and_then(|id| self.get_prop_from_ent(&id, projectile_entid).ok())
++                    .and_then(|value| match value {
++                        Variant::U32(value) => Some(value),
++                        Variant::I32(value) if value >= 0 => Some(value as u32),
++                        Variant::U64(value) => u32::try_from(value).ok(),
++                        _ => None,
++                    });
++                match (update, size) {
++                    (Some(update), Some(size)) if size > 0 && self.smoke_voxel_updates.insert(*projectile_entid, update) != Some(update) => {
++                        let previous = self.smoke_voxel_sizes.insert(*projectile_entid, size).unwrap_or(0);
++                        let start = if previous <= size { previous } else { 0 };
++                        (start < size).then_some((start as usize, size as usize))
++                    }
++                    _ => None,
++                }
++            } else {
++                None
++            };
+@@ -328,0 +363,10 @@ impl<'a> SecondPassParser<'a> {
++                if Some(prop_info.id) == self.prop_controller.special_ids.smoke_voxel_data {
++                    let delta = smoke_voxel_delta.and_then(|(start, end)| match self.get_prop_from_ent(&prop_info.id, projectile_entid) {
++                        Ok(Variant::U32Vec(bytes)) if start < bytes.len() => {
++                            Some(Variant::U32Vec(bytes[start..end.min(bytes.len())].to_vec()))
++                        }
++                        _ => None,
++                    });
++                    self.output.entry(prop_info.id).or_insert_with(|| PropColumn::new()).push(delta);
++                    continue;
++                }
+diff --git a/src/parser/src/second_pass/entities.rs b/src/parser/src/second_pass/entities.rs
+index 9d205ac..aeee2c7 100644
+--- a/src/parser/src/second_pass/entities.rs
++++ b/src/parser/src/second_pass/entities.rs
+@@ -80,0 +81,2 @@ impl<'a> SecondPassParser<'a> {
++                    self.smoke_voxel_sizes.remove(&entity_id);
++                    self.smoke_voxel_updates.remove(&entity_id);
+@@ -279 +281 @@ impl<'a> SecondPassParser<'a> {
+-            SecondPassParser::insert_field(entity, result, field_info);
++            SecondPassParser::insert_field(entity, result, field_info, field, path);
+@@ -301 +303,29 @@ impl<'a> SecondPassParser<'a> {
+-    pub fn insert_field(entity: &mut Entity, result: Variant, field_info: Option<FieldInfo>) {
++    pub fn insert_field(entity: &mut Entity, result: Variant, field_info: Option<FieldInfo>, field: &Field, path: &FieldPath) {
++        // Network vectors arrive as individual element updates. Preserve the complete
++        // smoke journal instead of overwriting the property with the last decoded byte.
++        if let (Some(fi), Field::Vector(vector), Variant::U32(length)) = (field_info, field, &result) {
++            if let Field::Value(value) = vector.field_enum.as_ref() {
++                if fi.should_parse && value.full_name.ends_with(".m_VoxelFrameData") {
++                    let stored = entity.props.entry(fi.prop_id).or_insert_with(|| Variant::U32Vec(Vec::new()));
++                    if let Variant::U32Vec(bytes) = stored {
++                        bytes.resize(*length as usize, 0);
++                    }
++                    return;
++                }
++            }
++        }
++        if let (Some(fi), Field::Value(value), Variant::U32(byte)) = (field_info, field, &result) {
++            if fi.should_parse && value.full_name.ends_with(".m_VoxelFrameData") && path.last > 0 {
++                let index = path.path[path.last] as usize;
++                let stored = entity.props.entry(fi.prop_id).or_insert_with(|| Variant::U32Vec(Vec::new()));
++                let bytes = match stored {
++                    Variant::U32Vec(bytes) => bytes,
++                    _ => return,
++                };
++                if bytes.len() <= index {
++                    bytes.resize(index + 1, 0);
++                }
++                bytes[index] = *byte;
++                return;
++            }
++        }
+diff --git a/src/parser/src/second_pass/parser_settings.rs b/src/parser/src/second_pass/parser_settings.rs
+index 3255789..68ce5f4 100644
+--- a/src/parser/src/second_pass/parser_settings.rs
++++ b/src/parser/src/second_pass/parser_settings.rs
+@@ -57,0 +58,3 @@ pub struct SecondPassParser<'a> {
++    // Last emitted smoke-journal byte count per entity; only appended bytes leave the parser.
++    pub smoke_voxel_sizes: AHashMap<i32, u32>,
++    pub smoke_voxel_updates: AHashMap<i32, u32>,
+@@ -219,0 +223,2 @@ impl<'a> SecondPassParser<'a> {
++            smoke_voxel_sizes: AHashMap::default(),
++            smoke_voxel_updates: AHashMap::default(),
+@@ -297,0 +302,3 @@ pub struct SpecialIDs {
++    pub smoke_voxel_data: Option<u32>,
++    pub smoke_voxel_size: Option<u32>,
++    pub smoke_voxel_update: Option<u32>,
+@@ -346,0 +355,3 @@ impl SpecialIDs {
++            smoke_voxel_data: None,
++            smoke_voxel_size: None,
++            smoke_voxel_update: None,

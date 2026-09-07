@@ -1,5 +1,6 @@
 // Builds the merged, filterable analysis dataset from one or more cached Demos.
 import { ECONOMY_CATEGORIES } from './constants.js';
+import { buildDemoGrenadeSegments } from '../demo/grenades.js';
 
 const MAP_UNITS_TO_METERS = 0.0254;
 const AIRBURST_UTILITY_KINDS = new Set(['smoke', 'flash', 'he', 'decoy']);
@@ -129,6 +130,7 @@ function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, se
           fileName: entry.data.demo?.fileName || entry.fileName || 'Demo',
           round: round.round,
           tickRate: entry.data.demo?.tickRate || 64,
+          smokeVoxelFrames: grenadeData.smokeVoxelFrames || [],
         },
       });
     });
@@ -150,7 +152,7 @@ function appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer) {
   }));
 }
 
-export function buildAnalysisDataset({ demos, selectedPlayers, playerName, getRoundEconomy, buildGrenadeSegments }) {
+export function buildAnalysisDataset({ demos, selectedPlayers, playerName, getRoundEconomy }) {
   const rows = [];
   const deaths = [];
   const utilities = [];
@@ -170,7 +172,7 @@ export function buildAnalysisDataset({ demos, selectedPlayers, playerName, getRo
       roundMetadataByPlayer.set(name, roundMetadata);
     });
     appendAnalysisRows(rows, entry, rounds, roundMetadataByPlayer, selected, shift);
-    appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, selected, buildGrenadeSegments);
+    appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, selected, buildDemoGrenadeSegments);
     appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer);
     cursor += Math.max(256, sourceEnd - sourceStart + 256);
   });
