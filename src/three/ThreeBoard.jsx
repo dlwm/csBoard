@@ -37,6 +37,19 @@ THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+const CAPTURE_MIME_TYPES = { png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp' };
+const clampCaptureSize = (value, fallback, minimum, maximum) => Math.min(maximum, Math.max(minimum, Math.round(Number(value) || fallback)));
+const canvasToBlob = (canvas, mimeType, quality) => new Promise((resolve, reject) => {
+  canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('The browser could not encode the 3D capture.')), mimeType, quality);
+});
+const blobToBase64 = async (blob) => {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  // Chunk conversion avoids exceeding the argument limit on larger screenshots.
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  return btoa(binary);
+};
+
 // Owns the imperative Three.js scene and exposes its workspace API to the React shell.
 export default function ThreeBoard(props) {
   const { mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, demoProjectiles, analysisRounds, deletePointId, pointUpdate, onCameraSlots, onReady } = props;
@@ -626,6 +639,59 @@ export default function ThreeBoard(props) {
       canEnableControls: () => !cameraTransition && !utilityFirstPersonRef.current?.player && !utilityProjectileFollowRef.current && !demoDirectorCameraActive,
     });
     const getRadarCameraState = () => buildRadarCameraState({ camera, controls, snapshot: demoSnapshotRef.current, collabPoints: pointsRef.current, modelCenter, sourceBounds: radarSourceBounds });
+    const capture3DView = async (options = {}) => {
+      const source = renderer.domElement;
+      const sourceWidth = Math.max(1, source.width);
+      const sourceHeight = Math.max(1, source.height);
+      const width = clampCaptureSize(options.width, 960, 320, 1600);
+      const height = options.height == null
+        ? clampCaptureSize(width * sourceHeight / sourceWidth, 540, 180, 1200)
+        : clampCaptureSize(options.height, 540, 180, 1200);
+      const format = CAPTURE_MIME_TYPES[options.format] ? options.format : 'webp';
+      const mimeType = CAPTURE_MIME_TYPES[format];
+      const quality = Math.min(1, Math.max(0.35, Number(options.quality) || 0.82));
+      const fit = ['contain', 'cover', 'stretch'].includes(options.fit) ? options.fit : 'contain';
+      const output = document.createElement('canvas');
+      output.width = width;
+      output.height = height;
+      const context = output.getContext('2d', { alpha: false });
+      if (!context) throw new Error('The browser could not create a 2D capture surface.');
+
+      // Copy synchronously after rendering because WebGL may discard its drawing
+      // buffer before an asynchronous image encoder gets a chance to read it.
+      renderer.render(scene, camera);
+      context.fillStyle = '#090d0d';
+      context.fillRect(0, 0, width, height);
+      if (fit === 'stretch') {
+        context.drawImage(source, 0, 0, width, height);
+      } else {
+        const scale = fit === 'cover'
+          ? Math.max(width / sourceWidth, height / sourceHeight)
+          : Math.min(width / sourceWidth, height / sourceHeight);
+        const drawWidth = sourceWidth * scale;
+        const drawHeight = sourceHeight * scale;
+        context.drawImage(source, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+      }
+
+      const blob = await canvasToBlob(output, mimeType, format === 'png' ? undefined : quality);
+      return {
+        data: await blobToBase64(blob),
+        mimeType: blob.type || mimeType,
+        bytes: blob.size,
+        width,
+        height,
+        sourceWidth,
+        sourceHeight,
+        fit,
+        camera: {
+          ...getCameraState(),
+          fov: camera.fov,
+          near: camera.near,
+          far: camera.far,
+          aspect: camera.aspect,
+        },
+      };
+    };
     const collabSnapshot = () => {
       const workspace = getWorkspaceState();
       return { points: workspace.points.filter((p) => p.kind === 'player'), paths: [], grenades: grenadeEffects.map((effect, index) => ({ id: effect.userData.grenadeId || `grenade-${index}`, type: effect.userData.grenadeEffect, position: effect.position.toArray(), range: effect.userData.grenadeRange || effect.scale.x || 1 })), collabUtilities: collabUtilityScene.serialize(), brushStrokes: workspace.brushStrokes };
@@ -1343,7 +1409,7 @@ export default function ThreeBoard(props) {
       resetCamera();
       cameraState.restoreCurrent();
       cameraState.enablePersistence();
-      onReady({ reset: () => resetToDefault(resetCamera), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+      onReady({ reset: () => resetToDefault(resetCamera), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, capture3DView, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
       modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
     };
     if (mapName === TUTORIAL_MAP_ID) loadWorldModel(createTutorialMap());
@@ -1374,7 +1440,7 @@ export default function ThreeBoard(props) {
         cameraState.restoreCurrent();
         cameraState.enablePersistence();
          const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
-         onReady({ reset: () => resetToDefault(normalReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+         onReady({ reset: () => resetToDefault(normalReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, capture3DView, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
       }
     }, ({ failedUrl, nextBase }) => {
       console.info(`${mapName} packaged model unavailable at ${failedUrl}; trying ${nextBase}.`);
@@ -1382,7 +1448,7 @@ export default function ThreeBoard(props) {
     controls.target.set(0, 0, 0);
     controls.update();
      const initialReset = () => { camera.position.set(17, 23, 25); controls.target.set(0, 0, 0); controls.update(); };
-     onReady({ reset: () => resetToDefault(initialReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+     onReady({ reset: () => resetToDefault(initialReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, capture3DView, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
     const resize = () => { const { width, height } = mount.getBoundingClientRect(); renderer.setSize(width, height, false); renderer.getDrawingBufferSize(viewportSize); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix(); };
     resize();
     window.addEventListener('resize', resize);

@@ -41,7 +41,8 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
   };
 
   // Trajectory samples and the final smoke frame already live on the collaboration item.
-  // Removing their replay copies keeps Demo-frame archives below localStorage quotas.
+  // Removing replay copies still matters in IndexedDB: duplicated voxel journals
+  // inflate structured-clone time, disk use, exports, and collaboration payloads.
   const compactAnonymousSourceNote = (note) => {
     if (!note) return null;
     const { id: _id, name: _name, summary: _summary, ...sourceNote } = note;

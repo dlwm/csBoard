@@ -43,6 +43,20 @@ export function registerCsboardTools(api) {
     annotations: { readOnlyHint: true, untrustedContentHint: true },
   });
   register({
+    name: 'capture_3d_view',
+    description: 'Capture only the current CSBoard 3D viewport for a vision-capable model. Returns an MCP-style base64 image plus optional map, Demo, Analysis, and camera context.',
+    inputSchema: objectSchema({
+      width: { type: 'integer', minimum: 320, maximum: 1600, description: 'Output width in pixels; defaults to 960.' },
+      height: { type: 'integer', minimum: 180, maximum: 1200, description: 'Output height in pixels; omit to preserve the current viewport aspect ratio.' },
+      format: { type: 'string', enum: ['webp', 'jpeg', 'png'], description: 'Output image format; defaults to compact WebP.' },
+      quality: { type: 'number', minimum: 0.35, maximum: 1, description: 'WebP/JPEG encoding quality; defaults to 0.82 and is ignored for PNG.' },
+      fit: { type: 'string', enum: ['contain', 'cover', 'stretch'], description: 'How the current viewport fits an explicitly sized image; defaults to contain.' },
+      includeContext: { type: 'boolean', description: 'Include map, panel, playback, Analysis filters, and camera metadata; defaults to true.' },
+    }),
+    execute: (request) => api.capture3DView(request),
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
+  });
+  register({
     name: 'select_map',
     description: 'Switch CSBoard to one of its supported CS2 maps.',
     inputSchema: objectSchema({ map: { type: 'string', enum: mapValues, description: 'Exact CSBoard map identifier.' } }, ['map']),

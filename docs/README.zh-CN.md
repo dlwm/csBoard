@@ -2,9 +2,9 @@
 
 > 集 3D 战术板、CS2 Demo 回放、数据分析和实时协作于一体的浏览器工具。
 
-[English README](README.md) · [更新日志](CHANGELOG.md)
+[English](../README.md) · [Русский](README.ru-RU.md) · [更新日志](CHANGELOG.zh-CN.md)
 
-![CSBoard 使用演示](docs/readme/demo.gif)
+![CSBoard 使用演示](https://bucket.csboard.kuzuma.asia/output.gif)
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
@@ -12,7 +12,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 回合浏览
 
-![回合浏览](docs/readme/round-replay.png)
+![回合浏览](img/round-replay.png)
 
 - 导入单个 Demo，或多选 Demo 分片并合并为一场比赛。
 - 通过 Rust/WASM 一次性解析全部可播放回合，将各回合持久化到 IndexedDB，之后无需重新解析 Demo 即可切换。
@@ -24,7 +24,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 战术编辑
 
-![战术编辑](docs/readme/collaboration.png)
+![战术编辑](img/collaboration.png)
 
 - 放置 T 或 CT 战术点（仅限协作面板）。
 - 在回合浏览/数据分析/道具速查面板左键拖拽绘制手绘笔迹，支持撤销与重做。
@@ -36,7 +36,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 道具速记
 
-![道具速记](docs/readme/utility-notes.png)
+![道具速记](img/utility-notes.png)
 
 - 可通过粘贴 `getpos` 输出或从 Demo 投掷中保存地图专属道具记录。
 - 支持搜索和重播站位、视角、投掷者、事件及投掷物轨迹。
@@ -47,7 +47,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 数据分析
 
-![数据分析](docs/readme/analysis.png)
+![数据分析](img/analysis.png)
 
 - 进入数据分析页面后再懒加载分析正文、选手汇总和逐回合道具轨迹；支持按前缀、包含关系或字符顺序模糊搜索并多选选手，以彩色标签展示选中项，并明确展示加载状态。
 - 从任一已选选手可用的 Demo 中选择最近或指定记录，并按全部回合、T/CT 方及每名选手自身/对方的经济类型筛选。
@@ -60,7 +60,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 多人协作
 
-![协作面板](docs/readme/collaboration.png)
+![协作面板](img/collaboration.png)
 
 - 创建或加入 6 位房间号的 Yjs WebSocket 房间。
 - 同步人物、引入道具、自定义道具、画笔、帧顺序和当前帧。
@@ -94,7 +94,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 
 ### 手机 / H5
 
-![移动端协作](docs/readme/mobile.jpeg)
+![移动端协作](img/mobile.jpeg)
 
 - 使用独立移动端布局：上方为 4:3 Three.js 视窗，下方为操作面板。
 - 单指拖动旋转镜头，双指支持缩放与平移。
@@ -170,9 +170,9 @@ make build
 
 Electron 桌面端使用 `npm run desktop:build:mac` 或 `npm run desktop:build:win` 构建。构建会把 `.local/maps/**/*.glb` 全部复制到应用外部的 `Resources/maps`，让 Chromium 无需解包 `app.asar` 即可流式读取模型。桌面端会逐张地图优先尝试安装包内模型；文件缺失或无法解码时，自动回退到 `<VITE_OSS_BASE_URL>/maps/...`。打包前需在 production 环境中配置 `VITE_OSS_BASE_URL`，以保留在线兜底能力。
 
-Electron 前端还内置了可选启用的实验性 WebMCP 桥接。先执行一次 `npm run build:desktop`，再用 `npm run desktop:start:webmcp` 启动即可暴露已注册工具；普通的 `npm run desktop:start` 不会开启 Chromium 实验性 Web 平台开关。在数据分析页，接入的用户模型应先调用 `get_analysis_context` 读取当前筛选、字段说明、就绪状态和基础提示词，再通过 `get_filtered_analysis_data` 分页取得已经过滤的 KD、区域时间或道具 JSON；每页最多 200 条，道具轨迹按需开启，以免无谓占用模型上下文。两种模式都使用固定、只读的 `http://127.0.0.1:32145` 应用源，因此桌面端存储可跨启动保持稳定；仅在必要时通过 `CSBOARD_DESKTOP_PORT` 覆盖端口。
+Electron 前端还内置了可选启用的实验性 WebMCP 桥接。先执行一次 `npm run build:desktop`，再用 `npm run desktop:start:webmcp` 启动即可暴露已注册工具；普通的 `npm run desktop:start` 不会开启 Chromium 实验性 Web 平台开关。在数据分析页，接入的用户模型应先调用 `get_analysis_context` 读取当前筛选、字段说明、就绪状态和基础提示词，再通过 `get_filtered_analysis_data` 分页取得已经过滤的 KD、区域时间或道具 JSON；每页最多 200 条，道具轨迹按需开启，以免无谓占用模型上下文。支持视觉的模型还可调用 `capture_3d_view` 获取当前 3D 画布及相机和分析上下文；可调整宽高、WebP／JPEG／PNG 格式、质量、适配方式与是否附带上下文，默认输出紧凑的 960px 宽 WebP。两种模式都使用固定、只读的 `http://127.0.0.1:32145` 应用源，因此桌面端存储可跨启动保持稳定；仅在必要时通过 `CSBOARD_DESKTOP_PORT` 覆盖端口。
 
-通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/maps`；只有需要覆盖镜像默认的 `v1.11.0` 版本时才需设置 `BUILD_VERSION`。
+通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/maps`；只有需要覆盖镜像默认的 `v1.13.1` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式
 
@@ -215,7 +215,7 @@ src/
       <map>.glb           # 本地与 Docker 构建的运行时模型
 ```
 
-贡献者可将默认道具速记或协作存档 JSON 直接放入 `src/default-data/` 对应子目录，具体格式见 [`src/default-data/README.md`](src/default-data/README.md)。这些文件只会在浏览器从未创建对应本地数据时导入，不会覆盖或重新填充现有用户数据。
+贡献者可将默认道具速记或协作存档 JSON 直接放入 `src/default-data/` 对应子目录，具体格式见 [`src/default-data/README.md`](../src/default-data/README.md)。这些文件只会在浏览器从未创建对应本地数据时导入，不会覆盖或重新填充现有用户数据。
 
 运行 `make resources` 时，`scripts/ensure-maps.js` 会检测本地地图源文件与模型，并从 `.env.local` 的 `VITE_OSS_BASE_URL`（或 `MAP_DOWNLOAD_BASE_URL`）下载缺失文件。未配置下载源时命令会明确报错。替换源 NAV 后，运行 `make nav-data` 重新生成需要提交的前端数据。
 

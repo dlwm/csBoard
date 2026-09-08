@@ -1,7 +1,7 @@
 # Default Starter Data
 
 Files in this directory seed browser-local data only when the corresponding
-`localStorage` key has never been created. Existing user data is never merged,
+IndexedDB record has never been created. Existing user data is never merged,
 replaced, or restored after deletion.
 
 ## Utility Notes
@@ -15,6 +15,8 @@ Add JSON files anywhere under `utility-notes/`. Each file may contain:
 Every note should have a stable, repository-unique `id`. The regular fields are
 `mapName`, `position`, `angles`, `name`, `summary`, and `createdAt`. Demo-derived
 notes may retain their exported `replay`, `thrower`, and location fields.
+Older `localStorage["csboard-utility-notes"]` data is imported once and removed
+only after the IndexedDB write succeeds.
 
 ## Workspace Archives
 
@@ -24,11 +26,13 @@ Add JSON files anywhere under `workspace-archives/`. Each file may contain:
 - A JSON array of archive objects
 - One archive object
 
-An archive should use the same shape stored in
-`localStorage["csboard-workspace-archives"]`. At minimum it needs a stable `id`,
-`name`, `mapName`, and either `frames` or `workspace`. A frame contains an `id`
-and a `workspace` with arrays such as `points`, `grenades`, `collabUtilities`,
-and `brushStrokes`. Keep `paths` as an empty array.
+An archive should use the same shape stored in the `workspace-archives`
+IndexedDB record. At minimum it needs a stable `id`, `name`, `mapName`, and
+either `frames` or `workspace`. A frame contains an `id` and a `workspace` with
+arrays such as `points`, `grenades`, `collabUtilities`, and `brushStrokes`.
+Keep `paths` as an empty array. Older
+`localStorage["csboard-workspace-archives"]` data is imported once and removed
+only after the IndexedDB write succeeds.
 
 Example:
 

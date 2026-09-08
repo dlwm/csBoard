@@ -159,6 +159,7 @@ export function getAnalysisModelContext(options) {
       phases: { early: `freeze end to ${filters.areaEarlyEndsAtSeconds}s`, mid: `${filters.areaEarlyEndsAtSeconds}s to bomb plant or round end`, post: 'bomb plant to round end' },
       sampling: 'Movement is sampled from Demo ticks; durationSeconds weights area-time samples. KD and utility records are discrete events.',
       pagination: 'Call get_filtered_analysis_data repeatedly with nextOffset until hasMore is false. Request trajectories only when their shape is needed.',
+      visualContext: 'Call capture_3d_view when spatial layout matters. It captures the current 3D canvas and reports the camera, map, playback tick, and active Analysis selection.',
     },
     promptTemplates: prompts,
   };

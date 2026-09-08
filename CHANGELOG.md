@@ -1,6 +1,21 @@
 # Changelog
 
-[中文](docs/CHANGELOG.zh-CN.md)
+[中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
+
+## [1.13.1] - 2026-09-09
+
+### Added
+
+- Let vision-capable WebMCP models capture the current 3D canvas as WebP, JPEG, or PNG. The tool accepts bounded dimensions, encoding quality, fit mode, and optional context, and reports camera projection, map, Demo tick, and active Analysis selection alongside the image.
+- Add a Russian README and Changelog, connect all three documentation languages with direct navigation, repair stale documentation links and image paths, and make the offline Changelog dialog follow the Russian interface language.
+
+### Fixed
+
+- Always include non-projectile grenade entities while parsing Demo utilities, so HLTV matches retain their recorded `CInferno` cells even when a normal `grenade_thrown` event already exists. Parser-side state deduplication keeps the additional rows bounded; the Demo cache schema is advanced so affected sources are reparsed once instead of continuing to show the small fallback fire.
+- Move Collaboration workspace archives from quota-constrained `localStorage` to IndexedDB, serialize nearby writes in user-action order, and migrate existing archives before deleting the legacy copy. Demo frames containing trajectories, smoke voxels, and fire cells can now be saved without prematurely reporting that browser storage is full.
+- Move Utility Notes, including their recorded trajectories, smoke voxels, and fire cells, to the same IndexedDB-backed local data store with ordered writes and safe legacy migration. Remove the unused large room-snapshot write and clean up its stale keys, while keeping genuinely small synchronous preferences in `localStorage`.
+- Restore the parsing mini-game lifecycle after the batch-parser migration: batches still running after three seconds open the game overlay automatically, completed or cached batches cancel it cleanly, and a user's dismissal remains respected for the current batch.
+- Bundle Space Grotesk and DM Mono with the frontend instead of depending on Google Fonts at runtime, and route every UI/data font declaration through cross-platform stacks. Windows now falls back explicitly to Segoe UI, Microsoft YaHei UI, Cascadia Mono, or Consolas for unsupported Chinese and Cyrillic glyphs instead of legacy generic fonts.
 
 ## [1.13.0] - 2026-09-08
 
@@ -12,7 +27,6 @@
 - Open a formatted, scrollable, fully offline Changelog dialog by clicking the build version beside the CSBoard brand; select the bundled Chinese or English document from the active interface language.
 
 ### Fixed
-
 
 - Give Q-wheel fire a deterministic smoke-like default range using the same merged, single-color NAV projection as recorded fire. Remove the legacy connected-NAV patches, layered flame circles, and pulse rings; range dragging uses a lightweight preview scale, then rebuilds the footprint against the newly covered NAV surface on release.
 - Restore saving projected fire from Round Replay by associating the post-impact `CInferno` entity with its projectile segment through the shared `inferno_startburn` landing event; anchor the save action at the clicked fire-surface point rather than the projection group's scene origin.
