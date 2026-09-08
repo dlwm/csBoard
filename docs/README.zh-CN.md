@@ -168,6 +168,10 @@ make build
 
 `npm run build` 与 `npm run build:local` 使用本地 `/maps` 和同源 API；`npm run build:remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
 
+Electron 桌面端使用 `npm run desktop:build:mac` 或 `npm run desktop:build:win` 构建。构建会把 `.local/maps/**/*.glb` 全部复制到应用外部的 `Resources/maps`，让 Chromium 无需解包 `app.asar` 即可流式读取模型。桌面端会逐张地图优先尝试安装包内模型；文件缺失或无法解码时，自动回退到 `<VITE_OSS_BASE_URL>/maps/...`。打包前需在 production 环境中配置 `VITE_OSS_BASE_URL`，以保留在线兜底能力。
+
+Electron 前端还内置了可选启用的实验性 WebMCP 桥接。先执行一次 `npm run build:desktop`，再用 `npm run desktop:start:webmcp` 启动即可暴露已注册工具；普通的 `npm run desktop:start` 不会开启 Chromium 实验性 Web 平台开关。在数据分析页，接入的用户模型应先调用 `get_analysis_context` 读取当前筛选、字段说明、就绪状态和基础提示词，再通过 `get_filtered_analysis_data` 分页取得已经过滤的 KD、区域时间或道具 JSON；每页最多 200 条，道具轨迹按需开启，以免无谓占用模型上下文。两种模式都使用固定、只读的 `http://127.0.0.1:32145` 应用源，因此桌面端存储可跨启动保持稳定；仅在必要时通过 `CSBOARD_DESKTOP_PORT` 覆盖端口。
+
 通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/maps`；只有需要覆盖镜像默认的 `v1.11.0` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式

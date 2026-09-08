@@ -4,6 +4,7 @@ import { grenadeKind } from '../demo/grenades.js';
 import { createGrenadeEffect } from './grenadeEffects.js';
 import { enableObjectFloorFade } from './floorFade.js';
 import { createSmokeVoxelVolume, SMOKE_VOLUME_SCALE } from './smokeVoxelVolume.js';
+import { createInfernoEffect, updateInfernoEffect } from './infernoEffect.js';
 
 export default function createCollabUtilitySceneController({ scene, navData, editingRef, floorFadeRef, getModelCenter, getNav, pushHistory, notifyEdit }) {
   const group = new THREE.Group();
@@ -33,7 +34,10 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     const recordedSmokeFrame = normalizedKind === 'smoke'
       ? [...(note?.replay?.smokeVoxelFrames || [])].filter((frame) => frame?.voxels?.length).sort((left, right) => left.tick - right.tick).at(-1)
       : null;
-    return { effectKind, effectPosition, projectiles, recordedSmokeFrame };
+    const recordedInfernoFrame = normalizedKind === 'fire'
+      ? [...(note?.replay?.infernoFrames || [])].filter((frame) => frame?.cells?.length).sort((left, right) => left.tick - right.tick).at(-1)
+      : null;
+    return { effectKind, effectPosition, projectiles, recordedSmokeFrame, recordedInfernoFrame };
   };
 
   // Trajectory samples and the final smoke frame already live on the collaboration item.
@@ -41,18 +45,20 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
   const compactAnonymousSourceNote = (note) => {
     if (!note) return null;
     const { id: _id, name: _name, summary: _summary, ...sourceNote } = note;
-    const { projectiles: _projectiles, smokeVoxelFrames: _smokeVoxelFrames, ...replay } = sourceNote.replay || {};
+    const { projectiles: _projectiles, smokeVoxelFrames: _smokeVoxelFrames, infernoFrames: _infernoFrames, ...replay } = sourceNote.replay || {};
     return { ...sourceNote, replay };
   };
 
   const create = (note, itemId, kind, originPosition, savedEffectPosition = null) => {
     const utility = new THREE.Group();
     const modelCenter = getModelCenter();
-    const { effectKind, effectPosition, projectiles, recordedSmokeFrame } = noteEffectData(note, kind, savedEffectPosition);
+    const { effectKind, effectPosition, projectiles, recordedSmokeFrame, recordedInfernoFrame } = noteEffectData(note, kind, savedEffectPosition);
     // Collaboration is a static tactical view: use the latest recorded journal
     // frame so imported Demo smokes retain their environment-shaped silhouette.
     const effect = recordedSmokeFrame
       ? createSmokeVoxelVolume({ ...recordedSmokeFrame, voxels: Uint16Array.from(recordedSmokeFrame.voxels) }, modelCenter)
+      : recordedInfernoFrame
+        ? createInfernoEffect({ ...recordedInfernoFrame, cells: Float32Array.from(recordedInfernoFrame.cells) }, modelCenter, getNav())
       : createGrenadeEffect(effectPosition, effectKind, navData, getNav());
     if (recordedSmokeFrame) effect.scale.setScalar(SMOKE_VOLUME_SCALE);
     const resolvedEffectPosition = effect.position.clone();
@@ -84,6 +90,7 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     utility.userData.utilityEndTick = Number(note?.replay?.endTick);
     utility.userData.utilityEffectScale = effect.scale.clone();
     utility.userData.utilitySmokeVoxelFrame = recordedSmokeFrame ? { ...recordedSmokeFrame, voxels: Array.from(recordedSmokeFrame.voxels) } : null;
+    utility.userData.utilityInfernoFrame = recordedInfernoFrame ? { ...recordedInfernoFrame, cells: Array.from(recordedInfernoFrame.cells) } : null;
     utility.userData.anonymousUtility = false;
     utility.userData.sourceNote = null;
     return utility;
@@ -93,7 +100,7 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
   const serializeAnonymous = (note, itemId) => {
     if (!note) return null;
     const origin = noteWorldPosition(note);
-    const { effectKind, effectPosition, projectiles, recordedSmokeFrame } = noteEffectData(note);
+    const { effectKind, effectPosition, projectiles, recordedSmokeFrame, recordedInfernoFrame } = noteEffectData(note);
     return {
       id: itemId,
       noteId: null,
@@ -104,6 +111,7 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
       effectPosition: effectPosition.toArray(),
       projectiles: projectiles.map((record) => ({ ...record })),
       smokeVoxelFrame: recordedSmokeFrame ? { ...recordedSmokeFrame, voxels: Array.from(recordedSmokeFrame.voxels) } : null,
+      infernoFrame: recordedInfernoFrame ? { ...recordedInfernoFrame, cells: Array.from(recordedInfernoFrame.cells) } : null,
       anonymous: true,
       sourceNote: compactAnonymousSourceNote(note),
     };
@@ -189,12 +197,12 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
       const note = notes.find((candidate) => candidate.id === item.noteId);
       // Persisted metadata keeps utilities usable even if the source note was deleted locally.
       const embeddedNote = item.sourceNote || {};
-      const sourceNote = { ...embeddedNote, ...(note || {}), name: note?.name || item.noteName || '', summary: note?.summary || item.noteSummary || '', grenadeType: note?.grenadeType || embeddedNote.grenadeType || item.kind, replay: { tickRate: item.tickRate, throwTick: item.throwTick, effectTick: item.effectTick, endTick: item.endTick, ...(embeddedNote.replay || {}), ...(note?.replay || {}), projectiles: item.projectiles || note?.replay?.projectiles || embeddedNote.replay?.projectiles || [], smokeVoxelFrames: item.smokeVoxelFrame ? [item.smokeVoxelFrame] : note?.replay?.smokeVoxelFrames || embeddedNote.replay?.smokeVoxelFrames || [] } };
+      const sourceNote = { ...embeddedNote, ...(note || {}), name: note?.name || item.noteName || '', summary: note?.summary || item.noteSummary || '', grenadeType: note?.grenadeType || embeddedNote.grenadeType || item.kind, replay: { tickRate: item.tickRate, throwTick: item.throwTick, effectTick: item.effectTick, endTick: item.endTick, ...(embeddedNote.replay || {}), ...(note?.replay || {}), projectiles: item.projectiles || note?.replay?.projectiles || embeddedNote.replay?.projectiles || [], smokeVoxelFrames: item.smokeVoxelFrame ? [item.smokeVoxelFrame] : note?.replay?.smokeVoxelFrames || embeddedNote.replay?.smokeVoxelFrames || [], infernoFrames: item.infernoFrame ? [item.infernoFrame] : note?.replay?.infernoFrames || embeddedNote.replay?.infernoFrames || [] } };
       const utility = create(sourceNote, item.id, item.kind, origin, item.effectPosition);
       utility.userData.anonymousUtility = item.anonymous === true;
       utility.userData.sourceNote = item.anonymous === true ? {
         ...embeddedNote,
-        replay: { ...(embeddedNote.replay || {}), projectiles: item.projectiles || [], smokeVoxelFrames: item.smokeVoxelFrame ? [item.smokeVoxelFrame] : [] },
+        replay: { ...(embeddedNote.replay || {}), projectiles: item.projectiles || [], smokeVoxelFrames: item.smokeVoxelFrame ? [item.smokeVoxelFrame] : [], infernoFrames: item.infernoFrame ? [item.infernoFrame] : [] },
       } : null;
       utility.position.copy(origin);
       group.add(utility);
@@ -251,6 +259,9 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
   };
 
   const update = (now = performance.now()) => {
+    utilities.forEach((utility) => {
+      if (utility.userData.utilityKind === 'fire' && utility.userData.utilityInfernoFrame) updateInfernoEffect(utility.userData.collabUtilityEffect, now / 1000 * 64);
+    });
     if (!playback) return;
     let complete = true;
     playback.entries.forEach((entry) => {
@@ -293,6 +304,7 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     endTick: Number.isFinite(utility.userData.utilityEndTick) ? utility.userData.utilityEndTick : undefined,
     // One final frame is enough for the static collaboration view and keeps room payloads small.
     smokeVoxelFrame: utility.userData.utilitySmokeVoxelFrame,
+    infernoFrame: utility.userData.utilityInfernoFrame,
     anonymous: utility.userData.anonymousUtility === true,
     sourceNote: utility.userData.anonymousUtility === true ? compactAnonymousSourceNote(utility.userData.sourceNote) : undefined,
   }));

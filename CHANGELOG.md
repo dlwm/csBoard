@@ -2,6 +2,22 @@
 
 [中文](docs/CHANGELOG.zh-CN.md)
 
+## [1.13.0] - 2026-09-08
+
+### Added
+
+- Add an opt-in WebMCP integration for the Electron app. Its Analysis-first tools let a user-supplied model read the active player, Demo, side, economy, phase, utility, and event-location filters; obtain compact paginated KD, area-time, or utility JSON; optionally request projectile trajectories; and receive field semantics plus starter analysis prompts. Six additional state-aware workspace tools remain available for navigation and playback. An origin-isolated, read-only loopback server hosts the packaged renderer and map models, the fixed local origin preserves desktop storage, and single-instance ownership prevents port conflicts.
+- Bundle local GLB map models into Electron packages as streamable external resources. Desktop builds load each packaged model first and fall back per file to the configured OSS origin when the bundled copy is missing or invalid.
+- Replay Molotov and incendiary fire from the Demo's authoritative `CInferno` cells instead of estimating its footprint from connected NAV areas. A strengthened cumulative metaball tension field joins neighboring cells into one irregular, single-color surface, fills enclosed no-fire holes without leaving internal seams, and leaves transparency softness only on the outer edge before projecting onto the nearest same-floor NAV geometry. This avoids both the bead-like cell appearance and vertical flame/model intersections while following ramps and height transitions. Fire frames are stored only when their state changes, fall back to the existing NAV effect for legacy data, and remain available in saved throws and Collaboration frames.
+- Open a formatted, scrollable, fully offline Changelog dialog by clicking the build version beside the CSBoard brand; select the bundled Chinese or English document from the active interface language.
+
+### Fixed
+
+
+- Give Q-wheel fire a deterministic smoke-like default range using the same merged, single-color NAV projection as recorded fire. Remove the legacy connected-NAV patches, layered flame circles, and pulse rings; range dragging uses a lightweight preview scale, then rebuilds the footprint against the newly covered NAV surface on release.
+- Restore saving projected fire from Round Replay by associating the post-impact `CInferno` entity with its projectile segment through the shared `inferno_startburn` landing event; anchor the save action at the clicked fire-surface point rather than the projection group's scene origin.
+- Prevent large Demos from exhausting the browser's 4 GiB WASM memory limit while decoding utilities: deduplicate persistent `CInferno` arrays inside the parser before column/AoS allocation, and emit held-grenade state only when a valid throw time changes. This preserves every real fire cell and throw sample while removing millions of redundant rows.
+
 ## [1.12.0] - 2026-09-07
 
 ### Added

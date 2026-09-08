@@ -168,6 +168,10 @@ This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and
 
 `npm run build` and `npm run build:local` use local `/maps` resources and same-origin APIs. `npm run build:remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
+Electron builds run `npm run desktop:build:mac` or `npm run desktop:build:win`. The build copies every `.local/maps/**/*.glb` into the application's external `Resources/maps` directory so Chromium can stream the models without unpacking `app.asar`. The desktop renderer tries that packaged copy first for each map and automatically retries `<VITE_OSS_BASE_URL>/maps/...` when the file is absent or cannot be decoded. Configure `VITE_OSS_BASE_URL` in the production environment before packaging to retain this online fallback.
+
+The Electron renderer also contains an experimental, opt-in WebMCP bridge. Run `npm run build:desktop` once, then `npm run desktop:start:webmcp` to expose its registered tools; ordinary `npm run desktop:start` launches without Chromium's experimental web-platform switch. In Analysis, a connected user model should call `get_analysis_context` first to read the current filters, field guide, readiness state, and starter prompts, then page through `get_filtered_analysis_data`. The latter returns already-filtered KD, area-time, or utility JSON in pages of at most 200 records; utility trajectories are opt-in to avoid wasting model context. Both launch modes use the same fixed, read-only `http://127.0.0.1:32145` application origin so desktop storage remains stable. Override the port with `CSBOARD_DESKTOP_PORT` only when necessary.
+
 To run the Node.js Runtime in Docker, place the GLB models under `.local/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/maps`; set `BUILD_VERSION` only when overriding the default `v1.11.0` image version.
 
 ## Controls

@@ -59,6 +59,7 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
             projectiles: cachedRound?.projectiles || [],
             throwSnapshots: cachedRound?.throwSnapshots || [],
             smokeVoxelFrames: cachedRound?.smokeVoxelFrames || [],
+            infernoFrames: cachedRound?.infernoFrames || [],
           };
         }));
         return { ...entry, analysisRoundGrenades: roundGrenades };

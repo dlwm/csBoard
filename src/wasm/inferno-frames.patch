@@ -1,0 +1,170 @@
+diff --git a/src/parser/src/second_pass/entities.rs b/src/parser/src/second_pass/entities.rs
+index a6e3072..60ce107 100644
+--- a/src/parser/src/second_pass/entities.rs
++++ b/src/parser/src/second_pass/entities.rs
+@@ -80,6 +80,8 @@ impl<'a> SecondPassParser<'a> {
+                     self.projectiles.remove(&entity_id);
+                     self.smoke_voxel_sizes.remove(&entity_id);
+                     self.smoke_voxel_updates.remove(&entity_id);
++                    self.inferno_cell_states.remove(&entity_id);
++                    self.held_grenade_throw_times.remove(&entity_id);
+                     if let Some(entry) = self.entities.get_mut(entity_id as usize) {
+                         *entry = None;
+                     }
+@@ -329,6 +329,44 @@ impl<'a> SecondPassParser<'a> {
+                 return;
+             }
+         }
++        // Inferno exposes fixed arrays as independent field-path updates. Keep the
++        // complete arrays on the entity so replay consumers receive the real fire
++        // cells instead of only the last element that changed.
++        if let (Some(fi), Field::Value(value)) = (field_info, field) {
++            if fi.should_parse && path.last > 0 {
++                let index = path.path[path.last] as usize;
++                if value.full_name.ends_with(".m_firePositions")
++                    || value.full_name.ends_with(".m_fireParentPositions")
++                    || value.full_name.ends_with(".m_BurnNormal")
++                {
++                    if let Variant::VecXYZ(vector) = &result {
++                        let stored = entity.props.entry(fi.prop_id).or_insert_with(|| Variant::U32Vec(Vec::new()));
++                        if let Variant::U32Vec(values) = stored {
++                            let offset = index * 3;
++                            if values.len() < offset + 3 {
++                                values.resize(offset + 3, 0);
++                            }
++                            for axis in 0..3 {
++                                values[offset + axis] = vector[axis].to_bits();
++                            }
++                            return;
++                        }
++                    }
++                }
++                if value.full_name.ends_with(".m_bFireIsBurning") {
++                    if let Variant::Bool(burning) = &result {
++                        let stored = entity.props.entry(fi.prop_id).or_insert_with(|| Variant::U32Vec(Vec::new()));
++                        if let Variant::U32Vec(values) = stored {
++                            if values.len() <= index {
++                                values.resize(index + 1, 0);
++                            }
++                            values[index] = u32::from(*burning);
++                            return;
++                        }
++                    }
++                }
++            }
++        }
+         if let Some(fi) = field_info {
+             if fi.should_parse {
+                 entity.props.insert(fi.prop_id, result);
+@@ -415,7 +453,7 @@ impl<'a> SecondPassParser<'a> {
+             _ => {}
+         }
+         let is_projectile_prop =
+-            (class.name.contains("Projectile") || class.name.contains("Grenade") || class.name.contains("Flash")) && !class.name.contains("Player");
++            (class.name.contains("Projectile") || class.name.contains("Grenade") || class.name.contains("Flash") || class.name.contains("Inferno")) && !class.name.contains("Player");
+         if is_projectile_prop {
+             return Ok(EntityType::Projectile);
+         }
+diff --git a/src/parser/src/second_pass/collect_data.rs b/src/parser/src/second_pass/collect_data.rs
+index 3c1d548..7d307c6 100644
+--- a/src/parser/src/second_pass/collect_data.rs
++++ b/src/parser/src/second_pass/collect_data.rs
+@@ -280,12 +280,58 @@ impl<'a> SecondPassParser<'a> {
+                 Some(t) => {if !t.contains("Projectile") && !self.parse_grenades{continue}else{t}},
+                 None => continue,
+             };
+-            let steamid = match self.find_thrower_steamid(projectile_entid) {
+-                Ok(u) => u,
+-                _ => continue,
+-            };
+-            let name = match self.find_thrower_name(projectile_entid) {
+-                Ok(x) => x,
++            // CInferno is a world entity and no longer owns the projectile's
++            // thrower handle. Keep its frame even without player metadata.
++            let is_inferno = grenade_type.contains("Inferno");
++            if is_inferno {
++                // CInferno's fixed arrays retain their value on ticks without a
++                // network update. Deduplicate here, before PropColumn and AoS
++                // allocation; doing it in JavaScript is too late for large demos.
++                let state = self
++                    .prop_controller
++                    .prop_infos
++                    .iter()
++                    .filter(|prop| {
++                        prop.prop_name.ends_with("m_firePositions")
++                            || prop.prop_name.ends_with("m_bFireIsBurning")
++                            || prop.prop_name.ends_with("m_BurnNormal")
++                            || prop.prop_name.ends_with("m_fireCount")
++                    })
++                    .map(|prop| self.get_prop_from_ent(&prop.id, projectile_entid).ok())
++                    .collect::<Vec<_>>();
++                if self.inferno_cell_states.get(projectile_entid) == Some(&state) {
++                    continue;
++                }
++                self.inferno_cell_states.insert(*projectile_entid, state);
++            } else if !grenade_type.contains("Projectile") {
++                // Held grenade entities are queried only to recover throw
++                // strength/jump state when grenade_thrown is absent. Emit the
++                // single changed throw-time sample instead of every held tick.
++                let throw_time = self
++                    .prop_controller
++                    .prop_infos
++                    .iter()
++                    .find(|prop| prop.prop_name.ends_with("m_fThrowTime"))
++                    .and_then(|prop| self.get_prop_from_ent(&prop.id, projectile_entid).ok());
++                let is_valid_throw = match &throw_time {
++                    Some(Variant::F32(value)) => *value > 0.0,
++                    Some(Variant::U32(value)) => *value > 0,
++                    Some(Variant::I32(value)) => *value > 0,
++                    _ => false,
++                };
++                if !is_valid_throw
++                    || throw_time
++                        .as_ref()
++                        .is_some_and(|value| self.held_grenade_throw_times.get(projectile_entid) == Some(value))
++                {
++                    continue;
++                }
++                self.held_grenade_throw_times.insert(*projectile_entid, throw_time.unwrap());
++            }
++            let steamid = self.find_thrower_steamid(projectile_entid).ok().or(is_inferno.then_some(0));
++            let name = self.find_thrower_name(projectile_entid).ok().or(is_inferno.then_some(String::new()));
++            let (steamid, name) = match (steamid, name) {
++                (Some(steamid), Some(name)) => (steamid, name),
+                 _ => continue,
+             };
+             // Projectiles are the only ones with coordinates others map to 0.0, map them to None as it is clearer.
+diff --git a/src/parser/src/second_pass/parser_settings.rs b/src/parser/src/second_pass/parser_settings.rs
+--- a/src/parser/src/second_pass/parser_settings.rs
++++ b/src/parser/src/second_pass/parser_settings.rs
+@@ -14,6 +14,6 @@ use crate::second_pass::other_netmessages::Class;
+ use crate::second_pass::parser::SecondPassOutput;
+ use crate::second_pass::path_ops::FieldPath;
+-use crate::second_pass::variants::PropColumn;
++use crate::second_pass::variants::{PropColumn, Variant};
+ use ahash::AHashMap;
+ use ahash::AHashSet;
+ use ahash::HashMap;
+@@ -58,6 +58,13 @@ pub struct SecondPassParser<'a> {
+     // Last emitted smoke-journal byte count per entity; only appended bytes leave the parser.
+     pub smoke_voxel_sizes: AHashMap<i32, u32>,
+     pub smoke_voxel_updates: AHashMap<i32, u32>,
++    // Last emitted CInferno cell state per entity. Fire arrays persist across
++    // ticks, so emitting only network changes avoids duplicating them thousands
++    // of times before the WASM result is serialized.
++    pub inferno_cell_states: AHashMap<i32, Vec<Option<Variant>>>,
++    // Non-projectile grenade weapons are only needed at the instant their
++    // throw-time field changes; retaining every held tick dominates large demos.
++    pub held_grenade_throw_times: AHashMap<i32, Variant>,
+     pub fullpackets_parsed: u32,
+     pub wanted_players: AHashSet<u64>,
+     pub wanted_ticks: AHashSet<i32>,
+@@ -222,6 +229,8 @@ impl<'a> SecondPassParser<'a> {
+             projectiles: BTreeSet::default(),
+             smoke_voxel_sizes: AHashMap::default(),
+             smoke_voxel_updates: AHashMap::default(),
++            inferno_cell_states: AHashMap::default(),
++            held_grenade_throw_times: AHashMap::default(),
+             baselines: first_pass_output.baselines.clone(),
+             string_tables: first_pass_output.string_tables.clone(),
+             teams: Teams::new(),

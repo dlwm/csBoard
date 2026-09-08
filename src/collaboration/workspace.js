@@ -2,11 +2,12 @@ export const emptyWorkspace = () => ({ points: [], paths: [], grenades: [], coll
 
 const compactAnonymousUtility = (item) => {
   if (!item?.anonymous || !item.sourceNote?.replay) return item;
-  const { projectiles, smokeVoxelFrames, ...replay } = item.sourceNote.replay;
+  const { projectiles, smokeVoxelFrames, infernoFrames, ...replay } = item.sourceNote.replay;
   return {
     ...item,
     projectiles: item.projectiles?.length ? item.projectiles : projectiles || [],
     smokeVoxelFrame: item.smokeVoxelFrame || smokeVoxelFrames?.at(-1) || null,
+    infernoFrame: item.infernoFrame || infernoFrames?.at(-1) || null,
     sourceNote: { ...item.sourceNote, replay },
   };
 };

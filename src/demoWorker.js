@@ -1,4 +1,5 @@
 import init, { parseEvents, parseGrenades, parseHeader, parseTicks } from './wasm/demoparser2.js';
+import { appendChangedInfernoFrame } from './demo/infernoFrames.js';
 import { smokeVoxelFramesFromRow } from './demo/smokeVoxels.js';
 
 let parserReady;
@@ -11,11 +12,12 @@ let partEvents = [];
 let allEvents = [];
 let allProjectiles = [];
 let allSmokeVoxelFrames = [];
+let allInfernoFrames = [];
 let activeWeaponNamesByPart = [];
 let equippedWeaponsByPlayer = new Map();
 let currentPhase = 'idle';
 let phaseStartedAt = 0;
-const CACHE_SCHEMA_VERSION = 28;
+const CACHE_SCHEMA_VERSION = 29;
 const ACTIVE_WEAPON_HANDLE_PROP = 'CCSPlayerPawn.CCSPlayer_WeaponServices.m_hActiveWeapon';
 // Some GOTV demos retain the player controller but lose its pawn association.
 // These controller fields keep the roster/state truthful even when coordinates cannot be recovered.
@@ -24,7 +26,7 @@ const CONTROLLER_PENDING_TEAM_PROP = 'CCSPlayerController.m_iPendingTeamNum';
 const CONTROLLER_HEALTH_PROP = 'CCSPlayerController.m_iPawnHealth';
 const CONTROLLER_ALIVE_PROP = 'CCSPlayerController.m_bPawnIsAlive';
 const controllerFallbackProps = [CONTROLLER_TEAM_PROP, CONTROLLER_PENDING_TEAM_PROP, CONTROLLER_HEALTH_PROP, CONTROLLER_ALIVE_PROP];
-const GRENADE_ENTITY_PROPS = ['Grenade.m_flThrowStrength', 'Grenade.m_bJumpThrow', 'Grenade.m_fThrowTime', 'Grenade.m_vInitialVelocity', 'Grenade.m_vSmokeDetonationPos', 'Grenade.m_VoxelFrameData', 'Grenade.m_nVoxelFrameDataSize', 'Grenade.m_nVoxelUpdate'];
+const GRENADE_ENTITY_PROPS = ['Grenade.m_flThrowStrength', 'Grenade.m_bJumpThrow', 'Grenade.m_fThrowTime', 'Grenade.m_vInitialVelocity', 'Grenade.m_vSmokeDetonationPos', 'Grenade.m_VoxelFrameData', 'Grenade.m_nVoxelFrameDataSize', 'Grenade.m_nVoxelUpdate', 'Grenade.m_firePositions', 'Grenade.m_bFireIsBurning', 'Grenade.m_BurnNormal', 'Grenade.m_fireCount', 'Grenade.m_nFireLifetime'];
 const eventNames = ['round_start', 'round_freeze_end', 'round_end', 'player_death', 'player_hurt', 'player_blind', 'weapon_fire', 'weapon_reload', 'fire_bullets', 'item_equip', 'item_pickup', 'item_purchase', 'hltv_fixed', 'hltv_chase', 'grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate', 'bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused'];
 const replayProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'user_id', 'team_rounds_total', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'inventory', 'armor_value', 'has_helmet', 'has_defuser', 'flash_duration', 'flash_max_alpha', 'is_scoped', 'is_walking', 'active_weapon_ammo', 'is_alive', 'is_defusing', 'balance', 'cash_spent_this_round', 'round_start_equip_value', 'current_equip_value', ...controllerFallbackProps];
 const analysisProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'is_alive', ...controllerFallbackProps];
@@ -129,11 +131,17 @@ function grenadeWeaponName(type = '') {
 function parsePartGrenades(part, includeHeldGrenades) {
   const projectiles = [];
   const smokeVoxelFrames = [];
+  const infernoFrames = [];
+  const latestInfernoByEntity = new Map();
   const throwStates = new Map();
   const lastProjectileByEntity = new Map();
   for (const value of parseGrenades(part, GRENADE_ENTITY_PROPS, includeHeldGrenades) || []) {
     const row = toPlainObject(value);
     const readProp = (name) => row[name] ?? row[`Grenade.${name}`];
+    if (String(row.grenade_type || '').includes('Inferno')) {
+      appendChangedInfernoFrame(infernoFrames, latestInfernoByEntity, row, readProp);
+      continue;
+    }
     if (String(row.grenade_type || '') === 'CSmokeGrenadeProjectile') {
       smokeVoxelFrames.push(...smokeVoxelFramesFromRow(row, readProp));
     }
@@ -154,7 +162,7 @@ function parsePartGrenades(part, includeHeldGrenades) {
     const steamid = String(row.thrower_steamid ?? row.steamid ?? '');
     throwStates.set(`${row.tick}:${steamid}:${grenadeWeaponName(row.grenade_type)}`, { strength: readProp('m_flThrowStrength'), jumpThrow: readProp('m_bJumpThrow'), throwTime: readProp('m_fThrowTime') });
   }
-  return { projectiles, smokeVoxelFrames, throwStates };
+  return { projectiles, smokeVoxelFrames, infernoFrames, throwStates };
 }
 
 function inferProjectileThrows(projectiles, events, throwStates) {
@@ -377,6 +385,7 @@ self.onmessage = async ({ data }) => {
             equippedWeaponsByPlayer = indexEquippedWeapons(allEvents);
             allProjectiles = projectilesByPart.flatMap((projectiles, index) => projectiles.filter((projectile) => includesPartTick(projectile.tick, index)).map((projectile) => ({ ...projectile, tick: projectile.tick + partOffsets[index] })));
             allSmokeVoxelFrames = grenadeDataByPart.flatMap((data, index) => data.smokeVoxelFrames.filter((frame) => includesPartTick(frame.tick, index)).map((frame) => ({ ...frame, tick: frame.tick + partOffsets[index] })));
+            allInfernoFrames = grenadeDataByPart.flatMap((data, index) => data.infernoFrames.filter((frame) => includesPartTick(frame.tick, index)).map((frame) => ({ ...frame, tick: frame.tick + partOffsets[index] })));
             activeWeaponNamesByPart = demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index]));
         const sampleRate = [1, 2, 4, 8, 16, 32].includes(Number(data.sampleRate)) ? Number(data.sampleRate) : 8;
        const sampleStep = 64 / sampleRate;
@@ -418,7 +427,7 @@ self.onmessage = async ({ data }) => {
             const playerPositionCoverage = new Map();
             const roundData = [];
             let snapshotCount = 0;
-            let estimatedBytes = throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128 + estimateDataBytes(allSmokeVoxelFrames);
+            let estimatedBytes = throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128 + estimateDataBytes(allSmokeVoxelFrames) + estimateDataBytes(allInfernoFrames);
              rounds.forEach((round, roundIndex) => {
                 const rows = roundTickPlans[roundIndex].flatMap(({ part, index, offset, localTicks }) => localTicks.length ? parseTicksBatched(part, replayProps, localTicks, null, reportProgress).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset })) : []);
               const snapshots = normalizeRows(rows, 0);
@@ -433,7 +442,7 @@ self.onmessage = async ({ data }) => {
               }));
               snapshotCount += snapshots.length;
               estimatedBytes += estimateDataBytes(snapshots);
-              const dataForRound = { round: round.round, snapshots, throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick), smokeVoxelFrames: allSmokeVoxelFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick) };
+              const dataForRound = { round: round.round, snapshots, throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick), smokeVoxelFrames: allSmokeVoxelFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick), infernoFrames: allInfernoFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick) };
               const representative = snapshots.find((snapshot) => snapshot.players.filter((player) => player.team === 2 || player.team === 3).length >= 8) || snapshots[0];
                roundData.push({ round: round.round, snapshots: representative ? [representative] : [] });
                self.postMessage({ type: 'round', data: dataForRound });
@@ -459,6 +468,7 @@ self.onmessage = async ({ data }) => {
             self.postMessage({ type: 'status', message: `Demo 已读取，${rounds.length} 个回合已全部就绪` });
             allProjectiles = [];
             allSmokeVoxelFrames = [];
+            allInfernoFrames = [];
              const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, warnings, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
              self.postMessage({ type: 'loaded', data: result, estimatedBytes });
      }

@@ -17,6 +17,13 @@
       "electron/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": ".local/maps",
+        "to": "maps",
+        "filter": ["**/*.glb"]
+      }
+    ],
     "mac": {
       "icon": "src/assets/favicon.svg",
       "target": [
@@ -45,11 +52,14 @@
     "build": "npm run build:local",
     "build:local": "VITE_USE_LOCAL_MAPS=true VITE_BACKEND_BASE_URL=/ vite build",
     "build:remote": "VITE_USE_LOCAL_MAPS=false vite build",
+    "build:desktop": "vite build",
     "nav:generate": "node scripts/generate-nav-data.js",
     "preview": "vite preview",
-    "desktop:build:mac": "electron-builder --mac",
-    "desktop:build:win": "electron-builder --win",
-    "desktop:build": "electron-builder --mac --win"
+    "desktop:start": "electron .",
+    "desktop:start:webmcp": "electron . --enable-csboard-webmcp",
+    "desktop:build:mac": "npm run build:desktop && electron-builder --mac",
+    "desktop:build:win": "npm run build:desktop && electron-builder --win",
+    "desktop:build": "npm run build:desktop && electron-builder --mac --win"
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.42.0",

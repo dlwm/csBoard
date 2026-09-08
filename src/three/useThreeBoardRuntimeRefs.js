@@ -9,7 +9,7 @@ export default function useThreeBoardRuntimeRefs(props) {
     analysisEnabled, analysisHighlightedUtilityId, analysisRows, analysisSelectedPlayers,
     analysisTime, analysisUtilities, brushColor, brushEnabled, brushWidth, collabEditingEnabled, demoC4Events,
     demoCameraMode, demoDeaths, demoFires, demoGrenades, demoGrenadeSegments, demoSource,
-    demoHltvEvents, demoHurts, demoInEyePlayer, demoProjectiles, demoSmokeVoxelFrames, demoSnapshot,
+    demoHltvEvents, demoHurts, demoInEyePlayer, demoInfernoFrames, demoProjectiles, demoSmokeVoxelFrames, demoSnapshot,
     demoSnapshots, demoTick, demoViewFlags, eraserEnabled, heatDeaths, modelViewMode,
     onAnalysisUtilitySelect, onBrushChange, onCollabEdit,
     onDemoCameraInterrupt, onDemoGrenadeSelect, onGrenadeWheel, onModelLoadState,
@@ -38,6 +38,7 @@ export default function useThreeBoardRuntimeRefs(props) {
     demoGrenadesRef: useRef(demoGrenades),
     demoProjectilesRef: useRef(demoProjectiles),
     demoSmokeVoxelFramesRef: useRef(demoSmokeVoxelFrames || []),
+    demoInfernoFramesRef: useRef(demoInfernoFrames || []),
     demoGrenadeSegmentsRef: useRef(demoGrenadeSegments || []),
     demoSourceRef: useRef(demoSource || demoFrameSourceRuntime.current),
     demoGrenadeSelectRef: useRef(onDemoGrenadeSelect),
@@ -95,6 +96,7 @@ export default function useThreeBoardRuntimeRefs(props) {
   refs.demoGrenadesRef.current = demoGrenades;
   refs.demoProjectilesRef.current = demoProjectiles;
   refs.demoSmokeVoxelFramesRef.current = demoSmokeVoxelFrames || [];
+  refs.demoInfernoFramesRef.current = demoInfernoFrames || [];
   refs.demoGrenadeSegmentsRef.current = demoGrenadeSegments || [];
   refs.demoSourceRef.current = demoSource || demoFrameSourceRuntime.current;
   refs.demoGrenadeSelectRef.current = onDemoGrenadeSelect;

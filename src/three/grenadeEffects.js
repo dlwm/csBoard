@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { createFallbackSmokeVolume, SMOKE_VOLUME_SCALE } from './smokeVoxelVolume.js';
-
-const MAP_SCALE = 0.0254;
+import { createDefaultInfernoEffect, rebuildDefaultInfernoEffect } from './infernoEffect.js';
 
 export function createGrenadeEffect(position, type, navData, nav) {
   if (type === 'smoke') return createFallbackSmokeVolume(position);
+  if (type === 'fire') return createDefaultInfernoEffect(position, nav);
   const group = new THREE.Group();
   const smokeMaterial = new THREE.MeshStandardMaterial({ color: '#202832', roughness: 1, metalness: 0, transparent: true, opacity: 0.38, depthWrite: false, flatShading: true });
   const addPulseRing = (radius, color, opacity = 0.7) => {
@@ -14,23 +14,7 @@ export function createGrenadeEffect(position, type, navData, nav) {
     group.add(ring);
     return ring;
   };
-  if (type === 'fire') {
-    if (navData && nav) group.add(createFireNavEffect(position, navData, nav, 1.35));
-    else {
-      const fire = new THREE.Mesh(new THREE.CircleGeometry(3, 48), new THREE.MeshBasicMaterial({ color: '#ff3b18', transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide }));
-      fire.rotation.x = -Math.PI / 2;
-      fire.position.y = 0.012;
-      group.add(fire);
-      for (let index = 0; index < 3; index += 1) {
-        const flame = new THREE.Mesh(new THREE.CircleGeometry(2 - index * 0.35, 32), new THREE.MeshBasicMaterial({ color: index === 2 ? '#fff06a' : index === 1 ? '#ff8a17' : '#ff1f12', transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide }));
-        flame.rotation.x = -Math.PI / 2;
-        flame.position.y = 0.02 + index * 0.002;
-        group.add(flame);
-      }
-    }
-    addPulseRing(2.55, '#ffad32', 0.7);
-    addPulseRing(2.9, '#ff3b18', 0.35);
-  } else if (type === 'flash') {
+  if (type === 'flash') {
     const flash = new THREE.Mesh(new THREE.IcosahedronGeometry(0.58, 2), new THREE.MeshBasicMaterial({ color: '#fffbe0', transparent: true, opacity: 0.95, depthWrite: false }));
     group.add(flash, new THREE.PointLight('#fff1a8', 5, 8));
     addPulseRing(0.85, '#fff0a0', 0.9);
@@ -83,8 +67,18 @@ export function disposeGrenadeEffect(effect) {
 export function setGrenadeEffectRange(effect, type, range) {
   const safeRange = Math.max(0.35, Number(range) || 1);
   if (type === 'smoke') effect.scale.setScalar(SMOKE_VOLUME_SCALE * safeRange);
-  else effect.scale.set(safeRange, 1, safeRange);
+  else if (type === 'fire' && effect.userData.defaultInfernoEffect) {
+    const renderedRange = effect.userData.renderedGrenadeRange || 1;
+    effect.scale.set(safeRange / renderedRange, 1, safeRange / renderedRange);
+  } else effect.scale.set(safeRange, 1, safeRange);
   effect.userData.grenadeRange = safeRange;
+}
+
+// Expensive ground projection is intentionally deferred until range dragging
+// finishes; other grenade effects need no geometry rebuild.
+export function rebuildGrenadeEffect(effect, type, nav) {
+  if (type === 'fire') return rebuildDefaultInfernoEffect(effect, nav);
+  return false;
 }
 
 export function grenadeTypeFromPointer(pointer) {
@@ -93,45 +87,4 @@ export function grenadeTypeFromPointer(pointer) {
   if (angle >= -Math.PI * 0.25 && angle < Math.PI * 0.25) return 'fire';
   if (angle >= -Math.PI * 0.75 && angle < -Math.PI * 0.25) return 'flash';
   return 'explosion';
-}
-
-export function createFireNavEffect(position, navData, nav, range = 1) {
-  const areas = Object.values(navData.areas);
-  const toWorld = (point) => new THREE.Vector3(point.y * MAP_SCALE, point.z * MAP_SCALE, point.x * MAP_SCALE).add(nav.group.position);
-  const areaInfo = areas.map((area) => {
-    const corners = area.corners.map(toWorld);
-    const center = corners.reduce((sum, corner) => sum.add(corner), new THREE.Vector3()).multiplyScalar(1 / corners.length);
-    return { area, corners, center, height: center.y };
-  });
-  const start = areaInfo.sort((left, right) => left.center.distanceToSquared(position) - right.center.distanceToSquared(position))[0];
-  const visited = new Set();
-  const queue = start ? [start] : [];
-  const startHeight = start?.height ?? position.y;
-  const group = new THREE.Group();
-  while (queue.length) {
-    const current = queue.shift();
-    if (!current || visited.has(current.area.area_id)) continue;
-    visited.add(current.area.area_id);
-    if (current.height > startHeight + 0.08 || current.center.distanceTo(position) > 3.4 * range) continue;
-    const vertices = [];
-    for (let index = 1; index < current.corners.length - 1; index += 1) {
-      [current.corners[0], current.corners[index], current.corners[index + 1]].forEach((corner) => vertices.push(corner.x - position.x, corner.y - position.y + 0.035, corner.z - position.z));
-    }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-     group.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: '#ff4b18', transparent: true, opacity: 0.5, depthTest: true, depthWrite: false, side: THREE.DoubleSide })));
-    current.area.connections.forEach((connection) => {
-      const next = areaInfo.find((item) => item.area.area_id === connection);
-      if (next && !visited.has(next.area.area_id)) queue.push(next);
-    });
-  }
-  group.traverse((object) => {
-    object.renderOrder = 5;
-    if (object.material) {
-       object.material.depthTest = true;
-      object.material.depthWrite = false;
-    }
-  });
-  group.userData.fireNav = true;
-  return group;
 }

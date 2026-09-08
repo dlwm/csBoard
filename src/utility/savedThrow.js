@@ -1,4 +1,5 @@
 import { utilityReplayStart } from '../demo/grenades.js';
+import { effectEndTick } from '../demo/effectLifetime.js';
 
 // Convert one parsed projectile segment into the portable utility-note schema.
 export function buildSavedThrowNote({ mapName, segment, source = {}, unknownLabel = 'Unknown' }) {
@@ -34,7 +35,11 @@ export function buildSavedThrowNote({ mapName, segment, source = {}, unknownLabe
   if (Number.isFinite(Number(segment.landing?.entityid))) entityIds.add(Number(segment.landing.entityid));
   // Generic segments end shortly after detonation. Smoke needs one full second
   // to reach the same calibrated size used by Demo playback and collaboration.
-  const replayEndTick = segment.kind === 'smoke' ? Math.max(segment.endTick, segment.effectTick + tickRate) : segment.endTick;
+  const replayEndTick = segment.kind === 'smoke'
+    ? Math.max(segment.endTick, segment.effectTick + tickRate)
+    : segment.kind === 'fire'
+      ? Math.max(segment.endTick, effectEndTick(segment.landing, []))
+      : segment.endTick;
   const smokeVoxelFrames = segment.kind === 'smoke' ? (source.smokeVoxelFrames || []).filter((frame) => (
     entityIds.has(Number(frame.entityId)) && frame.tick >= replayStartTick && frame.tick <= replayEndTick
   )).map((frame) => ({
@@ -42,6 +47,13 @@ export function buildSavedThrowNote({ mapName, segment, source = {}, unknownLabe
     tick: frame.tick - replayStartTick,
     // Utility notes are JSON-backed, so preserve packed voxel values as a plain array.
     voxels: Array.from(frame.voxels || []),
+  })) : [];
+  const infernoFrames = segment.kind === 'fire' ? (source.infernoFrames || []).filter((frame) => (
+    entityIds.has(Number(frame.entityId)) && frame.tick >= replayStartTick && frame.tick <= replayEndTick
+  )).map((frame) => ({
+    ...frame,
+    tick: frame.tick - replayStartTick,
+    cells: Array.from(frame.cells || []),
   })) : [];
   const replay = {
     tickRate,
@@ -51,6 +63,7 @@ export function buildSavedThrowNote({ mapName, segment, source = {}, unknownLabe
     snapshots: replaySnapshots,
     projectiles: segment.projectiles.map((record) => ({ tick: record.tick - replayStartTick, entity_id: record.entity_id, grenade_type: record.grenade_type, initialVelocity: record.initial_velocity ?? null, x: record.x, y: record.y, z: record.z })),
     smokeVoxelFrames,
+    infernoFrames,
     events: [{ event_name: 'grenade_thrown', tick: segment.throwTick - replayStartTick, weapon: segment.throwEvent.weapon, user_name: throwerName, user_steamid: segment.throwEvent.user_steamid, user_X: segment.throwEvent.user_X, user_Y: segment.throwEvent.user_Y, user_Z: segment.throwEvent.user_Z }, ...(segment.landing ? [{ event_name: segment.landing.event_name, tick: segment.effectTick - replayStartTick, entityid: segment.landing.entityid, user_steamid: segment.landing.user_steamid, x: segment.landing.x, y: segment.landing.y, z: segment.landing.z }] : [])],
   };
   return { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, position: position.map(Number), angles, name: `${throwerName} · ${segment.kind.toUpperCase()}`, summary: behaviorText, source: 'demo', grenadeType: segment.kind, thrower: throwerName, startPlace, throwPlace, demoSource: { fileName: source.fileName || 'Demo', round: source.round || null, tick: segment.throwTick, map: mapName }, behavior, replay, createdAt: new Date().toISOString() };

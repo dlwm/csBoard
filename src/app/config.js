@@ -3,9 +3,15 @@ import { TUTORIAL_MAP_ID } from '../three/tutorialMap.js';
 const OSS_BASE = String(import.meta.env.VITE_OSS_BASE_URL || '').replace(/\/$/, '');
 const BACKEND_BASE = String(import.meta.env.VITE_BACKEND_BASE_URL || '').replace(/\/$/, '');
 const USE_LOCAL_MAPS = import.meta.env.DEV || import.meta.env.VITE_USE_LOCAL_MAPS === 'true';
+const IS_DESKTOP_RUNTIME = navigator.userAgent.includes('Electron/');
 
 export const IS_DEVELOPMENT_RUNTIME = import.meta.env.DEV || ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
 export const MAP_BASE = USE_LOCAL_MAPS || !OSS_BASE ? '/maps' : `${OSS_BASE}/maps`;
+// Desktop first streams GLBs bundled under resources/maps. An absent or broken
+// packaged file falls through to the public OSS URL embedded by Vite.
+export const MAP_MODEL_BASES = IS_DESKTOP_RUNTIME
+  ? [`${location.origin}/maps`, ...(OSS_BASE ? [`${OSS_BASE}/maps`] : [])]
+  : [MAP_BASE];
 export const BUILD_VERSION = String(import.meta.env.VITE_BUILD_VERSION || '').trim();
 
 export const VIEW_PREFERENCES_KEY = 'csboard-view-preferences';

@@ -4,6 +4,17 @@ import { effectEndTick, isEffectStartEvent } from '../demo/effectLifetime.js';
 import { createGrenadeEffect, disposeGrenadeEffect } from './grenadeEffects.js';
 import { enableObjectFloorFade } from './floorFade.js';
 import { createSmokeVoxelVolume, SMOKE_VOLUME_SCALE } from './smokeVoxelVolume.js';
+import { createInfernoEffect, updateInfernoEffect } from './infernoEffect.js';
+
+// CInferno is created after the projectile lands and therefore has a different
+// entity id. The shared start-burn event is the stable bridge back to its throw.
+export function findInfernoSegment(segments, entityId, startEvent) {
+  const matchesEntity = (value) => value != null && entityId != null && Number(value) === Number(entityId);
+  return segments.find((segment) => matchesEntity(segment.landing?.entityid))
+    || segments.find((segment) => segment.landing === startEvent)
+    || segments.find((segment) => startEvent && segment.kind === 'fire' && segment.effectTick === startEvent.tick)
+    || segments.find((segment) => matchesEntity(segment.entityId));
+}
 
 export default function createDemoGrenadeSceneController({ scene, navData, refs, floorFadeRef, getModelCenter, getNav }) {
   const objects = new Map();
@@ -14,11 +25,16 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
     const segments = refs.segments.current;
     const grenadeEvents = refs.grenades.current;
     const smokeVoxelFrames = refs.smokeVoxelFrames.current;
+    const infernoFrames = refs.infernoFrames.current;
     const modelCenter = getModelCenter();
     const nav = getNav();
     const latestSmokeFrames = new Map();
+    const latestInfernoFrames = new Map();
     smokeVoxelFrames.forEach((frame) => {
       if (frame.tick <= tick) latestSmokeFrames.set(frame.entityId, frame);
+    });
+    infernoFrames.forEach((frame) => {
+      if (frame.tick <= tick) latestInfernoFrames.set(frame.entityId, frame);
     });
     latestSmokeFrames.forEach((frame, entityId) => {
       const detonation = grenadeEvents.findLast((event) => {
@@ -44,6 +60,26 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       // Scale the complete volume around its detonation origin so voxel size,
       // spacing, and the outer silhouette all remain in the same proportion.
       smoke.scale.setScalar((0.18 + growth * 0.82) * SMOKE_VOLUME_SCALE);
+    });
+    latestInfernoFrames.forEach((frame, entityId) => {
+      const start = grenadeEvents.findLast((event) => event.event_name === 'inferno_startburn'
+        && event.tick <= tick && Number(event.entityid) === Number(entityId));
+      const endTick = start ? effectEndTick(start, grenadeEvents) : frame.tick + Math.max(1, frame.lifetime || 7) * 64;
+      if (tick > endTick || !frame.cells?.length) return;
+      const key = `inferno-cells-${entityId}`;
+      active.add(key);
+      let fire = objects.get(key);
+      if (!fire || fire.userData.infernoSeq !== frame.seq || fire.userData.infernoCellCount !== frame.cells.length / 6) {
+        if (fire) { scene.remove(fire); disposeGrenadeEffect(fire); }
+        fire = createInfernoEffect(frame, modelCenter, nav);
+        enableObjectFloorFade(fire, floorFadeRef.current);
+        scene.add(fire);
+        objects.set(key, fire);
+      }
+      // The start-burn event may arrive after the first entity frame; keep
+      // backfilling the association instead of relying on creation order.
+      fire.userData.demoGrenadeSegmentId ||= findInfernoSegment(segments, entityId, start)?.id;
+      updateInfernoEffect(fire, tick);
     });
     refs.projectileGroups.current.forEach((records, groupKey) => {
       const entityId = records[0].entity_id;
@@ -113,6 +149,8 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
         frame.tick >= event.tick && ((event.entityid != null && Number(event.entityid) === Number(entityId))
         || ((event.x - frame.origin[0]) ** 2 + (event.y - frame.origin[1]) ** 2 + (event.z - frame.origin[2]) ** 2 < 128 ** 2))
       ))) return;
+      // Recorded CInferno cells supersede the NAV-derived approximation.
+      if (event.event_name === 'inferno_startburn' && [...latestInfernoFrames.keys()].some((entityId) => Number(event.entityid) === Number(entityId))) return;
       const key = `${event.event_name}-${event.tick}-${event.entityid || event.user_steamid}`;
       active.add(key);
       let effect = objects.get(key);

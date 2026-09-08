@@ -9,7 +9,7 @@ import { createTutorialMap, TUTORIAL_MAP_ID } from './tutorialMap.js';
 import { createGhostMaterial, enableMapSquareFade } from './materials.js';
 import { createTacticalPoint, updateTacticalPoint } from './tacticalPoint.js';
 import { createCollabPlayer, randomPlayerName, renameCollabPlayer, setCollabPlayerCrouch, setCollabPlayerPitch, setCollabPlayerTeam, updateCollabPlayerAim } from './collabPlayer.js';
-import { createFireNavEffect, createGrenadeEffect, disposeGrenadeEffect, grenadeTypeFromPointer, setGrenadeEffectRange } from './grenadeEffects.js';
+import { createGrenadeEffect, disposeGrenadeEffect, grenadeTypeFromPointer, rebuildGrenadeEffect, setGrenadeEffectRange } from './grenadeEffects.js';
 import { cs2AnglesToSceneDirection } from '../demo/interpolation.js';
 import { grenadeKind, groupDemoProjectiles } from '../demo/grenades.js';
 import { effectEndTick, isEffectStartEvent } from '../demo/effectLifetime.js';
@@ -29,8 +29,9 @@ import createCollabUtilitySceneController from './collabUtilitySceneController.j
 import createDemoPlayerSceneUpdater from './demoPlayerSceneUpdater.js';
 import useThreeBoardRuntimeRefs from './useThreeBoardRuntimeRefs.js';
 import { createBrushLine, disposeBrushLine, serializeBrushLine, updateBrushLine } from './brushStroke.js';
-import { ANALYSIS_HEAT_DATA_EVENT, loadViewPreferences, MAP_BASE, MAP_ZONE_MODELS_ENABLED, MODEL_VIEW_RANGE_EVENT, NAV_TOP_CAMERA_TARGET_MAPS } from '../app/config.js';
+import { ANALYSIS_HEAT_DATA_EVENT, loadViewPreferences, MAP_MODEL_BASES, MAP_ZONE_MODELS_ENABLED, MODEL_VIEW_RANGE_EVENT, NAV_TOP_CAMERA_TARGET_MAPS } from '../app/config.js';
 import { buildSavedThrowNote } from '../utility/savedThrow.js';
+import { loadMapModel } from './mapModelLoader.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -44,7 +45,7 @@ export default function ThreeBoard(props) {
     edgesRef, modelModeRef, modelRangeRef, navFocusRef, navGroupRef, gridRef, modelRef,
     modelBasePositionRef, modelCenterYRef, floorFadeRef, mapFloorRef, demoSnapshotRef,
     demoSnapshotsRef, demoTickRef, demoFiresRef, demoHurtsRef, demoGrenadesRef,
-    demoProjectilesRef, demoSmokeVoxelFramesRef, demoGrenadeSegmentsRef, demoSourceRef, demoGrenadeSelectRef, demoDeathsRef,
+    demoProjectilesRef, demoSmokeVoxelFramesRef, demoInfernoFramesRef, demoGrenadeSegmentsRef, demoSourceRef, demoGrenadeSelectRef, demoDeathsRef,
     demoC4EventsRef, demoHltvEventsRef, demoCameraModeRef, demoCameraInterruptRef,
     demoInEyePlayerRef, heatDeathsRef, analysisHeatDeathsRef, demoViewFlagsRef,
     showDemoNamesRef, hoveredDemoPlayerRef, utilityNotesRef, utilityNotesEnabledRef,
@@ -137,6 +138,7 @@ export default function ThreeBoard(props) {
       refs: {
         projectileGroups: demoProjectileGroupsRef,
         smokeVoxelFrames: demoSmokeVoxelFramesRef,
+        infernoFrames: demoInfernoFramesRef,
         grenades: demoGrenadesRef,
         segments: demoGrenadeSegmentsRef,
         tick: demoTickRef,
@@ -693,8 +695,9 @@ export default function ThreeBoard(props) {
           if (tick < event.tick || tick > effectEndTick(event, demoGrenadesRef.current) || x == null || y == null || z == null) return;
           const type = event.event_name === 'smokegrenade_detonate' ? 'smoke' : event.event_name === 'inferno_startburn' ? 'fire' : event.event_name === 'flashbang_detonate' ? 'flash' : event.event_name === 'decoy_started' ? 'decoy' : 'explosion';
           const segment = demoGrenadeSegmentsRef.current.find((candidate) => candidate.landing === event || (candidate.effectTick === event.tick && grenadeKind(candidate.kind) === grenadeKind(type) && (event.entityid == null || Number(candidate.entityId) === Number(event.entityid))));
-          const source = { ...demoSourceRef.current, smokeVoxelFrames: demoSmokeVoxelFramesRef.current.filter((frame) => frame.tick <= tick) };
+          const source = { ...demoSourceRef.current, smokeVoxelFrames: demoSmokeVoxelFramesRef.current.filter((frame) => frame.tick <= tick), infernoFrames: demoInfernoFramesRef.current.filter((frame) => frame.tick <= tick) };
           const fallbackSmokeFrames = type === 'smoke' ? source.smokeVoxelFrames.filter((frame) => event.entityid != null && Number(frame.entityId) === Number(event.entityid)) : [];
+          const fallbackInfernoFrames = type === 'fire' ? source.infernoFrames.filter((frame) => event.entityid != null && Number(frame.entityId) === Number(event.entityid)) : [];
           const note = segment ? buildSavedThrowNote({ mapName, segment, source, unknownLabel: 'Unknown' }) : {
             mapName,
             position: [x, y, z],
@@ -703,7 +706,7 @@ export default function ThreeBoard(props) {
             thrower: event.user_name || '',
             source: 'demo',
             demoSource: { fileName: source.fileName || 'Demo', round: source.round || null, tick: event.tick, map: mapName },
-            replay: { tickRate: source.tickRate || 64, throwTick: 0, effectTick: 0, endTick: 0, snapshots: [], projectiles: [], smokeVoxelFrames: fallbackSmokeFrames, events: [{ ...event, tick: 0 }] },
+            replay: { tickRate: source.tickRate || 64, throwTick: 0, effectTick: 0, endTick: 0, snapshots: [], projectiles: [], smokeVoxelFrames: fallbackSmokeFrames, infernoFrames: fallbackInfernoFrames, events: [{ ...event, tick: 0 }] },
             createdAt: new Date().toISOString(),
           };
           const anonymous = collabUtilityScene.serializeAnonymous(note, `demo-utility-${event.event_name}-${event.tick}-${event.entityid || event.user_steamid || collabUtilities.length}`);
@@ -930,8 +933,9 @@ export default function ThreeBoard(props) {
         let demoGrenadeOwner = demoGrenadeHit?.object;
         while (demoGrenadeOwner && !demoGrenadeOwner.userData.demoGrenadeSegmentId) demoGrenadeOwner = demoGrenadeOwner.parent;
         if (demoGrenadeOwner) {
-          const worldPosition = demoGrenadeOwner.getWorldPosition(new THREE.Vector3());
-          const projected = worldPosition.project(camera);
+          // Inferno's merged geometry uses absolute projected vertices while its
+          // owner group stays at the scene origin, so anchor actions to the hit.
+          const projected = demoGrenadeHit.point.clone().project(camera);
           demoGrenadeSelectRef.current?.(demoGrenadeOwner.userData.demoGrenadeSegmentId, { x: (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth, y: (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight });
           return;
         }
@@ -1085,13 +1089,6 @@ export default function ThreeBoard(props) {
         activeGrenade.position.set(grenadeAdjustOrigin.x, grenadeAdjustOrigin.y + height, grenadeAdjustOrigin.z);
         setGrenadeEffectRange(activeGrenade, activeType, range);
         if (activeGrenade.userData.aimTarget) activeGrenade.userData.aimTarget.scale.set(1 / range, 1, 1 / range);
-        if (activeType === 'fire' && navData && nav) {
-          const oldFire = activeGrenade.children.find((child) => child.userData.fireNav);
-          if (oldFire) { activeGrenade.remove(oldFire); disposeGrenadeEffect(oldFire); }
-          const fireNav = createFireNavEffect(grenadeAdjustOrigin, navData, nav, range);
-          fireNav.scale.set(1 / range, 1, 1 / range);
-          activeGrenade.add(fireNav);
-        }
         return;
       }
       if (grenadeWheelOpen && grenadeOrigin && grenadeStartPointer) {
@@ -1189,6 +1186,7 @@ export default function ThreeBoard(props) {
         return;
       }
       if (event.button === 0 && grenadeAdjusting) {
+        rebuildGrenadeEffect(activeGrenade, activeGrenade?.userData.grenadeEffect, nav);
         grenadeAdjusting = false;
         if (grenadeAdjustSnapshot) pushCollabHistory(grenadeAdjustSnapshot);
         grenadeAdjustSnapshot = null;
@@ -1230,6 +1228,7 @@ export default function ThreeBoard(props) {
     const cancelPointerInteraction = () => {
       cameraInput.endPan();
       pressedKeys.clear();
+      if (grenadeAdjusting) rebuildGrenadeEffect(activeGrenade, activeGrenade?.userData.grenadeEffect, nav);
       grenadeAdjusting = false;
       pointPointerTarget = null;
       pointPointerSnapshot = null;
@@ -1327,7 +1326,7 @@ export default function ThreeBoard(props) {
       });
       scene.add(worldModel);
       if (MAP_ZONE_MODELS_ENABLED && mapName !== TUTORIAL_MAP_ID) {
-        new GLTFLoader().load(`${MAP_BASE}/${mapName}/${mapName}.zones.glb`, (gltf) => {
+        loadMapModel(new GLTFLoader(), MAP_MODEL_BASES, `${mapName}/${mapName}.zones.glb`, (gltf) => {
           if (disposed || !worldModel) return;
           const zones = createZoneModel(gltf.scene, mapName);
           if (zones.children.length) {
@@ -1348,7 +1347,7 @@ export default function ThreeBoard(props) {
       modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
     };
     if (mapName === TUTORIAL_MAP_ID) loadWorldModel(createTutorialMap());
-    else new GLTFLoader().load(`${MAP_BASE}/${mapName}/${mapName}.glb`, (gltf) => loadWorldModel(gltf.scene), (event) => {
+    else loadMapModel(new GLTFLoader(), MAP_MODEL_BASES, `${mapName}/${mapName}.glb`, (gltf) => loadWorldModel(gltf.scene), (event) => {
       if (disposed) return;
       const now = performance.now();
       if (now - lastModelProgressAt < 80 && (!event.total || event.loaded < event.total)) return;
@@ -1377,6 +1376,8 @@ export default function ThreeBoard(props) {
          const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
          onReady({ reset: () => resetToDefault(normalReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
       }
+    }, ({ failedUrl, nextBase }) => {
+      console.info(`${mapName} packaged model unavailable at ${failedUrl}; trying ${nextBase}.`);
     });
     controls.target.set(0, 0, 0);
     controls.update();

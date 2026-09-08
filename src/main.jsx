@@ -44,9 +44,11 @@ import { RenamePointModal, SaveAnonymousUtilityModal, SaveArchiveModal, UtilityN
 import ViewTools from './components/ViewTools.jsx';
 import { stableHash, stableSerialize } from './utils/stableValue.js';
 import { emptyWorkspace, frameWorkspace, normalizeCollabWorkspace, normalizeFrames } from './collaboration/workspace.js';
+import { registerCsboardTools } from './webmcp/registerCsboardTools.js';
+import { getAnalysisModelContext, getFilteredAnalysisData } from './analysis/modelAccess.js';
 
 const UTILITY_NOTES_VERSION = 3;
-const DEMO_CACHE_SCHEMA_VERSION = 28;
+const DEMO_CACHE_SCHEMA_VERSION = 29;
 
 
 function App() {
@@ -103,6 +105,7 @@ function App() {
   const [demoThrowSnapshots, setDemoThrowSnapshots] = useState([]);
   const [demoProjectiles, setDemoProjectiles] = useState([]);
   const [demoSmokeVoxelFrames, setDemoSmokeVoxelFrames] = useState([]);
+  const [demoInfernoFrames, setDemoInfernoFrames] = useState([]);
   const [demoRound, setDemoRound] = useState(null);
   const [demoRoundMenuOpen, setDemoRoundMenuOpen] = useState(false);
   const [demoCameraMode, setDemoCameraMode] = useState('manual');
@@ -432,6 +435,7 @@ function App() {
     setDemoThrowSnapshots([]);
     setDemoProjectiles([]);
     setDemoSmokeVoxelFrames([]);
+    setDemoInfernoFrames([]);
     setDemoRoundLoading(false);
     setDemoPlaying(false);
     activeDemoCacheIdRef.current = cacheId || '';
@@ -601,7 +605,7 @@ function App() {
     if (!anonymousUtilitySave?.sourceNote || !name || !summary) return;
     const now = new Date().toISOString();
     const sourceNote = anonymousUtilitySave.sourceNote;
-    const note = { ...sourceNote, id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, name, summary, source: 'demo', replay: { ...(sourceNote.replay || {}), projectiles: anonymousUtilitySave.projectiles || [], smokeVoxelFrames: anonymousUtilitySave.smokeVoxelFrame ? [anonymousUtilitySave.smokeVoxelFrame] : [] }, createdAt: sourceNote.createdAt || now, updatedAt: now };
+    const note = { ...sourceNote, id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, name, summary, source: 'demo', replay: { ...(sourceNote.replay || {}), projectiles: anonymousUtilitySave.projectiles || [], smokeVoxelFrames: anonymousUtilitySave.smokeVoxelFrame ? [anonymousUtilitySave.smokeVoxelFrame] : [], infernoFrames: anonymousUtilitySave.infernoFrame ? [anonymousUtilitySave.infernoFrame] : [] }, createdAt: sourceNote.createdAt || now, updatedAt: now };
     if (!persistUtilityNotes([...utilityNotes, note])) { setAnonymousUtilityError(t('utilityStorageFailed')); return; }
     boardRef.current?.promoteCollabUtility?.(anonymousUtilitySave.id, note);
     saveActiveFrame();
@@ -1110,7 +1114,7 @@ function App() {
     setSelectedAnalysisUtility(null);
     setSelectedAnalysisUtilityScreen(null);
   };
-  const saveDemoGrenade = () => saveGrenadeSegment(selectedDemoGrenade, { fileName: demoData?.demo.fileName, round: demoRound?.round, tickRate: demoData?.demo.tickRate || 64, smokeVoxelFrames: demoSmokeVoxelFrames });
+  const saveDemoGrenade = () => saveGrenadeSegment(selectedDemoGrenade, { fileName: demoData?.demo.fileName, round: demoRound?.round, tickRate: demoData?.demo.tickRate || 64, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames });
   const saveAnalysisUtility = () => saveGrenadeSegment(selectedAnalysisUtility?.segment, selectedAnalysisUtility?.source);
   const playUtilityReplay = (note, firstPerson = false) => {
     if (!note.replay) return;
@@ -1255,12 +1259,14 @@ function App() {
     setDemoRoundLoading(true);
     setDemoPlaying(false);
     setDemoSmokeVoxelFrames([]);
+    setDemoInfernoFrames([]);
     getCachedDemoRound(activeDemoCacheIdRef.current, demoRound.round).then((cached) => {
       if (cancelled) return;
       setDemoSnapshots(cached?.snapshots || []);
       setDemoThrowSnapshots(cached?.throwSnapshots || []);
       setDemoProjectiles(cached?.projectiles || []);
       setDemoSmokeVoxelFrames(cached?.smokeVoxelFrames || []);
+      setDemoInfernoFrames(cached?.infernoFrames || []);
       setDemoRoundLoading(false);
     }).catch(() => { if (!cancelled) setDemoRoundLoading(false); });
     return () => { cancelled = true; };
@@ -1301,6 +1307,101 @@ function App() {
     window.addEventListener('keydown', onDemoKeyDown, true);
     return () => window.removeEventListener('keydown', onDemoKeyDown, true);
   }, [activeFrameId, activePanel, analysisDuration, analysisRows.length, analysisSelectedPlayers.length, demoData, demoRound, demoRoundLoading, demoViewFlags.analysisMetric, frames, hasActiveFrameContext]);
+  const webMcpRuntimeRef = useRef(null);
+  webMcpRuntimeRef.current = {
+    activePanel, analysisSelectedPlayers, analysisSelectedDemos: selectedAnalysisDemos, analysisPlayersLoading, analysisRows,
+    analysisSide, analysisStatus, combinedAnalysis, demoData, demoRound, demoRoundLoading, demoTick,
+    demoViewFlags, language,
+    hasActiveFrameContext, mapName, modelLoadState, roomCode, utilityNoteCount: currentUtilityNotes.length,
+    resetCamera: () => {
+      if (!boardRef.current?.reset) return false;
+      boardRef.current.reset();
+      return true;
+    },
+    selectMap: setMapName,
+    selectPanel: switchPanel,
+    selectRound: setDemoRound,
+    setDemoPlaying,
+    setDemoTick,
+  };
+  useEffect(() => registerCsboardTools({
+    maps: MAPS,
+    getAnalysisContext: () => {
+      const state = webMcpRuntimeRef.current;
+      return getAnalysisModelContext({
+        activePanel: state.activePanel, mapName: state.mapName, language: state.language,
+        playersLoading: state.analysisPlayersLoading, status: state.analysisStatus,
+        selectedPlayers: state.analysisSelectedPlayers, selectedDemos: state.analysisSelectedDemos,
+        side: state.analysisSide, flags: state.demoViewFlags, rows: state.analysisRows,
+        deaths: state.combinedAnalysis.deaths, utilities: state.combinedAnalysis.utilities,
+      });
+    },
+    getFilteredAnalysisData: (request) => {
+      const state = webMcpRuntimeRef.current;
+      return getFilteredAnalysisData({
+        mapName: state.mapName, selectedPlayers: state.analysisSelectedPlayers,
+        selectedDemos: state.analysisSelectedDemos, playersLoading: state.analysisPlayersLoading,
+        side: state.analysisSide, flags: state.demoViewFlags, rows: state.analysisRows,
+        deaths: state.combinedAnalysis.deaths, utilities: state.combinedAnalysis.utilities,
+      }, request);
+    },
+    getContext: () => {
+      const state = webMcpRuntimeRef.current;
+      return {
+        map: state.mapName,
+        panel: state.activePanel,
+        model: state.modelLoadState,
+        demo: state.demoData ? {
+          fileName: state.demoData.demo.fileName,
+          round: state.demoRound?.round || null,
+          tick: state.demoTick,
+          loadingRound: state.demoRoundLoading,
+          availableRounds: state.demoData.rounds.map((round) => round.round),
+        } : null,
+        analysis: { selectedPlayers: state.analysisSelectedPlayers },
+        collaborationRoomActive: Boolean(state.roomCode),
+        utilityNoteCount: state.utilityNoteCount,
+      };
+    },
+    selectMap: (map) => {
+      const state = webMcpRuntimeRef.current;
+      if (!MAPS.some((candidate) => candidate.id === map)) throw new Error(`Unsupported map: ${map}`);
+      if (map !== state.mapName && state.activePanel === 'collab' && state.hasActiveFrameContext) {
+        throw new Error('Switch maps through the visible UI while editing a collaboration frame.');
+      }
+      state.setDemoPlaying(false);
+      state.selectMap(map);
+      return { map };
+    },
+    selectPanel: (panel) => {
+      const state = webMcpRuntimeRef.current;
+      if (!['demo', 'analysis', 'utility', 'collab'].includes(panel)) throw new Error(`Unsupported panel: ${panel}`);
+      if (state.activePanel === 'collab' && panel !== 'collab' && state.roomCode) throw new Error('Leave the active collaboration room through the visible UI first.');
+      state.selectPanel(panel);
+      return { panel };
+    },
+    selectDemoRound: (roundNumber) => {
+      const state = webMcpRuntimeRef.current;
+      if (!state.demoData) throw new Error('No parsed Demo is currently open.');
+      const round = state.demoData.rounds.find((candidate) => candidate.round === Number(roundNumber));
+      if (!round) throw new Error(`Round ${roundNumber} is not available in the current Demo.`);
+      state.selectRound(round);
+      return { round: round.round, startTick: round.startTick, endTick: round.endTick };
+    },
+    seekDemoTick: (requestedTick) => {
+      const state = webMcpRuntimeRef.current;
+      if (!state.demoData || !state.demoRound) throw new Error('Select a Demo round before seeking.');
+      if (state.demoRoundLoading) throw new Error('The selected Demo round is still loading.');
+      const tick = THREE.MathUtils.clamp(Number(requestedTick), state.demoRound.startTick, state.demoRound.endTick);
+      state.setDemoPlaying(false);
+      state.setDemoTick(tick);
+      return { tick, clamped: tick !== Number(requestedTick) };
+    },
+    resetCamera: () => {
+      if (!webMcpRuntimeRef.current.resetCamera()) throw new Error('The 3D board is not ready yet.');
+      return { reset: true };
+    },
+  }), []);
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('csboard-nav-visibility', { detail: showNav }));
   }, [mapName, navData, showNav]);
@@ -1332,7 +1433,7 @@ function App() {
          <DemoBatchPanel batch={demoBatch} counts={demoBatchCounts} development={IS_DEVELOPMENT_RUNTIME} language={language} onClose={clearDemoBatch} />
          {mapName === TUTORIAL_MAP_ID && <TutorialGuide language={language} open={tutorialOpen} step={tutorialStep} onOpen={() => { setTutorialStep(0); setTutorialOpen(true); }} onStep={moveTutorial} onFinish={finishTutorial} onExit={() => { finishTutorial(); setMapName('de_dust2'); }} />}
          {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><SideGameHub language={language} stopped={!parseGameManual && parseGameState === 'stopped'} manual={parseGameManual} onClose={() => { setParseGameDismissed(true); setParseGameManual(false); setParseGameState('hidden'); }} /></div>}
-        <ThreeBoard key={mapName} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={activePanel === 'demo' ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={combinedAnalysis.utilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
+        <ThreeBoard key={mapName} mapName={mapName} navData={navData} showEdges={showEdges} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={activePanel === 'demo' ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoInfernoFrames={activePanel === 'demo' ? demoInfernoFrames : utilityReplay?.note.replay.infernoFrames || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={combinedAnalysis.utilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
          {isMobile && <MobileCameraWheel slots={cameraSlotState} active={activeCameraSlot} language={language} onRestore={(slot) => boardRef.current?.restoreCameraSlot?.(slot)} onSave={(slot) => boardRef.current?.saveCameraSlot?.(slot)} onReset={() => boardRef.current?.reset?.()} />}
          <div className="stage-vignette" />
           {activePanel === 'demo' && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} />}

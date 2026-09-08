@@ -63,6 +63,9 @@ function buildRoundMetadata(entry, rounds, playerName, getRoundEconomy) {
     return [round.round, {
       // A player-specific id keeps economy and side metadata independent in multi-select mode.
       id: `${entry.id}:${round.round}:${playerName}`,
+      demoId: entry.id,
+      fileName: entry.data.demo?.fileName || entry.fileName || 'Demo',
+      roundNumber: round.round,
       playerName,
       startTick: round.startTick,
       endTick: roundEndEvent?.tick ?? round.endTick,
@@ -127,10 +130,12 @@ function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, se
         projectiles: projectilePath,
         segment,
         source: {
+          demoId: entry.id,
           fileName: entry.data.demo?.fileName || entry.fileName || 'Demo',
           round: round.round,
           tickRate: entry.data.demo?.tickRate || 64,
           smokeVoxelFrames: grenadeData.smokeVoxelFrames || [],
+          infernoFrames: grenadeData.infernoFrames || [],
         },
       });
     });
@@ -146,6 +151,8 @@ function appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer) {
     return {
       ...event,
       analysisDemoId: entry.id,
+      analysisFileName: entry.data.demo?.fileName || entry.fileName || 'Demo',
+      analysisRound: round?.round ?? null,
       analysisEconomyByPlayer: economyByPlayer,
       analysisEconomyMatchup: Object.values(economyByPlayer)[0] || 'UNKNOWN:UNKNOWN',
     };
