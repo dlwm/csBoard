@@ -17,7 +17,7 @@ let activeWeaponNamesByPart = [];
 let equippedWeaponsByPlayer = new Map();
 let currentPhase = 'idle';
 let phaseStartedAt = 0;
-const CACHE_SCHEMA_VERSION = 29;
+const CACHE_SCHEMA_VERSION = 30;
 const ACTIVE_WEAPON_HANDLE_PROP = 'CCSPlayerPawn.CCSPlayer_WeaponServices.m_hActiveWeapon';
 // Some GOTV demos retain the player controller but lose its pawn association.
 // These controller fields keep the roster/state truthful even when coordinates cannot be recovered.
@@ -128,14 +128,16 @@ function grenadeWeaponName(type = '') {
   return 'hegrenade';
 }
 
-function parsePartGrenades(part, includeHeldGrenades) {
+function parsePartGrenades(part, recoverHeldGrenades) {
   const projectiles = [];
   const smokeVoxelFrames = [];
   const infernoFrames = [];
   const latestInfernoByEntity = new Map();
   const throwStates = new Map();
   const lastProjectileByEntity = new Map();
-  for (const value of parseGrenades(part, GRENADE_ENTITY_PROPS, includeHeldGrenades) || []) {
+  // CInferno is a non-projectile world entity. Always request this class; the
+  // patched parser already collapses held weapons to changed throw-time rows.
+  for (const value of parseGrenades(part, GRENADE_ENTITY_PROPS, true) || []) {
     const row = toPlainObject(value);
     const readProp = (name) => row[name] ?? row[`Grenade.${name}`];
     if (String(row.grenade_type || '').includes('Inferno')) {
@@ -158,7 +160,7 @@ function parsePartGrenades(part, includeHeldGrenades) {
       }
       continue;
     }
-    if (!includeHeldGrenades || !(Number(readProp('m_fThrowTime')) > 0)) continue;
+    if (!recoverHeldGrenades || !(Number(readProp('m_fThrowTime')) > 0)) continue;
     const steamid = String(row.thrower_steamid ?? row.steamid ?? '');
     throwStates.set(`${row.tick}:${steamid}:${grenadeWeaponName(row.grenade_type)}`, { strength: readProp('m_flThrowStrength'), jumpThrow: readProp('m_bJumpThrow'), throwTime: readProp('m_fThrowTime') });
   }

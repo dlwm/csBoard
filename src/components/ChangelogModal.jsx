@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import changelogEn from '../../CHANGELOG.md?raw';
+import changelogRu from '../../docs/CHANGELOG.ru-RU.md?raw';
 import changelogZh from '../../docs/CHANGELOG.zh-CN.md?raw';
 import { localize } from '../i18n.js';
 
@@ -22,7 +23,7 @@ function renderChangelog(source) {
   const blocks = [];
   for (let index = 0; index < lines.length;) {
     const line = lines[index].trim();
-    if (!line || line === '# Changelog' || /^\[(中文|English)\]\(/.test(line)) { index += 1; continue; }
+    if (!line || /^#\s+/.test(line) || /^(?:\[[^\]]+\]\([^)]+\)(?:\s*·\s*)?)+$/.test(line)) { index += 1; continue; }
     const heading = line.match(/^(#{2,4})\s+(.+)$/);
     if (heading) {
       const Tag = heading[1].length === 2 ? 'h2' : heading[1].length === 3 ? 'h3' : 'h4';
@@ -61,10 +62,12 @@ export default function ChangelogModal({ buildVersion, language, onClose }) {
 
   const title = localize(language, { zh: '更新日志', en: 'Changelog', ru: 'Список изменений' });
   const closeLabel = localize(language, { zh: '关闭更新日志', en: 'Close changelog', ru: 'Закрыть список изменений' });
+  const licenseLabel = localize(language, { zh: 'GNU GPL v3.0 许可证', en: 'GNU GPL v3.0 License', ru: 'Лицензия GNU GPL v3.0' });
   return <div className="changelog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <article className="changelog-dialog" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
       <header><div><span>{buildVersion}</span><h2 id="changelog-title">{title}</h2></div><button type="button" aria-label={closeLabel} title={closeLabel} onClick={onClose}>×</button></header>
-      <div className="changelog-content">{renderChangelog(language === 'zh' ? changelogZh : changelogEn)}</div>
+      <div className="changelog-content">{renderChangelog(language === 'zh' ? changelogZh : language === 'ru' ? changelogRu : changelogEn)}</div>
+      <footer>Copyright © 2026 Colvin Chen · <a href="./LICENSE" target="_blank" rel="noreferrer">{licenseLabel}</a></footer>
     </article>
   </div>;
 }

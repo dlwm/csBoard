@@ -18,9 +18,14 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: 'strip-maps-public-assets',
+      name: 'finalize-public-assets',
       closeBundle() {
         fs.rmSync(path.join(projectRoot, 'dist', 'maps'), { recursive: true, force: true });
+        // Keep the GPL terms reachable from every web and desktop build rather
+        // than relying on repository-only documentation.
+        for (const file of ['LICENSE', 'LICENSE_SCOPE.md']) {
+          fs.copyFileSync(path.join(projectRoot, file), path.join(projectRoot, 'dist', file));
+        }
       },
     },
   ],

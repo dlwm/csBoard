@@ -11,12 +11,15 @@ export const DEFAULT_UTILITY_NOTES = collectDefaultRecords(defaultUtilityNoteMod
 export const DEFAULT_WORKSPACE_ARCHIVES = collectDefaultRecords(defaultWorkspaceArchiveModules, 'archives');
 
 // Seed defaults once, while keeping malformed or unavailable browser storage non-fatal.
-export function initialLocalRecords(storageKey, defaults) {
-  const stored = localStorage.getItem(storageKey);
+export function initialLocalRecords(storageKey, defaults, persistDefaults = true) {
+  let stored = null;
+  try { stored = localStorage.getItem(storageKey); } catch { /* Fall through to bundled defaults. */ }
   if (stored !== null) {
     try { const parsed = JSON.parse(stored); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
   }
   const initial = JSON.parse(JSON.stringify(defaults));
-  try { localStorage.setItem(storageKey, JSON.stringify(initial)); } catch { /* Defaults remain available for this session. */ }
+  if (persistDefaults) {
+    try { localStorage.setItem(storageKey, JSON.stringify(initial)); } catch { /* Defaults remain available for this session. */ }
+  }
   return initial;
 }

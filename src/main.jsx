@@ -31,6 +31,14 @@ import { RawIcon, SideLogo } from './components/CsIcons.jsx';
 import { DemoDataWarning, DemoKillFeed, DemoPovHud, DemoRoster } from './demo/DemoHud.jsx';
 import { analysisUtilityRuntime, demoFrameSourceRuntime, utilityRuntime } from './three/runtime.js';
 import ThreeBoard from './three/ThreeBoard.jsx';
+// Ship the Latin display fonts with the app. Windows and offline desktop
+// builds must not depend on Google Fonts being reachable at startup.
+import '@fontsource/dm-mono/400.css';
+import '@fontsource/dm-mono/500.css';
+import '@fontsource/space-grotesk/400.css';
+import '@fontsource/space-grotesk/500.css';
+import '@fontsource/space-grotesk/600.css';
+import '@fontsource/space-grotesk/700.css';
 import './styles.css';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
@@ -44,11 +52,12 @@ import { RenamePointModal, SaveAnonymousUtilityModal, SaveArchiveModal, UtilityN
 import ViewTools from './components/ViewTools.jsx';
 import { stableHash, stableSerialize } from './utils/stableValue.js';
 import { emptyWorkspace, frameWorkspace, normalizeCollabWorkspace, normalizeFrames } from './collaboration/workspace.js';
+import { loadUtilityNotes, loadWorkspaceArchives, storeUtilityNotes, storeWorkspaceArchives } from './app/persistentStore.js';
 import { registerCsboardTools } from './webmcp/registerCsboardTools.js';
 import { getAnalysisModelContext, getFilteredAnalysisData } from './analysis/modelAccess.js';
 
 const UTILITY_NOTES_VERSION = 3;
-const DEMO_CACHE_SCHEMA_VERSION = 29;
+const DEMO_CACHE_SCHEMA_VERSION = 30;
 
 
 function App() {
@@ -225,11 +234,14 @@ function App() {
     return () => flushCollabSave();
   }, [activePanel]);
   const [utilityNotes, setUtilityNotes] = useState(() => {
-    const firstVisit = localStorage.getItem('csboard-utility-notes') === null;
-    const notes = initialLocalRecords('csboard-utility-notes', DEFAULT_UTILITY_NOTES);
-    if (firstVisit) try { localStorage.setItem('csboard-utility-notes-version', String(UTILITY_NOTES_VERSION)); } catch { /* Storage may be unavailable in private contexts. */ }
-    return notes;
+    const version = Number(localStorage.getItem('csboard-utility-notes-version') || 0);
+    const notes = initialLocalRecords('csboard-utility-notes', DEFAULT_UTILITY_NOTES, false);
+    return version >= UTILITY_NOTES_VERSION ? notes : notes.filter((note) => !note.replay);
   });
+  const utilityNotesRef = useRef(utilityNotes);
+  const utilityNotesWriteRef = useRef(Promise.resolve());
+  const utilityNotesRevisionRef = useRef(0);
+  utilityNotesRef.current = utilityNotes;
   const utilityImportInputRef = useRef(null);
   const [utilityImportNotice, setUtilityImportNotice] = useState('');
   const [utilityModalOpen, setUtilityModalOpen] = useState(false);
@@ -242,6 +254,26 @@ function App() {
   const [selectedUtilityNote, setSelectedUtilityNote] = useState(null);
   const [utilityEditDraft, setUtilityEditDraft] = useState(null);
   const [utilityCopied, setUtilityCopied] = useState(false);
+  const queueUtilityNotesWrite = (notes) => {
+    const write = utilityNotesWriteRef.current.catch(() => {}).then(() => storeUtilityNotes(notes, UTILITY_NOTES_VERSION));
+    utilityNotesWriteRef.current = write;
+    return write;
+  };
+  const persistUtilityNotes = async (notes) => {
+    utilityNotesRevisionRef.current += 1;
+    utilityNotesRef.current = notes;
+    setUtilityNotes(notes);
+    try {
+      await queueUtilityNotesWrite(notes);
+      localStorage.removeItem('csboard-utility-notes');
+      localStorage.removeItem('csboard-utility-notes-version');
+      return true;
+    } catch (error) {
+      console.error('utility notes storage', error);
+      setUtilityError(t('utilityStorageFailed'));
+      return false;
+    }
+  };
   const utilityHoverInsideRef = useRef(false);
   const utilityHoverTimerRef = useRef(null);
   const [selectedDemoGrenade, setSelectedDemoGrenade] = useState(null);
@@ -253,7 +285,13 @@ function App() {
   const analysisUtilityHoverInsideRef = useRef(false);
   const analysisUtilityHoverTimerRef = useRef(null);
   const [utilityReplay, setUtilityReplay] = useState(null);
-  const [archives, setArchives] = useState(() => initialLocalRecords('csboard-workspace-archives', DEFAULT_WORKSPACE_ARCHIVES));
+  // Read the legacy key once for migration, but never seed new workspace data
+  // into localStorage because recorded effects can exceed its small quota.
+  const [archives, setArchives] = useState(() => initialLocalRecords('csboard-workspace-archives', DEFAULT_WORKSPACE_ARCHIVES, false));
+  const archivesRef = useRef(archives);
+  const archiveWriteRef = useRef(Promise.resolve());
+  const archiveRevisionRef = useRef(0);
+  archivesRef.current = archives;
   const [activeArchiveId, setActiveArchiveId] = useState(null);
   const [frames, setFrames] = useState([]);
   const [activeFrameId, setActiveFrameId] = useState(null);
@@ -266,6 +304,77 @@ function App() {
   const [roomStatus, setRoomStatus] = useState('');
   const [roomJoinCode, setRoomJoinCode] = useState('');
   const [roomNotice, setRoomNotice] = useState('');
+  const queueWorkspaceArchiveWrite = (next) => {
+    // Preserve user action order when frame saves happen close together.
+    const write = archiveWriteRef.current.catch(() => {}).then(() => storeWorkspaceArchives(next));
+    archiveWriteRef.current = write;
+    return write;
+  };
+  const persistWorkspaceArchives = async (next) => {
+    // Update the session immediately, then confirm the durable IndexedDB write.
+    archiveRevisionRef.current += 1;
+    archivesRef.current = next;
+    setArchives(next);
+    try {
+      await queueWorkspaceArchiveWrite(next);
+      localStorage.removeItem('csboard-workspace-archives');
+      return true;
+    } catch (error) {
+      console.error('workspace archive storage', error);
+      setRoomNotice(t('utilityStorageFailed'));
+      return false;
+    }
+  };
+  useEffect(() => {
+    let cancelled = false;
+    const revisionAtStart = archiveRevisionRef.current;
+    loadWorkspaceArchives().then(async (stored) => {
+      if (cancelled) return;
+      // A save made while IndexedDB was opening is newer than the loaded data.
+      if (archiveRevisionRef.current !== revisionAtStart) {
+        await queueWorkspaceArchiveWrite(archivesRef.current);
+        try { localStorage.removeItem('csboard-workspace-archives'); } catch { /* Migration cleanup is optional. */ }
+        return;
+      }
+      if (Array.isArray(stored)) {
+        archivesRef.current = stored;
+        setArchives(stored);
+        try { localStorage.removeItem('csboard-workspace-archives'); } catch { /* Migration cleanup is optional. */ }
+        return;
+      }
+      // First IndexedDB launch: preserve all legacy archives before cleanup.
+      await queueWorkspaceArchiveWrite(archivesRef.current);
+      try { localStorage.removeItem('csboard-workspace-archives'); } catch { /* Migration cleanup is optional. */ }
+    }).catch((error) => console.error('workspace archive migration', error));
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const revisionAtStart = utilityNotesRevisionRef.current;
+    loadUtilityNotes().then(async (stored) => {
+      if (cancelled) return;
+      if (utilityNotesRevisionRef.current !== revisionAtStart) {
+        await queueUtilityNotesWrite(utilityNotesRef.current);
+      } else if (Array.isArray(stored?.notes)) {
+        const notes = Number(stored.version || 0) >= UTILITY_NOTES_VERSION
+          ? stored.notes
+          : stored.notes.filter((note) => !note.replay);
+        utilityNotesRef.current = notes;
+        setUtilityNotes(notes);
+        if (stored.version !== UTILITY_NOTES_VERSION) await queueUtilityNotesWrite(notes);
+      } else {
+        await queueUtilityNotesWrite(utilityNotesRef.current);
+      }
+      // Remove legacy large records only after their IndexedDB copy is durable.
+      localStorage.removeItem('csboard-utility-notes');
+      localStorage.removeItem('csboard-utility-notes-version');
+    }).catch((error) => console.error('utility notes migration', error));
+    // Old room snapshots were never read; discard them so they cannot retain quota.
+    try {
+      Object.keys(localStorage).filter((key) => key.startsWith('csboard-room-')).forEach((key) => localStorage.removeItem(key));
+    } catch { /* Stale-room cleanup is optional. */ }
+    return () => { cancelled = true; };
+  }, []);
   const [roomUsers, setRoomUsers] = useState([]);
   const [roomActivity, setRoomActivity] = useState([]);
   const roomProviderRef = useRef(null);
@@ -321,16 +430,6 @@ function App() {
     }, 500);
     return () => window.clearInterval(timer);
   }, []);
-  useEffect(() => {
-    const version = Number(localStorage.getItem('csboard-utility-notes-version') || 0);
-    if (version >= UTILITY_NOTES_VERSION) return;
-    setUtilityNotes((notes) => {
-      const valid = notes.filter((note) => !note.replay);
-      localStorage.setItem('csboard-utility-notes', JSON.stringify(valid));
-      return valid;
-    });
-    localStorage.setItem('csboard-utility-notes-version', String(UTILITY_NOTES_VERSION));
-  }, []);
   const refreshCachedDemos = () => {
     setCachedDemosLoading(true);
     return listCachedDemos().then((entries) => setCachedDemos(entries.map((entry) => { const sampleRate = entry.sampleRate || Number(String(entry.id).match(/^(\d+)hz\|/)?.[1]) || 8; return { ...entry, sampleRate, rawMap: entry.map, map: `${entry.map} · ${sampleRate} Hz` }; }))).catch(() => setDemoStatus(t('cacheFailed'))).finally(() => setCachedDemosLoading(false));
@@ -342,6 +441,15 @@ function App() {
     cacheSchemaVersion: DEMO_CACHE_SCHEMA_VERSION,
     onCacheChanged: refreshCachedDemos,
   });
+  useEffect(() => {
+    if (!demoBatch || demoBatchRunning || parseGameManual) return;
+    window.clearTimeout(parseGameTimerRef.current);
+    setParseGameState((state) => {
+      if (state !== 'visible') return state === 'stopped' ? state : 'hidden';
+      parseGameTimerRef.current = window.setTimeout(() => setParseGameState('hidden'), 420);
+      return 'closing';
+    });
+  }, [demoBatch, demoBatchRunning, parseGameManual]);
   useEffect(() => { refreshCachedDemos(); }, []);
   const analysisDatasetSelection = useMemo(() => ({ demos: selectedAnalysisDemos, players: analysisSelectedPlayers }), [selectedAnalysisDemos, analysisSelectedPlayers]);
   const deferredAnalysisDatasetSelection = useDeferredValue(analysisDatasetSelection);
@@ -494,11 +602,11 @@ function App() {
   };
   const persistActiveArchiveFrames = (nextFrames, nextActiveId) => {
     if (!activeArchiveId || roomCode) return;
-    const index = archives.findIndex((archive) => archive.id === activeArchiveId);
+    const currentArchives = archivesRef.current;
+    const index = currentArchives.findIndex((archive) => archive.id === activeArchiveId);
     if (index < 0) return;
-    const next = archives.map((archive, archiveIndex) => archiveIndex === index ? { ...archive, frames: nextFrames, activeFrameId: nextActiveId, savedAt: new Date().toISOString() } : archive);
-    try { localStorage.setItem('csboard-workspace-archives', JSON.stringify(next)); } catch { setRoomNotice(t('utilityStorageFailed')); return; }
-    setArchives(next);
+    const next = currentArchives.map((archive, archiveIndex) => archiveIndex === index ? { ...archive, frames: nextFrames, activeFrameId: nextActiveId, savedAt: new Date().toISOString() } : archive);
+    persistWorkspaceArchives(next);
   };
   const saveActiveFrame = (workspace, { publish = true } = {}) => {
     if (!framesRef.current.length || !activeFrameIdRef.current) return null;
@@ -598,7 +706,7 @@ function App() {
     setAnonymousUtilityDraft({ name: '', summary: '' });
     setAnonymousUtilityError('');
   };
-  const saveAnonymousUtility = (event) => {
+  const saveAnonymousUtility = async (event) => {
     event.preventDefault();
     const name = anonymousUtilityDraft.name.trim();
     const summary = anonymousUtilityDraft.summary.trim();
@@ -606,7 +714,7 @@ function App() {
     const now = new Date().toISOString();
     const sourceNote = anonymousUtilitySave.sourceNote;
     const note = { ...sourceNote, id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, name, summary, source: 'demo', replay: { ...(sourceNote.replay || {}), projectiles: anonymousUtilitySave.projectiles || [], smokeVoxelFrames: anonymousUtilitySave.smokeVoxelFrame ? [anonymousUtilitySave.smokeVoxelFrame] : [], infernoFrames: anonymousUtilitySave.infernoFrame ? [anonymousUtilitySave.infernoFrame] : [] }, createdAt: sourceNote.createdAt || now, updatedAt: now };
-    if (!persistUtilityNotes([...utilityNotes, note])) { setAnonymousUtilityError(t('utilityStorageFailed')); return; }
+    if (!await persistUtilityNotes([...utilityNotesRef.current, note])) { setAnonymousUtilityError(t('utilityStorageFailed')); return; }
     boardRef.current?.promoteCollabUtility?.(anonymousUtilitySave.id, note);
     saveActiveFrame();
     setCollabUtilityRevision((value) => value + 1);
@@ -700,14 +808,13 @@ function App() {
   const [saveArchiveSelected, setSaveArchiveSelected] = useState('');
   const [saveArchiveIncludeDemo, setSaveArchiveIncludeDemo] = useState(false);
   const [saveArchiveMode, setSaveArchiveMode] = useState('select');
-  const saveWorkspaceArchive = (targetId = saveArchiveSelected, targetName = saveArchiveName) => {
+  const saveWorkspaceArchive = async (targetId = saveArchiveSelected, targetName = saveArchiveName) => {
     flushCollabSave();
     boardRef.current?.finalizeFrameTween?.();
     const workspace = boardRef.current?.getWorkspaceState?.({ includeDemo: saveArchiveIncludeDemo === true });
     if (!workspace) return;
     const now = Date.now();
-    let latestArchives = archives;
-    try { latestArchives = JSON.parse(localStorage.getItem('csboard-workspace-archives') || '[]'); } catch { latestArchives = archives; }
+    let latestArchives = archivesRef.current;
     // Rewrite older anonymous utilities through the compact schema so their
     // duplicated smoke journals do not keep consuming the storage quota.
     latestArchives = latestArchives.map((item) => ({
@@ -735,8 +842,7 @@ function App() {
       archive = { id: `${now}-${Math.random().toString(16).slice(2, 8)}`, savedAt: new Date().toISOString(), name: targetName.trim(), mapName, map: mapName, frames: savedFrames, activeFrameId: savedActiveFrameId, demo: demoData ? { fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick } : null, workspace: archiveWorkspace };
       next = [archive, ...latestArchives].slice(0, 30);
     }
-    try { localStorage.setItem('csboard-workspace-archives', JSON.stringify(next)); } catch { setRoomNotice(t('utilityStorageFailed')); return; }
-    setArchives(next);
+    if (!await persistWorkspaceArchives(next)) return;
     if (!roomCode) {
       setActiveArchiveId(archive.id);
       commitFrameState(savedFrames, savedActiveFrameId, { publish: false });
@@ -766,7 +872,6 @@ function App() {
     roomSeedRef.current = { workspace: frameWorkspace(workspace), cameraSlots: workspace.cameraSlots || [] };
     setActiveArchiveId(null);
     setRoomCode(code); setRoomOwner(true); setRoomStatus(`${t('room')} ${code} ${t('roomOpened')}`);
-    localStorage.setItem(`csboard-room-${code}`, JSON.stringify({ mapName, workspace, owner: clientName.current }));
   };
   const leaveRoom = () => {
     const room = roomDocRef.current?.getMap('room');
@@ -912,10 +1017,9 @@ function App() {
     commitFrameState([], null, { publish: false });
     boardRef.current?.clearWorkspaceState?.();
   }, [mapName]);
-  const deleteWorkspaceArchive = (id) => {
-    const next = archives.filter((archive) => archive.id !== id);
-    try { localStorage.setItem('csboard-workspace-archives', JSON.stringify(next)); } catch { setRoomNotice(t('utilityStorageFailed')); return; }
-    setArchives(next);
+  const deleteWorkspaceArchive = async (id) => {
+    const next = archivesRef.current.filter((archive) => archive.id !== id);
+    if (!await persistWorkspaceArchives(next)) return;
     if (activeArchiveId === id) {
       setActiveArchiveId(null);
       if (!roomCode) {
@@ -941,26 +1045,15 @@ function App() {
     if (mapName === TUTORIAL_MAP_ID && panel !== 'utility' && panel !== 'collab') setMapName('de_dust2');
     setActivePanel(panel);
   };
-  const addUtilityNote = (event) => {
+  const addUtilityNote = async (event) => {
     event.preventDefault();
     const parsed = parseGetpos(utilityDraft.getpos);
     if (!parsed) { setUtilityError(t('invalidGetpos')); return; }
-    const next = [...utilityNotes, { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, position: parsed.position, angles: parsed.angles, name: utilityDraft.name.trim(), summary: utilityDraft.summary.trim(), createdAt: new Date().toISOString() }];
-    setUtilityNotes(next);
-    localStorage.setItem('csboard-utility-notes', JSON.stringify(next));
+    const next = [...utilityNotesRef.current, { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, position: parsed.position, angles: parsed.angles, name: utilityDraft.name.trim(), summary: utilityDraft.summary.trim(), createdAt: new Date().toISOString() }];
+    if (!await persistUtilityNotes(next)) return;
     setUtilityDraft({ getpos: '', name: '', summary: '' });
     setUtilityError('');
     setUtilityModalOpen(false);
-  };
-  const persistUtilityNotes = (notes) => {
-    try {
-      localStorage.setItem('csboard-utility-notes', JSON.stringify(notes));
-      setUtilityNotes(notes);
-      return true;
-    } catch {
-      setUtilityError(t('utilityStorageFailed'));
-      return false;
-    }
   };
   const exportUtilityNotes = () => {
     const blob = new Blob([JSON.stringify({ version: UTILITY_NOTES_VERSION, exportedAt: new Date().toISOString(), notes: utilityNotes }, null, 2)], { type: 'application/json' });
@@ -979,7 +1072,7 @@ function App() {
       const parsed = JSON.parse(await file.text());
       const imported = Array.isArray(parsed) ? parsed : parsed?.notes;
       if (!Array.isArray(imported)) throw new Error('invalid notes');
-      const next = [...utilityNotes];
+      const next = [...utilityNotesRef.current];
       const exact = new Set(next.map(stableSerialize));
       const ids = new Set(next.map((note) => note.id).filter(Boolean));
       let added = 0;
@@ -999,7 +1092,7 @@ function App() {
         ids.add(id);
         added += 1;
       });
-      persistUtilityNotes(next);
+      if (!await persistUtilityNotes(next)) throw new Error('utility storage failed');
       setUtilityImportNotice(t('utilityImportDone', { added, skipped }));
     } catch {
       setUtilityImportNotice(t('utilityImportFailed'));
@@ -1008,18 +1101,15 @@ function App() {
   const restoreWorkspaceArchive = (archive) => {
     if (roomCode && !roomOwner) return;
     flushCollabSave();
-    let storedArchive = archive;
-    try { storedArchive = JSON.parse(localStorage.getItem('csboard-workspace-archives') || '[]').find((item) => item.id === archive.id) || archive; } catch { storedArchive = archive; }
+    const storedArchive = archivesRef.current.find((item) => item.id === archive.id) || archive;
     const restoredFrames = normalizeFrames(storedArchive.frames, storedArchive.workspace || emptyWorkspace());
     if (!restoredFrames.length) return;
     const active = restoredFrames.find((frame) => frame.id === storedArchive.activeFrameId) || restoredFrames[0];
     const canonicalArchive = { ...storedArchive, frames: restoredFrames, activeFrameId: active.id, workspace: { ...(storedArchive.workspace || {}), ...normalizeCollabWorkspace(storedArchive.workspace || active.workspace) } };
     const restoreWorkspace = { ...frameWorkspace(active.workspace || canonicalArchive.workspace), cameraSlots: canonicalArchive.workspace?.cameraSlots || [], camera: canonicalArchive.workspace?.camera || null };
     if (JSON.stringify(storedArchive.frames || []) !== JSON.stringify(restoredFrames) || JSON.stringify(storedArchive.workspace || {}) !== JSON.stringify(canonicalArchive.workspace)) {
-      let storedArchives = archives;
-      try { storedArchives = JSON.parse(localStorage.getItem('csboard-workspace-archives') || '[]'); } catch { storedArchives = archives; }
-      const migrated = storedArchives.map((item) => item.id === canonicalArchive.id ? canonicalArchive : item);
-      try { localStorage.setItem('csboard-workspace-archives', JSON.stringify(migrated)); setArchives(migrated); } catch { setRoomNotice(t('utilityStorageFailed')); }
+      const migrated = archivesRef.current.map((item) => item.id === canonicalArchive.id ? canonicalArchive : item);
+      persistWorkspaceArchives(migrated);
     }
     if (!roomCode) setActiveArchiveId(canonicalArchive.id);
     commitFrameState(restoredFrames, active.id, { publish: false });
@@ -1038,12 +1128,11 @@ function App() {
     }
   };
   const openTutorialWorkspace = () => {
-    let archive = archives.find((item) => item.id === tutorialWorkspaceArchive.id);
+    let archive = archivesRef.current.find((item) => item.id === tutorialWorkspaceArchive.id);
     if (!archive) {
       archive = tutorialWorkspaceArchive;
-      const next = [...archives, archive];
-      setArchives(next);
-      try { localStorage.setItem('csboard-workspace-archives', JSON.stringify(next)); } catch { /* The temporary practice frame still works this session. */ }
+      const next = [...archivesRef.current, archive];
+      persistWorkspaceArchives(next);
     }
     switchPanel('collab');
     restoreWorkspaceArchive(archive);
@@ -1105,10 +1194,10 @@ function App() {
   };
   analysisUtilityRuntime.onSelect = onAnalysisUtilitySelect;
   analysisUtilityRuntime.onHover = onAnalysisUtilityHover;
-  const saveGrenadeSegment = (segment, source = {}) => {
+  const saveGrenadeSegment = async (segment, source = {}) => {
     const note = buildSavedThrowNote({ mapName, segment, source, unknownLabel: t('unknown') });
     if (!note) return;
-    persistUtilityNotes([...utilityNotes, note]);
+    if (!await persistUtilityNotes([...utilityNotesRef.current, note])) return;
     setSelectedDemoGrenade(null);
     setSelectedDemoGrenadeScreen(null);
     setSelectedAnalysisUtility(null);
@@ -1140,7 +1229,7 @@ function App() {
     window.setTimeout(() => setUtilityCopied(false), 1200);
   };
   const deleteUtilityNote = (note) => {
-    const next = utilityNotes.filter((item) => item.id !== note.id);
+    const next = utilityNotesRef.current.filter((item) => item.id !== note.id);
     persistUtilityNotes(next);
     setSelectedUtilityNote(null);
     setUtilityEditDraft(null);
@@ -1153,7 +1242,7 @@ function App() {
     const summary = utilityEditDraft?.summary.trim();
     if (!selectedUtilityNote || !name || !summary) return;
     const updated = { ...selectedUtilityNote, name, summary, updatedAt: new Date().toISOString() };
-    persistUtilityNotes(utilityNotes.map((note) => note.id === updated.id ? updated : note));
+    persistUtilityNotes(utilityNotesRef.current.map((note) => note.id === updated.id ? updated : note));
     setSelectedUtilityNote(updated);
     setUtilityHover((hover) => hover ? { ...hover, entries: hover.entries.map((note) => note.id === updated.id ? updated : note) } : hover);
     setUtilityReplay((replay) => replay?.note.id === updated.id ? { ...replay, note: updated } : replay);
@@ -1248,7 +1337,14 @@ function App() {
     window.clearTimeout(parseGameTimerRef.current);
     setParseGameState('hidden');
     setParseGameManual(false);
+    setParseGameDismissed(false);
+    parseGameDismissedRef.current = false;
     setDemoStatus('');
+    // Avoid flashing the overlay for cache hits, but offer the waiting games
+    // once a real batch has occupied the foreground for a few seconds.
+    parseGameTimerRef.current = window.setTimeout(() => {
+      if (!parseGameDismissedRef.current) setParseGameState('visible');
+    }, 3000);
     startDemoBatch(files);
   };
   useEffect(() => {
@@ -1318,6 +1414,7 @@ function App() {
       boardRef.current.reset();
       return true;
     },
+    capture3DView: (request) => boardRef.current?.capture3DView?.(request),
     selectMap: setMapName,
     selectPanel: switchPanel,
     selectRound: setDemoRound,
@@ -1362,6 +1459,30 @@ function App() {
         collaborationRoomActive: Boolean(state.roomCode),
         utilityNoteCount: state.utilityNoteCount,
       };
+    },
+    capture3DView: async (request = {}) => {
+      const state = webMcpRuntimeRef.current;
+      const capture = await state.capture3DView(request);
+      if (!capture) throw new Error('The 3D board is not ready yet.');
+      const metadata = {
+        schemaVersion: 1,
+        image: { mimeType: capture.mimeType, bytes: capture.bytes, width: capture.width, height: capture.height, fit: capture.fit },
+        camera: capture.camera,
+        map: state.mapName,
+        panel: state.activePanel,
+        model: state.modelLoadState,
+        demo: state.demoData ? { fileName: state.demoData.demo.fileName, round: state.demoRound?.round || null, tick: state.demoTick } : null,
+        analysis: state.activePanel === 'analysis' ? {
+          selectedPlayers: state.analysisSelectedPlayers,
+          selectedDemos: state.analysisSelectedDemos.map((demo) => demo.data?.demo?.fileName || demo.fileName || demo.id),
+          side: state.analysisSide,
+          type: state.demoViewFlags.analysisMetric,
+          display: state.demoViewFlags.heatStyle,
+        } : null,
+      };
+      const content = [{ type: 'image', data: capture.data, mimeType: capture.mimeType }];
+      if (request.includeContext !== false) content.push({ type: 'text', text: JSON.stringify(metadata) });
+      return { content, ...(request.includeContext === false ? {} : { metadata }) };
     },
     selectMap: (map) => {
       const state = webMcpRuntimeRef.current;

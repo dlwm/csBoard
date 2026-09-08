@@ -2,9 +2,9 @@
 
 > A 3D tactical board, CS2 Demo replay viewer, analysis workspace, and real-time collaboration tool.
 
-[中文说明](docs/README.zh-CN.md) · [Changelog](CHANGELOG.en.md)
+[中文说明](docs/README.zh-CN.md) · [Русский](docs/README.ru-RU.md) · [Changelog](CHANGELOG.md)
 
-![CSBoard demonstration](docs/img/demo.gif)
+![CSBoard demonstration](https://bucket.csboard.kuzuma.asia/output.gif)
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
 
@@ -170,9 +170,9 @@ This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and
 
 Electron builds run `npm run desktop:build:mac` or `npm run desktop:build:win`. The build copies every `.local/maps/**/*.glb` into the application's external `Resources/maps` directory so Chromium can stream the models without unpacking `app.asar`. The desktop renderer tries that packaged copy first for each map and automatically retries `<VITE_OSS_BASE_URL>/maps/...` when the file is absent or cannot be decoded. Configure `VITE_OSS_BASE_URL` in the production environment before packaging to retain this online fallback.
 
-The Electron renderer also contains an experimental, opt-in WebMCP bridge. Run `npm run build:desktop` once, then `npm run desktop:start:webmcp` to expose its registered tools; ordinary `npm run desktop:start` launches without Chromium's experimental web-platform switch. In Analysis, a connected user model should call `get_analysis_context` first to read the current filters, field guide, readiness state, and starter prompts, then page through `get_filtered_analysis_data`. The latter returns already-filtered KD, area-time, or utility JSON in pages of at most 200 records; utility trajectories are opt-in to avoid wasting model context. Both launch modes use the same fixed, read-only `http://127.0.0.1:32145` application origin so desktop storage remains stable. Override the port with `CSBOARD_DESKTOP_PORT` only when necessary.
+The Electron renderer also contains an experimental, opt-in WebMCP bridge. Run `npm run build:desktop` once, then `npm run desktop:start:webmcp` to expose its registered tools; ordinary `npm run desktop:start` launches without Chromium's experimental web-platform switch. In Analysis, a connected user model should call `get_analysis_context` first to read the current filters, field guide, readiness state, and starter prompts, then page through `get_filtered_analysis_data`. The latter returns already-filtered KD, area-time, or utility JSON in pages of at most 200 records; utility trajectories are opt-in to avoid wasting model context. Vision-capable models may call `capture_3d_view` to receive the current 3D canvas with camera and analysis metadata. Width, height, WebP/JPEG/PNG format, quality, fit mode, and context inclusion are configurable; the default is a compact 960px-wide WebP. Both launch modes use the same fixed, read-only `http://127.0.0.1:32145` application origin so desktop storage remains stable. Override the port with `CSBOARD_DESKTOP_PORT` only when necessary.
 
-To run the Node.js Runtime in Docker, place the GLB models under `.local/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/maps`; set `BUILD_VERSION` only when overriding the default `v1.11.0` image version.
+To run the Node.js Runtime in Docker, place the GLB models under `.local/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/maps`; set `BUILD_VERSION` only when overriding the default `v1.13.1` image version.
 
 ## Controls
 
@@ -256,6 +256,10 @@ The script deploys the API, room WebSockets, and Durable Objects to the backend 
 The legacy `POST /api/parse` response contract is retained using the existing browser-compatible parser WASM. Cloudflare request-body, memory, and CPU limits still apply, so large Demo files should continue to be parsed locally in the browser.
 
 The native `@laihoe/demoparser2` package is used only by the Node.js Runtime adapter and offline tools. It is not imported by or bundled into Cloudflare Workers because the runtime cannot load N-API addons or start subprocesses; the Cloudflare Workers adapter uses the existing parser WASM instead.
+
+## License
+
+Copyright (C) 2026 Colvin Chen. Original CSBoard source code and documentation are licensed under the [GNU General Public License v3.0 only](LICENSE). Distributed modified versions must remain under GPLv3 and provide their corresponding source code. Third-party libraries and assets retain their own licenses; see [LICENSE_SCOPE.md](LICENSE_SCOPE.md) for the exact scope. The CSBoard license does not grant rights to Valve, Counter-Strike, map, radar, icon, Demo, or other third-party game content.
 
 ## Current Limitations
 

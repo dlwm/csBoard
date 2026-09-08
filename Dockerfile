@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
-ARG BUILD_VERSION=v1.11.0
+ARG BUILD_VERSION=v1.13.1
 
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -30,6 +30,7 @@ RUN npm ci --omit=dev \
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
+COPY LICENSE LICENSE_SCOPE.md ./
 
 EXPOSE 3000
 

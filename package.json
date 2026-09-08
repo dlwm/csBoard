@@ -2,8 +2,9 @@
   "name": "csboard",
   "description": "CS2 demo analysis and visualization tool",
   "author": "colvin chen",
+  "license": "GPL-3.0-only",
   "private": true,
-  "version": "1.11.0",
+  "version": "1.13.1",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -15,6 +16,8 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "LICENSE",
+      "LICENSE_SCOPE.md",
       "package.json"
     ],
     "extraResources": [
@@ -62,6 +65,8 @@
     "desktop:build": "npm run build:desktop && electron-builder --mac --win"
   },
   "dependencies": {
+    "@fontsource/dm-mono": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
     "@laihoe/demoparser2": "^0.42.0",
     "@vitejs/plugin-react": "latest",
     "lib0": "^0.2.114",
