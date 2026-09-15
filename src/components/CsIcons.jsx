@@ -1,5 +1,5 @@
 // Shared CS2 icon adapters with compact SVG fallbacks for missing assets.
-import { csIconUrl } from '../assets/cs-icon-urls.js';
+import { csIconUrl, csIconTint, csSilhouetteNames } from '../assets/cs-icon-urls.js';
 import { demoWeaponKind } from '../demo/playerState.js';
 
 export const grenadeIconKey = (weapon = '') => {
@@ -16,6 +16,7 @@ export const grenadeIconKey = (weapon = '') => {
 export function RawIcon({ name, className }) {
   const src = csIconUrl[name];
   if (!src) return null;
+  if (csSilhouetteNames.has(name)) return <span className={className || ''} style={{ color: csIconTint[name] }} aria-hidden="true"><MaskIcon name={name} className="cs-icon-image" /></span>;
   return <span className={className || ''} aria-hidden="true"><img className="cs-icon-image" src={src} alt="" /></span>;
 }
 
@@ -23,12 +24,6 @@ export function MaskIcon({ name, className }) {
   const src = csIconUrl[name];
   if (!src) return null;
   return <span className={`cs-icon-mask${className ? ` ${className}` : ''}`} style={{ '--cs-icon-url': `url("${src}")` }} aria-hidden="true" />;
-}
-
-export function MapIcon({ map }) {
-  const src = csIconUrl[`map_icon_${map}`];
-  if (!src) return null;
-  return <img className="map-icon" src={src} alt="" aria-hidden="true" />;
 }
 
 export function SideLogo({ side }) {

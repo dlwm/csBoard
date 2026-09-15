@@ -1,0 +1,9 @@
+{
+  "extends": null,
+  "appId": "com.csboard.app",
+  "productName": "CSBoard Local Test",
+  "directories": { "output": "build/desktop-local" },
+  "files": ["dist/**/*", "electron/**/*", "LICENSE", "LICENSE_SCOPE.md", "THIRD_PARTY_NOTICES.md", "package.json"],
+  "extraMetadata": { "csboardLocalModels": true },
+  "extraResources": [{ "from": ".local/official/maps", "to": "maps", "filter": ["**/*.glb"] }]
+}

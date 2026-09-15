@@ -85,7 +85,7 @@ fi
 # Map export
 # ---------------------------------------------------------------------------
 
-VPK_DIR="$ROOT_DIR/.local/vpk"
+VPK_DIR="$ROOT_DIR/.local/official/vpk"
 OUTPUT_DIR="$VPK_DIR/extracted"
 
 MAPS=(

@@ -8,6 +8,13 @@
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
 
+## Version 1.14.0
+
+- Offline NAV-based 2D radar with square, aligned multi-floor views and elevation shading; smooth 3D NAV without edge overlays.
+- Updated equipment/HUD icons, map-colored localized names, and standing/crouched pawn markers.
+- Electron-only AI setup guide and single-round analysis: both-team timelines, events, utility, pagination, and evidence-aware prompts. Web browsers do not expose AI UI or register WebMCP tools. A compatible connected client is still required.
+- See the [round analysis guide](docs/round-analysis-model.md), [release notes](CHANGELOG.md), and [third-party acknowledgements and licenses](THIRD_PARTY_NOTICES.md).
+
 ## Highlights
 
 ### Round Replay
@@ -80,7 +87,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Show Nuke, Train, Vertigo, and Training Ground as full, upper, or lower 3D floors with binary NAV-bounded clipping. Other maps expose a toggleable playable-layer range that removes obstructing rooftop geometry; players, utility, trajectories, and manual editing follow the active range.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
-- Show bundled 2D radar previews and floor switching where map assets provide them.
+- Build the 2D overview directly from bundled NAV geometry, with synchronized upper/lower views on layered maps.
 - Navigate with Blender-style mouse controls, trackpad gestures, and WASD movement.
 
 ### Interface
@@ -119,11 +126,11 @@ The repository includes files for:
 - Train
 - Vertigo
 
-Parsed NAV data for every supported map is committed and bundled into the frontend for offline use. GLB map models are intentionally not committed; run `make resources` when local source `.nav` and `.glb` files are needed under `.local/maps/<map>/`. Production loads only GLB resources from cloud storage.
+Parsed NAV data for every supported map is committed and bundled into the frontend for offline use. GLB map models are intentionally not committed; run `make resources` when local source `.nav` and `.glb` files are needed under `.local/official/maps/<map>/`. Remote web builds load GLB from cloud storage; desktop releases use user-imported model resources.
 
 Training Ground is available only in Utility Notes and Collaboration. Switching to Round Replay or Analysis automatically returns to Dust II.
 
-First-time visitors are asked whether to open the tutorial, which starts directly in the Training Ground Collaboration practice frame. For local testing, Vite DEV or `localhost`, `127.0.0.1`, and `::1` environments repeat the prompt every third visit and show that trigger condition in small text inside the dialog. The tutorial map includes separate upper and lower 2D radar images synchronized with `UP` / `LOW`.
+First-time visitors are asked whether to open the tutorial, which starts directly in the Training Ground Collaboration practice frame. For local testing, Vite DEV or `localhost`, `127.0.0.1`, and `::1` environments repeat the prompt every third visit and show that trigger condition in small text inside the dialog. The tutorial map includes synchronized upper and lower NAV top views.
 
 ## Getting Started
 
@@ -147,7 +154,7 @@ Build the frontend and start the APIs and collaboration service with the default
 npm run dev
 ```
 
-The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` for GLB files under `.local/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
+The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` for GLB files under `.local/official/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
 
 The same API and Yjs protocol core can also run behind a traditional Node.js HTTP/WebSocket entry:
 
@@ -168,11 +175,13 @@ This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and
 
 `npm run build` and `npm run build:local` use local `/maps` resources and same-origin APIs. `npm run build:remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
-Electron builds run `npm run desktop:build:mac` or `npm run desktop:build:win`. The build copies every `.local/maps/**/*.glb` into the application's external `Resources/maps` directory so Chromium can stream the models without unpacking `app.asar`. The desktop renderer tries that packaged copy first for each map and automatically retries `<VITE_OSS_BASE_URL>/maps/...` when the file is absent or cannot be decoded. Configure `VITE_OSS_BASE_URL` in the production environment before packaging to retain this online fallback.
+Electron release builds (`npm run desktop:build:mac` / `npm run desktop:build:win`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. See [resource-pack instructions](docs/resource-packs.md).
 
-The Electron renderer also contains an experimental, opt-in WebMCP bridge. Run `npm run build:desktop` once, then `npm run desktop:start:webmcp` to expose its registered tools; ordinary `npm run desktop:start` launches without Chromium's experimental web-platform switch. In Analysis, a connected user model should call `get_analysis_context` first to read the current filters, field guide, readiness state, and starter prompts, then page through `get_filtered_analysis_data`. The latter returns already-filtered KD, area-time, or utility JSON in pages of at most 200 records; utility trajectories are opt-in to avoid wasting model context. Vision-capable models may call `capture_3d_view` to receive the current 3D canvas with camera and analysis metadata. Width, height, WebP/JPEG/PNG format, quality, fit mode, and context inclusion are configurable; the default is a compact 960px-wide WebP. Both launch modes use the same fixed, read-only `http://127.0.0.1:32145` application origin so desktop storage remains stable. Override the port with `CSBOARD_DESKTOP_PORT` only when necessary.
+Unpackaged development runs may read `.local/official/maps`; `npm run desktop:build:local` creates an explicit local-test package containing these models. Ordinary release packaging never includes `.local/official` or `.local/official/maps`. Web builds retain their existing local/OSS model behavior.
 
-To run the Node.js Runtime in Docker, place the GLB models under `.local/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/maps`; set `BUILD_VERSION` only when overriding the default `v1.13.1` image version.
+The Electron renderer also contains an experimental, opt-in WebMCP bridge. Run `npm run build:desktop` once, then `npm run desktop:start:webmcp` to enable experimental API support; successful registration and an actual client call must still be verified; ordinary `npm run desktop:start` launches without Chromium's experimental web-platform switch. In Analysis, a connected user model should call `get_analysis_context` first to read the current filters, field guide, readiness state, and starter prompts, then page through `get_filtered_analysis_data`. The latter returns already-filtered KD, area-time, or utility JSON in pages of at most 200 records; utility trajectories are opt-in to avoid wasting model context. Vision-capable models may call `capture_3d_view` to receive the current 3D canvas with camera and analysis metadata. Width, height, WebP/JPEG/PNG format, quality, fit mode, and context inclusion are configurable; the default is a compact 960px-wide WebP. Both launch modes use the same fixed, read-only `http://127.0.0.1:32145` application origin so desktop storage remains stable. Override the port with `CSBOARD_DESKTOP_PORT` only when necessary.
+
+To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.14.0` image version.
 
 ## Controls
 
@@ -209,17 +218,19 @@ src/
     utility-notes/        # utility-note JSON files
     workspace-archives/   # Collaboration archive JSON files
 .local/
-  maps/                   # ignored local source/model directory
-    <map>/
-      <map>.nav           # source for `make nav-data`
-      <map>.glb           # runtime model for local and Docker builds
+  official/               # game-sourced assets, including converted resources
+    maps/<map>/           # NAV sources and GLB models
+    ui/                   # SVG resource-pack test inputs
+    vpk/                  # source archives and extraction output
+  dem/                    # Demo samples grouped by provider
+  previews/               # generated previews and local checks
 ```
 
 Contributors can place default utility-note or Collaboration-archive JSON files directly in the corresponding `src/default-data/` subdirectory. See [`src/default-data/README.md`](src/default-data/README.md) for accepted formats. These files are imported only when the browser has never created the corresponding local data, so existing user data is never replaced or repopulated.
 
 Running `make resources` checks each local map source/model and downloads missing files from `VITE_OSS_BASE_URL` (or `MAP_DOWNLOAD_BASE_URL`) configured in `.env.local`. The command fails clearly when no download origin is configured. After replacing source NAV files, run `make nav-data` to regenerate the committed frontend data.
 
-NAV JSON is included in the frontend bundle and parsed only when its map is selected; the browser makes no runtime NAV request. Local builds load GLB files from `.local/maps` through `/maps/<map>/<map>.glb`. Remote builds use:
+NAV JSON is included in the frontend bundle and parsed only when its map is selected; the browser makes no runtime NAV request. Local builds load GLB files from `.local/official/maps` through `/maps/<map>/<map>.glb`. Remote builds use:
 
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
 
@@ -240,11 +251,13 @@ Map extraction tools and raw game resources remain local-only. Do not commit VPK
 
 ## Cloudflare Workers
 
+Wrangler configuration lives in [`config/cloudflare/`](config/cloudflare/README.md): `wrangler.dev.jsonc` for local development, plus separate backend and frontend deployment files. Use the project scripts rather than bare `wrangler dev`; they select the right configuration and preserve the existing root `.wrangler/state` store.
+
 The production backend is a Workers module exported from `server/index.js`; it does not open a local port. A separate frontend Worker serves `dist` through Workers Static Assets, while the backend routes `/rooms/<code>` to one Durable Object per room.
 
 ```bash
 npm install
-npx wrangler dev
+npm run dev:workers
 cp deploy.cloudflare.env.example deploy.cloudflare.env
 make workers-deploy
 ```
@@ -259,16 +272,16 @@ The native `@laihoe/demoparser2` package is used only by the Node.js Runtime ada
 
 ## License
 
-Copyright (C) 2026 Colvin Chen. Original CSBoard source code and documentation are licensed under the [GNU General Public License v3.0 only](LICENSE). Distributed modified versions must remain under GPLv3 and provide their corresponding source code. Third-party libraries and assets retain their own licenses; see [LICENSE_SCOPE.md](LICENSE_SCOPE.md) for the exact scope. The CSBoard license does not grant rights to Valve, Counter-Strike, map, radar, icon, Demo, or other third-party game content.
+Copyright (C) 2026 Colvin Chen. Original CSBoard source code and documentation are licensed under the [GNU General Public License v3.0 only](LICENSE). Distributed modified versions must remain under GPLv3 and provide their corresponding source code. Third-party libraries and assets retain their own licenses; see [LICENSE_SCOPE.md](LICENSE_SCOPE.md) for the exact scope. The CSBoard license does not grant rights to Valve, Counter-Strike, map, radar, Demo, or other third-party game content.
 
 ## Current Limitations
 
 - Node.js Runtime rooms are held in process memory. Cloudflare Workers rooms use Durable Object storage and are deleted five minutes after the final client disconnects.
 - Room ownership is currently client-managed rather than protected by a server-issued owner token.
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
-- Production still depends on cloud storage for GLB models; bundled NAV geometry remains available when a model or the network is unavailable.
+- Remote web builds use cloud storage for GLB models; local/Docker builds use local models. Electron releases require user-imported models; only local-test builds include local models. Bundled NAV geometry and 2D radar remain available offline.
 - Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
-- Round Replay and Demo Analysis are desktop-only; H5 exposes Utility Notes and Collaboration.
+- Round Replay and Demo Analysis require a desktop-sized interface (including desktop web browsers); H5 exposes Utility Notes and Collaboration. AI integration is exclusive to the Electron application.
 
 ## Roadmap
 

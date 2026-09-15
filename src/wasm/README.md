@@ -38,3 +38,10 @@ crate with `cargo build --release --target wasm32-unknown-unknown`, then run
 `wasm-bindgen` with `--target web` and copy the generated package into this
 directory. Any parser-output change must also increment the Demo cache schema
 in `demoWorker.js` and `main.jsx`.
+
+## License and redistribution
+
+The upstream parser is MIT-licensed; local patches do not replace that license.
+See [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) for the upstream
+notice. Retain the applicable Rust dependency licenses when distributing a
+rebuilt WASM module, and keep this revision and both patch files with its source.

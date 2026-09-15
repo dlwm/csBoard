@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createPlayerPawn } from './playerPawn.js';
 
 export function randomPlayerName() {
   return Array.from({ length: 3 }, () => Math.floor(Math.random() * 16).toString(16).toUpperCase()).join('');
@@ -33,24 +34,15 @@ export function createCollabPlayer({ position, id, name, team = 'T', crouched = 
   const bodyMaterial = new THREE.MeshStandardMaterial({ color: sideColor, roughness: 0.72, metalness: 0.04, transparent: true, opacity: 0.82 });
   const headMaterial = bodyMaterial.clone();
 
-  const standingBody = new THREE.Group();
+  const standingBody = createPlayerPawn(bodyMaterial, headMaterial);
   standingBody.userData.collabBody = 'standing';
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.82, 16), bodyMaterial);
-  torso.position.y = 0.52;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 10), headMaterial);
-  head.position.y = 1.1;
-  standingBody.add(torso, head);
 
-  const crouchedBody = new THREE.Group();
+  const crouchedBody = createPlayerPawn(bodyMaterial, headMaterial, true);
   crouchedBody.userData.collabBody = 'crouched';
-  const crouchTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.38, 0.58, 16), bodyMaterial);
-  crouchTorso.position.y = 0.36;
-  const crouchHead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 10), headMaterial);
-  crouchHead.position.y = 0.78;
-  crouchedBody.add(crouchTorso, crouchHead);
 
   const equipment = new THREE.Group();
-  equipment.position.set(0, 0.72, -0.4);
+  equipment.userData.collabEquipment = true;
+  equipment.position.set(0, crouched ? 0.44 : 0.72, -0.4);
   const equipmentMaterial = new THREE.MeshStandardMaterial({ color: '#38423d', roughness: 0.82, metalness: 0.24 });
   const rifle = new THREE.Group();
   rifle.userData.collabWeapon = weapon;
@@ -69,7 +61,7 @@ export function createCollabPlayer({ position, id, name, team = 'T', crouched = 
     new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, -1], 3)),
     new THREE.LineBasicMaterial({ color: sideColor, transparent: true, opacity: 0.76 })
   );
-  aimRay.position.set(0, 0.93, -0.42);
+  aimRay.position.set(0, crouched ? 0.62 : 0.93, -0.42);
   aimRay.userData.aimRay = true;
   aimRay.scale.z = 1;
   const aimTarget = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), new THREE.MeshBasicMaterial({ color: '#fff2bd' }));
@@ -103,6 +95,7 @@ export function setCollabPlayerCrouch(group, crouched) {
   group.children.forEach((child) => {
     if (child.userData?.collabBody === 'standing') child.visible = !crouched;
     if (child.userData?.collabBody === 'crouched') child.visible = crouched;
+    if (child.userData?.collabEquipment) child.position.y = crouched ? 0.44 : 0.72;
   });
   const aimRay = group.userData.aimRay;
   if (aimRay) aimRay.position.set(0, crouched ? 0.62 : 0.93, -0.42);

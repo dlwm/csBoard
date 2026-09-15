@@ -2,6 +2,27 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.14.0] - 2026-09-14
+
+### Added
+
+- Add desktop resource packs with native multi-file SVG/GLB import, per-file results, a completeness checklist, validated replacement, and persistent disk storage. Missing icons retain defaults; missing models use NAV without model controls or automatic OSS downloads. Reload explicitly to apply imported resources. Release packages exclude map models; a separate local-test packaging command may include them.
+- Add single-round model analysis for an exact selected Demo: full-team positioning timelines, combat/bomb events, utility records, optional trajectories, paginated JSON, data-coverage diagnostics, and prompts that distinguish observations from hypotheses about intent, rotations, and fakes. Queries retain original Demo ticks and do not alter playback.
+- Add a Chinese, English, and Russian AI setup guide in Analysis, with readiness checks, a copyable starter prompt, experimental desktop launch instructions, and privacy notes. AI UI and WebMCP registration are now exclusive to Electron through an isolated preload marker; ordinary browsers register no tools, even when their WebMCP API is enabled. API availability does not establish a model connection.
+
+### Changed
+
+- Consolidate local game-sourced maps, UI test assets, and VPKs under `.local/official/`; update development, download/export, Docker, and local-test packaging paths. Demo samples and generated previews stay separate.
+- Generate offline 2D radar views from bundled NAV geometry instead of static radar images. Share square bounds, padding, and floor cuts with radar markers; correct stretched layouts and Train floor selection. Higher NAV areas appear lighter within each floor, and higher surfaces render over lower ones.
+- Smooth the 3D NAV surface through shared vertices, normals, and height colors; remove NAV edge rendering and its toggle.
+- Refresh weapon, knife, grenade, C4, defuser, faction, armor, and HUD silhouettes. Use a hollow shield for armor and a central circle for helmet-plus-armor; improve equipment and utility-reserve icon sizing.
+- Replace separate map emblems with larger, localized, map-colored name labels. Use chess-pawn player markers with distinct crouched poses; keep equipment and aim-ray heights synchronized in replay and Collaboration.
+- Update documentation and licensing scope; distribute third-party notices alongside the GPL license in web and desktop builds.
+
+### Acknowledgements
+
+- Thanks to React, Three.js, three-mesh-bvh, LaihoE/demoparser (including the Rust/WASM parser), Yjs, y-websocket, y-protocols, lib0, ws, Electron, Vite, electron-builder, Wrangler, Fontsource, and the Space Grotesk / DM Mono font authors. Third-party terms and notices are listed in THIRD_PARTY_NOTICES.md; their licenses remain unchanged.
+
 ## [1.13.1] - 2026-09-09
 
 ### Added

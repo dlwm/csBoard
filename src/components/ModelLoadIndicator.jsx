@@ -8,7 +8,7 @@ export const formatBytes = (bytes = 0) => bytes >= 1024 ** 3
 
 // Compact status shared by every workspace model-control portal.
 export default function ModelLoadIndicator({ state, language }) {
-  if (!state || state.status === 'ready') return null;
+  if (!state || state.status === 'ready' || state.status === 'absent') return null;
   const percent = state.total > 0 ? Math.min(100, Math.round(state.loaded / state.total * 100)) : null;
   const failed = state.status === 'error';
   const label = failed

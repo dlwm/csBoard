@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createPlayerPawn } from './playerPawn.js';
 import { createTacticalPoint, updateTacticalPoint } from './tacticalPoint.js';
 import { demoEquipmentKind, demoEventPlayerMatches, demoPlayerReload } from '../demo/playerState.js';
 import { demoRosterRuntime } from './runtime.js';
@@ -59,20 +60,10 @@ export default function createDemoPlayerSceneUpdater({
            const headMaterial = bodyMaterial.clone();
            marker.userData.demoBodyMaterial = bodyMaterial;
            marker.userData.demoHeadMaterial = headMaterial;
-         const standingBody = new THREE.Group();
+         const standingBody = createPlayerPawn(bodyMaterial, headMaterial);
          standingBody.userData.demoStandingBody = true;
-         const standingTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.82, 16), bodyMaterial);
-         standingTorso.position.y = 0.52;
-          const standingHead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 10), headMaterial);
-         standingHead.position.y = 1.1;
-         standingBody.add(standingTorso, standingHead);
-         const crouchedBody = new THREE.Group();
+         const crouchedBody = createPlayerPawn(bodyMaterial, headMaterial, true);
          crouchedBody.userData.demoCrouchedBody = true;
-         const crouchedTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.38, 0.58, 16), bodyMaterial);
-         crouchedTorso.position.y = 0.36;
-          const crouchedHead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 10), headMaterial);
-          crouchedHead.position.y = 0.78;
-          crouchedBody.add(crouchedTorso, crouchedHead);
           const equipment = new THREE.Group();
           equipment.userData.demoEquipment = true;
           equipment.position.set(0, 0.72, -0.4);

@@ -24,7 +24,7 @@ help:
 		'  make setup              Install dependencies and download map resources' \
 		'  make install            Install npm dependencies' \
 		'  make resources          Download missing local NAV/GLB map resources' \
-		'  make nav-data           Rebuild bundled NAV JSON from .local/maps' \
+		'  make nav-data           Rebuild bundled NAV JSON from .local/official/maps' \
 		'  make map-export         Export NAV/GLB map resources from local VPK files' \
 		'' \
 		'Build:' \
@@ -91,12 +91,12 @@ backend-build: build-version
 
 workers-build: build-version
 	VITE_BUILD_VERSION="$$(< .build-version)" $(NPX) wrangler deploy \
-		--config wrangler.backend.jsonc \
+		--config config/cloudflare/wrangler.backend.jsonc \
 		--dry-run \
 		--outdir build/workers/backend
 
 	VITE_BUILD_VERSION="$$(< .build-version)" $(NPX) wrangler deploy \
-		--config wrangler.frontend.jsonc \
+		--config config/cloudflare/wrangler.frontend.jsonc \
 		--dry-run \
 		--outdir build/workers/frontend
 

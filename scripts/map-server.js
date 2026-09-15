@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.local', 'maps');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.local', 'official', 'maps');
 const port = Number(process.env.LOCAL_MAP_PORT) || 3002;
 const contentTypes = { '.glb': 'model/gltf-binary', '.nav': 'application/octet-stream' };
 

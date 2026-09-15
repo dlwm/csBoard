@@ -8,6 +8,13 @@
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
+## 1.14.0 版本
+
+- 2D 雷达由内置 NAV 生成，支持正方形对齐、分层及高度明暗；3D NAV 平滑显示并移除边线。
+- 更新装备与 HUD 图标、地图国际化彩色名称、站立及蹲姿棋兵标记。
+- AI 教程与单回合分析仅限 Electron 桌面版，提供双方站位、事件、道具、分页数据及区分事实和推断的提示词。网页版不显示 AI 入口、不注册 WebMCP；桌面端仍需实际连接兼容客户端。
+- 详见[单回合分析指南](round-analysis-model.md)、[版本记录](CHANGELOG.zh-CN.md)、[第三方鸣谢与许可证](../THIRD_PARTY_NOTICES.md)。
+
 ## 主要功能
 
 ### 回合浏览
@@ -80,7 +87,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - Nuke、Train、Vertigo 与 Training Ground 支持完整、高层和低层的 NAV 顶底二值区间裁切；其他地图也可启用或取消单层可玩区间，以移除遮挡视野的屋顶模型。人物、道具、轨迹和人工编辑会遵循当前区间。
 - 使用 `three-mesh-bvh` 高效查询视线最近墙体碰撞。
 - 显示 GLB 下载、处理和失败状态；模型不可用时继续使用 NAV 完成镜头取景、碰撞和表面编辑。
-- 在资源可用时显示内置 2D 雷达预览并支持楼层切换。
+- 直接从内置 NAV 几何生成 2D 顶视图，多层地图同步提供上下层视图。
 - 支持 Blender 风格鼠标控制、触控板手势和 WASD 移动。
 
 ### 界面信息
@@ -119,11 +126,11 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - Train
 - Vertigo
 
-所有支持地图的 NAV 解析数据均已提交并构建进前端，可离线使用。GLB 地图模型不会提交到仓库；需要本地源 `.nav` 与 `.glb` 时运行 `make resources` 下载到 `.local/maps/<map>/`。生产环境仅从云存储加载 GLB 资源。
+所有支持地图的 NAV 解析数据均已提交并构建进前端，可离线使用。GLB 地图模型不会提交到仓库；需要本地源 `.nav` 与 `.glb` 时运行 `make resources` 下载到 `.local/official/maps/<map>/`。远程网页构建从云存储加载 GLB；本地和 Docker 使用本地模型，Electron 正式版由用户导入模型，不自动从 OSS 下载。
 
 Training Ground 仅在道具速记和协作面板中提供；切换到回合浏览或数据分析时会自动返回 Dust II。
 
-首次访问会询问是否进入教学，确认后直接打开 Training Ground 的协作练习帧。为方便本地调试，Vite DEV 或 `localhost`、`127.0.0.1`、`::1` 环境每第 3 次访问会重复显示提醒，弹窗底部也会注明该触发条件。教学地图内置独立的上层与下层 2D 雷达图，并与 `UP` / `LOW` 切换同步。
+首次访问会询问是否进入教学，确认后直接打开 Training Ground 的协作练习帧。为方便本地调试，Vite DEV 或 `localhost`、`127.0.0.1`、`::1` 环境每第 3 次访问会重复显示提醒，弹窗底部也会注明该触发条件。教学地图提供同步的上层与下层 NAV 顶视图。
 
 ## 开始使用
 
@@ -147,7 +154,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，为前端提供 `.local/maps` 中的 GLB。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
+默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，为前端提供 `.local/official/maps` 中的 GLB。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
 
 相同的 API 与 Yjs 协议核心也可以通过传统 Node.js HTTP/WebSocket 入口运行：
 
@@ -168,11 +175,13 @@ make build
 
 `npm run build` 与 `npm run build:local` 使用本地 `/maps` 和同源 API；`npm run build:remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
 
-Electron 桌面端使用 `npm run desktop:build:mac` 或 `npm run desktop:build:win` 构建。构建会把 `.local/maps/**/*.glb` 全部复制到应用外部的 `Resources/maps`，让 Chromium 无需解包 `app.asar` 即可流式读取模型。桌面端会逐张地图优先尝试安装包内模型；文件缺失或无法解码时，自动回退到 `<VITE_OSS_BASE_URL>/maps/...`。打包前需在 production 环境中配置 `VITE_OSS_BASE_URL`，以保留在线兜底能力。
+Electron 正式版使用 `npm run desktop:build:mac` 或 `npm run desktop:build:win` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。详见[资源包说明](resource-packs.md)。
 
-Electron 前端还内置了可选启用的实验性 WebMCP 桥接。先执行一次 `npm run build:desktop`，再用 `npm run desktop:start:webmcp` 启动即可暴露已注册工具；普通的 `npm run desktop:start` 不会开启 Chromium 实验性 Web 平台开关。在数据分析页，接入的用户模型应先调用 `get_analysis_context` 读取当前筛选、字段说明、就绪状态和基础提示词，再通过 `get_filtered_analysis_data` 分页取得已经过滤的 KD、区域时间或道具 JSON；每页最多 200 条，道具轨迹按需开启，以免无谓占用模型上下文。支持视觉的模型还可调用 `capture_3d_view` 获取当前 3D 画布及相机和分析上下文；可调整宽高、WebP／JPEG／PNG 格式、质量、适配方式与是否附带上下文，默认输出紧凑的 960px 宽 WebP。两种模式都使用固定、只读的 `http://127.0.0.1:32145` 应用源，因此桌面端存储可跨启动保持稳定；仅在必要时通过 `CSBOARD_DESKTOP_PORT` 覆盖端口。
+未打包的开发启动可读取 `.local/official/maps`；`npm run desktop:build:local` 专门构建带本地模型的测试包。正式构建不包含 `.local/official` 或 `.local/official/maps`；网页版保留现有本地/OSS 模型逻辑。
 
-通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/maps`；只有需要覆盖镜像默认的 `v1.13.1` 版本时才需设置 `BUILD_VERSION`。
+Electron 前端还内置了可选启用的实验性 WebMCP 桥接。先执行一次 `npm run build:desktop`，再用 `npm run desktop:start:webmcp` 启用实验 API 支持，工具是否注册成功及模型是否连接仍需实际调用验证；普通的 `npm run desktop:start` 不会开启 Chromium 实验性 Web 平台开关。在数据分析页，接入的用户模型应先调用 `get_analysis_context` 读取当前筛选、字段说明、就绪状态和基础提示词，再通过 `get_filtered_analysis_data` 分页取得已经过滤的 KD、区域时间或道具 JSON；每页最多 200 条，道具轨迹按需开启，以免无谓占用模型上下文。支持视觉的模型还可调用 `capture_3d_view` 获取当前 3D 画布及相机和分析上下文；可调整宽高、WebP／JPEG／PNG 格式、质量、适配方式与是否附带上下文，默认输出紧凑的 960px 宽 WebP。两种模式都使用固定、只读的 `http://127.0.0.1:32145` 应用源，因此桌面端存储可跨启动保持稳定；仅在必要时通过 `CSBOARD_DESKTOP_PORT` 覆盖端口。
+
+通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.14.0` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式
 
@@ -209,17 +218,19 @@ src/
     utility-notes/        # 道具速记 JSON
     workspace-archives/   # 协作面板存档 JSON
 .local/
-  maps/                   # Git 忽略的本地源文件/模型目录
-    <map>/
-      <map>.nav           # `make nav-data` 的生成源
-      <map>.glb           # 本地与 Docker 构建的运行时模型
+  official/               # 游戏来源素材，包含提取与转换后的资源
+    maps/<map>/           # NAV 源文件和 GLB 模型
+    ui/                   # 资源包测试 SVG
+    vpk/                  # 原始归档与解包输出
+  dem/                    # 按平台分类的 Demo 样本
+  previews/               # 生成的预览和本地检查
 ```
 
 贡献者可将默认道具速记或协作存档 JSON 直接放入 `src/default-data/` 对应子目录，具体格式见 [`src/default-data/README.md`](../src/default-data/README.md)。这些文件只会在浏览器从未创建对应本地数据时导入，不会覆盖或重新填充现有用户数据。
 
 运行 `make resources` 时，`scripts/ensure-maps.js` 会检测本地地图源文件与模型，并从 `.env.local` 的 `VITE_OSS_BASE_URL`（或 `MAP_DOWNLOAD_BASE_URL`）下载缺失文件。未配置下载源时命令会明确报错。替换源 NAV 后，运行 `make nav-data` 重新生成需要提交的前端数据。
 
-NAV JSON 会直接包含在前端 bundle 中，并只在选中对应地图时解析；浏览器不会在运行时请求 NAV。本地构建通过 `/maps/<map>/<map>.glb` 从 `.local/maps` 加载 GLB，远程构建使用：
+NAV JSON 会直接包含在前端 bundle 中，并只在选中对应地图时解析；浏览器不会在运行时请求 NAV。本地构建通过 `/maps/<map>/<map>.glb` 从 `.local/official/maps` 加载 GLB，远程构建使用：
 
 - `<VITE_OSS_BASE_URL>/maps/<map>/<map>.glb`
 
@@ -241,6 +252,8 @@ GLB 存储桶需返回 `Access-Control-Allow-Origin` 头。`src/navParser.js` �
 
 ## Cloudflare Workers 部署
 
+Wrangler 配置统一放在 [`config/cloudflare/`](../config/cloudflare/README.md)：`wrangler.dev.jsonc` 用于本地开发，另两份分别用于前后端部署。请使用项目命令启动，不再直接运行不带配置路径的 `wrangler dev`；开发脚本会继续使用根目录 `.wrangler/state`，无需迁移现有状态。
+
 ```bash
 npm install
 cp deploy.cloudflare.env.example deploy.cloudflare.env
@@ -253,7 +266,7 @@ make workers-deploy
 
 ## 许可证
 
-Copyright (C) 2026 Colvin Chen。CSBoard 原创源代码与文档采用 [GNU GPL v3.0 only](../LICENSE)；对外分发的修改版本必须继续使用 GPLv3，并提供对应源代码。第三方库和资源仍分别遵循自己的许可证，准确范围见 [LICENSE_SCOPE.md](../LICENSE_SCOPE.md)。CSBoard 许可证不授予 Valve、Counter-Strike、地图、雷达图、图标、Demo 或其他第三方游戏内容的相关权利。
+Copyright (C) 2026 Colvin Chen。CSBoard 原创源代码与文档采用 [GNU GPL v3.0 only](../LICENSE)；对外分发的修改版本必须继续使用 GPLv3，并提供对应源代码。第三方库和资源仍分别遵循自己的许可证，准确范围见 [LICENSE_SCOPE.md](../LICENSE_SCOPE.md)。CSBoard 许可证不授予 Valve、Counter-Strike、地图、雷达图、Demo 或其他第三方游戏内容的相关权利。
 
 ## 当前限制
 

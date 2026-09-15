@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "csboard-frontend",
+  "compatibility_date": "2026-08-29",
+  "build": {
+    "cwd": ".",
+    "watch_dir": "../../src",
+    "command": "npm run build:remote"
+  },
+  "assets": {
+    "directory": "../../dist",
+    "not_found_handling": "single-page-application"
+  }
+}

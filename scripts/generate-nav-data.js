@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { parseNavBuffer } from '../src/navParser.js';
 
 const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const sourceRoot = path.join(projectRoot, '.local', 'maps');
+const sourceRoot = path.join(projectRoot, '.local', 'official', 'maps');
 const outputRoot = path.join(projectRoot, 'src', 'data', 'nav');
 const maps = ['de_dust2', 'de_mirage', 'de_nuke', 'de_ancient', 'de_anubis', 'de_cache', 'de_inferno', 'de_overpass', 'de_train', 'de_vertigo'];
 

@@ -1,5 +1,6 @@
 // Produces compact, paginated JSON for user-supplied models through WebMCP.
 import { ANALYSIS_AREA_PHASES, ANALYSIS_UTILITY_KINDS, ECONOMY_CATEGORIES } from './constants.js';
+import { listAnalysisRounds } from './roundModelAccess.js';
 
 const MAP_UNITS_TO_METERS = 0.0254;
 const clamp = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
@@ -151,6 +152,11 @@ export function getAnalysisModelContext(options) {
         : options.status || (ready ? 'ready' : 'selection-required'),
     filters,
     availableDatasets: ['current', 'kd', 'area', 'utility'],
+    roundAnalysis: {
+      tool: 'get_round_analysis',
+      availableDemos: listAnalysisRounds(options.selectedDemos),
+      workflow: 'Choose demoId and round, read dataset=context, then paginate timeline/events/utility. Full-round analysis includes both teams regardless of player/side/economy filters.',
+    },
     rawCounts: { movementSnapshots: options.rows.length, deaths: options.deaths.length, utilities: options.utilities.length },
     dataGuide: {
       coordinates: 'Meters in CSBoard scene axes: x=east/west, y=height, z=north/south. Positions are not NAV-area labels.',

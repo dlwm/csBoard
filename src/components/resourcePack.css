@@ -1,0 +1,14 @@
+.resource-pack-dialog { width: min(720px, calc(100vw - 36px)); max-height: 85vh; overflow: auto; color: #dce5e4; background: #111b1d; border: 1px solid #3c5155; border-radius: 12px; padding: 22px; font: inherit; }
+.resource-pack-dialog::backdrop { background: #000a; }
+.resource-pack-dialog header, .resource-pack-actions { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.resource-pack-dialog h2 { margin: 0; font-size: 20px; }
+.resource-pack-dialog p { font-size: 13px; line-height: 1.7; color: #b5c4c7; }
+.resource-pack-actions { justify-content: flex-start; flex-wrap: wrap; }
+.resource-pack-dialog button, .resource-pack-button { font: inherit; color: inherit; background: #24383b; border: 1px solid #486368; padding: 7px 10px; border-radius: 5px; cursor: pointer; }
+.resource-pack-dialog button:disabled { opacity: .5; cursor: wait; }
+.resource-pack-dialog details { margin-top: 16px; font-size: 13px; }
+.resource-pack-dialog summary { cursor: pointer; padding: 8px 0; }
+.resource-pack-dialog ul { padding: 0; list-style: none; overflow-wrap: anywhere; }
+.resource-pack-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 6px 20px; }
+.resource-pack-list li { display: flex; justify-content: space-between; gap: 8px; }
+.resource-pack-list small { color: #a1afb1; }

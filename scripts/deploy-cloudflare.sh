@@ -100,8 +100,8 @@ EOF
 export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-}"
 export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-}"
 
-backend_args=(deploy --config wrangler.backend.jsonc --name "$CF_BACKEND_WORKER_NAME" --var "MAP_BASE_URL:$OSS_BASE_URL")
-frontend_args=(deploy --config wrangler.frontend.jsonc --name "$CF_FRONTEND_WORKER_NAME")
+backend_args=(deploy --config config/cloudflare/wrangler.backend.jsonc --name "$CF_BACKEND_WORKER_NAME" --var "MAP_BASE_URL:$OSS_BASE_URL")
+frontend_args=(deploy --config config/cloudflare/wrangler.frontend.jsonc --name "$CF_FRONTEND_WORKER_NAME")
 if [[ -n "${CF_BACKEND_CUSTOM_DOMAIN:-}" ]]; then
   backend_args+=(--domain "$CF_BACKEND_CUSTOM_DOMAIN")
 fi

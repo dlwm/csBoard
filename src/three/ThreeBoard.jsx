@@ -30,6 +30,8 @@ import createDemoPlayerSceneUpdater from './demoPlayerSceneUpdater.js';
 import useThreeBoardRuntimeRefs from './useThreeBoardRuntimeRefs.js';
 import { createBrushLine, disposeBrushLine, serializeBrushLine, updateBrushLine } from './brushStroke.js';
 import { ANALYSIS_HEAT_DATA_EVENT, loadViewPreferences, MAP_MODEL_BASES, MAP_ZONE_MODELS_ENABLED, MODEL_VIEW_RANGE_EVENT, NAV_TOP_CAMERA_TARGET_MAPS } from '../app/config.js';
+import { desktopModelBase, hasMapModel } from '../app/resourcePacks.js';
+import { isDesktopRuntime } from '../app/runtime.js';
 import { buildSavedThrowNote } from '../utility/savedThrow.js';
 import { loadMapModel } from './mapModelLoader.js';
 
@@ -52,10 +54,10 @@ const blobToBase64 = async (blob) => {
 
 // Owns the imperative Three.js scene and exposes its workspace API to the React shell.
 export default function ThreeBoard(props) {
-  const { mapName, navData, showEdges, showGrid, showModel, modelOpacity, modelViewMode, demoProjectiles, analysisRounds, deletePointId, pointUpdate, onCameraSlots, onReady } = props;
+  const { mapName, navData, showGrid, showModel, modelOpacity, modelViewMode, demoProjectiles, analysisRounds, deletePointId, pointUpdate, onCameraSlots, onReady } = props;
   const mountRef = useRef(null);
   const {
-    edgesRef, modelModeRef, modelRangeRef, navFocusRef, navGroupRef, gridRef, modelRef,
+    modelModeRef, modelRangeRef, navFocusRef, navGroupRef, gridRef, modelRef,
     modelBasePositionRef, modelCenterYRef, floorFadeRef, mapFloorRef, demoSnapshotRef,
     demoSnapshotsRef, demoTickRef, demoFiresRef, demoHurtsRef, demoGrenadesRef,
     demoProjectilesRef, demoSmokeVoxelFramesRef, demoInfernoFramesRef, demoGrenadeSegmentsRef, demoSourceRef, demoGrenadeSelectRef, demoDeathsRef,
@@ -1335,7 +1337,6 @@ export default function ThreeBoard(props) {
     gridRef.current = floor;
     const nav = navData ? createNavMesh(navData, focusScreen, focusEnabled, viewportSize) : null;
     if (nav) {
-      edgesRef.current = nav.edgeLines;
       navGroupRef.current = nav.group;
       nav.group.visible = true;
       nav.mesh.visible = true;
@@ -1413,7 +1414,7 @@ export default function ThreeBoard(props) {
       modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
     };
     if (mapName === TUTORIAL_MAP_ID) loadWorldModel(createTutorialMap());
-    else loadMapModel(new GLTFLoader(), MAP_MODEL_BASES, `${mapName}/${mapName}.glb`, (gltf) => loadWorldModel(gltf.scene), (event) => {
+    else loadMapModel(new GLTFLoader(), isDesktopRuntime() ? [desktopModelBase(mapName)] : MAP_MODEL_BASES, isDesktopRuntime() ? `${mapName}.glb` : `${mapName}/${mapName}.glb`, (gltf) => loadWorldModel(gltf.scene), (event) => {
       if (disposed) return;
       const now = performance.now();
       if (now - lastModelProgressAt < 80 && (!event.total || event.loaded < event.total)) return;
@@ -1421,8 +1422,8 @@ export default function ThreeBoard(props) {
       modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: event.loaded || 0, total: event.total || 0 });
     }, (loadError) => {
       if (disposed) return;
-      modelLoadStateRef.current?.({ mapName, status: 'error', loaded: 0, total: 0 });
-      console.info(`${mapName} visual model unavailable.`, loadError.message);
+      modelLoadStateRef.current?.({ mapName, status: hasMapModel(mapName) ? 'error' : 'absent', loaded: 0, total: 0 });
+      if (hasMapModel(mapName)) console.info(`${mapName} visual model unavailable.`, loadError.message);
       if (nav) {
         modelCenter.copy(nav.center);
         nav.group.position.copy(modelCenter).multiplyScalar(-1);
@@ -1725,7 +1726,7 @@ export default function ThreeBoard(props) {
       renderer.render(scene, camera);
     };
     animate(performance.now());
-     return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', onPointerDown, true); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('pointercancel', cancelPointerInteraction); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.edgeGeometry.dispose(); nav.mesh.material.dispose(); nav.edgeLines.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; cancelAnimationFrame(frame); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', onPointerDown, true); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('pointercancel', cancelPointerInteraction); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {
@@ -1751,10 +1752,6 @@ export default function ThreeBoard(props) {
       updateTacticalPoint(point, pointUpdate.team || point.userData.team, pointUpdate.type || point.userData.type);
     }
   }, [pointUpdate]);
-
-  useEffect(() => {
-    if (edgesRef.current) edgesRef.current.visible = showEdges;
-  }, [showEdges]);
 
   useEffect(() => {
     const updateNavVisibility = (event) => {
@@ -1797,11 +1794,6 @@ export default function ThreeBoard(props) {
        navMesh.material.depthTest = true;
        navMesh.renderOrder = 1;
      }
-     const navEdges = navGroupRef.current?.children.find((child) => child.isLineSegments);
-     if (navEdges?.material) {
-       navEdges.material.depthTest = true;
-       navEdges.renderOrder = 2;
-       }
         if (modelRef.current) modelRef.current.traverse((object) => { if (!object.material) return; const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = true; }); });
     }, [showModel, modelOpacity, modelViewMode]);
 

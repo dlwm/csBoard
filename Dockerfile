@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
-ARG BUILD_VERSION=v1.13.1
+ARG BUILD_VERSION=v1.14.0
 
 COPY package.json package-lock.json ./
 RUN npm ci

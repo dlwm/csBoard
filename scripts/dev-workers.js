@@ -6,7 +6,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const wrangler = path.join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
 const children = [
   spawn(process.execPath, [path.join(root, 'scripts', 'map-server.js')], { cwd: root, stdio: 'inherit' }),
-  spawn(process.execPath, [wrangler, 'dev', ...process.argv.slice(2)], { cwd: root, stdio: 'inherit' }),
+  // Pin persistence to the existing root directory when relocating the config;
+  // otherwise Wrangler would silently start with a different local room store.
+  spawn(process.execPath, [wrangler, 'dev', '--config', path.join(root, 'config/cloudflare/wrangler.dev.jsonc'), '--persist-to', path.join(root, '.wrangler/state'), ...process.argv.slice(2)], { cwd: root, stdio: 'inherit' }),
 ];
 let stopping = false;
 

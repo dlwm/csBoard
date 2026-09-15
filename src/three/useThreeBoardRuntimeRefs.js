@@ -19,7 +19,6 @@ export default function useThreeBoardRuntimeRefs(props) {
   } = props;
 
   const refs = {
-    edgesRef: useRef(null),
     modelModeRef: useRef(null),
     modelRangeRef: useRef(null),
     navFocusRef: useRef(null),

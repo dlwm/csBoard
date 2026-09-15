@@ -1,12 +1,14 @@
+import { isDesktopRuntime } from '../app/runtime.js';
+
 const panelValues = ['demo', 'analysis', 'utility', 'collab'];
 
 const objectSchema = (properties, required = []) => ({
   type: 'object', properties, required, additionalProperties: false,
 });
 
-// WebMCP is progressive enhancement: unsupported browsers keep the exact same
-// UI, while capable agents receive a small, state-aware set of safe actions.
+// AI tools are desktop-only, even when a normal browser supports WebMCP.
 export function registerCsboardTools(api) {
+  if (!isDesktopRuntime()) return () => {};
   const modelContext = document.modelContext;
   if (!modelContext?.registerTool) return () => {};
 
@@ -40,6 +42,23 @@ export function registerCsboardTools(api) {
       includeTrajectories: { type: 'boolean', description: 'Include utility projectile samples; false by default to keep model context compact.' },
     }),
     execute: (request) => api.getFilteredAnalysisData(request),
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
+  });
+  register({
+    name: 'get_round_analysis',
+    description: 'Analyze one exact selected Demo round using both teams: context/prompts, all-player positioning timeline, combat/bomb events and utility. Supports evidence-based hypotheses about intent, CT rotations, fakes and reads; does not claim player knowledge or intent as fact. Read get_analysis_context for available Demo IDs and rounds. Does not change playback or filters.',
+    inputSchema: objectSchema({
+      demoId: { type: 'string', description: 'Exact selected Demo ID from get_analysis_context.roundAnalysis.availableDemos.' },
+      round: { type: 'integer', minimum: 1 },
+      dataset: { type: 'string', enum: ['context', 'timeline', 'events', 'utility'], description: 'Read context first, then paginate each other dataset.' },
+      startSeconds: { type: 'number', minimum: -600, maximum: 3600, description: 'Optional window start relative to freeze end; negative means freeze time.' },
+      endSeconds: { type: 'number', minimum: -600, maximum: 3600 },
+      sampleSeconds: { type: 'number', minimum: 0.25, maximum: 5, description: 'Timeline sampling interval; default 1 second. Cannot exceed source temporal resolution.' },
+      includeTrajectories: { type: 'boolean', description: 'Utility only; optionally include at most 65 trajectory samples per throw.' },
+      offset: { type: 'integer', minimum: 0 },
+      limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Default 50. Keep small for timeline pages containing all players.' },
+    }, ['demoId', 'round']),
+    execute: request => api.getRoundAnalysis(request),
     annotations: { readOnlyHint: true, untrustedContentHint: true },
   });
   register({

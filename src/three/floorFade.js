@@ -1,12 +1,5 @@
 // Computes active floor ranges and injects their clipping test into Three.js materials.
-import { TUTORIAL_MAP_ID } from './tutorialMap.js';
-
-const MAP_FLOOR_BOUNDARIES = {
-  [TUTORIAL_MAP_ID]: 66.54,
-  de_nuke: -495,
-  de_train: -50,
-  de_vertigo: 11700,
-};
+import { NAV_FLOOR_BOUNDARIES } from '../data/navTopView.js';
 const MAP_UNITS_TO_METERS = 0.0254;
 const FLOOR_BOTTOM_PADDING = 64;
 const FLOOR_TOP_PADDING = 96;
@@ -20,7 +13,7 @@ export function updateFloorFadeState(state, mapName, floor, modelCenterY = 0, na
   }
   let cached = floorRangeCache.get(navData);
   if (!cached || cached.mapName !== mapName) {
-    const boundary = MAP_FLOOR_BOUNDARIES[mapName];
+    const boundary = NAV_FLOOR_BOUNDARIES[mapName];
     let allMin = Infinity;
     let allMax = -Infinity;
     let lowerMin = Infinity;

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const MAPS = ['de_dust2', 'de_mirage', 'de_nuke', 'de_ancient', 'de_anubis', 'de_cache', 'de_inferno', 'de_overpass', 'de_train', 'de_vertigo'];
-const PUBLIC_DIR = path.join(projectRoot, '.local', 'maps');
+const PUBLIC_DIR = path.join(projectRoot, '.local', 'official', 'maps');
 
 function readLocalEnv(name) {
   for (const filename of ['.env.local', '.env']) {

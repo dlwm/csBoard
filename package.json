@@ -4,7 +4,7 @@
   "author": "colvin chen",
   "license": "GPL-3.0-only",
   "private": true,
-  "version": "1.13.1",
+  "version": "1.14.0",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -18,15 +18,10 @@
       "electron/**/*",
       "LICENSE",
       "LICENSE_SCOPE.md",
+      "THIRD_PARTY_NOTICES.md",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": ".local/maps",
-        "to": "maps",
-        "filter": ["**/*.glb"]
-      }
-    ],
+    "extraResources": [],
     "mac": {
       "icon": "src/assets/favicon.svg",
       "target": [
@@ -62,6 +57,7 @@
     "desktop:start:webmcp": "electron . --enable-csboard-webmcp",
     "desktop:build:mac": "npm run build:desktop && electron-builder --mac",
     "desktop:build:win": "npm run build:desktop && electron-builder --win",
+    "desktop:build:local": "npm run build:desktop && electron-builder --config electron-builder.local.json --dir",
     "desktop:build": "npm run build:desktop && electron-builder --mac --win"
   },
   "dependencies": {

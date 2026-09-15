@@ -1,5 +1,5 @@
-// Tries model sources in priority order. Electron uses this to prefer its
-// packaged GLB while retaining OSS as a per-file recovery path.
+// Tries available sources in order. An empty desktop pack follows the same
+// asynchronous fallback lifecycle as a failed network load, without a request.
 export function loadMapModel(loader, bases, relativePath, onLoad, onProgress, onError, onFallback) {
   const candidates = [...new Set((bases || []).filter(Boolean))];
   const failures = [];
@@ -21,5 +21,6 @@ export function loadMapModel(loader, bases, relativePath, onLoad, onProgress, on
     });
   };
 
-  attempt(0);
+  if (candidates.length) attempt(0);
+  else queueMicrotask(() => attempt(0));
 }
