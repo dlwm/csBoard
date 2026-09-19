@@ -1,9 +1,14 @@
+import useDemoRoundData from './demo/useDemoRoundData.js';
+import useWorkspaceSession from './collaboration/useWorkspaceSession.js';
+import { readRoomWorkspace, publishRoomArchive } from './collaboration/roomWorkspace.js';
+import { publishRoomFrames } from './collaboration/roomFrames.js';
+import useFrameSession from './collaboration/useFrameSession.js';
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import { getBundledNavData } from './data/navData.js';
 import { tutorialNavData, tutorialWorkspaceArchive, TUTORIAL_MAP_ID } from './three/tutorialMap.js';
-import { countCachedDemoRounds, deleteCachedDemo, getCachedDemo, getCachedDemoRound, listCachedDemos, putCachedDemo, putCachedDemoRound } from './demoCache.js';
+import { countCachedDemoRounds, deleteCachedDemo, getCachedDemo, listCachedDemos, putCachedDemo, putCachedDemoRound } from './demoCache.js';
 import SideGameHub from './SideGameHub.jsx';
 import TutorialGuide, { TutorialOffer } from './TutorialGuide.jsx';
 import AnalysisControls from './analysis/AnalysisControls.jsx';
@@ -13,7 +18,6 @@ import useAnalysisData from './analysis/useAnalysisData.js';
 import useAnalysisPlayback from './analysis/useAnalysisPlayback.js';
 import { ANALYSIS_AREA_PHASES, ANALYSIS_UTILITY_ICONS, ANALYSIS_UTILITY_KINDS, ECONOMY_CATEGORIES } from './analysis/constants.js';
 import useScrollEdgeIndicators from './hooks/useScrollEdgeIndicators.js';
-import useRadarOverlay from './hooks/useRadarOverlay.js';
 import useResponsiveWorkspace from './hooks/useResponsiveWorkspace.js';
 import useMapFloorControls from './hooks/useMapFloorControls.js';
 import { roundEconomy, roundSideSignature, sidesSwitched } from './demo/economy.js';
@@ -40,25 +44,25 @@ import '@fontsource/space-grotesk/500.css';
 import '@fontsource/space-grotesk/600.css';
 import '@fontsource/space-grotesk/700.css';
 import './styles.css';
-import * as Y from 'yjs';
-import { WebsocketProvider } from 'y-websocket';
+import useRoomConnection from './collaboration/useRoomConnection.js';
 import { localeForLanguage, localize, normalizeLanguage, translate, translateDemoWorkerStatus } from './i18n.js';
-import { ANALYSIS_HEAT_DATA_EVENT, collaborationUrl, IS_DEVELOPMENT_RUNTIME, loadViewPreferences, MAP_LABELS_ZH, MAPS, MODEL_VIEW_RANGE_EVENT, VIEW_PREFERENCES_KEY } from './app/config.js';
+import { ANALYSIS_HEAT_DATA_EVENT, IS_DEVELOPMENT_RUNTIME, loadViewPreferences, MAP_LABELS_ZH, MAPS, MODEL_VIEW_RANGE_EVENT, VIEW_PREFERENCES_KEY } from './app/config.js';
 import { generateClientName, generatedClientNames } from './app/clientIdentity.js';
-import { DEFAULT_UTILITY_NOTES, DEFAULT_WORKSPACE_ARCHIVES, initialLocalRecords } from './app/defaultRecords.js';
+import useUtilityNotes from './utility/useUtilityNotes.js';
+import { UTILITY_NOTES_VERSION } from './utility/noteSchema.js';
+import useWorkspaceArchives from './collaboration/useWorkspaceArchives.js';
+import { buildArchiveSave } from './collaboration/archiveCommands.js';
 import ModelLoadIndicator, { formatBytes } from './components/ModelLoadIndicator.jsx';
 import BoardHeader from './components/BoardHeader.jsx';
 import { RenamePointModal, SaveAnonymousUtilityModal, SaveArchiveModal, UtilityNoteModal } from './components/WorkspaceModals.jsx';
 import ViewTools from './components/ViewTools.jsx';
-import { stableHash, stableSerialize } from './utils/stableValue.js';
+import { mergeUtilityNotes } from './utility/mergeUtilityNotes.js';
 import { emptyWorkspace, frameWorkspace, normalizeCollabWorkspace, normalizeFrames } from './collaboration/workspace.js';
-import { loadUtilityNotes, loadWorkspaceArchives, storeUtilityNotes, storeWorkspaceArchives } from './app/persistentStore.js';
 import { registerCsboardTools } from './webmcp/registerCsboardTools.js';
 import { getAnalysisModelContext, getFilteredAnalysisData } from './analysis/modelAccess.js';
 import { getRoundAnalysisData } from './analysis/roundModelAccess.js';
 import { hasMapModel, initializeResourcePacks } from './app/resourcePacks.js';
 
-const UTILITY_NOTES_VERSION = 3;
 const DEMO_CACHE_SCHEMA_VERSION = 30;
 
 
@@ -111,16 +115,10 @@ function App() {
   const [demoKillsCollapsed, setDemoKillsCollapsed] = useState(false);
   const [demoViewFlags, setDemoViewFlags] = useState({ deathVictim: true, deathKiller: true, killerHeat: false, victimHeat: false, targetHeat: false, opponentHeat: false, utilityThrow: true, utilityLanding: true, utilityKinds: [...ANALYSIS_UTILITY_KINDS], analysisMetric: 'kd', heatStyle: 'points', heatRadius: 9, areaPhases: [...ANALYSIS_AREA_PHASES], areaEarlySeconds: 30, economyOwn: [...ECONOMY_CATEGORIES], economyOpponent: [...ECONOMY_CATEGORIES] });
   const [showDemoNames, setShowDemoNames] = useState(false);
-  const [demoSnapshots, setDemoSnapshots] = useState([]);
-  const [demoThrowSnapshots, setDemoThrowSnapshots] = useState([]);
-  const [demoProjectiles, setDemoProjectiles] = useState([]);
-  const [demoSmokeVoxelFrames, setDemoSmokeVoxelFrames] = useState([]);
-  const [demoInfernoFrames, setDemoInfernoFrames] = useState([]);
   const [demoRound, setDemoRound] = useState(null);
   const [demoRoundMenuOpen, setDemoRoundMenuOpen] = useState(false);
   const [demoCameraMode, setDemoCameraMode] = useState('manual');
   const [demoPovPlayerId, setDemoPovPlayerId] = useState('');
-  const [demoRoundLoading, setDemoRoundLoading] = useState(false);
   const [analysisRows, setAnalysisRows] = useState([]);
   const [analysisSide, setAnalysisSide] = useState('ALL');
   const [brushColor, setBrushColor] = useState(() => {
@@ -138,6 +136,10 @@ function App() {
   const pendingDemoRoundWriteErrorRef = useRef(null);
   const pendingDemoRoundSummariesRef = useRef(new Map());
   const activeDemoCacheIdRef = useRef('');
+  const { snapshots: demoSnapshots, throwSnapshots: demoThrowSnapshots, projectiles: demoProjectiles, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames, loading: demoRoundLoading, reset: resetDemoRoundData } = useDemoRoundData({
+    demo: demoData, round: demoRound, cacheId: activeDemoCacheIdRef.current,
+    onBegin: (round) => { setDemoPovPlayerId(''); setDemoTick(round.startTick); setDemoPlaying(false); },
+  });
   const [demoSourceReady, setDemoSourceReady] = useState(false);
   const [cachedDemos, setCachedDemos] = useState([]);
   const [cachedDemosLoading, setCachedDemosLoading] = useState(true);
@@ -198,7 +200,6 @@ function App() {
   });
   const isMobile = useResponsiveWorkspace({ activePanel, leftSidebarOpen, mapName, navData });
   useEffect(() => setModelLoadState({ mapName, status: 'loading', loaded: 0, total: 0 }), [mapName]);
-  const radarOverlay = useRadarOverlay({ activePanel, boardRef, mapName, navData });
   useEffect(() => {
     if (!isMobile || (activePanel !== 'demo' && activePanel !== 'analysis')) return;
     setDemoPlaying(false);
@@ -234,15 +235,7 @@ function App() {
     if (activePanel !== 'collab') return;
     return () => flushCollabSave();
   }, [activePanel]);
-  const [utilityNotes, setUtilityNotes] = useState(() => {
-    const version = Number(localStorage.getItem('csboard-utility-notes-version') || 0);
-    const notes = initialLocalRecords('csboard-utility-notes', DEFAULT_UTILITY_NOTES, false);
-    return version >= UTILITY_NOTES_VERSION ? notes : notes.filter((note) => !note.replay);
-  });
-  const utilityNotesRef = useRef(utilityNotes);
-  const utilityNotesWriteRef = useRef(Promise.resolve());
-  const utilityNotesRevisionRef = useRef(0);
-  utilityNotesRef.current = utilityNotes;
+  const { utilityNotes, utilityNotesRef, persistUtilityNotes } = useUtilityNotes(() => setUtilityError(t('utilityStorageFailed')));
   const utilityImportInputRef = useRef(null);
   const [utilityImportNotice, setUtilityImportNotice] = useState('');
   const [utilityModalOpen, setUtilityModalOpen] = useState(false);
@@ -255,26 +248,6 @@ function App() {
   const [selectedUtilityNote, setSelectedUtilityNote] = useState(null);
   const [utilityEditDraft, setUtilityEditDraft] = useState(null);
   const [utilityCopied, setUtilityCopied] = useState(false);
-  const queueUtilityNotesWrite = (notes) => {
-    const write = utilityNotesWriteRef.current.catch(() => {}).then(() => storeUtilityNotes(notes, UTILITY_NOTES_VERSION));
-    utilityNotesWriteRef.current = write;
-    return write;
-  };
-  const persistUtilityNotes = async (notes) => {
-    utilityNotesRevisionRef.current += 1;
-    utilityNotesRef.current = notes;
-    setUtilityNotes(notes);
-    try {
-      await queueUtilityNotesWrite(notes);
-      localStorage.removeItem('csboard-utility-notes');
-      localStorage.removeItem('csboard-utility-notes-version');
-      return true;
-    } catch (error) {
-      console.error('utility notes storage', error);
-      setUtilityError(t('utilityStorageFailed'));
-      return false;
-    }
-  };
   const utilityHoverInsideRef = useRef(false);
   const utilityHoverTimerRef = useRef(null);
   const [selectedDemoGrenade, setSelectedDemoGrenade] = useState(null);
@@ -286,106 +259,26 @@ function App() {
   const analysisUtilityHoverInsideRef = useRef(false);
   const analysisUtilityHoverTimerRef = useRef(null);
   const [utilityReplay, setUtilityReplay] = useState(null);
-  // Read the legacy key once for migration, but never seed new workspace data
-  // into localStorage because recorded effects can exceed its small quota.
-  const [archives, setArchives] = useState(() => initialLocalRecords('csboard-workspace-archives', DEFAULT_WORKSPACE_ARCHIVES, false));
-  const archivesRef = useRef(archives);
-  const archiveWriteRef = useRef(Promise.resolve());
-  const archiveRevisionRef = useRef(0);
-  archivesRef.current = archives;
   const [activeArchiveId, setActiveArchiveId] = useState(null);
-  const [frames, setFrames] = useState([]);
-  const [activeFrameId, setActiveFrameId] = useState(null);
-  const framesRef = useRef(frames);
-  const activeFrameIdRef = useRef(activeFrameId);
-  framesRef.current = frames;
-  activeFrameIdRef.current = activeFrameId;
+  const { frames, activeFrameId, framesRef, activeFrameIdRef, commitFrameState, saveActiveFrame, switchFrame, insertFrame, duplicateFrame, deleteFrame } = useFrameSession({
+    getBoard: () => boardRef.current,
+    flushCollabSave: () => flushCollabSave(),
+    cancelPendingSave: () => { window.clearTimeout(collabSaveTimerRef.current); collabDirtyRef.current = false; },
+    persistActiveArchiveFrames: (...args) => persistActiveArchiveFrames(...args),
+    publishFramesToRoom: (...args) => publishFramesToRoom(...args),
+  });
   const [roomCode, setRoomCode] = useState('');
   const [roomOwner, setRoomOwner] = useState(false);
   const [roomStatus, setRoomStatus] = useState('');
   const [roomJoinCode, setRoomJoinCode] = useState('');
   const [roomNotice, setRoomNotice] = useState('');
-  const queueWorkspaceArchiveWrite = (next) => {
-    // Preserve user action order when frame saves happen close together.
-    const write = archiveWriteRef.current.catch(() => {}).then(() => storeWorkspaceArchives(next));
-    archiveWriteRef.current = write;
-    return write;
-  };
-  const persistWorkspaceArchives = async (next) => {
-    // Update the session immediately, then confirm the durable IndexedDB write.
-    archiveRevisionRef.current += 1;
-    archivesRef.current = next;
-    setArchives(next);
-    try {
-      await queueWorkspaceArchiveWrite(next);
-      localStorage.removeItem('csboard-workspace-archives');
-      return true;
-    } catch (error) {
-      console.error('workspace archive storage', error);
-      setRoomNotice(t('utilityStorageFailed'));
-      return false;
-    }
-  };
-  useEffect(() => {
-    let cancelled = false;
-    const revisionAtStart = archiveRevisionRef.current;
-    loadWorkspaceArchives().then(async (stored) => {
-      if (cancelled) return;
-      // A save made while IndexedDB was opening is newer than the loaded data.
-      if (archiveRevisionRef.current !== revisionAtStart) {
-        await queueWorkspaceArchiveWrite(archivesRef.current);
-        try { localStorage.removeItem('csboard-workspace-archives'); } catch { /* Migration cleanup is optional. */ }
-        return;
-      }
-      if (Array.isArray(stored)) {
-        archivesRef.current = stored;
-        setArchives(stored);
-        try { localStorage.removeItem('csboard-workspace-archives'); } catch { /* Migration cleanup is optional. */ }
-        return;
-      }
-      // First IndexedDB launch: preserve all legacy archives before cleanup.
-      await queueWorkspaceArchiveWrite(archivesRef.current);
-      try { localStorage.removeItem('csboard-workspace-archives'); } catch { /* Migration cleanup is optional. */ }
-    }).catch((error) => console.error('workspace archive migration', error));
-    return () => { cancelled = true; };
-  }, []);
-  useEffect(() => {
-    let cancelled = false;
-    const revisionAtStart = utilityNotesRevisionRef.current;
-    loadUtilityNotes().then(async (stored) => {
-      if (cancelled) return;
-      if (utilityNotesRevisionRef.current !== revisionAtStart) {
-        await queueUtilityNotesWrite(utilityNotesRef.current);
-      } else if (Array.isArray(stored?.notes)) {
-        const notes = Number(stored.version || 0) >= UTILITY_NOTES_VERSION
-          ? stored.notes
-          : stored.notes.filter((note) => !note.replay);
-        utilityNotesRef.current = notes;
-        setUtilityNotes(notes);
-        if (stored.version !== UTILITY_NOTES_VERSION) await queueUtilityNotesWrite(notes);
-      } else {
-        await queueUtilityNotesWrite(utilityNotesRef.current);
-      }
-      // Remove legacy large records only after their IndexedDB copy is durable.
-      localStorage.removeItem('csboard-utility-notes');
-      localStorage.removeItem('csboard-utility-notes-version');
-    }).catch((error) => console.error('utility notes migration', error));
-    // Old room snapshots were never read; discard them so they cannot retain quota.
-    try {
-      Object.keys(localStorage).filter((key) => key.startsWith('csboard-room-')).forEach((key) => localStorage.removeItem(key));
-    } catch { /* Stale-room cleanup is optional. */ }
-    return () => { cancelled = true; };
-  }, []);
+  const { archives, archivesRef, persistWorkspaceArchives, removeArchive } = useWorkspaceArchives(() => setRoomNotice(t('utilityStorageFailed')));
   const [roomUsers, setRoomUsers] = useState([]);
   const [roomActivity, setRoomActivity] = useState([]);
   const roomProviderRef = useRef(null);
   const roomDocRef = useRef(null);
-  const preRoomSessionRef = useRef(null);
-  const roomWorkspaceRef = useRef('');
   const roomOwnerRef = useRef(roomOwner);
-  const mapNameRef = useRef(mapName);
   const clientName = useRef((() => { const stored = localStorage.getItem('csboard-client-name'); const value = generatedClientNames.has(stored) ? stored : generateClientName(); if (value !== stored) localStorage.setItem('csboard-client-name', value); return value; })());
-  const pendingArchiveRef = useRef(null);
   const roomSeedRef = useRef(null);
   const setPointUpdate = (update) => {
     if (activePanel === 'collab' && update?.team && boardRef.current?.renamePlayerPoint?.setTeam) {
@@ -396,7 +289,6 @@ function App() {
     setPointUpdateState(update);
   };
   roomOwnerRef.current = roomOwner;
-  mapNameRef.current = mapName;
   const hasActiveFrameContext = Boolean(activeFrameId && frames.some((frame) => frame.id === activeFrameId) && (activeArchiveId || roomCode));
   useEffect(() => {
     boardRef.current?.setCollabVisible?.(activePanel === 'collab' && hasActiveFrameContext);
@@ -535,19 +427,14 @@ function App() {
   useEffect(() => () => { window.clearTimeout(utilityHoverTimerRef.current); window.clearTimeout(analysisUtilityHoverTimerRef.current); }, []);
   useEffect(() => () => window.clearTimeout(parseGameTimerRef.current), []);
   const applyDemoData = (data, cacheId, _analysisRowsFromCache = [], hasSource = false) => {
+    activeDemoCacheIdRef.current = cacheId || '';
     setDemoData(data);
     const firstRound = data.rounds?.[0] || null;
     setDemoRound(firstRound);
     setDemoTick(firstRound?.startTick || 0);
     setDemoPovPlayerId('');
-    setDemoSnapshots([]);
-    setDemoThrowSnapshots([]);
-    setDemoProjectiles([]);
-    setDemoSmokeVoxelFrames([]);
-    setDemoInfernoFrames([]);
-    setDemoRoundLoading(false);
+    resetDemoRoundData();
     setDemoPlaying(false);
-    activeDemoCacheIdRef.current = cacheId || '';
     setDemoSourceReady(hasSource);
   };
   const openCachedDemo = async (id) => {
@@ -563,44 +450,9 @@ function App() {
     await deleteCachedDemo(id);
     await refreshCachedDemos();
   };
-  const onReady = (value) => {
-    boardRef.current = value;
-    value.setCollabEditingEnabled?.(activePanel === 'collab' && hasActiveFrameContext);
-    value.setCollabVisible?.(activePanel === 'collab' && hasActiveFrameContext);
-    const pending = pendingArchiveRef.current;
-    if (pending && pending.mapName === mapName && navData) {
-      if (pending.frames && pending.frames.length) {
-        const active = pending.frames.find((frame) => frame.id === pending.activeFrameId) || pending.frames[0];
-        commitFrameState(pending.frames, active.id, { publish: false });
-        value.restoreWorkspaceState?.(pending.workspace || active.workspace, true);
-      } else {
-        value.restoreWorkspaceState?.(pending.workspace);
-      }
-      pendingArchiveRef.current = null;
-      return;
-    }
-    const doc = roomDocRef.current;
-    if (!doc) return;
-    const room = doc.getMap('room');
-    const points = doc.getMap('points');
-    const paths = doc.getMap('paths');
-    const utilities = doc.getMap('utilities');
-    const grenades = doc.getMap('grenades');
-    const brushes = doc.getMap('brushes');
-    const fallback = room.get('workspace');
-    const initialized = room.get('workspaceInitialized') === true;
-    value.restoreWorkspaceState?.(normalizeCollabWorkspace({ points: initialized ? [...points.values()] : fallback?.points || [], paths: initialized ? [...paths.values()] : fallback?.paths || [], grenades: initialized ? [...grenades.values()] : fallback?.grenades || [], cameraSlots: room.get('cameraSlots') || fallback?.cameraSlots || [], collabUtilities: initialized ? [...utilities.values()] : fallback?.collabUtilities || [], brushStrokes: initialized ? [...brushes.values()] : fallback?.brushStrokes || [] }), false);
-  };
+  const onReady = (value) => restoreReadyBoard(value);
   const onPointSelect = (id, screen) => { setSelectedPoint(id); setSelectedPointScreen(screen); };
   const activeFrameWorkspace = () => boardRef.current?.getWorkspaceState?.() || { points: [], paths: [], grenades: [], collabUtilities: [] };
-  const commitFrameState = (nextFrames, nextActiveId, { publish = true, workspaceForRoom = null } = {}) => {
-    framesRef.current = nextFrames;
-    activeFrameIdRef.current = nextActiveId;
-    setFrames(nextFrames);
-    setActiveFrameId(nextActiveId);
-    if (publish) publishFramesToRoom(nextFrames, nextActiveId, workspaceForRoom);
-    return nextFrames;
-  };
   const persistActiveArchiveFrames = (nextFrames, nextActiveId) => {
     if (!activeArchiveId || roomCode) return;
     const currentArchives = archivesRef.current;
@@ -608,66 +460,6 @@ function App() {
     if (index < 0) return;
     const next = currentArchives.map((archive, archiveIndex) => archiveIndex === index ? { ...archive, frames: nextFrames, activeFrameId: nextActiveId, savedAt: new Date().toISOString() } : archive);
     persistWorkspaceArchives(next);
-  };
-  const saveActiveFrame = (workspace, { publish = true } = {}) => {
-    if (!framesRef.current.length || !activeFrameIdRef.current) return null;
-    window.clearTimeout(collabSaveTimerRef.current);
-    collabDirtyRef.current = false;
-    boardRef.current?.finalizeFrameTween?.();
-    const snapshot = frameWorkspace(workspace ?? activeFrameWorkspace());
-    const next = framesRef.current.map((frame) => frame.id === activeFrameIdRef.current ? { ...frame, workspace: snapshot } : frame);
-    commitFrameState(next, activeFrameIdRef.current, { publish, workspaceForRoom: snapshot });
-    persistActiveArchiveFrames(next, activeFrameIdRef.current);
-    return next;
-  };
-  const switchFrame = (frameId) => {
-    if (frameId === activeFrameIdRef.current) return;
-    flushCollabSave();
-    boardRef.current?.finalizeFrameTween?.();
-    const outgoing = frameWorkspace(activeFrameWorkspace());
-    const next = framesRef.current.map((frame) => frame.id === activeFrameIdRef.current ? { ...frame, workspace: outgoing } : frame);
-    const frame = next.find((item) => item.id === frameId);
-    if (!frame) return;
-    commitFrameState(next, frameId, { workspaceForRoom: frame.workspace || emptyWorkspace() });
-    persistActiveArchiveFrames(next, frameId);
-    boardRef.current?.smoothRestoreFrame?.(frame.workspace || emptyWorkspace(), false, null, true);
-  };
-  const insertFrame = () => {
-    flushCollabSave();
-    boardRef.current?.finalizeFrameTween?.();
-    const outgoing = frameWorkspace(activeFrameWorkspace());
-    const saved = framesRef.current.map((frame) => frame.id === activeFrameIdRef.current ? { ...frame, workspace: outgoing } : frame);
-    const id = `frame-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-    const workspace = emptyWorkspace();
-    const next = [...saved, { id, workspace }];
-    commitFrameState(next, id, { workspaceForRoom: workspace });
-    persistActiveArchiveFrames(next, id);
-    boardRef.current?.restoreWorkspaceState?.(workspace, false);
-  };
-  const duplicateFrame = () => {
-    if (!framesRef.current.length) return;
-    flushCollabSave();
-    boardRef.current?.finalizeFrameTween?.();
-    const workspace = frameWorkspace(activeFrameWorkspace());
-    const saved = framesRef.current.map((frame) => frame.id === activeFrameIdRef.current ? { ...frame, workspace } : frame);
-    const active = saved.find((frame) => frame.id === activeFrameIdRef.current) || saved[0];
-    const index = saved.indexOf(active);
-    const id = `frame-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-    const copy = { id, workspace };
-    const next = [...saved.slice(0, index + 1), copy, ...saved.slice(index + 1)];
-    commitFrameState(next, id, { workspaceForRoom: workspace });
-    persistActiveArchiveFrames(next, id);
-    boardRef.current?.smoothRestoreFrame?.(copy.workspace, false, null, true);
-  };
-  const deleteFrame = () => {
-    if (framesRef.current.length <= 1) return;
-    flushCollabSave();
-    const index = framesRef.current.findIndex((frame) => frame.id === activeFrameIdRef.current);
-    const next = framesRef.current.filter((frame) => frame.id !== activeFrameIdRef.current);
-    const nextActive = next[Math.max(0, index - 1)] || next[0];
-    commitFrameState(next, nextActive.id, { workspaceForRoom: nextActive.workspace || emptyWorkspace() });
-    persistActiveArchiveFrames(next, nextActive.id);
-    boardRef.current?.smoothRestoreFrame?.(nextActive.workspace || emptyWorkspace(), false, null, true);
   };
   const activeCollabPlayers = () => {
     const workspace = activeFrameWorkspace();
@@ -744,37 +536,7 @@ function App() {
     });
   };
   const publishFramesToRoom = (next = framesRef.current, nextActiveId = activeFrameIdRef.current, workspaceForRoom = null) => {
-    const doc = roomDocRef.current;
-    if (!doc) return;
-    const framesMap = doc.getMap('frames');
-    const activeMap = doc.getMap('activeFrame');
-    const room = doc.getMap('room');
-    const points = doc.getMap('points');
-    const paths = doc.getMap('paths');
-    const utilities = doc.getMap('utilities');
-    const grenades = doc.getMap('grenades');
-    const brushes = doc.getMap('brushes');
-    const syncMap = (map, entries, keyOf) => {
-      const known = new Set(entries.map(keyOf));
-      map.forEach((_, id) => { if (!known.has(id)) map.delete(id); });
-      entries.forEach((entry) => { const id = keyOf(entry); if (JSON.stringify(map.get(id)) !== JSON.stringify(entry)) map.set(id, entry); });
-    };
-    doc.transact(() => {
-      const known = new Set(next.map((frame) => frame.id));
-      framesMap.forEach((_, id) => { if (!known.has(id)) framesMap.delete(id); });
-      next.forEach((frame) => { if (JSON.stringify(framesMap.get(frame.id)) !== JSON.stringify(frame)) framesMap.set(frame.id, frame); });
-      const frameOrder = next.map((frame) => frame.id);
-      if (JSON.stringify(room.get('frameOrder') || []) !== JSON.stringify(frameOrder)) room.set('frameOrder', frameOrder);
-      if (activeMap.get('id') !== nextActiveId) activeMap.set('id', nextActiveId);
-      if (workspaceForRoom) {
-        room.set('workspaceInitialized', true);
-        syncMap(points, workspaceForRoom.points || [], (point) => point.id);
-        syncMap(paths, [], (path) => path.join(':'));
-        syncMap(utilities, workspaceForRoom.collabUtilities || [], (utility) => utility.id);
-        syncMap(grenades, workspaceForRoom.grenades || [], (grenade) => grenade.id);
-        syncMap(brushes, workspaceForRoom.brushStrokes || [], (brush) => brush.id);
-      }
-    });
+    publishRoomFrames(roomDocRef.current, next, nextActiveId, workspaceForRoom);
   };
   useEffect(() => {
     if (activePanel !== 'collab') return;
@@ -814,35 +576,10 @@ function App() {
     boardRef.current?.finalizeFrameTween?.();
     const workspace = boardRef.current?.getWorkspaceState?.({ includeDemo: saveArchiveIncludeDemo === true });
     if (!workspace) return;
-    const now = Date.now();
-    let latestArchives = archivesRef.current;
-    // Rewrite older anonymous utilities through the compact schema so their
-    // duplicated smoke journals do not keep consuming the storage quota.
-    latestArchives = latestArchives.map((item) => ({
-      ...item,
-      workspace: item.workspace ? normalizeCollabWorkspace(item.workspace) : item.workspace,
-      frames: Array.isArray(item.frames) ? item.frames.map((frame) => ({ ...frame, workspace: normalizeCollabWorkspace(frame.workspace) })) : item.frames,
-    }));
-    const existing = targetId ? latestArchives.find((item) => item.id === targetId) : null;
-    if (targetId && !existing) { setRoomNotice(t('noArchives')); return; }
-    if (existing && existing.mapName !== mapName) return;
-    const currentFrameWorkspace = normalizeCollabWorkspace(workspace);
-    const newFrame = { id: `frame-${now}-${Math.random().toString(16).slice(2, 8)}`, workspace: currentFrameWorkspace };
-    // Row-level save is an explicit overwrite; the general save dialog still appends frames to an archive.
-    const overwriteExisting = Boolean(existing && saveArchiveMode === 'overwrite');
-    const savedFrames = existing && !overwriteExisting ? [...normalizeFrames(existing.frames, existing.workspace || emptyWorkspace()), newFrame] : [newFrame];
-    const savedActiveFrameId = newFrame.id;
-    const archiveWorkspace = { ...workspace, ...currentFrameWorkspace };
-    let archive;
-    let next;
-    if (existing) {
-      archive = { ...existing, savedAt: new Date().toISOString(), workspace: archiveWorkspace, mapName, map: mapName, frames: savedFrames, activeFrameId: savedActiveFrameId, demo: demoData ? { fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick } : null };
-      next = latestArchives.map((item) => item.id === targetId ? archive : item);
-    } else {
-      if (!targetName.trim()) return;
-      archive = { id: `${now}-${Math.random().toString(16).slice(2, 8)}`, savedAt: new Date().toISOString(), name: targetName.trim(), mapName, map: mapName, frames: savedFrames, activeFrameId: savedActiveFrameId, demo: demoData ? { fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick } : null, workspace: archiveWorkspace };
-      next = [archive, ...latestArchives].slice(0, 30);
-    }
+    const result = buildArchiveSave({ archives: archivesRef.current, workspace, targetId, targetName, mapName, saveArchiveMode, demo: demoData ? { fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick } : null });
+    if (result?.error === 'missing') setRoomNotice(t('noArchives'));
+    if (!result || result.error) return;
+    const { archive, next, savedFrames, savedActiveFrameId } = result;
     if (!await persistWorkspaceArchives(next)) return;
     if (!roomCode) {
       setActiveArchiveId(archive.id);
@@ -857,154 +594,66 @@ function App() {
   const openSaveArchiveModal = (includeDemo = false) => { setSaveArchiveMode('select'); setSaveArchiveIncludeDemo(includeDemo); setSaveArchiveSelected(!includeDemo && activeArchiveId ? activeArchiveId : ''); setSaveArchiveName(''); setSaveArchiveModal(true); };
   const openOverwriteArchiveModal = (archiveId) => { setSaveArchiveMode('overwrite'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(archiveId); setSaveArchiveName(''); setSaveArchiveModal(true); };
   const openNewArchiveModal = () => { setSaveArchiveMode('new'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(''); setSaveArchiveName(''); setSaveArchiveModal(true); };
-  const openRoom = () => {
-    flushCollabSave();
-    const workspace = boardRef.current?.getWorkspaceState?.();
-    if (!workspace) return;
-    preRoomSessionRef.current = { archiveId: activeArchiveId, frames: framesRef.current, activeFrameId: activeFrameIdRef.current };
-    let roomFrames = framesRef.current;
-    let roomActiveId = activeFrameIdRef.current;
-    if (!roomFrames.length || !roomActiveId) {
-      roomActiveId = `frame-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-      roomFrames = [{ id: roomActiveId, workspace: frameWorkspace(workspace) }];
-      commitFrameState(roomFrames, roomActiveId, { publish: false });
-    }
-    const code = Array.from({ length: 6 }, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
-    roomSeedRef.current = { workspace: frameWorkspace(workspace), cameraSlots: workspace.cameraSlots || [] };
-    setActiveArchiveId(null);
-    setRoomCode(code); setRoomOwner(true); setRoomStatus(`${t('room')} ${code} ${t('roomOpened')}`);
-  };
-  const leaveRoom = () => {
-    const room = roomDocRef.current?.getMap('room');
-    if (room && roomOwner) room.set('closed', true);
-    const previous = preRoomSessionRef.current;
-    setRoomStatus(roomOwner ? t('roomDestroyed') : t('roomLeft'));
-    setRoomCode(''); setRoomOwner(false);
-    setActiveArchiveId(previous?.archiveId || null);
-    commitFrameState(previous?.frames || [], previous?.activeFrameId || null, { publish: false });
-    preRoomSessionRef.current = null;
-  };
-  const joinRoom = (value = roomJoinCode) => {
-    const code = value.trim().toUpperCase();
-    if (!/^[0-9A-F]{6}$/.test(code)) return;
-    preRoomSessionRef.current = { archiveId: activeArchiveId, frames: framesRef.current, activeFrameId: activeFrameIdRef.current };
-    setActiveArchiveId(null);
-    commitFrameState([], null, { publish: false });
-    boardRef.current?.clearWorkspaceState?.();
-    setRoomCode(code); setRoomOwner(false); setRoomStatus(`${t('joiningRoom')} ${code}...`);
-  };
+  const { openRoom, leaveRoom, joinRoom, restoreWorkspaceArchive, onReady: restoreReadyBoard } = useWorkspaceSession(() => ({
+    scene: {
+      get: () => boardRef.current,
+      attach: (board) => { boardRef.current = board; },
+      context: () => ({ mapName, ready: Boolean(navData), enabled: activePanel === 'collab' && hasActiveFrameContext }),
+      changeMap: setMapName,
+    },
+    frames: {
+      read: () => ({ frames: framesRef.current, activeFrameId: activeFrameIdRef.current }),
+      replace: (items, id) => commitFrameState(items, id, { publish: false }),
+    },
+    archives: {
+      read: () => archivesRef.current, active: () => activeArchiveId,
+      select: setActiveArchiveId, persist: persistWorkspaceArchives,
+    },
+    room: {
+      read: () => ({ code: roomCode, owner: roomOwner, joinCode: roomJoinCode }),
+      start: (code, owner) => { setRoomCode(code); setRoomOwner(owner); },
+      stop: (owner) => { if (owner) roomDocRef.current?.getMap('room').set('closed', true); setRoomCode(''); setRoomOwner(false); },
+      seed: (seed) => { roomSeedRef.current = seed; },
+      readWorkspace: () => readRoomWorkspace(roomDocRef.current),
+      publishArchive: (...args) => publishRoomArchive(roomDocRef.current, ...args),
+    },
+    effects: {
+      flush: flushCollabSave,
+      notify: (event, value) => {
+        const messages = {
+          opened: () => `${t('room')} ${value} ${t('roomOpened')}`,
+          joining: () => `${t('joiningRoom')} ${value}...`,
+          destroyed: () => t('roomDestroyed'), left: () => t('roomLeft'),
+          restored: () => `${t('restoreArchive')}: ${value.name || value.mapName.toUpperCase()}`,
+        };
+        setRoomStatus(messages[event]());
+      },
+      restoreDemo: (saved) => {
+        if (!saved || demoData?.demo.fileName !== saved.fileName) return;
+        const round = demoData.rounds.find(item => item.round === saved.round);
+        if (round) setDemoRound(round);
+        setDemoTick(saved.tick);
+      },
+    },
+  }));
   useEffect(() => {
     if (!roomNotice) return;
     window.alert(roomNotice);
     setRoomNotice('');
   }, [roomNotice]);
-  useEffect(() => {
-    if (!roomCode) return undefined;
-    const doc = new Y.Doc(); const provider = new WebsocketProvider(collaborationUrl(), roomCode, doc);
-    roomDocRef.current = doc; roomProviderRef.current = provider;
-    const room = doc.getMap('room');
-    const points = doc.getMap('points');
-    const paths = doc.getMap('paths');
-    const utilities = doc.getMap('utilities');
-    const grenades = doc.getMap('grenades');
-    const framesMap = doc.getMap('frames');
-    const activeFrameMap = doc.getMap('activeFrame');
-    const brushes = doc.getMap('brushes');
-    const awareness = provider.awareness;
-    const knownUsers = new Map();
-    let presenceEventId = 0;
-    setRoomActivity([]);
-    const syncPresence = ({ added = [], removed = [] } = {}) => {
-      const states = awareness.getStates();
-      const joined = added.filter((clientId) => clientId !== doc.clientID).map((clientId) => states.get(clientId)?.user?.name).filter(Boolean);
-      const left = removed.filter((clientId) => clientId !== doc.clientID).map((clientId) => knownUsers.get(clientId)?.name).filter(Boolean);
-      const users = [...states.entries()].map(([clientId, state]) => state.user ? { clientId, ...state.user, current: clientId === doc.clientID } : null).filter(Boolean).sort((first, second) => Number(second.owner) - Number(first.owner) || first.name.localeCompare(second.name));
-      knownUsers.clear();
-      users.forEach((user) => knownUsers.set(user.clientId, user));
-      setRoomUsers(users);
-      const events = [...joined.map((name) => localize(languageRef.current, { zh: `${name} 已加入房间`, en: `${name} joined the room`, ru: `${name} вошёл в комнату` })), ...left.map((name) => localize(languageRef.current, { zh: `${name} 已退出房间`, en: `${name} left the room`, ru: `${name} вышел из комнаты` }))];
-      if (events.length) setRoomActivity((current) => [...current, ...events.map((text) => ({ id: presenceEventId += 1, text }))].slice(-5));
-    };
-    awareness.on('change', syncPresence);
-    awareness.setLocalStateField('user', { name: clientName.current, owner: roomOwnerRef.current });
-    syncPresence();
-    let applyingRemote = false;
-    let synced = false;
-    const frameSwitchTransactions = new WeakSet();
-    const applySharedWorkspace = () => {
-      const fallback = room.get('workspace');
-      const initialized = room.get('workspaceInitialized') === true;
-      const shared = {
-        points: initialized ? [...points.values()] : fallback?.points || [],
-        paths: initialized ? [...paths.values()] : fallback?.paths || [],
-        grenades: initialized ? [...grenades.values()] : fallback?.grenades || [],
-        collabUtilities: initialized ? [...utilities.values()] : fallback?.collabUtilities || [],
-        brushStrokes: initialized ? [...brushes.values()] : fallback?.brushStrokes || [],
-        cameraSlots: room.get('cameraSlots') || fallback?.cameraSlots || [],
-      };
-      const normalizedShared = normalizeCollabWorkspace(shared);
-      const serialized = JSON.stringify(normalizedShared);
-      if (serialized === roomWorkspaceRef.current) return;
-      roomWorkspaceRef.current = serialized;
-      applyingRemote = true;
-      boardRef.current?.restoreWorkspaceState?.(normalizedShared, false);
-      applyingRemote = false;
-    };
-    let appliedRevision = -1;
-    const tr = (key, values) => translate(languageRef.current, key, values);
-    const apply = (_event, transaction) => {
-      if (transaction?.local) return;
-      if (room.get('closed')) { setRoomNotice(tr('roomDestroyed')); leaveRoom(); return; }
-      const revision = Number(room.get('revision') || 0);
-      const map = room.get('mapName');
-      if (map && map !== mapNameRef.current && !roomOwnerRef.current) setMapName(map);
-      if (revision !== appliedRevision) { appliedRevision = revision; roomWorkspaceRef.current = ''; }
-      const remoteActiveId = activeFrameMap.get('id');
-      const switchingFrame = remoteActiveId && remoteActiveId !== activeFrameIdRef.current && framesMap.has(remoteActiveId);
-      if (switchingFrame && transaction) frameSwitchTransactions.add(transaction);
-      if (!switchingFrame && !frameSwitchTransactions.has(transaction)) applySharedWorkspace();
-      setRoomStatus(`${tr('joinedRoom')} ${roomCode}`);
-    };
-    provider.on('status', ({ status }) => { setRoomStatus(status === 'connected' ? `${tr('room')} ${roomCode} ${tr('connected')} · ${clientName.current}` : `${tr('room')} ${status === 'disconnected' ? tr('disconnected') : tr('connecting')}...`); });
-    provider.on('sync', (isSynced) => {
-      synced = isSynced;
-      if (!isSynced) return;
-      if (roomOwnerRef.current && room.get('workspaceInitialized') !== true) {
-        const seedState = roomSeedRef.current;
-        const seed = seedState?.workspace || frameWorkspace(activeFrameWorkspace());
-        const cameraSlots = seedState?.cameraSlots || boardRef.current?.getWorkspaceState?.().cameraSlots || [];
-        doc.transact(() => { room.set('mapName', mapNameRef.current); room.set('cameraSlots', cameraSlots); room.set('closed', false); room.set('workspaceInitialized', true); });
-        publishFramesToRoom(framesRef.current, activeFrameIdRef.current, seed);
-        roomSeedRef.current = null;
-      }
-      apply();
-    });
-    room.observe(apply); points.observe(apply); paths.observe(apply); utilities.observe(apply); grenades.observe(apply); apply();
-    const applyFrames = (_event, transaction) => {
-      if (transaction?.local) return;
-      const order = room.get('frameOrder') || [];
-      const orderIndex = new Map(order.map((id, index) => [id, index]));
-      const remote = normalizeFrames([...framesMap.values()]).sort((left, right) => (orderIndex.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (orderIndex.get(right.id) ?? Number.MAX_SAFE_INTEGER));
-      if (!remote.length) return;
-      const desiredId = framesMap.has(activeFrameMap.get('id')) ? activeFrameMap.get('id') : remote[0].id;
-      const changedFrame = desiredId !== activeFrameIdRef.current;
-      if (changedFrame && transaction) frameSwitchTransactions.add(transaction);
-      commitFrameState(remote, desiredId, { publish: false });
-      if (changedFrame) {
-        const selected = remote.find((frame) => frame.id === desiredId);
-        applyingRemote = true;
-        boardRef.current?.smoothRestoreFrame?.(selected?.workspace || emptyWorkspace(), false, null, true);
-        applyingRemote = false;
-      }
-    };
-    const applyBrushes = () => {
-      if (!synced) return;
-      boardRef.current?.applyLiveBrushData?.([...brushes.values()]);
-    };
-    framesMap.observe(applyFrames); activeFrameMap.observe(applyFrames); applyFrames();
-    brushes.observe(applyBrushes); applyBrushes();
-    return () => { room.unobserve(apply); points.unobserve(apply); paths.unobserve(apply); utilities.unobserve(apply); grenades.unobserve(apply); framesMap.unobserve(applyFrames); activeFrameMap.unobserve(applyFrames); brushes.unobserve(applyBrushes); awareness.off('change', syncPresence); provider.destroy(); doc.destroy(); setRoomUsers([]); roomDocRef.current = null; roomProviderRef.current = null; };
-  }, [roomCode]);
+  useRoomConnection(roomCode, () => ({
+    context: () => ({ language, name: clientName.current, owner: roomOwner, mapName }),
+    scene: () => boardRef.current,
+    attach: (doc, provider) => { roomDocRef.current = doc; roomProviderRef.current = provider; },
+    detach: (doc) => { if (roomDocRef.current === doc) { roomDocRef.current = null; roomProviderRef.current = null; } },
+    events: { activity: setRoomActivity, users: setRoomUsers, notice: setRoomNotice, status: setRoomStatus },
+    frames: {
+      read: () => ({ frames: framesRef.current, activeFrameId: activeFrameIdRef.current }),
+      replace: (items, id) => commitFrameState(items, id, { publish: false }),
+    },
+    seed: { read: () => roomSeedRef.current, clear: () => { roomSeedRef.current = null; } },
+    leave: leaveRoom, changeMap: setMapName,
+  }));
   useEffect(() => {
     if (!roomCode || !roomOwner || !roomDocRef.current) return;
     const room = roomDocRef.current.getMap('room');
@@ -1019,8 +668,7 @@ function App() {
     boardRef.current?.clearWorkspaceState?.();
   }, [mapName]);
   const deleteWorkspaceArchive = async (id) => {
-    const next = archivesRef.current.filter((archive) => archive.id !== id);
-    if (!await persistWorkspaceArchives(next)) return;
+    if (!await removeArchive(id)) return;
     if (activeArchiveId === id) {
       setActiveArchiveId(null);
       if (!roomCode) {
@@ -1073,59 +721,11 @@ function App() {
       const parsed = JSON.parse(await file.text());
       const imported = Array.isArray(parsed) ? parsed : parsed?.notes;
       if (!Array.isArray(imported)) throw new Error('invalid notes');
-      const next = [...utilityNotesRef.current];
-      const exact = new Set(next.map(stableSerialize));
-      const ids = new Set(next.map((note) => note.id).filter(Boolean));
-      let added = 0;
-      let skipped = 0;
-      imported.forEach((raw, index) => {
-        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
-        const rawKey = stableSerialize(raw);
-        if (exact.has(rawKey)) { skipped += 1; return; }
-        const contentHash = stableHash(rawKey);
-        const requestedId = String(raw.id || `import-${contentHash}`);
-        const id = ids.has(requestedId) ? `${requestedId}-import-${contentHash}` : requestedId;
-        const note = { ...raw, id };
-        const noteKey = stableSerialize(note);
-        if (exact.has(noteKey)) { skipped += 1; return; }
-        next.push(note);
-        exact.add(noteKey);
-        ids.add(id);
-        added += 1;
-      });
+      const { next, added, skipped } = mergeUtilityNotes(utilityNotesRef.current, imported);
       if (!await persistUtilityNotes(next)) throw new Error('utility storage failed');
       setUtilityImportNotice(t('utilityImportDone', { added, skipped }));
     } catch {
       setUtilityImportNotice(t('utilityImportFailed'));
-    }
-  };
-  const restoreWorkspaceArchive = (archive) => {
-    if (roomCode && !roomOwner) return;
-    flushCollabSave();
-    const storedArchive = archivesRef.current.find((item) => item.id === archive.id) || archive;
-    const restoredFrames = normalizeFrames(storedArchive.frames, storedArchive.workspace || emptyWorkspace());
-    if (!restoredFrames.length) return;
-    const active = restoredFrames.find((frame) => frame.id === storedArchive.activeFrameId) || restoredFrames[0];
-    const canonicalArchive = { ...storedArchive, frames: restoredFrames, activeFrameId: active.id, workspace: { ...(storedArchive.workspace || {}), ...normalizeCollabWorkspace(storedArchive.workspace || active.workspace) } };
-    const restoreWorkspace = { ...frameWorkspace(active.workspace || canonicalArchive.workspace), cameraSlots: canonicalArchive.workspace?.cameraSlots || [], camera: canonicalArchive.workspace?.camera || null };
-    if (JSON.stringify(storedArchive.frames || []) !== JSON.stringify(restoredFrames) || JSON.stringify(storedArchive.workspace || {}) !== JSON.stringify(canonicalArchive.workspace)) {
-      const migrated = archivesRef.current.map((item) => item.id === canonicalArchive.id ? canonicalArchive : item);
-      persistWorkspaceArchives(migrated);
-    }
-    if (!roomCode) setActiveArchiveId(canonicalArchive.id);
-    commitFrameState(restoredFrames, active.id, { publish: false });
-    pendingArchiveRef.current = { ...canonicalArchive, workspace: restoreWorkspace };
-    if (canonicalArchive.mapName !== mapName) setMapName(canonicalArchive.mapName);
-    else if (boardRef.current) {
-      boardRef.current.restoreWorkspaceState?.(restoreWorkspace, true);
-      pendingArchiveRef.current = null;
-    }
-    setRoomStatus(`${t('restoreArchive')}: ${canonicalArchive.name || canonicalArchive.mapName.toUpperCase()}`);
-    if (canonicalArchive.demo && demoData?.demo.fileName === canonicalArchive.demo.fileName) { const round = demoData.rounds.find((item) => item.round === canonicalArchive.demo.round); if (round) setDemoRound(round); setDemoTick(canonicalArchive.demo.tick); }
-    if (roomDocRef.current && roomOwner) {
-      const room = roomDocRef.current.getMap('room');
-      roomDocRef.current.transact(() => { room.set('mapName', canonicalArchive.mapName); room.set('cameraSlots', canonicalArchive.workspace?.cameraSlots || []); room.set('workspaceInitialized', true); room.set('revision', Number(room.get('revision') || 0) + 1); });
-      publishFramesToRoom(restoredFrames, active.id, frameWorkspace(restoreWorkspace));
     }
   };
   const openTutorialWorkspace = () => {
@@ -1348,26 +948,6 @@ function App() {
     }, 3000);
     startDemoBatch(files);
   };
-  useEffect(() => {
-    if (!demoRound || !demoData) return;
-    let cancelled = false;
-    setDemoPovPlayerId('');
-    setDemoTick(demoRound.startTick);
-    setDemoRoundLoading(true);
-    setDemoPlaying(false);
-    setDemoSmokeVoxelFrames([]);
-    setDemoInfernoFrames([]);
-    getCachedDemoRound(activeDemoCacheIdRef.current, demoRound.round).then((cached) => {
-      if (cancelled) return;
-      setDemoSnapshots(cached?.snapshots || []);
-      setDemoThrowSnapshots(cached?.throwSnapshots || []);
-      setDemoProjectiles(cached?.projectiles || []);
-      setDemoSmokeVoxelFrames(cached?.smokeVoxelFrames || []);
-      setDemoInfernoFrames(cached?.infernoFrames || []);
-      setDemoRoundLoading(false);
-    }).catch(() => { if (!cancelled) setDemoRoundLoading(false); });
-    return () => { cancelled = true; };
-  }, [demoRound, demoData]);
   useEffect(() => { if (demoPovPlayerId && !demoPovPlayer) setDemoPovPlayerId(''); }, [demoPovPlayerId, demoPovPlayer]);
   useEffect(() => {
     if (!demoPlaying || !demoData || !demoRound) return undefined;
@@ -1574,7 +1154,7 @@ function App() {
        {grenadeWheel.open && <div className="grenade-wheel"><div className={`wheel-item wheel-smoke ${grenadeWheel.type === 'smoke' ? 'active' : ''}`}>{t('smoke')}</div><div className={`wheel-item wheel-fire ${grenadeWheel.type === 'fire' ? 'active' : ''}`}>{t('fire')}</div><div className={`wheel-item wheel-flash ${grenadeWheel.type === 'flash' ? 'active' : ''}`}>{t('flash')}</div><div className={`wheel-item wheel-explosion ${grenadeWheel.type === 'explosion' ? 'active' : ''}`}>{t('grenade')}</div><span className="wheel-key">Q</span></div>}
       {saveArchiveModal && <SaveArchiveModal archives={archives} draftName={saveArchiveName} language={language} mapName={mapName} mode={saveArchiveMode} onClose={() => setSaveArchiveModal(false)} onDraftNameChange={setSaveArchiveName} onSave={saveWorkspaceArchive} onSelectedChange={setSaveArchiveSelected} selected={saveArchiveSelected} t={t} />}
       {renameModal && <RenamePointModal draft={renameDraft} onClose={() => setRenameModal(null)} onConfirm={confirmRename} onDraftChange={setRenameDraft} t={t} />}
-            <ViewTools activeCameraSlot={activeCameraSlot} boardRef={boardRef} brushColor={brushColor} brushWidth={brushWidth} cameraSlotState={cameraSlotState} currentLayerUrl={currentLayerUrl} currentMapLayers={currentMapLayers} cycleMapFloor={cycleMapFloor} eraserEnabled={eraserEnabled} floorOptions={floorOptions} language={language} map2dLayer={map2dLayer} modelFloor={modelFloor} radarOverlay={radarOverlay} selectMapFloor={selectMapFloor} setBrushColor={setBrushColor} setBrushWidth={setBrushWidth} setEraserEnabled={setEraserEnabled} t={t} />
+            <ViewTools activePanel={activePanel} mapName={mapName} navData={navData} activeCameraSlot={activeCameraSlot} boardRef={boardRef} brushColor={brushColor} brushWidth={brushWidth} cameraSlotState={cameraSlotState} currentLayerUrl={currentLayerUrl} currentMapLayers={currentMapLayers} cycleMapFloor={cycleMapFloor} eraserEnabled={eraserEnabled} floorOptions={floorOptions} language={language} map2dLayer={map2dLayer} modelFloor={modelFloor} selectMapFloor={selectMapFloor} setBrushColor={setBrushColor} setBrushWidth={setBrushWidth} setEraserEnabled={setEraserEnabled} t={t} />
            <div className="key-hints">{activePanel === 'demo' || activePanel === 'analysis' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatPlayback')}</b><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : activePanel === 'utility' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : <><div className="key-group"><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintMovePlayer')}</span><span><kbd>CTRL+LMB</kbd>{t('hintYaw')}</span><span><kbd>SHIFT+LMB</kbd>{t('hintPitch')}</span><span><kbd>DBL</kbd>{t('hintCrouch')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></>}</div>
           <div className="aspect-frame" aria-hidden="true"><i /></div>
            {activePanel === 'demo' && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /></>}

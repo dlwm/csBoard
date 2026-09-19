@@ -1,18 +1,26 @@
 import { localize } from '../i18n.js';
+import useRadarOverlay from '../hooks/useRadarOverlay.js';
+
+// Keep radar polling local: camera motion must not rerender the entire application.
+function RadarOverlay({ activePanel, boardRef, mapName, navData }) {
+  const radarOverlay = useRadarOverlay({ activePanel, boardRef, mapName, navData });
+  if (!radarOverlay) return null;
+  return <svg className="map-radar-overlay" viewBox="0 0 100 100" aria-hidden="true">
+    {radarOverlay.players.map((player) => <g className={`map-player-base side-${player.team.toLowerCase()}`} key={`${player.source}-${player.id}`} transform={`translate(${player.x} ${player.y}) rotate(${player.angle})`}><circle r="3.1" /><path d="M2.2 0 5.2-1.6 5.2 1.6Z" /></g>)}
+    <g className="map-camera-marker" transform={`translate(${radarOverlay.camera.x} ${radarOverlay.camera.y}) rotate(${radarOverlay.camera.angle})`}><path className="map-camera-fan" d="M0 0 23-10A25 25 0 0 1 23 10Z" /><circle r="2.2" /></g>
+  </svg>;
+}
 
 const BRUSH_COLORS = ['#a5e0ff', '#ff6b6b', '#7cf29c', '#ffd166', '#ffffff', '#c084fc'];
 const BRUSH_WIDTHS = [2, 3, 5, 8];
 
 // Desktop camera, radar-floor, and drawing controls surrounding the Three.js viewport.
-export default function ViewTools({ activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, radarOverlay, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
+export default function ViewTools({ activePanel, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
   return <div className="view-tools">
     <div className="view-tools-top">
       {currentMapLayers.length ? <button type="button" className="map-preview-slot" aria-label={localize(language, { zh: '切换地图层级', en: 'Switch map floor', ru: 'Переключить этаж карты' })} onClick={cycleMapFloor}>
         <img src={currentLayerUrl} alt="" />
-        {radarOverlay && <svg className="map-radar-overlay" viewBox="0 0 100 100" aria-hidden="true">
-          {radarOverlay.players.map((player) => <g className={`map-player-base side-${player.team.toLowerCase()}`} key={`${player.source}-${player.id}`} transform={`translate(${player.x} ${player.y}) rotate(${player.angle})`}><circle r="3.1" /><path d="M2.2 0 5.2-1.6 5.2 1.6Z" /></g>)}
-          <g className="map-camera-marker" transform={`translate(${radarOverlay.camera.x} ${radarOverlay.camera.y}) rotate(${radarOverlay.camera.angle})`}><path className="map-camera-fan" d="M0 0 23-10A25 25 0 0 1 23 10Z" /><circle r="2.2" /></g>
-        </svg>}
+        <RadarOverlay activePanel={activePanel} boardRef={boardRef} mapName={mapName} navData={navData} />
         {currentMapLayers.length > 1 && <span>{currentMapLayers[map2dLayer]?.id === 'lower' ? t('lowerFloor') : t('upperFloor')}</span>}
       </button> : <div className="map-preview-slot map-preview-empty" aria-hidden="true" />}
       <div className="camera-slots">

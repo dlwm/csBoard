@@ -240,6 +240,8 @@ Map extraction tools and raw game resources remain local-only. Do not commit VPK
 
 ## Architecture
 
+For code navigation and validation workflows, see the [development guide (Chinese)](docs/development.md).
+
 - React and Vite for the application shell and UI.
 - Feature-scoped Analysis components and calculations under `src/analysis/`; Demo domain logic and HUD under `src/demo/`; shared UI under `src/components/`; Three.js helpers under `src/three/`; utility-note logic under `src/utility/`; and reusable cross-panel DOM behavior under `src/hooks/`.
 - Three.js for map rendering, tactical objects, effects, and replay visualization.

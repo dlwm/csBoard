@@ -240,6 +240,8 @@ GLB 存储桶需返回 `Access-Control-Allow-Origin` 头。`src/navParser.js` �
 
 ## 技术架构
 
+代码位置、数据流与验证方式见[开发导览](development.md)。
+
 - React 与 Vite：应用外壳和界面。
 - `src/analysis/` 收纳分析组件与计算逻辑，`src/demo/` 放置 Demo 领域逻辑和 HUD，`src/components/` 放置共享 UI，`src/three/` 放置 Three.js 辅助模块，`src/utility/` 放置道具速记逻辑，`src/hooks/` 放置跨面板 DOM 行为。
 - Three.js：地图、战术对象、效果和回放渲染。

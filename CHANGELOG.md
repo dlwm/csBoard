@@ -2,6 +2,12 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.14.1] - 2026-09-15
+
+### Added
+
+- Desktop version supports importing UI and map resources.
+
 ## [1.14.0] - 2026-09-14
 
 ### Added

@@ -1392,6 +1392,11 @@ export default function ThreeBoard(props) {
          materials.forEach((material) => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); if (mapName === TUTORIAL_MAP_ID) material.transparent = true; material.opacity = modelOpacity; material.depthWrite = true; });
       });
       scene.add(worldModel);
+      // Static map materials share the live floor uniform; initialize once, not every scan.
+      worldModel.traverse((object) => {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((material) => enableMaterialFloorFade(material, floorFadeRef.current));
+      });
       if (MAP_ZONE_MODELS_ENABLED && mapName !== TUTORIAL_MAP_ID) {
         loadMapModel(new GLTFLoader(), MAP_MODEL_BASES, `${mapName}/${mapName}.zones.glb`, (gltf) => {
           if (disposed || !worldModel) return;
@@ -1487,6 +1492,7 @@ export default function ThreeBoard(props) {
       });
     };
     let lastFloorMaterialScan = 0;
+    const brushResolution = new THREE.Vector2();
     const animate = (now) => {
       if (disposed) return;
       frame = requestAnimationFrame(animate);
@@ -1712,15 +1718,19 @@ export default function ThreeBoard(props) {
       updateAimTargetScreenSizes();
       const interactionLocked = Boolean(cameraTransition || collabFocusedPlayer || utilityFirstPersonRef.current?.player || utilityProjectileFollowRef.current || demoDirectorCameraActive || placing || grenadeAdjusting || pointPointerTarget || cameraInput.active);
       if (!interactionLocked && !controls.enabled) controls.enabled = true;
-      const brushResolution = renderer.getDrawingBufferSize(new THREE.Vector2());
+      renderer.getDrawingBufferSize(brushResolution);
       brushStrokes.forEach((line) => { if (line.material) line.material.resolution.copy(brushResolution); });
       if (brushStrokeLine?.material) brushStrokeLine.material.resolution.copy(brushResolution);
       if (now - lastFloorMaterialScan > 250) {
         lastFloorMaterialScan = now;
-        scene.traverse((object) => {
-          if (!object.material || object === floor) return;
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material) => enableMaterialFloorFade(material, floorFadeRef.current));
+        // Dynamic overlays still need discovery, but the large static model is already patched.
+        scene.children.forEach((root) => {
+          if (root === worldModel) return;
+          root.traverse((object) => {
+            if (!object.material || object === floor) return;
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            materials.forEach((material) => enableMaterialFloorFade(material, floorFadeRef.current));
+          });
         });
       }
       renderer.render(scene, camera);
