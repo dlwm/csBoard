@@ -5,7 +5,7 @@
   "build": {
     "cwd": ".",
     "watch_dir": "../../src",
-    "command": "npm run build:remote"
+    "command": "node scripts/build-worker-frontend.js"
   },
   "assets": {
     "directory": "../../dist",

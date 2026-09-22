@@ -121,12 +121,15 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
   const disposeUtility = (utility) => {
     const geometries = new Set();
     const materials = new Set();
+    const textures = new Set();
     utility.traverse((object) => {
       if (object.geometry) geometries.add(object.geometry);
       if (object.material) materials.add(object.material);
+      if (object.userData.smokeDensityTexture) textures.add(object.userData.smokeDensityTexture);
     });
     geometries.forEach((geometry) => geometry.dispose());
     materials.forEach((material) => material.dispose());
+    textures.forEach((texture) => texture.dispose());
     utility.removeFromParent();
   };
 

@@ -1,8 +1,10 @@
 // Demo playback HUD: kill feed, team rosters, and first-person status.
 import * as THREE from 'three';
+import { useLayoutEffect, useRef } from 'react';
 import { KillIcon, RawIcon, RosterIcon, RosterWeaponIcon, grenadeIconKey } from '../components/CsIcons.jsx';
 import { demoPovRuntime, demoRosterRuntime } from '../three/runtime.js';
 import { demoEventPlayerMatches, demoPlayerReload, demoWeaponKind, recentPlayerBalanceChange } from './playerState.js';
+import { monitorTeamPrimary, sameTeamMonitorPlayers } from './monitorPlayers.js';
 
 function playerGrenadeIcons(inventory, noGrenadesLabel, hasC4 = false) {
   const counts = new Map();
@@ -73,7 +75,7 @@ export function DemoRoster({ side, players, events, tick, round, tickRate, povPl
   })}</div>;
 }
 
-export function DemoPovHud({ player, firing, hurt }) {
+export function DemoPovHud({ player, firing, hurt, minimal = false }) {
   if (!player) return null;
   const weapon = String(player.activeWeapon || '-').replace(/^weapon_/, '').toUpperCase();
   const weaponKind = demoWeaponKind(player.activeWeapon);
@@ -83,8 +85,57 @@ export function DemoPovHud({ player, firing, hurt }) {
   const flashOpacity = flashStrength * THREE.MathUtils.smoothstep(THREE.MathUtils.clamp(flashProgress, 0, 1), 0, 1);
   return <div className={`demo-pov-hud pov-kind-${weaponKind}${firing ? ' firing' : ''}${player.scoped ? ' scoped' : ''}`}>
     <div className="demo-pov-crosshair" aria-hidden="true"><i /><i /></div>
-    <div className="demo-pov-weapon"><small>POV · {player.name}</small><div><KillIcon type="weapon" weapon={player.activeWeapon} side={player.side} /><strong>{weapon}</strong>{player.activeWeaponAmmo != null && <b>{player.activeWeaponAmmo}</b>}</div></div>
+    {!minimal && <div className="demo-pov-weapon"><small>POV · {player.name}</small><div><KillIcon type="weapon" weapon={player.activeWeapon} side={player.side} /><strong>{weapon}</strong>{player.activeWeaponAmmo != null && <b>{player.activeWeaponAmmo}</b>}</div></div>}
     {hurt && <div className="demo-pov-hurt" />}
     {flashOpacity > 0 && <div className="demo-pov-flash" style={{ opacity: flashOpacity }} />}
   </div>;
+}
+
+export function DemoMonitorWall({ players, primaryId, onSelect, translate }) {
+  const primary = players.find((player) => player.monitorId === primaryId) || null;
+  const others = sameTeamMonitorPlayers(players, primaryId);
+  const dead = primary && Number(primary.health) <= 0;
+  const wallRef = useRef(null);
+  useLayoutEffect(() => {
+    const stage = wallRef.current?.closest('.board-stage');
+    if (!stage || typeof ResizeObserver === 'undefined') return undefined;
+    const resize = () => {
+      if (stage.closest('.board-shell')?.classList.contains('is-mobile')) {
+        stage.style.removeProperty('--monitor-wall-width');
+        return;
+      }
+      const slots = Math.max(others.length, 1);
+      // Match the actual row height after wall margins, padding and gaps.
+      const tileHeight = (stage.clientHeight - 58 - 12 - 12 - 2 - 5 * (slots - 1)) / slots;
+      const centerWidth = stage.querySelector('.three-board')?.clientWidth || stage.clientWidth;
+      const width = Math.max(160, Math.min(390, centerWidth * 0.42, tileHeight * 16 / 9 + 12));
+      stage.style.setProperty('--monitor-wall-width', `${Math.round(width)}px`);
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(stage);
+    resize();
+    return () => { observer.disconnect(); stage.style.removeProperty('--monitor-wall-width'); };
+  }, [others.length]);
+  return <>
+    {dead && <div className="demo-monitor-main-dead" aria-label={`${primary.name} ${translate('killed')}`}><i /><strong>{primary.name}</strong></div>}
+    <aside className="demo-monitor-wall" ref={wallRef} style={{ '--monitor-slot-count': Math.max(others.length, 1) }} aria-label={translate('cameraMonitor')}>
+      <div className="demo-monitor-grid">{others.map((player) => {
+        const playerDead = Number(player.health) <= 0;
+        const unavailable = !playerDead && player.hasPosition === false;
+        return <button type="button" className={`demo-monitor-tile side-${Number(player.team) === 2 ? 't' : 'ct'}${playerDead ? ' dead' : ''}${unavailable ? ' unavailable' : ''}`} data-monitor-player-id={player.monitorId} key={player.monitorId} onClick={() => onSelect(player)}>
+          <span>{player.name}</span><b>{playerDead ? 'DEAD' : unavailable ? translate('monitorNoData') : `${Math.max(0, Number(player.health) || 0)} HP`}</b>
+          {!playerDead && !unavailable && <i className="demo-monitor-crosshair" aria-hidden="true" />}
+          {playerDead && <i aria-hidden="true" />}
+        </button>;
+      })}</div>
+    </aside>
+  </>;
+}
+
+export function DemoMonitorTeamSwitch({ players, primaryId, onSelect }) {
+  const primary = players.find((player) => player.monitorId === primaryId);
+  return <div className="demo-monitor-team-switch">{[[2, 'T'], [3, 'CT']].map(([team, label]) => {
+    const target = monitorTeamPrimary(players, team);
+    return <button type="button" key={team} className={Number(primary?.team) === team ? 'selected' : ''} disabled={!target} onClick={() => target && onSelect(target)}>{label}</button>;
+  })}</div>;
 }

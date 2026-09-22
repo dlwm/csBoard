@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 import { packSmokeVoxel, unpackSmokeVoxel } from '../demo/smokeVoxels.js';
+import { createSmokeDensityVolume } from './smokeDensityVolume.js';
 
 const MAP_SCALE = 0.0254;
 const VOXEL_WORLD_SIZE = 20;
@@ -13,7 +14,7 @@ const FIELD_SUBTRACT = 80;
 const FIELD_BLUR_PASSES = 3;
 const FIELD_BLUR_STRENGTH = 0.48;
 
-export const SMOKE_VOLUME_SCALE = 1.1;
+export const SMOKE_VOLUME_SCALE = 1.32;
 
 const decodedSceneGrid = (packed) => {
   const [gridA, gridB, gridC] = unpackSmokeVoxel(packed);
@@ -21,8 +22,8 @@ const decodedSceneGrid = (packed) => {
   return [gridB, gridA, gridC];
 };
 
-// Converts one recorded occupancy entry into one metaball source, then extracts
-// a single smooth surface so adjacent CS2 voxels read as one continuous volume.
+// Reuse the established metaball field, but render density through its depth
+// instead of extracting a hard shell and adding visibly separate edge layers.
 export function createSmokeVoxelVolume(frame, modelCenter) {
   const group = new THREE.Group();
   const centers = Array.from(frame.voxels, decodedSceneGrid);
@@ -35,18 +36,13 @@ export function createSmokeVoxelVolume(frame, modelCenter) {
   const fieldCenter = minima.map((minimum, axis) => (minimum + maxima[axis]) / 2);
   const fieldMinimum = fieldCenter.map((center) => center - fieldCells / 2);
   const resolution = THREE.MathUtils.clamp(Math.ceil(fieldCells * 3), 32, 48);
-  const material = new THREE.MeshStandardMaterial({
-    color: '#9ea8aa', roughness: 1, metalness: 0,
-    emissive: '#202728', emissiveIntensity: 0.26,
-    transparent: false, depthWrite: true, side: THREE.FrontSide,
-  });
-  const volume = new MarchingCubes(resolution, material, false, false, 40000);
-  volume.isolation = FIELD_ISOLATION;
+  const field = new MarchingCubes(resolution, new THREE.MeshBasicMaterial(), false, false, 1);
+  field.isolation = FIELD_ISOLATION;
   // A slightly wider influence closes gaps before extracting the outer shell;
   // it does not create extra visual particles or alter the recorded source count.
   const normalizedRadius = SURFACE_RADIUS_CELLS / fieldCells;
   const strength = normalizedRadius ** 2 * (FIELD_ISOLATION + FIELD_SUBTRACT);
-  centers.forEach((point) => volume.addBall(
+  centers.forEach((point) => field.addBall(
     (point[0] - fieldMinimum[0]) / fieldCells,
     (point[1] - fieldMinimum[1]) / fieldCells,
     (point[2] - fieldMinimum[2]) / fieldCells,
@@ -55,17 +51,17 @@ export function createSmokeVoxelVolume(frame, modelCenter) {
   ));
   // Repeated low-intensity relaxation acts like surface tension: it suppresses
   // the molecule-like bulge around each source while retaining large deformations.
-  for (let pass = 0; pass < FIELD_BLUR_PASSES; pass += 1) volume.blur(FIELD_BLUR_STRENGTH);
-  volume.update();
-  volume.scale.setScalar(fieldCells * VOXEL_SCENE_SIZE / 2);
-  volume.position.set(
+  for (let pass = 0; pass < FIELD_BLUR_PASSES; pass += 1) field.blur(FIELD_BLUR_STRENGTH);
+  const position = new THREE.Vector3(
     (fieldCenter[0] - GRID_CENTER) * VOXEL_SCENE_SIZE,
     (fieldCenter[1] - GRID_CENTER) * VOXEL_SCENE_SIZE,
     (fieldCenter[2] - GRID_CENTER) * VOXEL_SCENE_SIZE,
   );
-  volume.frustumCulled = false;
-  volume.renderOrder = 5;
+  const volume = createSmokeDensityVolume(field.field, resolution, fieldCells * VOXEL_SCENE_SIZE / 2, position);
+  field.geometry.dispose();
+  field.material.dispose();
   volume.userData.smokeVoxelSourceCount = centers.length;
+  group.userData.setSmokeBlasts = volume.userData.setSmokeBlasts;
 
   group.position.set(
     frame.origin[1] * MAP_SCALE - modelCenter.x,
@@ -97,7 +93,7 @@ const FALLBACK_SMOKE_VOXELS = (() => {
 })();
 
 // Older saved throws and manual previews have no network voxel journal. Give
-// them the same unified shell renderer with a deterministic smoke-sized volume.
+// them the same density renderer with a deterministic smoke-sized volume.
 export function createFallbackSmokeVolume(position) {
   const group = createSmokeVoxelVolume({ origin: [0, 0, 0], seq: 0, tick: 0, voxels: FALLBACK_SMOKE_VOXELS }, new THREE.Vector3());
   group.position.copy(position);

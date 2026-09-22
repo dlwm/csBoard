@@ -2,6 +2,23 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.15.0] - 2026-09-22
+
+### Added
+
+- Add a same-team monitor view to Round Replay and View Broadcast: select the main POV, switch teams, watch other teammates in a right-hand column with smaller crosshairs, and distinguish dead views with a black overlay and diagonal cross.
+- Add View Broadcast archives. Save one named interval from Round Replay, select it to open a room, and let guests download the clip with full-screen progress before it is saved locally. Broadcast playback keeps its own Demo, timeline, camera, monitor, and model controls rather than leaking state into Round Replay; it omits match-only HUD elements.
+- Add independent draggable folder trees for Collaboration archives, View Broadcast clips, and Utility Notes. Saving can target a folder; Root is fixed, duplicate names are allowed, and deleting a folder moves its contents upward without deleting archives.
+- Allow an optional local SVG icon pack in Cloudflare Worker frontend builds. Missing icons retain the built-in UI; map models remain external and are not included in the pack.
+
+### Changed
+
+- Render replay smoke as one denser, soft-edged volume instead of visibly separate spheres, and retain its recorded shape when saving or importing utility.
+- Add a temporary HE-cleared opening to replay smoke, expanding from the recorded blast point and refilling over time. Obvious wall occlusion blocks the effect; Broadcast clips retain a recent HE when playback starts during the opening. The visual radius is an approximation, not a published game constant.
+- Keep the View Broadcast bottom bar within the center canvas column. Model controls occupy the left portion and playback the right; narrow desktop windows open model options from a compact button.
+- Make running trails shorter, smaller, and less opaque. Emit puffs only for sustained forward displacement, so short back-and-forth movements or sparse/missing coordinates do not accumulate a cloud.
+- Resolve kill-feed weapon icons from the longest recognized weapon-name prefix, including Demo variants such as `usp_silencer_txz09` and `glock_vip`, while keeping the original event name available for inspection.
+
 ## [1.14.1] - 2026-09-15
 
 ### Added

@@ -9,6 +9,12 @@ export function createRoundDataStore(readRound) {
   return {
     getSnapshot: () => state,
     subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); },
+    setInline(data) {
+      generation++;
+      const next = empty();
+      for (const key of Object.keys(next)) if (key !== 'loading') next[key] = data?.[key] || [];
+      publish(next);
+    },
     reset() { generation++; publish(empty()); },
     cancel() { generation++; },
     async load(cacheId, round) {

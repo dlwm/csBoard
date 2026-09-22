@@ -1,6 +1,7 @@
 import { isDesktopRuntime } from './runtime.js';
 
 let resources = { icons: {}, models: {} };
+const workerIcons = new Set(JSON.parse(import.meta.env.VITE_WORKER_RESOURCE_ICONS || '[]'));
 
 // Load once before React mounts. Applying a new pack is an explicit page reload,
 // so active 3D scenes never retain textures or geometry from a half-updated pack.
@@ -11,7 +12,7 @@ export async function initializeResourcePacks() {
 }
 
 export function importedIconUrl(name) {
-  return isDesktopRuntime() && resources.icons[name] ? `/resource-pack/icons/${name}.svg` : null;
+  return (isDesktopRuntime() ? resources.icons[name] : workerIcons.has(name)) ? `/resource-pack/icons/${name}.svg` : null;
 }
 
 export function hasMapModel(mapName) {

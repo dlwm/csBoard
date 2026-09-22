@@ -12,7 +12,7 @@ Third-party libraries retain their own licenses. In particular, the Rust/WASM De
 
 The dependency inventory, acknowledgements, and bundled license texts are provided in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Preserve applicable copyright and license notices when redistributing dependencies. Space Grotesk and DM Mono remain under SIL Open Font License 1.1; Electron/Chromium and Rust dependency notices must also accompany distributions containing those components. These notices do not relicense third-party components under GPL.
 
-Release 1.14.0 retains GPL-3.0-only for CSBoard; the standard GPL text in `LICENSE` is unchanged. Corresponding source for distributed modified parser builds includes the upstream revision and local patches documented in `src/wasm/README.md`.
+Release 1.15.0 retains GPL-3.0-only for CSBoard; the standard GPL text in `LICENSE` is unchanged. Corresponding source for distributed modified parser builds includes the upstream revision and local patches documented in `src/wasm/README.md`.
 
 ## Game and other third-party assets
 

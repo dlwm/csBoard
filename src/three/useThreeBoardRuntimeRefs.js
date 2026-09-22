@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import * as THREE from 'three';
-import { analysisUtilityRuntime, demoFrameSourceRuntime, demoPovRuntime, utilityRuntime } from './runtime.js';
+import { analysisUtilityRuntime, demoFrameSourceRuntime, demoPovRuntime, demoRosterRuntime, utilityRuntime } from './runtime.js';
 
 // Keeps frequently changing React inputs available to the long-lived Three.js scene.
 // Updating refs here avoids rebuilding the scene whenever playback or UI state changes.
@@ -8,7 +8,7 @@ export default function useThreeBoardRuntimeRefs(props) {
   const {
     analysisEnabled, analysisHighlightedUtilityId, analysisRows, analysisSelectedPlayers,
     analysisTime, analysisUtilities, brushColor, brushEnabled, brushWidth, collabEditingEnabled, demoC4Events,
-    demoCameraMode, demoDeaths, demoFires, demoGrenades, demoGrenadeSegments, demoSource,
+    demoCameraMode, demoDeaths, demoFires, demoGrenades, demoGrenadeSegments, demoMonitorPlayers, demoSource,
     demoHltvEvents, demoHurts, demoInEyePlayer, demoInfernoFrames, demoProjectiles, demoSmokeVoxelFrames, demoSnapshot,
     demoSnapshots, demoTick, demoViewFlags, eraserEnabled, heatDeaths, modelViewMode,
     onAnalysisUtilitySelect, onBrushChange, onCollabEdit,
@@ -45,6 +45,7 @@ export default function useThreeBoardRuntimeRefs(props) {
     demoC4EventsRef: useRef(demoC4Events || []),
     demoHltvEventsRef: useRef(demoHltvEvents || []),
     demoCameraModeRef: useRef(demoCameraMode || 'manual'),
+    demoMonitorPlayersRef: useRef(demoMonitorPlayers || demoRosterRuntime.monitorPlayers || []),
     demoCameraInterruptRef: useRef(demoPovRuntime.interrupt || onDemoCameraInterrupt),
     demoInEyePlayerRef: useRef(demoInEyePlayer || demoPovRuntime.player),
     heatDeathsRef: useRef(heatDeaths || []),
@@ -103,6 +104,7 @@ export default function useThreeBoardRuntimeRefs(props) {
   refs.demoC4EventsRef.current = demoC4Events || [];
   refs.demoHltvEventsRef.current = demoHltvEvents || [];
   refs.demoCameraModeRef.current = demoCameraMode || 'manual';
+  refs.demoMonitorPlayersRef.current = demoMonitorPlayers || demoRosterRuntime.monitorPlayers || [];
   refs.demoCameraInterruptRef.current = demoPovRuntime.interrupt || onDemoCameraInterrupt;
   refs.demoInEyePlayerRef.current = demoInEyePlayer || demoPovRuntime.player;
   refs.heatDeathsRef.current = heatDeaths || [];

@@ -6,7 +6,7 @@ import ChangelogModal from './ChangelogModal.jsx';
 import ResourcePackModal from './ResourcePackModal.jsx';
 import { isDesktopRuntime } from '../app/runtime.js';
 
-const PANELS = [['demo', 'rounds'], ['analysis', 'analysis'], ['utility', 'utilityNotes'], ['collab', 'collab']];
+const PANELS = [['demo', 'rounds'], ['analysis', 'analysis'], ['broadcast', 'broadcast'], ['utility', 'utilityNotes'], ['collab', 'collab']];
 
 // Global navigation owns locale cycling and the mini-game launcher, independent of panel content.
 export default function BoardHeader({ activePanel, language, mapName, parseGameState, setLanguage, setMapName, setParseGameManual, setParseGameState, switchPanel, t }) {

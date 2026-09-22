@@ -4,6 +4,8 @@ const EFFECT_END_EVENT = {
   decoy_started: 'decoy_detonate',
 };
 
+export const HE_SMOKE_CLEAR_SECONDS = 2.1;
+
 const FALLBACK_DURATION_TICKS = {
   smokegrenade_detonate: 1152,
   inferno_startburn: 448,

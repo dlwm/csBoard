@@ -15,6 +15,7 @@ test('relocated Wrangler configs resolve project paths and retain root persisten
     if (config.build) {
       assert.equal(config.build.cwd, '.');
       assert.equal(path.resolve(configDir, config.build.watch_dir), path.join(root, 'src'));
+      if (name !== 'backend') assert.match(config.build.command, /node scripts\/build-worker-frontend\.js/);
     }
   }
   const launcher = fs.readFileSync(path.join(root, 'scripts/dev-workers.js'), 'utf8');

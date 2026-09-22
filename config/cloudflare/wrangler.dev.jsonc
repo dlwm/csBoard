@@ -7,7 +7,7 @@
   "build": {
     "cwd": ".",
     "watch_dir": "../../src",
-    "command": "VITE_OSS_BASE_URL=http://localhost:3002 VITE_BACKEND_BASE_URL=/ npm run build:remote"
+    "command": "VITE_OSS_BASE_URL=http://localhost:3002 VITE_BACKEND_BASE_URL=/ node scripts/build-worker-frontend.js"
   },
   "assets": {
     "directory": "../../dist",

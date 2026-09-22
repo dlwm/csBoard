@@ -67,6 +67,17 @@ export default function createCameraStateController({
     viewRange: THREE.MathUtils.clamp(Number(getViewRange?.()), 0, 1),
   });
 
+  const restoreState = (saved) => {
+    if (!Array.isArray(saved?.position) || !Array.isArray(saved?.target)
+      || saved.position.length !== 3 || saved.target.length !== 3
+      || !saved.position.every(Number.isFinite) || !saved.target.every(Number.isFinite)) return false;
+    camera.position.fromArray(saved.position);
+    controls.target.fromArray(saved.target);
+    if (Number.isFinite(saved.viewRange)) onRestoreViewRange?.(saved.viewRange);
+    controls.update();
+    return true;
+  };
+
   const saveCurrent = () => {
     // Never overwrite the user's manual view with a director or first-person camera.
     if (!persistenceReady || isPersistenceBlocked()) return;
@@ -82,12 +93,7 @@ export default function createCameraStateController({
   const restoreCurrent = () => {
     try {
       const saved = JSON.parse(localStorage.getItem(currentStorageKey) || 'null');
-      if (!saved?.position?.every(Number.isFinite) || !saved?.target?.every(Number.isFinite) || saved.position.length !== 3 || saved.target.length !== 3) return false;
-      camera.position.fromArray(saved.position);
-      controls.target.fromArray(saved.target);
-      if (Number.isFinite(saved.viewRange)) onRestoreViewRange?.(saved.viewRange);
-      controls.update();
-      return true;
+      return restoreState(saved);
     } catch {
       return false;
     }
@@ -109,6 +115,7 @@ export default function createCameraStateController({
     replaceSlots,
     serializeSlots,
     getCameraState,
+    restoreState,
     restoreCurrent,
     enablePersistence,
     clearActiveSlot: () => notifySlots(),

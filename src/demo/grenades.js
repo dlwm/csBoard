@@ -79,7 +79,7 @@ export function utilityProjectileAtTick(replay, tick) {
 
 export function buildDemoGrenadeSegments(projectiles = [], events = [], snapshots = [], round, tickRate = 64) {
   if (!round) return [];
-  const grenadeEvents = events.filter((event) => event.tick >= round.startTick && event.tick <= round.endTick);
+  const grenadeEvents = events.filter((event) => event.tick >= (round.contextStartTick ?? round.startTick) && event.tick <= round.endTick);
   const throws = grenadeEvents.filter((event) => event.event_name === 'grenade_thrown');
   const landings = grenadeEvents.filter((event) => ['smokegrenade_detonate', 'inferno_startburn', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started'].includes(event.event_name));
   const usedThrows = new Set();

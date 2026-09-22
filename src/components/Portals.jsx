@@ -14,3 +14,4 @@ export const AnalysisOptionsPortal = ({ children }) => <SelectorPortal selector=
 export const RoomPresencePortal = ({ children }) => <SelectorPortal selector=".room-open">{children}</SelectorPortal>;
 export const CameraHintsPortal = ({ children }) => <SelectorPortal selector=".key-hints .key-group:last-child">{children}</SelectorPortal>;
 export const ModelControlsPortal = ({ selector, children }) => <SelectorPortal selector={selector}>{children}</SelectorPortal>;
+export const DemoPlaybackActionsPortal = ({ children }) => <SelectorPortal selector=".demo-playback-controls">{children}</SelectorPortal>;

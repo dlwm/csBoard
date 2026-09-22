@@ -8,12 +8,13 @@
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
 
-## Version 1.14.0
+## Version 1.15.0
 
-- Offline NAV-based 2D radar with square, aligned multi-floor views and elevation shading; smooth 3D NAV without edge overlays.
-- Updated equipment/HUD icons, map-colored localized names, and standing/crouched pawn markers.
-- Electron-only AI setup guide and single-round analysis: both-team timelines, events, utility, pagination, and evidence-aware prompts. Web browsers do not expose AI UI or register WebMCP tools. A compatible connected client is still required.
-- See the [round analysis guide](docs/round-analysis-model.md), [release notes](CHANGELOG.md), and [third-party acknowledgements and licenses](THIRD_PARTY_NOTICES.md).
+- Save a named Demo interval for View Broadcast, open a room from its archive, and download it into another participant's local collection.
+- Watch a team through a main POV and side monitors, switch teams, and see dead players' views clearly marked.
+- Organize Collaboration, View Broadcast, and Utility Notes archives in draggable folder trees; replay smoke has a smoother shared volume, while running trails no longer build up during short back-and-forth movement.
+- Optionally bundle a local SVG icon pack for the Cloudflare Worker frontend; kill-feed icons also recognize suffixed Demo weapon names.
+- See the [release notes](CHANGELOG.md) and [third-party acknowledgements and licenses](THIRD_PARTY_NOTICES.md).
 
 ## Highlights
 
@@ -28,6 +29,14 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Display simplified standing and crouching player models with yaw, pitch, dynamic eye height, and BVH-accelerated line-of-sight collision.
 - Track C4 carriers, drops, plants, explosions, defuses, approximate drop trajectories, and the bomb timer.
 - Save the current frame and convert live players and active utility into editable tactical-board objects.
+- Switch to a same-team monitor wall with a selectable main POV; fallen teammates show a blacked-out view.
+- Save a named time interval as a View Broadcast clip.
+
+### View Broadcast
+
+- Play one saved Demo interval without match-only score, kill-feed, or round controls; retain monitor mode, model settings, and clickable utility saving.
+- Selecting a clip opens a six-character room. Guests see full-screen transfer progress and receive a local archive before playback starts.
+- Keep Broadcast and Round Replay playback positions, cameras, and selected POVs separate when switching pages.
 
 ### Tactical Editing
 
@@ -40,6 +49,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Open the custom utility wheel from any desktop workspace and delete placed utility with `Ctrl`/`Cmd` + click.
 - Store ten camera presets per map and restore them with `1-9` / `0`.
 - Save local workspace archives containing player markers, utility, brushes, camera presets, and an optional Demo frame reference.
+- Organize local archives in a draggable folder tree; folder deletion moves entries to the parent.
 
 ### Utility Notes
 
@@ -51,6 +61,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 - Export the utility library as JSON and append imported JSON records to the local library.
 - Deduplicate records by complete deep equality during import; identical records are retained only once.
 - Import a saved utility into a collaboration frame only after selecting it and confirming the action. Imported utility and custom `Q`-wheel utility remain separate data types.
+- Sort saved setups into draggable folders independently of Collaboration and View Broadcast archives.
 
 ### Demo Analysis
 
@@ -181,7 +192,7 @@ Unpackaged development runs may read `.local/official/maps`; `npm run desktop:bu
 
 The Electron renderer also contains an experimental, opt-in WebMCP bridge. Run `npm run build:desktop` once, then `npm run desktop:start:webmcp` to enable experimental API support; successful registration and an actual client call must still be verified; ordinary `npm run desktop:start` launches without Chromium's experimental web-platform switch. In Analysis, a connected user model should call `get_analysis_context` first to read the current filters, field guide, readiness state, and starter prompts, then page through `get_filtered_analysis_data`. The latter returns already-filtered KD, area-time, or utility JSON in pages of at most 200 records; utility trajectories are opt-in to avoid wasting model context. Vision-capable models may call `capture_3d_view` to receive the current 3D canvas with camera and analysis metadata. Width, height, WebP/JPEG/PNG format, quality, fit mode, and context inclusion are configurable; the default is a compact 960px-wide WebP. Both launch modes use the same fixed, read-only `http://127.0.0.1:32145` application origin so desktop storage remains stable. Override the port with `CSBOARD_DESKTOP_PORT` only when necessary.
 
-To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.14.0` image version.
+To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.15.0` image version.
 
 ## Controls
 
@@ -267,6 +278,8 @@ make workers-deploy
 Edit `deploy.cloudflare.env` with the Cloudflare account, frontend and backend Worker names, OSS base URL, backend public URL, and optional custom domains. Prefer supplying `CLOUDFLARE_API_TOKEN` through the shell or CI secret store. The deploy script writes the platform-neutral `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL` values to the ignored `.env.production.local`, then passes the same OSS base URL to the backend as `env.MAP_BASE_URL`.
 
 The script deploys the API, room WebSockets, and Durable Objects to the backend Worker first, then deploys the Vite bundle to the frontend Workers Static Assets service. `BACKEND_PUBLIC_URL` is embedded into the frontend so collaboration connections use the separate backend origin.
+
+Optional Worker UI icons can be selected with the ignored `.local/worker-resource-pack.json` file. Its `iconDirectory` points to a local pack (for example `.local/official/ui`); only recognized SVG icons are bundled. Without this file, the existing built-in UI remains unchanged. This does not include GLB models or change `OSS_BASE_URL`. See [Cloudflare deployment configuration](config/cloudflare/README.md) for the format and validation rules. Verify redistribution rights before deploying third-party icons.
 
 The legacy `POST /api/parse` response contract is retained using the existing browser-compatible parser WASM. Cloudflare request-body, memory, and CPU limits still apply, so large Demo files should continue to be parsed locally in the browser.
 

@@ -27,12 +27,12 @@ import DemoBatchPanel from './demo/DemoBatchPanel.jsx';
 import useDemoBatchParser from './demo/useDemoBatchParser.js';
 import useDemoViewState from './demo/useDemoViewState.js';
 import MobileCameraWheel from './components/MobileCameraWheel.jsx';
-import { AnalysisOptionsPortal, CameraHintsPortal, CollabUtilityPortal, ModelControlsPortal, RoomPresencePortal, UtilityNotesActionsPortal } from './components/Portals.jsx';
+import { AnalysisOptionsPortal, CameraHintsPortal, CollabUtilityPortal, DemoPlaybackActionsPortal, ModelControlsPortal, RoomPresencePortal, UtilityNotesActionsPortal } from './components/Portals.jsx';
 import { parseGetpos, utilityPositionClusters } from './utility/notes.js';
 import useUtilityReplayPlayback from './utility/useUtilityReplayPlayback.js';
 import { buildSavedThrowNote } from './utility/savedThrow.js';
 import { RawIcon, SideLogo } from './components/CsIcons.jsx';
-import { DemoDataWarning, DemoKillFeed, DemoPovHud, DemoRoster } from './demo/DemoHud.jsx';
+import { DemoDataWarning, DemoKillFeed, DemoMonitorTeamSwitch, DemoMonitorWall, DemoPovHud, DemoRoster } from './demo/DemoHud.jsx';
 import { analysisUtilityRuntime, demoFrameSourceRuntime, utilityRuntime } from './three/runtime.js';
 import ThreeBoard from './three/ThreeBoard.jsx';
 // Ship the Latin display fonts with the app. Windows and offline desktop
@@ -54,7 +54,7 @@ import useWorkspaceArchives from './collaboration/useWorkspaceArchives.js';
 import { buildArchiveSave } from './collaboration/archiveCommands.js';
 import ModelLoadIndicator, { formatBytes } from './components/ModelLoadIndicator.jsx';
 import BoardHeader from './components/BoardHeader.jsx';
-import { RenamePointModal, SaveAnonymousUtilityModal, SaveArchiveModal, UtilityNoteModal } from './components/WorkspaceModals.jsx';
+import { RenamePointModal, SaveAnonymousUtilityModal, SaveArchiveModal, UtilityFolderModal, UtilityNoteModal } from './components/WorkspaceModals.jsx';
 import ViewTools from './components/ViewTools.jsx';
 import { mergeUtilityNotes } from './utility/mergeUtilityNotes.js';
 import { emptyWorkspace, frameWorkspace, normalizeCollabWorkspace, normalizeFrames } from './collaboration/workspace.js';
@@ -62,6 +62,13 @@ import { registerCsboardTools } from './webmcp/registerCsboardTools.js';
 import { getAnalysisModelContext, getFilteredAnalysisData } from './analysis/modelAccess.js';
 import { getRoundAnalysisData } from './analysis/roundModelAccess.js';
 import { hasMapModel, initializeResourcePacks } from './app/resourcePacks.js';
+import { BroadcastClipModal, BroadcastDownloadOverlay, BroadcastPanel } from './broadcast/BroadcastPanel.jsx';
+import { UtilityArchiveTree, WorkspaceArchiveTree } from './components/ArchiveCollections.jsx';
+import { ROOT_FOLDER_ID } from './app/archiveFolders.js';
+import useArchiveFolders from './app/useArchiveFolders.js';
+import { buildBroadcastArchive } from './broadcast/archive.js';
+import useBroadcastArchives from './broadcast/useBroadcastArchives.js';
+import useBroadcastRoom from './broadcast/useBroadcastRoom.js';
 
 const DEMO_CACHE_SCHEMA_VERSION = 30;
 
@@ -116,6 +123,17 @@ function App() {
   const [demoViewFlags, setDemoViewFlags] = useState({ deathVictim: true, deathKiller: true, killerHeat: false, victimHeat: false, targetHeat: false, opponentHeat: false, utilityThrow: true, utilityLanding: true, utilityKinds: [...ANALYSIS_UTILITY_KINDS], analysisMetric: 'kd', heatStyle: 'points', heatRadius: 9, areaPhases: [...ANALYSIS_AREA_PHASES], areaEarlySeconds: 30, economyOwn: [...ECONOMY_CATEGORIES], economyOpponent: [...ECONOMY_CATEGORIES] });
   const [showDemoNames, setShowDemoNames] = useState(false);
   const [demoRound, setDemoRound] = useState(null);
+  const [broadcastPage, setBroadcastPage] = useState(false);
+  const broadcastPageRef = useRef(false);
+  broadcastPageRef.current = broadcastPage;
+  const browsePlaybackRef = useRef(null);
+  const broadcastPlaybackRef = useRef(null);
+  const pendingPlaybackRestoreRef = useRef(null);
+  const pendingCameraRestoreRef = useRef(null);
+  const boardReadyMapRef = useRef('');
+  const [broadcastInlineRound, setBroadcastInlineRound] = useState(null);
+  const [activeBroadcastId, setActiveBroadcastId] = useState('');
+  const [broadcastClipDraft, setBroadcastClipDraft] = useState(null);
   const [demoRoundMenuOpen, setDemoRoundMenuOpen] = useState(false);
   const [demoCameraMode, setDemoCameraMode] = useState('manual');
   const [demoPovPlayerId, setDemoPovPlayerId] = useState('');
@@ -138,7 +156,15 @@ function App() {
   const activeDemoCacheIdRef = useRef('');
   const { snapshots: demoSnapshots, throwSnapshots: demoThrowSnapshots, projectiles: demoProjectiles, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames, loading: demoRoundLoading, reset: resetDemoRoundData } = useDemoRoundData({
     demo: demoData, round: demoRound, cacheId: activeDemoCacheIdRef.current,
-    onBegin: (round) => { setDemoPovPlayerId(''); setDemoTick(round.startTick); setDemoPlaying(false); },
+    inlineData: broadcastInlineRound,
+    onBegin: (round) => {
+      const pending = pendingPlaybackRestoreRef.current;
+      pendingPlaybackRestoreRef.current = null;
+      const restored = pending?.round?.round === round.round ? pending : null;
+      setDemoPovPlayerId(restored?.povPlayerId || '');
+      setDemoTick(restored?.tick ?? round.startTick);
+      setDemoPlaying(false);
+    },
   });
   const [demoSourceReady, setDemoSourceReady] = useState(false);
   const [cachedDemos, setCachedDemos] = useState([]);
@@ -236,9 +262,13 @@ function App() {
     return () => flushCollabSave();
   }, [activePanel]);
   const { utilityNotes, utilityNotesRef, persistUtilityNotes } = useUtilityNotes(() => setUtilityError(t('utilityStorageFailed')));
+  const utilityFolders = useArchiveFolders('utility', () => setUtilityError(t('utilityStorageFailed')));
+  const [utilitySaveFolderId, setUtilitySaveFolderId] = useState(ROOT_FOLDER_ID);
+  const [pendingUtilityNote, setPendingUtilityNote] = useState(null);
   const utilityImportInputRef = useRef(null);
   const [utilityImportNotice, setUtilityImportNotice] = useState('');
   const [utilityModalOpen, setUtilityModalOpen] = useState(false);
+  useEffect(() => { if (utilityModalOpen) setUtilitySaveFolderId(ROOT_FOLDER_ID); }, [utilityModalOpen]);
   const [utilityDraft, setUtilityDraft] = useState({ getpos: '', name: '', summary: '' });
   const [utilityError, setUtilityError] = useState('');
   const [anonymousUtilitySave, setAnonymousUtilitySave] = useState(null);
@@ -273,6 +303,21 @@ function App() {
   const [roomJoinCode, setRoomJoinCode] = useState('');
   const [roomNotice, setRoomNotice] = useState('');
   const { archives, archivesRef, persistWorkspaceArchives, removeArchive } = useWorkspaceArchives(() => setRoomNotice(t('utilityStorageFailed')));
+  const workspaceFolders = useArchiveFolders('workspace', () => setRoomNotice(t('utilityStorageFailed')));
+  const { archives: broadcastArchives, archivesRef: broadcastArchivesRef, persist: persistBroadcastArchives, remove: removeBroadcastArchive } = useBroadcastArchives(() => setRoomNotice(t('utilityStorageFailed')));
+  const broadcastFolders = useArchiveFolders('broadcast', () => setRoomNotice(t('utilityStorageFailed')));
+  const broadcastRoom = useBroadcastRoom({
+    onArchiveReceived: async (archive, isCancelled) => {
+      if (isCancelled?.() || !broadcastPageRef.current) return;
+      const current = broadcastArchivesRef.current;
+      const next = current.some((item) => item.id === archive.id)
+        ? current.map((item) => item.id === archive.id ? archive : item)
+        : [...current, archive];
+      if (!await persistBroadcastArchives(next)) throw new Error('broadcast archive storage failed');
+      if (isCancelled?.() || !broadcastPageRef.current) return;
+      playBroadcastArchive(archive);
+    },
+  });
   const [roomUsers, setRoomUsers] = useState([]);
   const [roomActivity, setRoomActivity] = useState([]);
   const roomProviderRef = useRef(null);
@@ -426,8 +471,19 @@ function App() {
   }, [demoCacheOpen, demoRoundMenuOpen, modeMenuOpen]);
   useEffect(() => () => { window.clearTimeout(utilityHoverTimerRef.current); window.clearTimeout(analysisUtilityHoverTimerRef.current); }, []);
   useEffect(() => () => window.clearTimeout(parseGameTimerRef.current), []);
-  const applyDemoData = (data, cacheId, _analysisRowsFromCache = [], hasSource = false) => {
+  const applyDemoData = (data, cacheId, _analysisRowsFromCache = [], hasSource = false, inlineRoundData = null, broadcastId = '') => {
+    if (broadcastPageRef.current && !broadcastId) {
+      const round = data.rounds?.[0] || null;
+      browsePlaybackRef.current = {
+        ...browsePlaybackRef.current, data, round, tick: round?.startTick || 0,
+        cacheId: cacheId || '', inlineRoundData: null, povPlayerId: '', cameraMode: 'manual',
+        sourceReady: hasSource, mapName: data.demo.map || browsePlaybackRef.current?.mapName || mapName,
+      };
+      return;
+    }
     activeDemoCacheIdRef.current = cacheId || '';
+    setBroadcastInlineRound(inlineRoundData);
+    setActiveBroadcastId(broadcastId);
     setDemoData(data);
     const firstRound = data.rounds?.[0] || null;
     setDemoRound(firstRound);
@@ -436,6 +492,76 @@ function App() {
     resetDemoRoundData();
     setDemoPlaying(false);
     setDemoSourceReady(hasSource);
+  };
+  const playBroadcastArchive = (archive) => {
+    if (!archive?.demoData || !archive?.roundData) return;
+    setBroadcastPage(true);
+    setActivePanel('demo');
+    setDemoCameraMode('manual');
+    applyDemoData(archive.demoData, '', [], false, archive.roundData, archive.id);
+    setMapName(archive.mapName || archive.demoData.demo.map || mapName);
+  };
+  const capturePlayback = () => ({
+    data: demoData, round: demoRound, tick: demoTick, cacheId: activeDemoCacheIdRef.current,
+    broadcastId: activeBroadcastId,
+    inlineRoundData: broadcastInlineRound || (!demoRoundLoading && demoRound && demoSnapshots.length
+      ? { round: demoRound.round, snapshots: demoSnapshots, throwSnapshots: demoThrowSnapshots, projectiles: demoProjectiles, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames }
+      : null),
+    povPlayerId: demoPovPlayerId, cameraMode: demoCameraMode, sourceReady: demoSourceReady,
+    status: demoStatus, sampleRate: demoSampleRate, mapName,
+    camera: boardRef.current?.getCameraState?.() || null,
+  });
+  const restorePlayback = (session, fallbackMap = mapName, restoreCamera = true) => {
+    const targetMap = session?.mapName || fallbackMap;
+    pendingPlaybackRestoreRef.current = session?.data && session.round ? session : null;
+    pendingCameraRestoreRef.current = restoreCamera && session?.camera ? { mapName: targetMap, camera: session.camera } : null;
+    activeDemoCacheIdRef.current = session?.cacheId || '';
+    setBroadcastInlineRound(session?.inlineRoundData || null);
+    setActiveBroadcastId(session?.broadcastId || '');
+    setDemoData(session?.data || null);
+    setDemoRound(session?.round || null);
+    setDemoTick(session?.tick || 0);
+    setDemoPovPlayerId(session?.povPlayerId || '');
+    setDemoCameraMode(session?.cameraMode || 'manual');
+    setDemoSourceReady(Boolean(session?.sourceReady));
+    setDemoStatus(session?.status || '');
+    if (session?.sampleRate) setDemoSampleRate(session.sampleRate);
+    setDemoPlaying(false);
+    setDemoRoundMenuOpen(false);
+    setDemoCacheOpen(false);
+    resetDemoRoundData();
+    setMapName(targetMap);
+  };
+  const hostBroadcastArchive = (archive) => {
+    broadcastRoom.leave();
+    playBroadcastArchive(archive);
+    // Let the previous provider dispose before publishing a new immutable payload.
+    setTimeout(() => broadcastRoom.open(archive), 0);
+  };
+  const openBroadcastClipModal = () => {
+    if (!demoData || !demoRound || demoRoundLoading) return;
+    const tickRate = demoData.demo.tickRate || 64;
+    setDemoPlaying(false);
+    setBroadcastClipDraft({
+      name: '',
+      folderId: ROOT_FOLDER_ID,
+      startTick: Math.max(demoRound.startTick, Math.round(demoTick - tickRate * 10)),
+      endTick: Math.min(demoRound.endTick, Math.round(demoTick + tickRate * 10)),
+    });
+  };
+  const saveBroadcastClip = async () => {
+    if (!broadcastClipDraft || !demoData || !demoRound) return;
+    const archive = buildBroadcastArchive({
+      name: broadcastClipDraft.name,
+      demoData,
+      round: demoRound,
+      roundData: { snapshots: demoSnapshots, throwSnapshots: demoThrowSnapshots, projectiles: demoProjectiles, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames },
+      startTick: broadcastClipDraft.startTick,
+      endTick: broadcastClipDraft.endTick,
+    });
+    if (!archive || !await persistBroadcastArchives([...broadcastArchivesRef.current, archive])) return;
+    await broadcastFolders.assign(archive.id, broadcastClipDraft.folderId, broadcastArchivesRef.current);
+    setBroadcastClipDraft(null);
   };
   const openCachedDemo = async (id) => {
     const entry = await getCachedDemo(id);
@@ -450,7 +576,20 @@ function App() {
     await deleteCachedDemo(id);
     await refreshCachedDemos();
   };
-  const onReady = (value) => restoreReadyBoard(value);
+  const onReady = (value) => {
+    restoreReadyBoard(value);
+    boardReadyMapRef.current = mapName;
+    const pending = pendingCameraRestoreRef.current;
+    if (pending?.mapName !== mapName) return;
+    value.restoreCameraState?.(pending.camera);
+    if (value.ready) pendingCameraRestoreRef.current = null;
+  };
+  useEffect(() => {
+    const pending = pendingCameraRestoreRef.current;
+    if (pending?.mapName !== mapName || boardReadyMapRef.current !== mapName) return;
+    boardRef.current?.restoreCameraState?.(pending.camera);
+    if (modelLoadState.mapName === mapName && modelLoadState.status !== 'loading') pendingCameraRestoreRef.current = null;
+  }, [broadcastPage, demoData, mapName, modelLoadState]);
   const onPointSelect = (id, screen) => { setSelectedPoint(id); setSelectedPointScreen(screen); };
   const activeFrameWorkspace = () => boardRef.current?.getWorkspaceState?.() || { points: [], paths: [], grenades: [], collabUtilities: [] };
   const persistActiveArchiveFrames = (nextFrames, nextActiveId) => {
@@ -497,6 +636,7 @@ function App() {
   const openAnonymousUtilitySave = (item) => {
     setAnonymousUtilitySave(item);
     setAnonymousUtilityDraft({ name: '', summary: '' });
+    setUtilitySaveFolderId(ROOT_FOLDER_ID);
     setAnonymousUtilityError('');
   };
   const saveAnonymousUtility = async (event) => {
@@ -508,6 +648,7 @@ function App() {
     const sourceNote = anonymousUtilitySave.sourceNote;
     const note = { ...sourceNote, id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, name, summary, source: 'demo', replay: { ...(sourceNote.replay || {}), projectiles: anonymousUtilitySave.projectiles || [], smokeVoxelFrames: anonymousUtilitySave.smokeVoxelFrame ? [anonymousUtilitySave.smokeVoxelFrame] : [], infernoFrames: anonymousUtilitySave.infernoFrame ? [anonymousUtilitySave.infernoFrame] : [] }, createdAt: sourceNote.createdAt || now, updatedAt: now };
     if (!await persistUtilityNotes([...utilityNotesRef.current, note])) { setAnonymousUtilityError(t('utilityStorageFailed')); return; }
+    await utilityFolders.assign(note.id, utilitySaveFolderId, utilityNotesRef.current);
     boardRef.current?.promoteCollabUtility?.(anonymousUtilitySave.id, note);
     saveActiveFrame();
     setCollabUtilityRevision((value) => value + 1);
@@ -571,6 +712,7 @@ function App() {
   const [saveArchiveSelected, setSaveArchiveSelected] = useState('');
   const [saveArchiveIncludeDemo, setSaveArchiveIncludeDemo] = useState(false);
   const [saveArchiveMode, setSaveArchiveMode] = useState('select');
+  const [saveArchiveFolderId, setSaveArchiveFolderId] = useState(ROOT_FOLDER_ID);
   const saveWorkspaceArchive = async (targetId = saveArchiveSelected, targetName = saveArchiveName) => {
     flushCollabSave();
     boardRef.current?.finalizeFrameTween?.();
@@ -581,6 +723,7 @@ function App() {
     if (!result || result.error) return;
     const { archive, next, savedFrames, savedActiveFrameId } = result;
     if (!await persistWorkspaceArchives(next)) return;
+    await workspaceFolders.assign(archive.id, saveArchiveFolderId, next);
     if (!roomCode) {
       setActiveArchiveId(archive.id);
       commitFrameState(savedFrames, savedActiveFrameId, { publish: false });
@@ -591,9 +734,9 @@ function App() {
     setSaveArchiveIncludeDemo(false);
     setSaveArchiveMode('select');
   };
-  const openSaveArchiveModal = (includeDemo = false) => { setSaveArchiveMode('select'); setSaveArchiveIncludeDemo(includeDemo); setSaveArchiveSelected(!includeDemo && activeArchiveId ? activeArchiveId : ''); setSaveArchiveName(''); setSaveArchiveModal(true); };
-  const openOverwriteArchiveModal = (archiveId) => { setSaveArchiveMode('overwrite'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(archiveId); setSaveArchiveName(''); setSaveArchiveModal(true); };
-  const openNewArchiveModal = () => { setSaveArchiveMode('new'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(''); setSaveArchiveName(''); setSaveArchiveModal(true); };
+  const openSaveArchiveModal = (includeDemo = false) => { const selectedId = !includeDemo && activeArchiveId ? activeArchiveId : ''; setSaveArchiveMode('select'); setSaveArchiveIncludeDemo(includeDemo); setSaveArchiveSelected(selectedId); setSaveArchiveFolderId(workspaceFolders.state.items[selectedId]?.folderId || ROOT_FOLDER_ID); setSaveArchiveName(''); setSaveArchiveModal(true); };
+  const openOverwriteArchiveModal = (archiveId) => { setSaveArchiveMode('overwrite'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(archiveId); setSaveArchiveFolderId(workspaceFolders.state.items[archiveId]?.folderId || ROOT_FOLDER_ID); setSaveArchiveName(''); setSaveArchiveModal(true); };
+  const openNewArchiveModal = () => { setSaveArchiveMode('new'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(''); setSaveArchiveFolderId(ROOT_FOLDER_ID); setSaveArchiveName(''); setSaveArchiveModal(true); };
   const { openRoom, leaveRoom, joinRoom, restoreWorkspaceArchive, onReady: restoreReadyBoard } = useWorkspaceSession(() => ({
     scene: {
       get: () => boardRef.current,
@@ -669,6 +812,7 @@ function App() {
   }, [mapName]);
   const deleteWorkspaceArchive = async (id) => {
     if (!await removeArchive(id)) return;
+    await workspaceFolders.unassign(id);
     if (activeArchiveId === id) {
       setActiveArchiveId(null);
       if (!roomCode) {
@@ -694,15 +838,36 @@ function App() {
     if (mapName === TUTORIAL_MAP_ID && panel !== 'utility' && panel !== 'collab') setMapName('de_dust2');
     setActivePanel(panel);
   };
+  const switchMainPanel = (panel) => {
+    if (panel === 'broadcast') {
+      if (broadcastPage) return;
+      browsePlaybackRef.current = capturePlayback();
+      switchPanel('demo');
+      restorePlayback(broadcastPlaybackRef.current);
+      broadcastPageRef.current = true;
+      setBroadcastPage(true);
+      return;
+    }
+    if (broadcastPage) {
+      broadcastPlaybackRef.current = capturePlayback();
+      broadcastRoom.leave();
+      broadcastPageRef.current = false;
+      setBroadcastPage(false);
+      restorePlayback(browsePlaybackRef.current, mapName, panel === 'demo');
+    }
+    switchPanel(panel);
+  };
   const addUtilityNote = async (event) => {
     event.preventDefault();
     const parsed = parseGetpos(utilityDraft.getpos);
     if (!parsed) { setUtilityError(t('invalidGetpos')); return; }
     const next = [...utilityNotesRef.current, { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, position: parsed.position, angles: parsed.angles, name: utilityDraft.name.trim(), summary: utilityDraft.summary.trim(), createdAt: new Date().toISOString() }];
     if (!await persistUtilityNotes(next)) return;
+    await utilityFolders.assign(next.at(-1).id, utilitySaveFolderId, next);
     setUtilityDraft({ getpos: '', name: '', summary: '' });
     setUtilityError('');
     setUtilityModalOpen(false);
+    setUtilitySaveFolderId(ROOT_FOLDER_ID);
   };
   const exportUtilityNotes = () => {
     const blob = new Blob([JSON.stringify({ version: UTILITY_NOTES_VERSION, exportedAt: new Date().toISOString(), notes: utilityNotes }, null, 2)], { type: 'application/json' });
@@ -757,9 +922,10 @@ function App() {
     try { localStorage.setItem('csboard-tutorial-prompted', '1'); localStorage.setItem('csboard-tutorial-complete', '1'); } catch { /* Keep the completion state for this session. */ }
   };
   const selectedMode = showModel ? modelViewMode : -1;
+  const displayPanel = broadcastPage ? 'broadcast' : activePanel;
   const hasLeftSidebar = activePanel === 'utility' || (activePanel === 'collab' && hasActiveFrameContext);
-  const hasRightSidebar = ['analysis', 'utility', 'collab'].includes(activePanel);
-  const modelControlsTarget = isMobile ? '' : activePanel === 'demo' ? '.demo-options' : activePanel === 'collab' && hasActiveFrameContext ? '.collab-frame-strip' : '.workspace-bottom-bar';
+  const hasRightSidebar = broadcastPage || ['analysis', 'utility', 'collab'].includes(activePanel);
+  const modelControlsTarget = broadcastPage ? '.broadcast-model-options' : isMobile ? '' : activePanel === 'demo' ? '.demo-options' : activePanel === 'collab' && hasActiveFrameContext ? '.collab-frame-strip' : '.workspace-bottom-bar';
   const currentUtilityNotes = utilityNotes.filter((note) => note.mapName === mapName);
   const collabUtilityOptions = [...currentUtilityNotes]
     .sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0)
@@ -784,7 +950,14 @@ function App() {
     if (hover) { setUtilityHover(hover); return; }
     utilityHoverTimerRef.current = window.setTimeout(() => { if (!utilityHoverInsideRef.current) { setUtilityHover(null); setSelectedUtilityNote(null); } }, 180);
   };
-  const { c4Countdown, c4Terminal, currentDefuser, defuseProgress, demoC4Events, demoDeaths, demoGrenadeSegments, demoHltvEvents, demoKills, demoPovFiring, demoPovHurt, demoPovPlayer, demoReloads, demoRoundEconomies, demoScore, demoSideSwitchRounds, demoSnapshot, demoTeams, interruptDemoCamera, roundClock, roundResult, roundWinner, timelineEvents } = useDemoViewState({ activePanel, demoData, demoPovPlayerId, demoProjectiles, demoRound, demoSnapshots, demoThrowSnapshots, demoTick, language, setDemoCameraMode, setDemoPovPlayerId, t });
+  const { c4Countdown, c4Terminal, currentDefuser, defuseProgress, demoC4Events, demoDeaths, demoGrenadeSegments, demoHltvEvents, demoKills, demoMonitorPlayers, demoPovFiring, demoPovHurt, demoPovPlayer, demoReloads, demoRoundEconomies, demoScore, demoSideSwitchRounds, demoSnapshot, demoTeams, interruptDemoCamera, roundClock, roundResult, roundWinner, timelineEvents, toggleDemoPov } = useDemoViewState({ activePanel, demoCameraMode, demoData, demoPovPlayerId, demoProjectiles, demoRound, demoSnapshots, demoThrowSnapshots, demoTick, language, setDemoCameraMode, setDemoPovPlayerId, t });
+  const selectMonitorMode = () => {
+    setDemoCameraMode('monitor');
+    if (!demoMonitorPlayers.some((player) => player.monitorId === demoPovPlayerId)) {
+      const player = demoMonitorPlayers.find((candidate) => Number(candidate.health) > 0 && candidate.hasPosition !== false) || demoMonitorPlayers[0];
+      setDemoPovPlayerId(player?.monitorId || '');
+    }
+  };
   demoFrameSourceRuntime.current = { fileName: demoData?.demo.fileName || 'Demo', round: demoRound?.round || null, tickRate: demoData?.demo.tickRate || 64 };
   const onDemoGrenadeSelect = (id, screen) => { setSelectedDemoGrenade(demoGrenadeSegments.find((segment) => segment.id === id) || null); setSelectedDemoGrenadeScreen(screen); setDemoPlaying(false); };
   const onAnalysisUtilitySelect = (id, screen) => { setSelectedAnalysisUtility(combinedAnalysis.utilities.find((utility) => utility.id === id) || null); setSelectedAnalysisUtilityScreen(screen); setAnalysisHighlightedUtilityId(''); setAnalysisPlaying(false); };
@@ -795,10 +968,18 @@ function App() {
   };
   analysisUtilityRuntime.onSelect = onAnalysisUtilitySelect;
   analysisUtilityRuntime.onHover = onAnalysisUtilityHover;
-  const saveGrenadeSegment = async (segment, source = {}) => {
+  const saveGrenadeSegment = (segment, source = {}) => {
     const note = buildSavedThrowNote({ mapName, segment, source, unknownLabel: t('unknown') });
     if (!note) return;
+    setUtilitySaveFolderId(ROOT_FOLDER_ID);
+    setPendingUtilityNote(note);
+  };
+  const confirmUtilityNote = async () => {
+    const note = pendingUtilityNote;
+    if (!note) return;
     if (!await persistUtilityNotes([...utilityNotesRef.current, note])) return;
+    await utilityFolders.assign(note.id, utilitySaveFolderId, utilityNotesRef.current);
+    setPendingUtilityNote(null);
     setSelectedDemoGrenade(null);
     setSelectedDemoGrenadeScreen(null);
     setSelectedAnalysisUtility(null);
@@ -829,9 +1010,10 @@ function App() {
     setUtilityCopied(true);
     window.setTimeout(() => setUtilityCopied(false), 1200);
   };
-  const deleteUtilityNote = (note) => {
+  const deleteUtilityNote = async (note) => {
     const next = utilityNotesRef.current.filter((item) => item.id !== note.id);
-    persistUtilityNotes(next);
+    if (!await persistUtilityNotes(next)) return;
+    await utilityFolders.unassign(note.id);
     setSelectedUtilityNote(null);
     setUtilityEditDraft(null);
     setUtilityHover(null);
@@ -948,7 +1130,11 @@ function App() {
     }, 3000);
     startDemoBatch(files);
   };
-  useEffect(() => { if (demoPovPlayerId && !demoPovPlayer) setDemoPovPlayerId(''); }, [demoPovPlayerId, demoPovPlayer]);
+  useEffect(() => {
+    // Round data briefly clears during a page switch; wait before validating the restored POV.
+    if (!demoSnapshot || demoRoundLoading) return;
+    if (demoCameraMode !== 'monitor' && demoPovPlayerId && !demoPovPlayer) setDemoPovPlayerId('');
+  }, [demoCameraMode, demoPovPlayerId, demoPovPlayer, demoRoundLoading, demoSnapshot]);
   useEffect(() => {
     if (!demoPlaying || !demoData || !demoRound) return undefined;
     const timer = window.setInterval(() => setDemoTick((tick) => {
@@ -1138,46 +1324,54 @@ function App() {
     });
   }, [activePanel, demoData, language, trackpadDetection]);
   const { currentLayerUrl, cycleFloor: cycleMapFloor, floorOptions, layers: currentMapLayers, selectFloor: selectMapFloor } = useMapFloorControls({ map2dLayer, mapName, modelFloor, navData, setMap2dLayer, setModelFloor, t });
-  return <main className={`board-shell${isMobile ? ' is-mobile' : ''}${!hasLeftSidebar || !leftSidebarOpen ? ' left-sidebar-collapsed' : ''}${hasRightSidebar && !rightSidebarOpen ? ' right-sidebar-collapsed' : ''}`} data-panel={activePanel} data-analysis-metric={demoViewFlags.analysisMetric}>
+  return <main className={`board-shell${isMobile ? ' is-mobile' : ''}${!hasLeftSidebar || !leftSidebarOpen ? ' left-sidebar-collapsed' : ''}${hasRightSidebar && !rightSidebarOpen ? ' right-sidebar-collapsed' : ''}`} data-panel={displayPanel} data-analysis-metric={demoViewFlags.analysisMetric}>
     {tutorialOfferOpen && <TutorialOffer language={language} devMode={IS_DEVELOPMENT_RUNTIME} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
-    <BoardHeader activePanel={activePanel} language={language} mapName={mapName} parseGameState={parseGameState} setLanguage={setLanguage} setMapName={setMapName} setParseGameManual={setParseGameManual} setParseGameState={setParseGameState} switchPanel={switchPanel} t={t} />
+    <BoardHeader activePanel={displayPanel} language={language} mapName={mapName} parseGameState={parseGameState} setLanguage={setLanguage} setMapName={setMapName} setParseGameManual={setParseGameManual} setParseGameState={setParseGameState} switchPanel={switchMainPanel} t={t} />
     <section className="board-stage">
+         {broadcastPage && <BroadcastPanel archives={broadcastArchives} activeId={activeBroadcastId} folders={broadcastFolders.state} language={language} room={broadcastRoom.session} onCreateFolder={(name, parentId) => broadcastFolders.create(name, parentId, broadcastArchivesRef.current)} onDeleteFolder={(id) => broadcastFolders.remove(id, broadcastArchivesRef.current)} onMove={(source, target, position) => broadcastFolders.move(broadcastArchivesRef.current, source, target, position)} onDelete={async (id) => { if (!await removeBroadcastArchive(id)) return; await broadcastFolders.unassign(id); if (id === activeBroadcastId) setActiveBroadcastId(''); }} onJoin={broadcastRoom.join} onLeave={broadcastRoom.leave} onSelect={hostBroadcastArchive} />}
+         {!broadcastPage && activePanel === 'demo' && demoData && demoRound && <DemoPlaybackActionsPortal><button type="button" className="demo-save-clip" disabled={demoRoundLoading} onClick={openBroadcastClipModal}>{localize(language, { zh: '保存时间段', en: 'Save Interval', ru: 'Сохранить отрезок' })}</button></DemoPlaybackActionsPortal>}
+         {broadcastClipDraft && <BroadcastClipModal draft={broadcastClipDraft} folders={broadcastFolders.state} language={language} round={demoRound} tickRate={demoData?.demo?.tickRate || 64} onChange={setBroadcastClipDraft} onClose={() => setBroadcastClipDraft(null)} onSave={saveBroadcastClip} />}
+         <BroadcastDownloadOverlay download={broadcastRoom.download} language={language} onCancel={broadcastRoom.leave} />
          <DemoBatchPanel batch={demoBatch} counts={demoBatchCounts} development={IS_DEVELOPMENT_RUNTIME} language={language} onClose={clearDemoBatch} />
          {mapName === TUTORIAL_MAP_ID && <TutorialGuide language={language} open={tutorialOpen} step={tutorialStep} onOpen={() => { setTutorialStep(0); setTutorialOpen(true); }} onStep={moveTutorial} onFinish={finishTutorial} onExit={() => { finishTutorial(); setMapName('de_dust2'); }} />}
          {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><SideGameHub language={language} stopped={!parseGameManual && parseGameState === 'stopped'} manual={parseGameManual} onClose={() => { setParseGameDismissed(true); setParseGameManual(false); setParseGameState('hidden'); }} /></div>}
         <ThreeBoard key={mapName} mapName={mapName} navData={navData} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={activePanel === 'demo' ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoInfernoFrames={activePanel === 'demo' ? demoInfernoFrames : utilityReplay?.note.replay.infernoFrames || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={combinedAnalysis.utilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
          {isMobile && <MobileCameraWheel slots={cameraSlotState} active={activeCameraSlot} language={language} onRestore={(slot) => boardRef.current?.restoreCameraSlot?.(slot)} onSave={(slot) => boardRef.current?.saveCameraSlot?.(slot)} onReset={() => boardRef.current?.reset?.()} />}
          <div className="stage-vignette" />
-          {activePanel === 'demo' && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} />}
-          {activePanel === 'demo' && demoSnapshot && <div className="demo-combat-hud"><div className={`demo-score${roundWinner ? ` winner-${roundWinner.toLowerCase()}` : ''}`}><span><SideLogo side="T" /></span><strong>{demoScore.T}</strong><i>ROUND {demoRound?.round || '-'}{roundResult ? <b className="round-result">{roundResult}</b> : c4Countdown != null ? <b className={c4Terminal?.event_name === 'bomb_defused' && demoTick >= c4Terminal.tick ? 'c4-paused' : ''}>C4 {c4Countdown.toFixed(4)}s</b> : <b className="round-clock">{roundClock}</b>}{defuseProgress != null && <span className={`score-defuse${currentDefuser.hasDefuser ? ' has-kit' : ''}`} style={{ '--defuse-progress': `${defuseProgress * 360}deg` }}><i>{currentDefuser.hasDefuser ? 'KIT' : '10s'}</i></span>}</i><strong>{demoScore.CT}</strong><span><SideLogo side="CT" /></span></div>{demoKills.length > 0 && <DemoKillFeed kills={demoKills} round={demoRound} translate={t} collapsed={demoKillsCollapsed} onToggle={() => setDemoKillsCollapsed((collapsed) => !collapsed)} />}</div>}
+          {activePanel === 'demo' && (!broadcastPage || activeBroadcastId) && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} minimal={broadcastPage} />}
+          {!isMobile && activePanel === 'demo' && (!broadcastPage || activeBroadcastId) && demoSnapshot && <div className="demo-monitor-controls"><button type="button" className={`demo-monitor-toggle${demoCameraMode === 'monitor' ? ' selected' : ''}`} onClick={() => { if (demoCameraMode === 'monitor') { setDemoCameraMode('manual'); setDemoPovPlayerId(''); } else selectMonitorMode(); }}>{t('cameraMonitor')}</button>{demoCameraMode === 'monitor' && <DemoMonitorTeamSwitch players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} />}</div>}
+          {!isMobile && activePanel === 'demo' && (!broadcastPage || activeBroadcastId) && demoCameraMode === 'monitor' && demoSnapshot && <DemoMonitorWall players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} translate={t} />}
+          {activePanel === 'demo' && !broadcastPage && demoSnapshot && <div className="demo-combat-hud"><div className={`demo-score${roundWinner ? ` winner-${roundWinner.toLowerCase()}` : ''}`}><span><SideLogo side="T" /></span><strong>{demoScore.T}</strong><i>ROUND {demoRound?.round || '-'}{roundResult ? <b className="round-result">{roundResult}</b> : c4Countdown != null ? <b className={c4Terminal?.event_name === 'bomb_defused' && demoTick >= c4Terminal.tick ? 'c4-paused' : ''}>C4 {c4Countdown.toFixed(4)}s</b> : <b className="round-clock">{roundClock}</b>}{defuseProgress != null && <span className={`score-defuse${currentDefuser.hasDefuser ? ' has-kit' : ''}`} style={{ '--defuse-progress': `${defuseProgress * 360}deg` }}><i>{currentDefuser.hasDefuser ? 'KIT' : '10s'}</i></span>}</i><strong>{demoScore.CT}</strong><span><SideLogo side="CT" /></span></div>{demoKills.length > 0 && <DemoKillFeed kills={demoKills} round={demoRound} translate={t} collapsed={demoKillsCollapsed} onToggle={() => setDemoKillsCollapsed((collapsed) => !collapsed)} />}</div>}
       {demoData?.demo.map && demoData.demo.map !== mapName && <ModelControlsPortal selector=".demo-source-controls"><button type="button" className="demo-map-mismatch" onClick={() => setMapName(demoData.demo.map)}><span>{localize(language, { zh: '地图不匹配', en: 'MAP MISMATCH', ru: 'КАРТА НЕ СОВПАДАЕТ' })}</span><b>{mapName.toUpperCase()} → {demoData.demo.map.toUpperCase()}</b></button></ModelControlsPortal>}
        {grenadeWheel.open && <div className="grenade-wheel"><div className={`wheel-item wheel-smoke ${grenadeWheel.type === 'smoke' ? 'active' : ''}`}>{t('smoke')}</div><div className={`wheel-item wheel-fire ${grenadeWheel.type === 'fire' ? 'active' : ''}`}>{t('fire')}</div><div className={`wheel-item wheel-flash ${grenadeWheel.type === 'flash' ? 'active' : ''}`}>{t('flash')}</div><div className={`wheel-item wheel-explosion ${grenadeWheel.type === 'explosion' ? 'active' : ''}`}>{t('grenade')}</div><span className="wheel-key">Q</span></div>}
-      {saveArchiveModal && <SaveArchiveModal archives={archives} draftName={saveArchiveName} language={language} mapName={mapName} mode={saveArchiveMode} onClose={() => setSaveArchiveModal(false)} onDraftNameChange={setSaveArchiveName} onSave={saveWorkspaceArchive} onSelectedChange={setSaveArchiveSelected} selected={saveArchiveSelected} t={t} />}
+      {saveArchiveModal && <SaveArchiveModal archives={archives} draftName={saveArchiveName} folderState={workspaceFolders.state} folderId={saveArchiveFolderId} language={language} mapName={mapName} mode={saveArchiveMode} onClose={() => setSaveArchiveModal(false)} onDraftNameChange={setSaveArchiveName} onFolderChange={setSaveArchiveFolderId} onSave={saveWorkspaceArchive} onSelectedChange={(id) => { setSaveArchiveSelected(id); setSaveArchiveFolderId(workspaceFolders.state.items[id]?.folderId || ROOT_FOLDER_ID); }} selected={saveArchiveSelected} t={t} />}
+      <UtilityFolderModal note={pendingUtilityNote} folderState={utilityFolders.state} folderId={utilitySaveFolderId} language={language} onClose={() => setPendingUtilityNote(null)} onFolderChange={setUtilitySaveFolderId} onSave={confirmUtilityNote} t={t} />
       {renameModal && <RenamePointModal draft={renameDraft} onClose={() => setRenameModal(null)} onConfirm={confirmRename} onDraftChange={setRenameDraft} t={t} />}
             <ViewTools activePanel={activePanel} mapName={mapName} navData={navData} activeCameraSlot={activeCameraSlot} boardRef={boardRef} brushColor={brushColor} brushWidth={brushWidth} cameraSlotState={cameraSlotState} currentLayerUrl={currentLayerUrl} currentMapLayers={currentMapLayers} cycleMapFloor={cycleMapFloor} eraserEnabled={eraserEnabled} floorOptions={floorOptions} language={language} map2dLayer={map2dLayer} modelFloor={modelFloor} selectMapFloor={selectMapFloor} setBrushColor={setBrushColor} setBrushWidth={setBrushWidth} setEraserEnabled={setEraserEnabled} t={t} />
            <div className="key-hints">{activePanel === 'demo' || activePanel === 'analysis' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatPlayback')}</b><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : activePanel === 'utility' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : <><div className="key-group"><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintMovePlayer')}</span><span><kbd>CTRL+LMB</kbd>{t('hintYaw')}</span><span><kbd>SHIFT+LMB</kbd>{t('hintPitch')}</span><span><kbd>DBL</kbd>{t('hintCrouch')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></>}</div>
           <div className="aspect-frame" aria-hidden="true"><i /></div>
-           {activePanel === 'demo' && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /></>}
+          {activePanel === 'demo' && !broadcastPage && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /></>}
           {selectedPoint && selectedPointScreen && <div className="point-actions" style={{ left: selectedPointScreen.x, top: selectedPointScreen.y }}><span>{activePanel === 'collab' ? t('collabPlayer') : t('tacticalPoint')}</span><div className="point-choice"><b>{t('team')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div>{activePanel === 'collab' ? null : <div className="point-choice"><b>{t('type')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div>}<button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); setSelectedPointScreen(null); }}>{t('delete')}</button></div>}
           {activePanel === 'demo' && selectedDemoGrenade && selectedDemoGrenadeScreen && <div className="demo-grenade-actions" style={{ left: selectedDemoGrenadeScreen.x, top: selectedDemoGrenadeScreen.y }}><div><strong>{selectedDemoGrenade.kind.toUpperCase()}</strong><span>{selectedDemoGrenade.throwEvent.user_name || t('unknown')} · T{selectedDemoGrenade.throwTick}</span></div><button type="button" onClick={saveDemoGrenade}>{t('saveUtility')}</button><button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedDemoGrenade(null); setSelectedDemoGrenadeScreen(null); }}>×</button></div>}
           {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && demoViewFlags.heatStyle === 'points' && analysisUtilityHover && !selectedAnalysisUtility && <div className="utility-hover-card analysis-utility-hover-card" style={{ left: analysisUtilityHover.x, top: analysisUtilityHover.y }} onPointerEnter={() => { analysisUtilityHoverInsideRef.current = true; window.clearTimeout(analysisUtilityHoverTimerRef.current); }} onPointerLeave={() => { analysisUtilityHoverInsideRef.current = false; window.clearTimeout(analysisUtilityHoverTimerRef.current); setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId(''); }}><header><strong>{localize(language, { zh: '附近道具', en: 'NEARBY UTILITIES', ru: 'ГРАНАТЫ РЯДОМ' })}</strong><span>{analysisUtilityHover.utilities.length}</span></header><div className="utility-hover-list">{analysisUtilityHover.utilities.map((utility) => <button type="button" key={utility.id} className="replayable" onPointerEnter={() => setAnalysisHighlightedUtilityId(utility.id)} onPointerLeave={() => setAnalysisHighlightedUtilityId('')} onFocus={() => setAnalysisHighlightedUtilityId(utility.id)} onBlur={() => setAnalysisHighlightedUtilityId('')} onClick={() => { setSelectedAnalysisUtility(utility); setSelectedAnalysisUtilityScreen({ x: analysisUtilityHover.x, y: analysisUtilityHover.y }); setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId(''); setAnalysisPlaying(false); }}><strong><RawIcon name={ANALYSIS_UTILITY_ICONS[utility.kind]} />{utility.kind.toUpperCase()}</strong><span>{utility.segment.throwEvent.user_name || t('unknown')} · R{utility.source.round} · T{utility.segment.throwTick}</span><p>{utility.source.fileName}</p></button>)}</div></div>}
           {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && demoViewFlags.heatStyle === 'points' && selectedAnalysisUtility && selectedAnalysisUtilityScreen && <div className="demo-grenade-actions analysis-grenade-actions" style={{ left: selectedAnalysisUtilityScreen.x, top: selectedAnalysisUtilityScreen.y }}><div><strong>{selectedAnalysisUtility.kind.toUpperCase()}</strong><span>{selectedAnalysisUtility.segment.throwEvent.user_name || t('unknown')} · {selectedAnalysisUtility.source.fileName} · R{selectedAnalysisUtility.source.round}</span></div><button type="button" onClick={saveAnalysisUtility}>{t('saveUtility')}</button><button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedAnalysisUtility(null); setSelectedAnalysisUtilityScreen(null); }}>×</button></div>}
         <div className="board-tools"><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> {t('grid')}</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> {t('trackpad')} {trackpadDetection ? t('on') : t('off')}</button>{hasMapModel(mapName) && <div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)} className={showModel ? 'selected' : ''}><i /> {modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) setShowModel(false); else { setShowModel(true); setModelViewMode(option.value); } setModeMenuOpen(false); }} /> <span>{option.label}</span></label>)}</div>}</div>}</div>
           {activePanel === 'utility' && <aside className="utility-notes-panel"><div className="utility-notes-heading"><div><span>UTILITY NOTES</span><h2>{t('utilityNotes')}</h2></div><button type="button" onClick={() => { setUtilityDraft({ getpos: '', name: '', summary: '' }); setUtilityError(''); setUtilityModalOpen(true); }}>{t('addUtilityNote')}</button></div><p>{t('utilityIntro')}</p><div className="utility-notes-meta"><label className="map-select"><span>{t('map').toUpperCase()}</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><span>{t('utilityCount', { count: currentUtilityNotes.length })}</span></div>{hasMapModel(mapName) && <div className="utility-model-options"><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="utility-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div>}{currentUtilityNotes.length === 0 && <div className="utility-empty">{t('utilityEmpty')}</div>}<small>{t('localOnly')}</small></aside>}
-          {activePanel === 'utility' && <aside className="utility-location-panel"><header><strong>{t('utilityLocations')}</strong><span>{currentUtilityGroups.length}</span></header>{currentUtilityGroups.length === 0 ? <div className="utility-location-empty">{t('utilityEmpty')}</div> : <div className="utility-location-groups" onPointerLeave={() => boardRef.current?.clearCollabUtilityPreview?.()} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) boardRef.current?.clearCollabUtilityPreview?.(); }}>{currentUtilityGroups.map(({ location, categories }) => <section key={location}><div className="utility-location-heading"><strong>{location}</strong><span>{categories.reduce((sum, [, entries]) => sum + entries.length, 0)}</span></div>{categories.map(([kind, entries]) => <div className="utility-category" key={kind}><span>{kind === 'smoke' ? 'SMOKE' : kind === 'flash' ? 'FLASH' : kind === 'fire' ? 'FIRE' : kind === 'he' ? 'HE' : kind === 'decoy' ? 'DECOY' : 'CUSTOM'}</span>{entries.map((note) => <button type="button" key={note.id} className={note.replay ? 'replayable' : ''} onPointerEnter={() => boardRef.current?.focusUtilityNote?.(note)} onFocus={() => boardRef.current?.focusUtilityNote?.(note)} onClick={() => { setUtilityHover({ key: note.positionKey, entries: note.positionEntries, x: 330, y: Math.max(150, window.innerHeight / 2 - 36) }); setSelectedUtilityNote(note); setUtilityCopied(false); }}><b>{note.name}</b><small>{note.thrower || t('customUtility')}</small></button>)}</div>)}</section>)}</div>}</aside>}
+          {activePanel === 'utility' && <aside className="utility-location-panel"><header><strong>{t('utilityLocations')}</strong><span>{currentUtilityGroups.length}</span></header><UtilityArchiveTree notes={currentUtilityGroups.flatMap(({ categories }) => categories.flatMap(([, entries]) => entries))} folders={utilityFolders.state} language={language} onCreateFolder={(name, parentId) => utilityFolders.create(name, parentId, utilityNotesRef.current)} onDeleteFolder={(id) => utilityFolders.remove(id, utilityNotesRef.current)} onMove={(source, target, position) => utilityFolders.move(utilityNotesRef.current.filter((note) => note.mapName === mapName), source, target, position)} onFocus={(note) => boardRef.current?.focusUtilityNote?.(note)} onClearFocus={() => boardRef.current?.clearCollabUtilityPreview?.()} onOpen={(note) => { setUtilityHover({ key: note.positionKey, entries: note.positionEntries, x: 330, y: Math.max(150, window.innerHeight / 2 - 36) }); setSelectedUtilityNote(note); setUtilityCopied(false); }} t={t} /></aside>}
            {activePanel === 'utility' && utilityHover && <div className="utility-hover-card" style={{ left: utilityHover.x, top: utilityHover.y }} onPointerEnter={() => { utilityHoverInsideRef.current = true; window.clearTimeout(utilityHoverTimerRef.current); }} onPointerLeave={() => { utilityHoverInsideRef.current = false; utilityHoverTimerRef.current = window.setTimeout(() => { setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); }, 180); }}><header><strong>{selectedUtilityNote ? t('utilityDetails') : 'LOCATION'}</strong><span>{selectedUtilityNote ? <button type="button" onClick={() => { setSelectedUtilityNote(null); setUtilityEditDraft(null); }}>←</button> : utilityHover.entries.length}</span></header>{selectedUtilityNote ? <div className="utility-detail">{utilityEditDraft ? <form className="utility-edit-form" onSubmit={saveUtilityEdit}><label><span>{t('utilityTitle')}</span><input required value={utilityEditDraft.name} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><label><span>{t('utilityDescription')}</span><textarea required value={utilityEditDraft.summary} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, summary: event.target.value }))} /></label><div><button type="button" onClick={() => setUtilityEditDraft(null)}>{t('cancel')}</button><button type="submit">{t('saveUtilityEdit')}</button></div></form> : <><strong>{selectedUtilityNote.name}</strong><p>{selectedUtilityNote.summary}</p></>}<dl><div><dt>{t('map')}</dt><dd>{selectedUtilityNote.mapName}</dd></div>{selectedUtilityNote.startPlace && <div><dt>{t('startPlace')}</dt><dd>{selectedUtilityNote.startPlace}</dd></div>}{selectedUtilityNote.throwPlace && <div><dt>{t('throwPlace')}</dt><dd>{selectedUtilityNote.throwPlace}</dd></div>}<div><dt>{t('position')}</dt><dd>{selectedUtilityNote.position.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('angles')}</dt><dd>{selectedUtilityNote.angles.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('exportedBy')}</dt><dd>{selectedUtilityNote.thrower || t('customUtility')}</dd></div>{selectedUtilityNote.demoSource && <div><dt>{t('sourceDemo')}</dt><dd>{selectedUtilityNote.demoSource.fileName} · R{selectedUtilityNote.demoSource.round || '-'} · T{selectedUtilityNote.demoSource.tick}</dd></div>}<div><dt>{t('exportedAt')}</dt><dd>{new Date(selectedUtilityNote.createdAt).toLocaleString(localeForLanguage(language))}</dd></div></dl><div className="utility-detail-actions"><button type="button" onClick={() => setUtilityEditDraft({ name: selectedUtilityNote.name, summary: selectedUtilityNote.summary || '' })}>{t('editUtility')}</button><button type="button" onClick={() => copyUtilityCommand(selectedUtilityNote)}>{utilityCopied ? t('copied') : t('getposCommand')}</button><button type="button" className="utility-delete" onClick={() => deleteUtilityNote(selectedUtilityNote)}>{t('delete')}</button>{selectedUtilityNote.replay && <><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote)}>{t('replayUtility')}</button><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote, true)}>{t('replayUtilityFirstPerson')}</button></>}</div></div> : <div className="utility-hover-list">{utilityHover.entries.map((note) => <button type="button" key={note.id} className={`utility-list-entry${note.replay ? ' replayable' : ''}`} onClick={() => { setSelectedUtilityNote(note); setUtilityEditDraft(null); setUtilityCopied(false); }}><strong>{note.name}</strong><span>{t('angles')}: {(note.angles || [0, 0, 0]).map((value) => Number(value).toFixed(2)).join(' / ')}</span><p>{note.summary}</p></button>)}</div>}</div>}
           {activePanel === 'utility' && utilityReplay && <div className="utility-replay-bar"><strong>{utilityReplay.note.name}</strong><span>{(utilityReplay.tick / utilityReplay.note.replay.tickRate).toFixed(1)}s / {(utilityReplay.note.replay.endTick / utilityReplay.note.replay.tickRate).toFixed(1)}s</span><button type="button" onClick={() => setUtilityReplay((current) => ({ ...current, tick: current.playing ? current.tick : current.tick >= current.note.replay.endTick ? 0 : current.tick, playing: !current.playing }))}>{utilityReplay.playing ? t('pause') : t('play')}</button><button type="button" onClick={() => setUtilityReplay(null)}>×</button></div>}
-         {utilityModalOpen && <UtilityNoteModal draft={utilityDraft} error={utilityError} onClose={() => setUtilityModalOpen(false)} onDraftChange={setUtilityDraft} onSubmit={addUtilityNote} t={t} />}
-         {anonymousUtilitySave && <SaveAnonymousUtilityModal draft={anonymousUtilityDraft} error={anonymousUtilityError} kind={anonymousUtilitySave.kind} onClose={() => setAnonymousUtilitySave(null)} onDraftChange={setAnonymousUtilityDraft} onSubmit={saveAnonymousUtility} t={t} />}
-          <div className={`demo-panel ${activePanel === 'demo' ? '' : 'panel-hidden'}${demoData ? ' has-demo' : ''}`}>
-           {activePanel === 'demo' && <DemoDataWarning warnings={demoData?.warnings} translate={t} />}
+         {utilityModalOpen && <UtilityNoteModal draft={utilityDraft} error={utilityError} folderState={utilityFolders.state} folderId={utilitySaveFolderId} language={language} onClose={() => setUtilityModalOpen(false)} onDraftChange={setUtilityDraft} onFolderChange={setUtilitySaveFolderId} onSubmit={addUtilityNote} t={t} />}
+         {anonymousUtilitySave && <SaveAnonymousUtilityModal draft={anonymousUtilityDraft} error={anonymousUtilityError} folderState={utilityFolders.state} folderId={utilitySaveFolderId} kind={anonymousUtilitySave.kind} language={language} onClose={() => setAnonymousUtilitySave(null)} onDraftChange={setAnonymousUtilityDraft} onFolderChange={setUtilitySaveFolderId} onSubmit={saveAnonymousUtility} t={t} />}
+          <div className={`demo-panel ${activePanel === 'demo' ? '' : 'panel-hidden'}${demoData ? ' has-demo' : ''}${broadcastPage && !activeBroadcastId ? ' broadcast-idle' : ''}`}>
+           {broadcastPage && <div className="broadcast-model-controls"><button type="button" className="broadcast-model-trigger">{t('model')}</button><div className="broadcast-model-options" /></div>}
+           {activePanel === 'demo' && !broadcastPage && <DemoDataWarning warnings={demoData?.warnings} translate={t} />}
            <div className="demo-toolbar"><div className="demo-source-controls"><label className={`demo-upload${demoBatchRunning ? ' disabled' : ''}`}><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple disabled={demoBatchRunning} onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{t('parsedDemos')} · {cachedDemos.length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{t('parsedDemos')}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{cachedDemos.length === 0 ? <div className="demo-cache-empty">{t('noCachedDemos')}</div> : cachedDemos.map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}</strong><span>{entry.map} · {entry.rounds} {t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(localeForLanguage(language))}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}</div><div className="demo-playback-controls">{demoData && <div className={`demo-round-picker${demoRoundMenuOpen ? ' open' : ''}`}><button type="button" onClick={() => setDemoRoundMenuOpen((open) => !open)}>{demoRound ? `${t('round')} ${demoRound.round} · ${demoRoundEconomies.get(demoRound.round)?.T.label}/${demoRoundEconomies.get(demoRound.round)?.CT.label}` : t('selectRound')}</button>{demoRoundMenuOpen && <div className="demo-round-list">{demoData.rounds.map((round) => { const economy = demoRoundEconomies.get(round.round); return <button type="button" key={round.round} className={demoRound?.round === round.round ? 'active' : ''} style={{ '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => { setDemoRound(round); setDemoRoundMenuOpen(false); }}><span className="economy-t">T {economy?.T.label}</span><strong>R{round.round}</strong><span className="economy-ct">CT {economy?.CT.label}</span><i /></button>; })}</div>}</div>}{demoData && demoRound && <div className="demo-scrub"><span className="demo-time">{((demoTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span><div className="timeline-track"><input className="demo-timeline" disabled={demoRoundLoading} style={{ '--timeline-progress': `${demoRound.endTick > demoRound.startTick ? ((demoTick - demoRound.startTick) / (demoRound.endTick - demoRound.startTick)) * 100 : 0}%` }} type="range" min={demoRound.startTick} max={demoRound.endTick} step="1" value={demoTick} onPointerUp={(event) => event.currentTarget.blur()} onChange={(event) => { setDemoPlaying(false); setDemoTick(Number(event.target.value)); }} />{timelineEvents.map((event, index) => <button type="button" className={`timeline-event event-${event.event_name}`} title={event.title} aria-label={event.title} style={{ left: `${((event.tick - demoRound.startTick) / Math.max(1, demoRound.endTick - demoRound.startTick)) * 100}%` }} key={`${event.event_name}-${event.tick}-${index}`} onClick={() => { setDemoPlaying(false); setDemoTick(event.tick); }}>{event.label}</button>)}</div><span className="demo-duration">/ {((demoRound.endTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span></div>}{demoRound && <button type="button" className="demo-play" disabled={demoRoundLoading} onClick={() => setDemoPlaying((playing) => !playing)}>{demoRoundLoading ? t('loading') : demoPlaying ? t('pause') : t('play')}</button>}<button type="button" className="demo-save-frame" onClick={() => openSaveArchiveModal(true)}>{t('saveFrame')}</button></div></div>
               <DemoParseSettings value={demoSampleRate} onChange={setDemoSampleRate} language={language} />
              {demoStatus && !demoData && <div className="demo-loading-wrap"><div className="demo-loading" role="progressbar" aria-label="Demo parsing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div><p className="demo-parsing-hint">{t('demoForegroundParsingHint')}</p></div>}
             <div className="demo-controls-row">{activePanel === 'demo' && demoData && <div className="demo-view-options"><span>{t('view')}</span><button type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t('showNames')}</button>{[['manual','cameraManual'],['follow','cameraFollow'],['fixed','cameraFixed'],['chase','cameraChase']].map(([mode,key]) => <button type="button" key={mode} className={demoCameraMode === mode ? 'selected' : ''} onClick={() => setDemoCameraMode(mode)}>{t(key)}</button>)}</div>}<div className="demo-options"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}>GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}>TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button>{hasMapModel(mapName) && <><label className="model-opacity"><span>MODEL</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="demo-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET</button></div></div>
           </div>
           {activePanel === 'analysis' && <AnalysisPanel language={language} translate={t} mapName={mapName} status={analysisStatus} players={analysisPlayers} playersLoading={analysisPlayersLoading} selectedPlayers={analysisSelectedPlayers} playerQuery={analysisPlayerQuery} onPlayerQueryChange={setAnalysisPlayerQuery} onPlayerToggle={toggleAnalysisPlayer} onPlayersClear={clearAnalysisPlayers} demos={analysisDemosForPlayers} selectedDemoIds={analysisSelectedDemoIds} onToggleDemo={(id) => setAnalysisSelectedDemoIds((selected) => selected.includes(id) ? selected.filter((selectedId) => selectedId !== id) : [...selected, id])} side={analysisSide} onSideChange={(value) => { setAnalysisSide(value); setAnalysisTime(0); setAnalysisPlaying(false); }} rowsAvailable={analysisRows.length > 0} playing={analysisPlaying} onTogglePlay={() => setAnalysisPlaying((playing) => !playing)} time={analysisTime} duration={analysisDuration} onTimeChange={(value) => { setAnalysisPlaying(false); setAnalysisTime(value); }} />}
-          {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>{t('collab')}</h2></div><div className="collab-actions"><button type="button" onClick={() => openSaveArchiveModal()}>{t('saveFrame')}</button>{roomCode ? <button type="button" onClick={leaveRoom}>{t('leaveRoom')}</button> : <button type="button" onClick={() => { const code = window.prompt(t('roomPrompt'), roomJoinCode); if (code != null) { setRoomJoinCode(code); joinRoom(code); } }}>{t('joinRoom')}</button>}<button type="button" disabled={Boolean(roomCode)} onClick={openRoom}>{t('openRoom')}</button></div></div><p className="collab-note">{t('currentMap')}: {mapName} · {t('name')}: {clientName.current}<br />{t('collabHint')}</p>{roomStatus && <div className="analysis-status">{roomStatus}</div>}{roomCode && <div className="room-open"><strong>{t('room')} {roomCode}</strong><span>{roomOwner ? t('owner') : t('member')}</span></div>}<div className="archive-list">{archives.filter((archive) => archive.mapName === mapName).length === 0 ? <div className="archive-empty">{t('noArchives')}</div> : archives.filter((archive) => archive.mapName === mapName).map((archive) => <div className="archive-item" key={archive.id}><button type="button" className="archive-restore" disabled={Boolean(roomCode && !roomOwner)} title={roomCode && !roomOwner ? t('guestNoArchive') : t('restoreArchive')} onClick={() => restoreWorkspaceArchive(archive)}><strong>{archive.name || archive.mapName.toUpperCase()}</strong><span>{new Date(archive.savedAt).toLocaleString(localeForLanguage(language))}</span><small>{archive.frames && archive.frames.length ? `${archive.frames.length} ${t('frames')}${archive.demo ? ` · ${t('manualEdit')}` : ''}` : archive.demo ? `ROUND ${archive.demo.round || '-'} · TICK ${Math.round(archive.demo.tick)}` : t('manualEdit')}</small></button><button type="button" className="archive-save" aria-label={t('overwriteArchive')} title={t('overwriteArchive')} onClick={() => openOverwriteArchiveModal(archive.id)}>{t('save')}</button><button type="button" className="archive-delete" aria-label={t('deleteArchive')} title={t('deleteArchive')} onClick={() => deleteWorkspaceArchive(archive.id)}>×</button></div>)}<button type="button" className="archive-new-save" onClick={openNewArchiveModal}>＋ {t('saveNewArchive')}</button></div></aside>}
+          {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>{t('collab')}</h2></div><div className="collab-actions"><button type="button" onClick={() => openSaveArchiveModal()}>{t('saveFrame')}</button>{roomCode ? <button type="button" onClick={leaveRoom}>{t('leaveRoom')}</button> : <button type="button" onClick={() => { const code = window.prompt(t('roomPrompt'), roomJoinCode); if (code != null) { setRoomJoinCode(code); joinRoom(code); } }}>{t('joinRoom')}</button>}<button type="button" disabled={Boolean(roomCode)} onClick={openRoom}>{t('openRoom')}</button></div></div><p className="collab-note">{t('currentMap')}: {mapName} · {t('name')}: {clientName.current}<br />{t('collabHint')}</p>{roomStatus && <div className="analysis-status">{roomStatus}</div>}{roomCode && <div className="room-open"><strong>{t('room')} {roomCode}</strong><span>{roomOwner ? t('owner') : t('member')}</span></div>}<WorkspaceArchiveTree archives={archives} folders={workspaceFolders.state} language={language} roomCode={roomCode} roomOwner={roomOwner} onCreateFolder={(name, parentId) => workspaceFolders.create(name, parentId, archivesRef.current)} onDeleteFolder={(id) => workspaceFolders.remove(id, archivesRef.current)} onMove={(source, target, position) => workspaceFolders.move(archivesRef.current, source, target, position)} onDeleteArchive={deleteWorkspaceArchive} onNewArchive={openNewArchiveModal} onOverwrite={openOverwriteArchiveModal} onRestore={restoreWorkspaceArchive} t={t} /></aside>}
            {activePanel === 'collab' && hasActiveFrameContext && <aside className="collab-objects"><div className="collab-objects-tabs"><button type="button" className={collabObjectTab === 'players' ? 'active' : ''} onClick={() => setCollabObjectTab('players')}>{t('collabPlayers')}</button><button type="button" className={collabObjectTab === 'utility' ? 'active' : ''} onClick={() => setCollabObjectTab('utility')}>{t('addUtility')}</button></div>{collabObjectTab === 'players' ? <div className="collab-players">{activeCollabPlayers().length === 0 ? <div className="archive-empty">{t('noCollabPlayers')}</div> : <div className="collab-player-list" onPointerLeave={() => boardRef.current?.clearCollabUtilityPreview?.()}>{activeCollabPlayers().map((player) => <div className="collab-player-item" key={player.name} onPointerEnter={() => boardRef.current?.focusCollabPlayer?.(player.id)}><span className="collab-player-name">{player.name}</span><button type="button" className="collab-player-rename" onClick={() => openRenameModal(player.id, player.name)}>{t('rename')}</button><div className="collab-player-team" aria-label={t('team')}>{['T', 'CT'].map((team) => <button type="button" key={team} className={(player.team || 'T') === team ? 'active' : ''} aria-pressed={(player.team || 'T') === team} onClick={() => setPointUpdate({ id: player.id, team })}>{team}</button>)}</div></div>)}</div>}</div> : <div className="collab-utility"><label className="collab-utility-search"><span>{t('addUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => setCollabUtilitySearch(event.target.value)} /><select value={''} onChange={(event) => { const id = event.target.value; if (!id) return; const note = currentUtilityNotes.find((candidate) => candidate.id === id); if (note) boardRef.current?.addCollabUtility?.(note); setCollabUtilitySearch(''); event.target.value = ''; }}>{[...currentUtilityNotes].sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0).filter((note) => `${note.name} ${note.summary || ''} ${note.thrower || ''}`.toLowerCase().includes(collabUtilitySearch.trim().toLowerCase())).map((note) => <option key={note.id} value={note.id}>{note.name} · {note.grenadeType || 'custom'}{note.thrower ? ` · ${note.thrower}` : ''}</option>)}</select></label></div>}</aside>}
            {activePanel === 'collab' && hasActiveFrameContext && collabObjectTab === 'utility' && <CollabUtilityPortal><div className="collab-utility-manager"><header><strong>{t('importedUtilities')}</strong><button type="button" onClick={() => { boardRef.current?.clearCollabUtilityPreview?.(); setCollabUtilityPickerOpen(true); setCollabUtilitySelected(''); }}>{t('addUtility')}</button></header>{collabUtilityPickerOpen ? <div className="collab-utility-picker"><label className="collab-utility-search"><span>{t('selectUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => { setCollabUtilitySearch(event.target.value); setCollabUtilitySelected(''); boardRef.current?.clearCollabUtilityPreview?.(); }} /></label><div className="collab-utility-options" onPointerLeave={() => boardRef.current?.clearCollabUtilityPreview?.()}>{collabUtilityOptions.length === 0 ? <div className="archive-empty">{t('utilityEmpty')}</div> : collabUtilityOptions.map((note) => <button type="button" key={note.id} className={collabUtilitySelected === note.id ? 'selected' : ''} onPointerEnter={() => boardRef.current?.previewCollabUtility?.(note)} onFocus={() => boardRef.current?.previewCollabUtility?.(note)} onClick={() => setCollabUtilitySelected(note.id)}><span><b>{note.name}</b><em>{note.grenadeType || 'custom'}</em></span><small>{note.summary || note.thrower || t('customUtility')}</small></button>)}</div><div className="collab-utility-picker-actions"><button type="button" onClick={cancelCollabUtilityImport}>{t('cancel')}</button><button type="button" disabled={!collabUtilitySelected} onClick={confirmCollabUtilityImport}>{t('confirmAdd')}</button></div></div> : activeImportedUtilities().length === 0 ? <div className="archive-empty">{t('noImportedUtilities')}</div> : <div className="collab-imported-list" onPointerLeave={() => boardRef.current?.clearCollabUtilityPreview?.()}>{activeImportedUtilities().map((item) => <div className={`collab-imported-item${item.anonymous ? ' anonymous' : ''}`} key={item.id} onPointerEnter={() => { if (item.anonymous) boardRef.current?.focusCollabUtility?.(item.id); }}><div><strong>{item.anonymous ? t('anonymousUtility') : item.noteName || t('unknown')}</strong><span>{item.kind || 'custom'}</span></div><div className="collab-imported-actions">{item.anonymous && <button type="button" className="save" onClick={() => openAnonymousUtilitySave(item)}>{t('save')}</button>}<button type="button" onClick={() => deleteImportedUtility(item.id)}>{t('delete')}</button></div></div>)}</div>}</div></CollabUtilityPortal>}
              {activePanel === 'utility' && <UtilityNotesActionsPortal><div className="utility-io-actions"><button type="button" onClick={() => { setUtilityImportNotice(''); utilityImportInputRef.current?.click(); }}>{t('importNotes')}</button><button type="button" onClick={exportUtilityNotes}>{t('exportNotes')}</button><input ref={utilityImportInputRef} type="file" accept="application/json,.json" onChange={importUtilityNotes} />{utilityImportNotice && <span>{utilityImportNotice}</span>}</div></UtilityNotesActionsPortal>}

@@ -4,6 +4,7 @@ import { createTacticalPoint, updateTacticalPoint } from './tacticalPoint.js';
 import { demoEquipmentKind, demoEventPlayerMatches, demoPlayerReload } from '../demo/playerState.js';
 import { demoRosterRuntime } from './runtime.js';
 import { floorVisibilityAtY } from './floorFade.js';
+import { runningTrailSamples } from './demoMovementTrail.js';
 
 // Synchronizes parsed demo players with their reusable scene markers and movement trails.
 export default function createDemoPlayerSceneUpdater({
@@ -328,17 +329,17 @@ export default function createDemoPlayerSceneUpdater({
        let movementTrail = demoMovementTrails.get(player.name);
        if (!movementTrail) {
          const geometry = new THREE.BufferGeometry();
-         geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(12 * 3), 3));
-         geometry.setAttribute('puffSize', new THREE.Float32BufferAttribute(new Float32Array(12), 1));
-         geometry.setAttribute('puffOpacity', new THREE.Float32BufferAttribute(new Float32Array(12), 1));
+         geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(8 * 3), 3));
+         geometry.setAttribute('puffSize', new THREE.Float32BufferAttribute(new Float32Array(8), 1));
+         geometry.setAttribute('puffOpacity', new THREE.Float32BufferAttribute(new Float32Array(8), 1));
          geometry.setDrawRange(0, 0);
          const material = new THREE.ShaderMaterial({
            transparent: true,
            depthTest: true,
            depthWrite: false,
-           uniforms: { color: { value: new THREE.Color('#eef1eb') } },
+           uniforms: { color: { value: new THREE.Color('#b6c5bc') } },
            vertexShader: `attribute float puffSize; attribute float puffOpacity; varying float vOpacity; void main(){ vec4 viewPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * viewPosition; gl_PointSize = puffSize * (300.0 / max(1.0, -viewPosition.z)); vOpacity = puffOpacity; }`,
-           fragmentShader: `uniform vec3 color; varying float vOpacity; void main(){ vec2 p = gl_PointCoord - 0.5; float a = 1.0 - smoothstep(0.18, 0.42, length(p - vec2(-0.12, 0.02))); float b = 1.0 - smoothstep(0.14, 0.34, length(p - vec2(0.16, 0.08))); float c = 1.0 - smoothstep(0.12, 0.3, length(p - vec2(0.02, -0.14))); float alpha = max(a, max(b, c)) * vOpacity; if(alpha < 0.02) discard; gl_FragColor = vec4(color, alpha); }`,
+           fragmentShader: `uniform vec3 color; varying float vOpacity; void main(){ vec2 p = gl_PointCoord - 0.5; float shape = 1.0 - smoothstep(0.2, 0.48, length(p)); float alpha = shape * vOpacity; if(alpha < 0.015) discard; gl_FragColor = vec4(color, alpha); }`,
          });
          movementTrail = new THREE.Points(geometry, material);
          movementTrail.frustumCulled = false;
@@ -347,26 +348,9 @@ export default function createDemoPlayerSceneUpdater({
          demoMovementTrails.set(player.name, movementTrail);
        }
        const awpScoped = player.scoped && String(player.activeWeapon || '').toLowerCase().includes('awp');
-       const recentPlayerPositions = demoSnapshotsRef.current.filter((record) => record.tick <= snapshot.tick && record.tick >= snapshot.tick - 24).map((record) => record.players.find((candidate) => candidate.name === player.name)).filter(Boolean);
-       const oldestPosition = recentPlayerPositions[0]?.position;
-       const newestPosition = recentPlayerPositions.at(-1)?.position;
-       const moving = oldestPosition && newestPosition ? Math.hypot(newestPosition.x - oldestPosition.x, newestPosition.z - oldestPosition.z) > 0.08 : Number(player.velocity) > 5 || Math.hypot(Number(player.velocityX) || 0, Number(player.velocityY) || 0) > 5;
-       if (movementTrail.userData.lastTick != null && snapshot.tick < movementTrail.userData.lastTick) movementTrail.userData.movingUntilTick = snapshot.tick;
-       movementTrail.userData.lastTick = snapshot.tick;
-       if (moving) movementTrail.userData.movingUntilTick = snapshot.tick + 24;
-       const movementActive = snapshot.tick <= (movementTrail.userData.movingUntilTick ?? -1);
-        const showMovementTrail = !hiddenInEye && player.health > 0 && movementActive && !player.walking && duckAmount < 0.5 && !awpScoped;
+       const showMovementTrail = !hiddenInEye && player.health > 0 && !player.walking && duckAmount < 0.5 && !awpScoped;
        if (showMovementTrail) {
-         const sourceRecords = demoSnapshotsRef.current.filter((record) => record.tick <= snapshot.tick && record.tick >= snapshot.tick - 88).map((record) => ({ tick: record.tick, player: record.players.find((candidate) => candidate.name === player.name) })).filter((record) => record.player);
-         const samplePosition = (targetTick) => {
-           let before = sourceRecords[0];
-           let after = sourceRecords.at(-1);
-           for (let index = 1; index < sourceRecords.length; index += 1) if (sourceRecords[index].tick >= targetTick) { before = sourceRecords[index - 1]; after = sourceRecords[index]; break; }
-           if (!before || !after) return null;
-           const amount = before.tick === after.tick ? 0 : THREE.MathUtils.clamp((targetTick - before.tick) / (after.tick - before.tick), 0, 1);
-           return { tick: targetTick, position: { x: THREE.MathUtils.lerp(before.player.position.x, after.player.position.x, amount), y: THREE.MathUtils.lerp(before.player.position.y, after.player.position.y, amount), z: THREE.MathUtils.lerp(before.player.position.z, after.player.position.z, amount) } };
-         };
-         const records = Array.from({ length: 12 }, (_, index) => samplePosition(snapshot.tick - 8 - index * 6)).filter(Boolean).reverse();
+         const records = runningTrailSamples(demoSnapshotsRef.current, player.name, snapshot.tick);
          const positions = movementTrail.geometry.attributes.position;
          const sizes = movementTrail.geometry.attributes.puffSize;
          const opacities = movementTrail.geometry.attributes.puffOpacity;
@@ -374,12 +358,11 @@ export default function createDemoPlayerSceneUpdater({
          records.forEach((record, index) => {
            const age = THREE.MathUtils.clamp((snapshot.tick - record.tick) / 64, 0, 1);
            const seed = playerSeed + index * 97;
-           const drift = Math.sin(seed * 1.73 + demoTickRef.current * 0.025) * 0.055 * age;
-           const sizeVariation = 0.78 + (Math.sin(seed * 2.41) * 0.5 + 0.5) * 0.55;
-           positions.setXYZ(index, record.position.x - modelCenter.x + drift, record.position.y - modelCenter.y + 0.16 + age * 0.24, record.position.z - modelCenter.z + Math.cos(seed * 1.21) * 0.065 * age);
-           sizes.setX(index, THREE.MathUtils.lerp(1.8, 3.8, age) * sizeVariation);
-            const worldY = record.position.y - modelCenter.y + 0.16 + age * 0.24;
-            opacities.setX(index, 0.58 * Math.pow(1 - age, 1.25) * floorVisibilityAtY(worldY, floorFadeRef.current));
+           const drift = Math.sin(seed * 1.73) * 0.035 * age;
+           const worldY = record.position.y - modelCenter.y + 0.16 + age * 0.12;
+           positions.setXYZ(index, record.position.x - modelCenter.x + drift, worldY, record.position.z - modelCenter.z + Math.cos(seed * 1.21) * 0.035 * age);
+           sizes.setX(index, THREE.MathUtils.lerp(1.25, 2.2, age) * record.strength);
+           opacities.setX(index, 0.34 * Math.pow(1 - age, 1.6) * record.strength * floorVisibilityAtY(worldY, floorFadeRef.current));
          });
          positions.needsUpdate = true;
          sizes.needsUpdate = true;

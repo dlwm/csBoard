@@ -5,6 +5,7 @@ import { createGrenadeEffect, disposeGrenadeEffect } from './grenadeEffects.js';
 import { enableObjectFloorFade } from './floorFade.js';
 import { createSmokeVoxelVolume, SMOKE_VOLUME_SCALE } from './smokeVoxelVolume.js';
 import { createInfernoEffect, updateInfernoEffect } from './infernoEffect.js';
+import { activeSmokeBlasts, HE_SMOKE_CLEAR_RADIUS, smokeBlastHasLineOfSight } from './smokeBlast.js';
 
 // CInferno is created after the projectile lands and therefore has a different
 // entity id. The shared start-burn event is the stable bridge back to its throw.
@@ -16,8 +17,11 @@ export function findInfernoSegment(segments, entityId, startEvent) {
     || segments.find((segment) => matchesEntity(segment.entityId));
 }
 
-export default function createDemoGrenadeSceneController({ scene, navData, refs, floorFadeRef, getModelCenter, getNav }) {
+export default function createDemoGrenadeSceneController({ scene, navData, refs, floorFadeRef, getModelCenter, getNav, getCollisionMeshes, getCollisionVersion }) {
   const objects = new Map();
+  const blastVisibilityCache = new WeakMap();
+  const blastRaycaster = new THREE.Raycaster();
+  blastRaycaster.firstHitOnly = true;
 
   const update = () => {
     const active = new Set();
@@ -28,6 +32,24 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
     const infernoFrames = refs.infernoFrames.current;
     const modelCenter = getModelCenter();
     const nav = getNav();
+    const blasts = activeSmokeBlasts(grenadeEvents, tick, refs.source?.current?.tickRate, modelCenter);
+    const updateSmokeBlasts = (smoke) => {
+      if (!smoke.userData.setSmokeBlasts) return;
+      smoke.updateMatrixWorld(true);
+      const smokeCenter = smoke.children[0]?.getWorldPosition(new THREE.Vector3()) || smoke.getWorldPosition(new THREE.Vector3());
+      const reachable = blasts.filter((blast) => {
+        if (new THREE.Vector3(blast.x, blast.y, blast.z).distanceTo(smokeCenter) > HE_SMOKE_CLEAR_RADIUS + 3.5) return false;
+        let visibility = blastVisibilityCache.get(smoke);
+        if (!visibility) { visibility = new Map(); blastVisibilityCache.set(smoke, visibility); }
+        const key = `${getCollisionVersion?.() ?? 0}:${blast.key}`;
+        if (!visibility.has(key)) visibility.set(key, smokeBlastHasLineOfSight(blast, smokeCenter, getCollisionMeshes?.(), blastRaycaster));
+        return visibility.get(key);
+      }).sort((left, right) => (
+        (left.x - smokeCenter.x) ** 2 + (left.y - smokeCenter.y) ** 2 + (left.z - smokeCenter.z) ** 2
+        - (right.x - smokeCenter.x) ** 2 - (right.y - smokeCenter.y) ** 2 - (right.z - smokeCenter.z) ** 2
+      ));
+      smoke.userData.setSmokeBlasts(reachable);
+    };
     const latestSmokeFrames = new Map();
     const latestInfernoFrames = new Map();
     smokeVoxelFrames.forEach((frame) => {
@@ -60,6 +82,7 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       // Scale the complete volume around its detonation origin so voxel size,
       // spacing, and the outer silhouette all remain in the same proportion.
       smoke.scale.setScalar((0.18 + growth * 0.82) * SMOKE_VOLUME_SCALE);
+      updateSmokeBlasts(smoke);
     });
     latestInfernoFrames.forEach((frame, entityId) => {
       const start = grenadeEvents.findLast((event) => event.event_name === 'inferno_startburn'
@@ -168,6 +191,7 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
         scene.add(effect);
         objects.set(key, effect);
       }
+      if (event.event_name === 'smokegrenade_detonate') updateSmokeBlasts(effect);
       if (event.event_name === 'decoy_started') {
         const blink = effect.children.find((child) => child.userData.decoyBlink);
         if (blink?.material?.color) blink.material.color.set(performance.now() % 1000 < 250 ? '#ffffff' : '#7f8b91');

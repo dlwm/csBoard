@@ -8,12 +8,13 @@
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
-## 1.14.0 版本
+## 1.15.0 版本
 
-- 2D 雷达由内置 NAV 生成，支持正方形对齐、分层及高度明暗；3D NAV 平滑显示并移除边线。
-- 更新装备与 HUD 图标、地图国际化彩色名称、站立及蹲姿棋兵标记。
-- AI 教程与单回合分析仅限 Electron 桌面版，提供双方站位、事件、道具、分页数据及区分事实和推断的提示词。网页版不显示 AI 入口、不注册 WebMCP；桌面端仍需实际连接兼容客户端。
-- 详见[单回合分析指南](round-analysis-model.md)、[版本记录](CHANGELOG.zh-CN.md)、[第三方鸣谢与许可证](../THIRD_PARTY_NOTICES.md)。
+- 回合浏览可保存命名时间段，用于视角演播；选择存档即可开放房间，访客下载后保存到本地。
+- 监视器支持同阵营多视角、阵营切换与死亡遮罩。
+- 协作面板、视角演播和道具速记支持可拖拽的文件夹树；烟雾改为更连贯的体积效果，奔跑尾迹不再因小范围往返移动堆积。
+- Cloudflare Worker 前端可选用本地 SVG 图标资源包；击杀栏也能识别带附加后缀的 Demo 武器名。
+- 详见[版本记录](CHANGELOG.zh-CN.md)与[第三方鸣谢及许可证](../THIRD_PARTY_NOTICES.md)。
 
 ## 主要功能
 
@@ -28,6 +29,14 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - 使用简化的站立/蹲伏人物模型，并显示 yaw、pitch、动态视点高度和 BVH 加速的视线墙体碰撞。
 - 跟踪 C4 携带、掉落、安装、爆炸、拆除、近似掉落轨迹和炸弹倒计时。
 - 保存当前帧，将当前玩家和生效道具转换成可编辑的战术板对象。
+- 可切换同阵营监视器墙，选择主视角；阵亡队友的画面会变黑。
+- 可将命名时间段保存为视角演播片段。
+
+### 视角演播
+
+- 播放单个已存时间段，不展示比分、击杀栏与回合控制；保留监视器、模型选项和点击道具保存。
+- 选择片段即开放六位房间号；访客先查看全屏下载进度，存到本地后再播放。
+- 与回合浏览分别保留播放进度、镜头和主视角，切换页面不混用状态。
 
 ### 战术编辑
 
@@ -40,6 +49,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - 在任意桌面工作区打开自定义道具轮盘，并使用 `Ctrl`/`Command` + 点击删除已放置道具。
 - 每张地图保存 10 个镜头预设，并通过 `1-9` / `0` 快速恢复。
 - 本地存档可保存人物、道具、画笔、镜头预设和可选的 Demo 当前帧引用。
+- 本地存档可通过文件夹树拖拽整理；删除文件夹会将条目上移，不删除存档。
 
 ### 道具速记
 
@@ -51,6 +61,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 - 支持将道具库导出为 JSON，也可将 JSON 数据附加导入本地道具库。
 - 导入时按整条记录深度比较，完全相同的数据只保留一条。
 - 向协作帧引入道具时，必须先选择并确认；引入道具与 `Q` 轮盘创建的自定义道具保持两套独立数据逻辑。
+- 道具记录可独立按文件夹拖拽整理。
 
 ### 数据分析
 
@@ -181,7 +192,7 @@ Electron 正式版使用 `npm run desktop:build:mac` 或 `npm run desktop:build:
 
 Electron 前端还内置了可选启用的实验性 WebMCP 桥接。先执行一次 `npm run build:desktop`，再用 `npm run desktop:start:webmcp` 启用实验 API 支持，工具是否注册成功及模型是否连接仍需实际调用验证；普通的 `npm run desktop:start` 不会开启 Chromium 实验性 Web 平台开关。在数据分析页，接入的用户模型应先调用 `get_analysis_context` 读取当前筛选、字段说明、就绪状态和基础提示词，再通过 `get_filtered_analysis_data` 分页取得已经过滤的 KD、区域时间或道具 JSON；每页最多 200 条，道具轨迹按需开启，以免无谓占用模型上下文。支持视觉的模型还可调用 `capture_3d_view` 获取当前 3D 画布及相机和分析上下文；可调整宽高、WebP／JPEG／PNG 格式、质量、适配方式与是否附带上下文，默认输出紧凑的 960px 宽 WebP。两种模式都使用固定、只读的 `http://127.0.0.1:32145` 应用源，因此桌面端存储可跨启动保持稳定；仅在必要时通过 `CSBOARD_DESKTOP_PORT` 覆盖端口。
 
-通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.14.0` 版本时才需设置 `BUILD_VERSION`。
+通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.15.0` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式
 
@@ -265,6 +276,8 @@ make workers-deploy
 在 `deploy.cloudflare.env` 中填写 Cloudflare Account ID、前后端 Worker 名称、OSS 根地址、后端公网地址和两个可选自定义域名。建议通过终端环境变量或 CI Secret 提供 `CLOUDFLARE_API_TOKEN`。
 
 部署脚本先部署后端 Worker（API、房间 WebSocket 和 Durable Objects），再部署前端 Worker（Workers Static Assets）。它会把与平台无关的 `VITE_OSS_BASE_URL` 和 `VITE_BACKEND_BASE_URL` 写入已忽略的 `.env.production.local`，其中 `BACKEND_PUBLIC_URL` 会被嵌入前端用于连接独立后端服务。
+
+可选的 Worker UI 资源包配置放在被忽略的 `.local/worker-resource-pack.json`，其中 `iconDirectory` 指向本地图标目录，例如 `.local/official/ui`。只打包清单中已识别的 SVG；缺少的图标继续使用内置 UI，没有配置文件时完全沿用原样。GLB 模型不会打包，仍使用现有 `OSS_BASE_URL`。配置格式、校验规则见 [Cloudflare 部署说明](../config/cloudflare/README.md)。发布第三方图标前需自行确认分发权利。
 
 ## 许可证
 

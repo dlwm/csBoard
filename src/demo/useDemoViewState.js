@@ -4,21 +4,25 @@ import { roundEconomy, roundSideSignature, sidesSwitched } from './economy.js';
 import { interpolateDemoSnapshot } from './interpolation.js';
 import { buildDemoGrenadeSegments } from './grenades.js';
 import { buildDemoReloads, demoEventPlayerMatches } from './playerState.js';
+import { buildMonitorRoster, mergeMonitorSnapshot } from './monitorPlayers.js';
 import { roundReasonLabel, roundWinnerSide } from './rounds.js';
 import { demoPovRuntime, demoRosterRuntime } from '../three/runtime.js';
 
 // Derive all read-only replay presentation data from the current Demo tick.
-export default function useDemoViewState({ activePanel, demoData, demoPovPlayerId, demoProjectiles, demoRound, demoSnapshots, demoThrowSnapshots, demoTick, language, setDemoCameraMode, setDemoPovPlayerId, t }) {
+export default function useDemoViewState({ activePanel, demoCameraMode, demoData, demoPovPlayerId, demoProjectiles, demoRound, demoSnapshots, demoThrowSnapshots, demoTick, language, setDemoCameraMode, setDemoPovPlayerId, t }) {
   const tickRate = demoData?.demo.tickRate || 64;
   const demoSnapshot = demoRound && (demoTick < demoRound.startTick || demoTick > demoRound.endTick) ? null : interpolateDemoSnapshot(demoSnapshots, demoTick);
   const demoReloads = useMemo(() => buildDemoReloads(demoSnapshots, demoData?.events || [], tickRate), [demoSnapshots, demoData?.events, tickRate]);
   const demoGrenadeSegments = useMemo(() => buildDemoGrenadeSegments(demoProjectiles, demoData?.events || [], demoThrowSnapshots, demoRound, tickRate), [demoProjectiles, demoData?.events, demoThrowSnapshots, demoRound, tickRate]);
   const demoTeams = { T: demoSnapshot?.players.filter((player) => player.team === 2) || [], CT: demoSnapshot?.players.filter((player) => player.team === 3) || [] };
+  const monitorRoster = useMemo(() => buildMonitorRoster(demoSnapshots), [demoSnapshots]);
+  const demoMonitorPlayers = mergeMonitorSnapshot(monitorRoster, demoSnapshot);
   const demoPovPlayer = demoSnapshot?.players.find((player) => String(player.steamid || player.name) === demoPovPlayerId && player.health > 0 && player.hasPosition !== false) || null;
   const demoPovFiring = Boolean(demoPovPlayer && demoData?.events?.some((event) => event.event_name === 'weapon_fire' && demoEventPlayerMatches(event, demoPovPlayer) && event.tick <= demoTick && demoTick - event.tick < 8));
   const demoPovHurt = Boolean(demoPovPlayer && demoData?.events?.some((event) => event.event_name === 'player_hurt' && demoEventPlayerMatches(event, demoPovPlayer) && event.tick <= demoTick && demoTick - event.tick < 10));
   const toggleDemoPov = (player) => {
     const id = String(player.steamid || player.name);
+    if (demoCameraMode === 'monitor') { setDemoPovPlayerId(id); return; }
     setDemoCameraMode('manual');
     setDemoPovPlayerId((current) => current === id ? '' : id);
   };
@@ -26,6 +30,7 @@ export default function useDemoViewState({ activePanel, demoData, demoPovPlayerI
 
   demoRosterRuntime.snapshots = demoSnapshots;
   demoRosterRuntime.reloads = demoReloads;
+  demoRosterRuntime.monitorPlayers = demoMonitorPlayers;
   demoPovRuntime.player = demoPovPlayer;
   demoPovRuntime.playerId = demoPovPlayerId;
   demoPovRuntime.toggle = toggleDemoPov;
@@ -79,5 +84,5 @@ export default function useDemoViewState({ activePanel, demoData, demoPovPlayerI
   const defuseDurationTicks = (currentDefuser?.hasDefuser ? 5 : 10) * tickRate;
   const defuseProgress = currentDefuser && defuseStartTick != null ? THREE.MathUtils.clamp((demoTick - defuseStartTick) / defuseDurationTicks, 0, 1) : null;
 
-  return { c4Countdown, c4Terminal, currentDefuser, defuseProgress, demoC4Events, demoDeaths, demoGrenadeSegments, demoHltvEvents, demoKills, demoPovFiring, demoPovHurt, demoPovPlayer, demoReloads, demoRoundEconomies, demoScore, demoSideSwitchRounds, demoSnapshot, demoTeams, interruptDemoCamera, roundClock, roundResult, roundWinner, timelineEvents, toggleDemoPov };
+  return { c4Countdown, c4Terminal, currentDefuser, defuseProgress, demoC4Events, demoDeaths, demoGrenadeSegments, demoHltvEvents, demoKills, demoMonitorPlayers, demoPovFiring, demoPovHurt, demoPovPlayer, demoReloads, demoRoundEconomies, demoScore, demoSideSwitchRounds, demoSnapshot, demoTeams, interruptDemoCamera, roundClock, roundResult, roundWinner, timelineEvents, toggleDemoPov };
 }

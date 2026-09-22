@@ -60,7 +60,7 @@ export function createGrenadeEffect(position, type, navData, nav) {
 }
 
 export function disposeGrenadeEffect(effect) {
-  effect?.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); });
+  effect?.traverse((object) => { object.userData.smokeDensityTexture?.dispose(); object.geometry?.dispose(); object.material?.dispose(); });
 }
 
 // Applies the collaboration range without flattening the calibrated smoke shell.
