@@ -8,12 +8,13 @@
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
-## 1.15.0 版本
+## 1.15.1 版本
 
 - 回合浏览可保存命名时间段，用于视角演播；选择存档即可开放房间，访客下载后保存到本地。
 - 监视器支持同阵营多视角、阵营切换与死亡遮罩。
 - 协作面板、视角演播和道具速记支持可拖拽的文件夹树；烟雾改为更连贯的体积效果，奔跑尾迹不再因小范围往返移动堆积。
 - Cloudflare Worker 前端可选用本地 SVG 图标资源包；击杀栏也能识别带附加后缀的 Demo 武器名。
+- 地图视觉模型仍在下载时也可使用完整的地图缩放范围。
 - 详见[版本记录](CHANGELOG.zh-CN.md)与[第三方鸣谢及许可证](../THIRD_PARTY_NOTICES.md)。
 
 ## 主要功能
@@ -192,7 +193,7 @@ Electron 正式版使用 `npm run desktop:build:mac` 或 `npm run desktop:build:
 
 Electron 前端还内置了可选启用的实验性 WebMCP 桥接。先执行一次 `npm run build:desktop`，再用 `npm run desktop:start:webmcp` 启用实验 API 支持，工具是否注册成功及模型是否连接仍需实际调用验证；普通的 `npm run desktop:start` 不会开启 Chromium 实验性 Web 平台开关。在数据分析页，接入的用户模型应先调用 `get_analysis_context` 读取当前筛选、字段说明、就绪状态和基础提示词，再通过 `get_filtered_analysis_data` 分页取得已经过滤的 KD、区域时间或道具 JSON；每页最多 200 条，道具轨迹按需开启，以免无谓占用模型上下文。支持视觉的模型还可调用 `capture_3d_view` 获取当前 3D 画布及相机和分析上下文；可调整宽高、WebP／JPEG／PNG 格式、质量、适配方式与是否附带上下文，默认输出紧凑的 960px 宽 WebP。两种模式都使用固定、只读的 `http://127.0.0.1:32145` 应用源，因此桌面端存储可跨启动保持稳定；仅在必要时通过 `CSBOARD_DESKTOP_PORT` 覆盖端口。
 
-通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.15.0` 版本时才需设置 `BUILD_VERSION`。
+通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.15.1` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式
 

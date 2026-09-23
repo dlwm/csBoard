@@ -2,6 +2,12 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.15.1] - 2026-09-23
+
+### Fixed
+
+- Size the camera zoom limit and far clipping plane from bundled NAV data while the GLB model is still downloading, so large maps are not constrained by the temporary default camera range.
+
 ## [1.15.0] - 2026-09-22
 
 ### Added

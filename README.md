@@ -8,12 +8,13 @@
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
 
-## Version 1.15.0
+## Version 1.15.1
 
 - Save a named Demo interval for View Broadcast, open a room from its archive, and download it into another participant's local collection.
 - Watch a team through a main POV and side monitors, switch teams, and see dead players' views clearly marked.
 - Organize Collaboration, View Broadcast, and Utility Notes archives in draggable folder trees; replay smoke has a smoother shared volume, while running trails no longer build up during short back-and-forth movement.
 - Optionally bundle a local SVG icon pack for the Cloudflare Worker frontend; kill-feed icons also recognize suffixed Demo weapon names.
+- Keep the full map zoom range available while its visual model is still downloading.
 - See the [release notes](CHANGELOG.md) and [third-party acknowledgements and licenses](THIRD_PARTY_NOTICES.md).
 
 ## Highlights
@@ -192,7 +193,7 @@ Unpackaged development runs may read `.local/official/maps`; `npm run desktop:bu
 
 The Electron renderer also contains an experimental, opt-in WebMCP bridge. Run `npm run build:desktop` once, then `npm run desktop:start:webmcp` to enable experimental API support; successful registration and an actual client call must still be verified; ordinary `npm run desktop:start` launches without Chromium's experimental web-platform switch. In Analysis, a connected user model should call `get_analysis_context` first to read the current filters, field guide, readiness state, and starter prompts, then page through `get_filtered_analysis_data`. The latter returns already-filtered KD, area-time, or utility JSON in pages of at most 200 records; utility trajectories are opt-in to avoid wasting model context. Vision-capable models may call `capture_3d_view` to receive the current 3D canvas with camera and analysis metadata. Width, height, WebP/JPEG/PNG format, quality, fit mode, and context inclusion are configurable; the default is a compact 960px-wide WebP. Both launch modes use the same fixed, read-only `http://127.0.0.1:32145` application origin so desktop storage remains stable. Override the port with `CSBOARD_DESKTOP_PORT` only when necessary.
 
-To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.15.0` image version.
+To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.15.1` image version.
 
 ## Controls
 

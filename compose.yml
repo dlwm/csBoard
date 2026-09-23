@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        BUILD_VERSION: ${BUILD_VERSION:-v1.15.0}
+        BUILD_VERSION: ${BUILD_VERSION:-v1.15.1}
 
     container_name: csboard
     restart: unless-stopped

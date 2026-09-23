@@ -1,6 +1,6 @@
 # Third-party acknowledgements and licenses
 
-CSBoard 1.15.0 — Copyright (C) 2026 Colvin Chen
+CSBoard 1.15.1 — Copyright (C) 2026 Colvin Chen
 
 Thanks to the maintainers and contributors of the projects below. CSBoard's
 GPL-3.0-only license does not replace their licenses. This document records

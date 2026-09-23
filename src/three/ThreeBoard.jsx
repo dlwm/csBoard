@@ -1350,6 +1350,10 @@ export default function ThreeBoard(props) {
       nav.mesh.material.opacity = 1;
       nav.mesh.material.depthWrite = true;
       scene.add(nav.group);
+      // The bundled NAV is available before GLB download; use its extent for the loading camera too.
+      controls.maxDistance = Math.max(nav.size * 2.2, 70);
+      camera.far = Math.max(nav.size * 4, 200);
+      camera.updateProjectionMatrix();
     }
     let worldModel;
     let disposed = false;
