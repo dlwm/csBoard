@@ -1,6 +1,6 @@
 # CSBoard
 
-> 集 3D 战术板、CS2 Demo 回放、数据分析和实时协作于一体的浏览器工具。
+> 集 3D 战术板、CS2 Demo 回放、数据分析和实时协作于一体的工具。
 
 [English](../README.md) · [Русский](README.ru-RU.md) · [更新日志](CHANGELOG.zh-CN.md)
 
@@ -8,14 +8,14 @@
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
-## 1.15.1 版本
+## 1.16.0 版本
 
-- 回合浏览可保存命名时间段，用于视角演播；选择存档即可开放房间，访客下载后保存到本地。
-- 监视器支持同阵营多视角、阵营切换与死亡遮罩。
-- 协作面板、视角演播和道具速记支持可拖拽的文件夹树；烟雾改为更连贯的体积效果，奔跑尾迹不再因小范围往返移动堆积。
-- Cloudflare Worker 前端可选用本地 SVG 图标资源包；击杀栏也能识别带附加后缀的 Demo 武器名。
-- 地图视觉模型仍在下载时也可使用完整的地图缩放范围。
-- 详见[版本记录](CHANGELOG.zh-CN.md)与[第三方鸣谢及许可证](../THIRD_PARTY_NOTICES.md)。
+- 提升 Demo 解析与本地存储能力，支持已有存档和缓存自动迁移。
+- 支持多 Demo 同时解析、单 Demo 多线程采样，提供均衡／极速／自定义性能模式。
+- 新增后台任务管理、缓存清理、校验备份和恢复；最小化后继续解析。
+- 重设计资源包管理界面，统一 CSBoard 应用名称和图标。
+- 当前 AI 集成已移除，后续重新设计；数据分析与导出保留。
+- 实测性能及验证范围见[版本记录](CHANGELOG.zh-CN.md)，许可信息见[第三方鸣谢及许可证](../THIRD_PARTY_NOTICES.md)。
 
 ## 主要功能
 
@@ -24,7 +24,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 ![回合浏览](img/round-replay.png)
 
 - 导入单个 Demo，或多选 Demo 分片并合并为一场比赛。
-- 通过 Rust/WASM 一次性解析全部可播放回合，将各回合持久化到 IndexedDB，之后无需重新解析 Demo 即可切换。
+- 一次解析后从缓存切换回合：Web 使用 Rust/WASM 与 IndexedDB；Electron 使用原生 Rust、SQLite 元数据和压缩文件。
 - 自动忽略空的占位回合，并丢弃不兼容的旧解析缓存。
 - 从冻结结束开始回放玩家移动、击杀、死亡、武器、血量、道具、C4 状态和事件标记。
 - 使用简化的站立/蹲伏人物模型，并显示 yaw、pitch、动态视点高度和 BVH 加速的视线墙体碰撞。
@@ -166,34 +166,55 @@ cp .env.example .env.local
 npm run dev
 ```
 
-默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make workers-dev` 或 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，为前端提供 `.local/official/maps` 中的 GLB。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
-
-相同的 API 与 Yjs 协议核心也可以通过传统 Node.js HTTP/WebSocket 入口运行：
-
-```bash
-make node-dev
-# 或：npm run dev:node
-```
+默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，为前端提供 `.local/official/maps` 中的 GLB。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
 
 Node.js Runtime 适配层监听 `PORT`（默认 `3001`），并从 `process.env` 读取 `MAP_BASE_URL`。Cloudflare Workers 适配层使用 `env.MAP_BASE_URL` 和 Durable Object Storage；共享路由、解析和协议逻辑位于 `server/core/`。
 
 构建生产版本：
 
 ```bash
-make build
+npm run build
+make workers-build
 ```
 
-该命令会将前端构建到 `dist/`、校验 Node.js Runtime 适配层，并将 Cloudflare Workers bundle 输出到 `build/workers/`。Make 构建会从 Git 生成标题栏版本：干净且 HEAD 有精确 tag 时使用该 tag；dirty 或无 tag 的交互构建会先询问，再使用 `git describe`。
+`npm run build` 将本地 Web 前端构建到 `dist/`；`make workers-build` 单独以 `--dry-run` 构建两个 Cloudflare Workers（含远程前端），输出到 `build/workers/`，不部署。npm 构建使用 package 版本；Workers／Docker 的 Make 命令从 Git 获取版本，dirty 或无 tag 的交互构建会先询问。
 
-`npm run build` 与 `npm run build:local` 使用本地 `/maps` 和同源 API；`npm run build:remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
+`npm run build` 使用本地 `/maps` 和同源 API；`npm run build:remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
 
-Electron 正式版使用 `npm run desktop:build:mac` 或 `npm run desktop:build:win` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。详见[资源包说明](resource-packs.md)。
+Electron 正式版使用 `npm run desktop:build:mac:arm64` / `npm run desktop:build:mac:x64` 或 `npm run desktop:build:win:x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。详见[资源包说明](resource-packs.md)。
 
-未打包的开发启动可读取 `.local/official/maps`；`npm run desktop:build:local` 专门构建带本地模型的测试包。正式构建不包含 `.local/official` 或 `.local/official/maps`；网页版保留现有本地/OSS 模型逻辑。
+未打包的开发启动可读取 `.local/official/maps`；`npm run desktop:prepare -- --local-models` 专门构建带本地模型的测试包。正式构建不包含 `.local/official` 或 `.local/official/maps`；网页版保留现有本地/OSS 模型逻辑。
 
-Electron 前端还内置了可选启用的实验性 WebMCP 桥接。先执行一次 `npm run build:desktop`，再用 `npm run desktop:start:webmcp` 启用实验 API 支持，工具是否注册成功及模型是否连接仍需实际调用验证；普通的 `npm run desktop:start` 不会开启 Chromium 实验性 Web 平台开关。在数据分析页，接入的用户模型应先调用 `get_analysis_context` 读取当前筛选、字段说明、就绪状态和基础提示词，再通过 `get_filtered_analysis_data` 分页取得已经过滤的 KD、区域时间或道具 JSON；每页最多 200 条，道具轨迹按需开启，以免无谓占用模型上下文。支持视觉的模型还可调用 `capture_3d_view` 获取当前 3D 画布及相机和分析上下文；可调整宽高、WebP／JPEG／PNG 格式、质量、适配方式与是否附带上下文，默认输出紧凑的 960px 宽 WebP。两种模式都使用固定、只读的 `http://127.0.0.1:32145` 应用源，因此桌面端存储可跨启动保持稳定；仅在必要时通过 `CSBOARD_DESKTOP_PORT` 覆盖端口。
+桌面页面输出到 `build/renderer/`，后台任务输出到 `build/tasks/`，Web 保持 `dist/`，两者不会互相覆盖。首次或代码更新后运行 `npm run desktop:prepare` 构建原生组件、页面和应用包；日常使用 `npm run desktop:start` 直接启动，不重复构建。`npm run desktop:dev` 保留未打包调试入口。
 
-通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.15.1` 版本时才需设置 `BUILD_VERSION`。
+发布仅保留以下三个目标。Mac 命令在 macOS 上执行，Windows 命令在 Windows 上执行：
+
+| 目标 | 命令 | `build/desktop/` 中的产物 |
+| --- | --- | --- |
+| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.0-mac-arm64.dmg` |
+| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.0-mac-x64.dmg` |
+| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.0-win-x64.exe` |
+
+macOS 安装 Xcode Command Line Tools 后，执行一次 `rustup target add aarch64-apple-darwin x86_64-apple-darwin`，即可在同一台 Mac 分别构建两种架构。Windows 使用 x64 Node.js、Rust MSVC 和带 C++ 工作负载／Windows SDK 的 Visual Studio Build Tools。命令自动匹配 Rust 与 Electron 架构，不自动上传；签名凭据需另行配置。
+
+#### GitHub Actions 自动化
+
+将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.16.0` tag，或在 **Actions → Desktop release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
+
+工作流测试并构建三个目标，检查实际安装包内容和包内原生存储，全部通过后把安装包及 `SHA256SUMS.txt` 上传到 **草稿 Release**。不会自动公开发布，也不会覆盖已发布版本；重跑只更新同一提交的草稿。检查安装运行后，在 GitHub 点击 **Publish release**。
+
+通常无需新增 Secrets 或个人 token：使用 GitHub 自带的 `GITHUB_TOKEN`，只有草稿汇总任务申请写权限。仓库需启用 Actions，仓库／组织策略需允许相关 Actions 和 Release 写入。当前未配置签名和 macOS 公证，生成的是未签名安装包。
+
+`make help` 列出保留的入口。依赖安装统一用 `npm ci`，Workers 部署用 `npm run deploy`，容器管理直接用 `docker compose down`、`logs -f`、`ps`；重复 npm 别名和 Make 包装已移除，图标及后台任务构建自动执行。带模型的测试包用 `desktop:prepare -- --local-models`，生成到 `build/desktop-local/`，直接打开其中的测试应用。
+
+桌面原生组件的源码构建需要 Git、Rust/Cargo 及目标平台的 C 编译／链接工具链；安装后的应用自带可执行文件，无需安装 Rust 或 Python。原生数据位于 Electron 用户数据目录的 `native-data/`，旧 IndexedDB 数据按需复制，保留原数据库；浏览器偏好仍留在浏览器存储中。升级前建议备份重要存档。
+
+“桌面管理 → 解析性能”提供均衡（默认）、极速和自定义模式。极速允许使用全部逻辑核心预算，多份 Demo 共享该预算；自定义可设置同时解析数量、单任务线程上限及内存预算。安全的 tick 查询使用原生多线程，事件、按键及烟火状态继续顺序处理。内存预算用于决定是否启动任务，内存不足时等待，并非进程硬性上限。
+
+右上角“桌面管理”可查看空间占用、按最近使用清理 Demo 缓存、创建和恢复备份，以及查看或取消后台任务。备份包含原生存档、Demo 缓存和导入资源，不包含原始 `.dem`、浏览器偏好及未保存内容。恢复重启后生效，恢复前的数据保留在数据目录的 `restores` 文件夹。可为本次运行开启任务期间防自动休眠；窗口最小化时暂停 3D 绘制，后台解析继续。
+
+
+通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.16.0` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式
 
@@ -257,7 +278,8 @@ GLB 存储桶需返回 `Access-Control-Allow-Origin` 头。`src/navParser.js` �
 - React 与 Vite：应用外壳和界面。
 - `src/analysis/` 收纳分析组件与计算逻辑，`src/demo/` 放置 Demo 领域逻辑和 HUD，`src/components/` 放置共享 UI，`src/three/` 放置 Three.js 辅助模块，`src/utility/` 放置道具速记逻辑，`src/hooks/` 放置跨面板 DOM 行为。
 - Three.js：地图、战术对象、效果和回放渲染。
-- Rust/WASM `demoparser2`：解析 Demo 事件、Tick、玩家、库存和投掷物。
+- `demoparser2`：解析 Demo 事件、Tick、玩家、库存和投掷物；Web 使用 Rust/WASM，桌面使用独立 Rust 可执行文件。
+- `src/platform/` 选择浏览器或桌面服务；桌面后台进程处理重计算，SQLite 与压缩文件保存数据。
 - `three-mesh-bvh`：地图射线检测加速。
 - Yjs 与 `y-websocket`：协作房间协议。
 - Node.js Runtime：传统 HTTP/WebSocket 服务入口。
@@ -271,7 +293,7 @@ Wrangler 配置统一放在 [`config/cloudflare/`](../config/cloudflare/README.m
 ```bash
 npm install
 cp deploy.cloudflare.env.example deploy.cloudflare.env
-make workers-deploy
+npm run deploy
 ```
 
 在 `deploy.cloudflare.env` 中填写 Cloudflare Account ID、前后端 Worker 名称、OSS 根地址、后端公网地址和两个可选自定义域名。建议通过终端环境变量或 CI Secret 提供 `CLOUDFLARE_API_TOKEN`。

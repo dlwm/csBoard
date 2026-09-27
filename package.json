@@ -4,7 +4,7 @@
   "author": "colvin chen",
   "license": "GPL-3.0-only",
   "private": true,
-  "version": "1.15.1",
+  "version": "1.16.0",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -14,20 +14,34 @@
       "output": "build/desktop"
     },
     "files": [
-      "dist/**/*",
       "electron/**/*",
       "LICENSE",
       "LICENSE_SCOPE.md",
       "THIRD_PARTY_NOTICES.md",
-      "package.json"
+      "package.json",
+      "build/renderer/**/*",
+      "build/icons/icon.png",
+      "src/resources/catalog.json",
+      "build/tasks/**/*"
     ],
-    "extraResources": [],
+    "extraResources": [
+      {
+        "from": "build/native/${os}-${arch}",
+        "to": "native",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "mac": {
-      "icon": "src/assets/favicon.svg",
+      "icon": "build/icons/icon.icns",
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ]
     },
@@ -35,30 +49,30 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
-      ]
-    }
+      ],
+      "icon": "build/icons/icon.ico"
+    },
+    "beforePack": "scripts/check-native-package.cjs",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   },
   "scripts": {
-    "dev": "npm run dev:node",
+    "dev": "npm run build && node server/node.js",
     "dev:workers": "node scripts/dev-workers.js",
-    "dev:node": "npm run build:local && node server/node.js",
     "server": "node server/node.js",
     "deploy": "bash scripts/deploy-cloudflare.sh",
-    "deploy:workers": "bash scripts/deploy-cloudflare.sh",
-    "build": "npm run build:local",
-    "build:local": "VITE_USE_LOCAL_MAPS=true VITE_BACKEND_BASE_URL=/ vite build",
-    "build:remote": "VITE_USE_LOCAL_MAPS=false vite build",
-    "build:desktop": "vite build",
-    "nav:generate": "node scripts/generate-nav-data.js",
-    "preview": "vite preview",
-    "desktop:start": "electron .",
-    "desktop:start:webmcp": "electron . --enable-csboard-webmcp",
-    "desktop:build:mac": "npm run build:desktop && electron-builder --mac",
-    "desktop:build:win": "npm run build:desktop && electron-builder --win",
-    "desktop:build:local": "npm run build:desktop && electron-builder --config electron-builder.local.json --dir",
-    "desktop:build": "npm run build:desktop && electron-builder --mac --win"
+    "build": "node scripts/build-frontend.js",
+    "build:remote": "node scripts/build-frontend.js --remote",
+    "desktop:start": "node scripts/start-desktop.js",
+    "desktop:dev": "node scripts/package-desktop.js dev",
+    "desktop:prepare": "node scripts/package-desktop.js prepare",
+    "desktop:build:mac:arm64": "node scripts/package-desktop.js mac-arm64",
+    "desktop:build:mac:x64": "node scripts/package-desktop.js mac-x64",
+    "desktop:build:win:x64": "node scripts/package-desktop.js win-x64",
+    "native:build": "node scripts/build-native.js"
   },
   "dependencies": {
     "@fontsource/dm-mono": "^5.3.0",
@@ -78,6 +92,7 @@
   "devDependencies": {
     "electron": "^44.2.0",
     "electron-builder": "^26.15.3",
+    "sharp": "0.35.2",
     "vite": "latest",
     "wrangler": "^4.37.1"
   }

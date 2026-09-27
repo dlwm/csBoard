@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0b1110"/>
-  <path d="M14 39h10l-3 11H11zM27 27h10l-6 23H21zM40 14h10l-10 36H30z" fill="#c9f76b"/>
+  <defs>
+    <linearGradient id="panel" x2="0" y2="1"><stop stop-color="#1c2b23"/><stop offset="1" stop-color="#0b1110"/></linearGradient>
+    <linearGradient id="signal" x2="0" y2="1"><stop stop-color="#defca6"/><stop offset="1" stop-color="#b2e44e"/></linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#panel)"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="13.5" fill="none" stroke="#49603c" stroke-opacity=".65"/>
+  <path d="M12 40h9l-3 10H9zM27 28h9l-6 22h-9zM43 14h10L43 50H33z" fill="url(#signal)"/>
 </svg>

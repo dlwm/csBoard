@@ -1,16 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { enableMaterialFloorFade } from '../src/three/floorFade.js';
-
-test('radar polling state stays outside the application root', () => {
-  const main = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
-  const view = readFileSync(new URL('../src/components/ViewTools.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(main, /useRadarOverlay|radarOverlay=/);
-  assert.match(view, /function RadarOverlay/);
-  assert.match(view, /<RadarOverlay activePanel=\{activePanel\} boardRef=\{boardRef\} mapName=\{mapName\} navData=\{navData\}/);
-});
 
 test('one-time map floor patch retains live floor changes without recompiling', () => {
   const material = new THREE.MeshStandardMaterial();

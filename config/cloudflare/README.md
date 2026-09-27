@@ -11,10 +11,10 @@ Run commands from the repository root:
 ```sh
 npm run dev:workers
 make workers-build
-npm run deploy:workers
+npm run deploy
 ```
 
-`workers-build` validates with `--dry-run`; `deploy:workers` performs deployment.
+`workers-build` validates with `--dry-run`; `npm run deploy` performs deployment.
 The developer launcher explicitly keeps local persistence at `.wrangler/state`
 in the repository root. No existing state needs moving. Wrangler may create
 ignored temporary files beside its configuration.
@@ -46,7 +46,7 @@ SVG files at its root. Only names in `electron/resource-catalog.json` are
 included. Missing icons keep the built-in UI; without the config file, the
 whole frontend uses the existing built-in UI. An explicit but invalid path or
 unsafe SVG fails the build. To use a different config file, set
-`CF_RESOURCE_PACK_CONFIG` to its path before running `make workers-deploy` or
+`CF_RESOURCE_PACK_CONFIG` to its path before running `npm run deploy` or
 `make workers-build`.
 
 This pack is UI-only: GLB files are not copied, and the existing `OSS_BASE_URL`

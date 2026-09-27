@@ -1,3 +1,4 @@
+import { startPlaybackClock } from '../app/playbackClock.js';
 import { useEffect, useMemo } from 'react';
 import { interpolateDemoSnapshot } from '../demo/interpolation.js';
 import { buildDemoGrenadeSegments, utilityProjectileAtTick } from '../demo/grenades.js';
@@ -7,16 +8,14 @@ import { UTILITY_THROW_VIEW_HOLD_SECONDS } from '../app/config.js';
 export default function useUtilityReplayPlayback(utilityReplay, setUtilityReplay) {
   useEffect(() => {
     if (!utilityReplay?.playing) return undefined;
-    const timer = window.setInterval(() => setUtilityReplay((current) => {
+    return startPlaybackClock(seconds => setUtilityReplay((current) => {
       if (!current?.playing) return current;
-      if (current.delayUntil && Date.now() < current.delayUntil) return current;
-      const nextTick = Math.min(current.note.replay.endTick, current.tick + current.note.replay.tickRate / 30);
+      const nextTick = Math.min(current.note.replay.endTick, current.tick + (current.note.replay.tickRate || 64) * seconds);
       return { ...current, tick: nextTick, playing: nextTick < current.note.replay.endTick, delayUntil: 0 };
-    }), 1000 / 30);
-    return () => window.clearInterval(timer);
-  }, [setUtilityReplay, utilityReplay?.playing]);
+    }), { delayMs: (utilityReplay.delayUntil || 0) - Date.now() });
+  }, [setUtilityReplay, utilityReplay?.playing, utilityReplay?.note, utilityReplay?.delayUntil]);
 
-  const snapshot = utilityReplay && utilityReplay.tick <= utilityReplay.note.replay.throwTick + 64
+  const snapshot = utilityReplay && utilityReplay.tick <= utilityReplay.note.replay.throwTick + (utilityReplay.note.replay.tickRate || 64)
     ? interpolateDemoSnapshot(utilityReplay.note.replay.snapshots, utilityReplay.tick)
     : null;
   const firstPerson = useMemo(() => {

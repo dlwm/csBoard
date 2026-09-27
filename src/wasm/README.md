@@ -37,7 +37,12 @@ Build its `src/wasm`
 crate with `cargo build --release --target wasm32-unknown-unknown`, then run
 `wasm-bindgen` with `--target web` and copy the generated package into this
 directory. Any parser-output change must also increment the Demo cache schema
-in `demoWorker.js` and `main.jsx`.
+in `src/demo/parserRuntime.js` and `main.jsx`.
+
+The desktop build uses the same revision and compatibility patches through `npm run native:build`, plus `native/tick-segments.patch` for native-only tick segment pruning. The latter does not change the browser WASM. Native events, button state and smoke/fire journals retain sequential parsing.
+Its Rust executable lives in `native/`; shared JS normalization runs in an Electron
+utility process. Native build, storage migration and packaging conventions are
+maintained in [the development guide](../../docs/development.md#桌面原生组件).
 
 ## License and redistribution
 

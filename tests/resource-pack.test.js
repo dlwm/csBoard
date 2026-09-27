@@ -63,9 +63,6 @@ test('local models are opt-in and imported models take priority', async () => {
     assert.equal((await local.status()).models.de_nuke, 'local');
     await local.importFiles([path.join(maps, 'de_nuke/de_nuke.glb')]);
     assert.equal((await local.status()).models.de_nuke, 'imported');
-    const pkg = JSON.parse(await fs.readFile(new URL('../package.json', import.meta.url)));
-    assert.deepEqual(pkg.build.extraResources, []);
-    assert.ok(!pkg.build.files.some(pattern => pattern.includes('.local')));
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
 

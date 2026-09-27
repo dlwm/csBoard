@@ -1,12 +1,18 @@
 # Third-party acknowledgements and licenses
 
-CSBoard 1.15.1 — Copyright (C) 2026 Colvin Chen
+CSBoard 1.16.0 — Copyright (C) 2026 Colvin Chen
 
 Thanks to the maintainers and contributors of the projects below. CSBoard's
 GPL-3.0-only license does not replace their licenses. This document records
 direct runtime dependencies and bundled fonts; it is not a complete inventory
 of Electron/Chromium, native parser, Rust, or build-tool transitive dependencies.
 Retain their accompanying notices when shipping those binaries.
+
+The desktop Rust component includes a generated `native/licenses/dependencies.json`
+inventory and available dependency license files in the packaged resources, plus
+the upstream demoparser license. Its dependency versions are pinned in
+`native/Cargo.lock`; build preparation uses the WASM compatibility patches plus
+the native-only `native/tick-segments.patch` sampling optimization.
 
 ## Components
 

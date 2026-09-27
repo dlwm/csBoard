@@ -1,19 +1,22 @@
+import useAnalysisDataset from './analysis/useAnalysisDataset.js';
+import { startPlaybackClock } from './app/playbackClock.js';
+import { getPlatform } from './platform/index.js';
 import useDemoRoundData from './demo/useDemoRoundData.js';
 import useWorkspaceSession from './collaboration/useWorkspaceSession.js';
 import { readRoomWorkspace, publishRoomArchive } from './collaboration/roomWorkspace.js';
 import { publishRoomFrames } from './collaboration/roomFrames.js';
 import useFrameSession from './collaboration/useFrameSession.js';
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import { getBundledNavData } from './data/navData.js';
 import { tutorialNavData, tutorialWorkspaceArchive, TUTORIAL_MAP_ID } from './three/tutorialMap.js';
-import { countCachedDemoRounds, deleteCachedDemo, getCachedDemo, listCachedDemos, putCachedDemo, putCachedDemoRound } from './demoCache.js';
+import { countCachedDemoRounds, deleteCachedDemo, getCachedDemo, listCachedDemos } from './demoCache.js';
 import SideGameHub from './SideGameHub.jsx';
 import TutorialGuide, { TutorialOffer } from './TutorialGuide.jsx';
 import AnalysisControls from './analysis/AnalysisControls.jsx';
 import AnalysisPanel from './analysis/AnalysisPanel.jsx';
-import { buildAnalysisDataset, getAnalysisEconomyAvailability } from './analysis/buildAnalysisDataset.js';
+import { getAnalysisEconomyAvailability } from './analysis/buildAnalysisDataset.js';
 import useAnalysisData from './analysis/useAnalysisData.js';
 import useAnalysisPlayback from './analysis/useAnalysisPlayback.js';
 import { ANALYSIS_AREA_PHASES, ANALYSIS_UTILITY_ICONS, ANALYSIS_UTILITY_KINDS, ECONOMY_CATEGORIES } from './analysis/constants.js';
@@ -45,7 +48,7 @@ import '@fontsource/space-grotesk/600.css';
 import '@fontsource/space-grotesk/700.css';
 import './styles.css';
 import useRoomConnection from './collaboration/useRoomConnection.js';
-import { localeForLanguage, localize, normalizeLanguage, translate, translateDemoWorkerStatus } from './i18n.js';
+import { localeForLanguage, localize, normalizeLanguage, translate } from './i18n.js';
 import { ANALYSIS_HEAT_DATA_EVENT, IS_DEVELOPMENT_RUNTIME, loadViewPreferences, MAP_LABELS_ZH, MAPS, MODEL_VIEW_RANGE_EVENT, VIEW_PREFERENCES_KEY } from './app/config.js';
 import { generateClientName, generatedClientNames } from './app/clientIdentity.js';
 import useUtilityNotes from './utility/useUtilityNotes.js';
@@ -58,9 +61,6 @@ import { RenamePointModal, SaveAnonymousUtilityModal, SaveArchiveModal, UtilityF
 import ViewTools from './components/ViewTools.jsx';
 import { mergeUtilityNotes } from './utility/mergeUtilityNotes.js';
 import { emptyWorkspace, frameWorkspace, normalizeCollabWorkspace, normalizeFrames } from './collaboration/workspace.js';
-import { registerCsboardTools } from './webmcp/registerCsboardTools.js';
-import { getAnalysisModelContext, getFilteredAnalysisData } from './analysis/modelAccess.js';
-import { getRoundAnalysisData } from './analysis/roundModelAccess.js';
 import { hasMapModel, initializeResourcePacks } from './app/resourcePacks.js';
 import { BroadcastClipModal, BroadcastDownloadOverlay, BroadcastPanel } from './broadcast/BroadcastPanel.jsx';
 import { UtilityArchiveTree, WorkspaceArchiveTree } from './components/ArchiveCollections.jsx';
@@ -70,6 +70,7 @@ import { buildBroadcastArchive } from './broadcast/archive.js';
 import useBroadcastArchives from './broadcast/useBroadcastArchives.js';
 import useBroadcastRoom from './broadcast/useBroadcastRoom.js';
 
+const platform = getPlatform();
 const DEMO_CACHE_SCHEMA_VERSION = 30;
 
 
@@ -148,11 +149,6 @@ function App() {
     return [2, 3, 5, 8].includes(saved) ? saved : 3;
   });
   const [eraserEnabled, setEraserEnabled] = useState(false);
-  const demoWorkerRef = useRef(null);
-  const pendingDemoCacheRef = useRef(null);
-  const pendingDemoRoundWritesRef = useRef(Promise.resolve());
-  const pendingDemoRoundWriteErrorRef = useRef(null);
-  const pendingDemoRoundSummariesRef = useRef(new Map());
   const activeDemoCacheIdRef = useRef('');
   const { snapshots: demoSnapshots, throwSnapshots: demoThrowSnapshots, projectiles: demoProjectiles, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames, loading: demoRoundLoading, reset: resetDemoRoundData } = useDemoRoundData({
     demo: demoData, round: demoRound, cacheId: activeDemoCacheIdRef.current,
@@ -389,13 +385,7 @@ function App() {
     });
   }, [demoBatch, demoBatchRunning, parseGameManual]);
   useEffect(() => { refreshCachedDemos(); }, []);
-  const analysisDatasetSelection = useMemo(() => ({ demos: selectedAnalysisDemos, players: analysisSelectedPlayers }), [selectedAnalysisDemos, analysisSelectedPlayers]);
-  const deferredAnalysisDatasetSelection = useDeferredValue(analysisDatasetSelection);
-  const combinedAnalysis = useMemo(() => buildAnalysisDataset({
-    demos: deferredAnalysisDatasetSelection.demos,
-    selectedPlayers: deferredAnalysisDatasetSelection.players,
-    getRoundEconomy: roundEconomy,
-  }), [deferredAnalysisDatasetSelection]);
+  const { data: combinedAnalysis, loading: analysisQueryLoading, error: analysisQueryError } = useAnalysisDataset(selectedAnalysisDemos, analysisSelectedPlayers, activePanel === 'analysis');
   const analysisEconomyAvailability = useMemo(() => getAnalysisEconomyAvailability(combinedAnalysis.rows), [combinedAnalysis.rows]);
   useEffect(() => {
     setAnalysisRows(combinedAnalysis.rows);
@@ -869,21 +859,24 @@ function App() {
     setUtilityModalOpen(false);
     setUtilitySaveFolderId(ROOT_FOLDER_ID);
   };
-  const exportUtilityNotes = () => {
-    const blob = new Blob([JSON.stringify({ version: UTILITY_NOTES_VERSION, exportedAt: new Date().toISOString(), notes: utilityNotes }, null, 2)], { type: 'application/json' });
+  const exportUtilityNotes = async () => {
+    try {
+    const encoded = await platform.compute('json.encode', { value: { version: UTILITY_NOTES_VERSION, exportedAt: new Date().toISOString(), notes: utilityNotes }, pretty: true });
+    const blob = new Blob([encoded], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `csboard-utility-notes-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { setUtilityImportNotice(error.message); }
   };
   const importUtilityNotes = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
     try {
-      const parsed = JSON.parse(await file.text());
+      const parsed = await platform.compute('json.decode', { text: await file.text() });
       const imported = Array.isArray(parsed) ? parsed : parsed?.notes;
       if (!Array.isArray(imported)) throw new Error('invalid notes');
       const { next, added, skipped } = mergeUtilityNotes(utilityNotesRef.current, imported);
@@ -1032,90 +1025,14 @@ function App() {
     setUtilityEditDraft(null);
   };
   const { firstPerson: utilityFirstPerson, projectileFollow: utilityProjectileFollow, segments: utilityReplaySegments, snapshot: utilityReplaySnapshot } = useUtilityReplayPlayback(utilityReplay, setUtilityReplay);
-  useEffect(() => {
-    const worker = new Worker(new URL('./demoWorker.js', import.meta.url), { type: 'module' });
-    worker.onmessage = async (event) => {
-       const currentLanguage = languageRef.current;
-       if (event.data.type === 'status') setDemoStatus(translateDemoWorkerStatus(currentLanguage, event.data.message));
-       if (event.data.type === 'progress' && event.data.phase === 'ticks') {
-         const now = performance.now();
-         const real = THREE.MathUtils.clamp(Number(event.data.percent) || 0, 0, 100);
-         const progress = demoParseProgressRef.current;
-         const startedAt = progress.startedAt || now;
-         demoParseProgressRef.current = { startedAt, real, completed: Number(event.data.completed) || 0, total: Number(event.data.total) || 0, lastRealAt: now, msPerPercent: real > 0 ? Math.max(250, (now - startedAt) / real) : 3000, hasReal: true };
-         setDemoParseProgress((current) => Math.max(current, real));
-         if (event.data.stage) setDemoStatus(currentLanguage === 'ru' ? `Обработка Demo… ${event.data.stage.percent}%` : event.data.stage[currentLanguage] || event.data.stage.en || event.data.stage.zh);
-       }
-        if (event.data.type === 'diagnostic') console.info('Demo parser diagnostic:', event.data.phase, event.data.data);
-        if (event.data.type === 'sourceReady') { setDemoSourceReady(true); setDemoStatus(translate(currentLanguage, 'cacheReady')); }
-         if (event.data.type === 'round') {
-           const roundData = event.data.data;
-          const representative = roundData.snapshots?.find((snapshot) => snapshot.players.filter((player) => player.team === 2 || player.team === 3).length >= 8) || roundData.snapshots?.[0];
-          pendingDemoRoundSummariesRef.current.set(roundData.round, { round: roundData.round, snapshots: representative ? [representative] : [] });
-          const cacheId = pendingDemoCacheRef.current?.id;
-           if (cacheId) {
-             pendingDemoRoundWritesRef.current = pendingDemoRoundWritesRef.current.then(() => putCachedDemoRound(cacheId, roundData)).catch((error) => {
-               pendingDemoRoundWriteErrorRef.current = error;
-             });
-           }
-        }
-        if (event.data.type === 'loaded') {
-          window.clearTimeout(parseGameTimerRef.current);
-          setParseGameState((state) => state === 'visible' ? 'closing' : 'hidden');
-          window.setTimeout(() => setParseGameState('hidden'), 420);
-          demoParseProgressRef.current = { ...demoParseProgressRef.current, real: 100, completed: demoParseProgressRef.current.total, lastRealAt: performance.now(), hasReal: true };
-          setDemoParseProgress(100);
-          const cacheId = pendingDemoCacheRef.current?.id;
-           const summaries = pendingDemoRoundSummariesRef.current;
-           await pendingDemoRoundWritesRef.current;
-           if (pendingDemoRoundWriteErrorRef.current) {
-             if (cacheId) await deleteCachedDemo(cacheId).catch(() => {});
-             const message = pendingDemoRoundWriteErrorRef.current?.message || String(pendingDemoRoundWriteErrorRef.current);
-             pendingDemoRoundWriteErrorRef.current = null;
-             pendingDemoCacheRef.current = null;
-             setDemoStatus(`${translate(currentLanguage, 'parseFailed')}: ${message}`);
-             setParseGameState('stopped');
-             return;
-           }
-           const { analysisRows: parsedAnalysisRows = [], ...workerData } = event.data.data;
-           const data = { ...workerData, roundData: workerData.rounds.map((round) => summaries.get(round.round)).filter(Boolean) };
-           pendingDemoRoundWritesRef.current = Promise.resolve();
-           const pending = pendingDemoCacheRef.current;
-           const analysisRows = parsedAnalysisRows;
-          applyDemoData(data, pending?.id, analysisRows, true);
-          if (pending) {
-            const entry = { id: pending.id, fileName: data.demo.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate || 8, sourceBytes: pending.sourceBytes, dataBytes: event.data.estimatedBytes || 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), data, analysisRows, analysisBytes: event.data.data.analysisBytes || 0 };
-            const writeCache = () => putCachedDemo(entry).then(refreshCachedDemos).catch(() => setDemoStatus(translate(currentLanguage, 'cacheFailed')));
-            if ('requestIdleCallback' in window) window.requestIdleCallback(writeCache, { timeout: 3000 });
-            else window.setTimeout(writeCache, 500);
-          }
-          pendingDemoCacheRef.current = null;
-       }
-       if (event.data.type === 'analysis') {
-         const rows = event.data.rows || [];
-          setAnalysisStatus(translate(currentLanguage, 'analysisReady'));
-         const cacheId = activeDemoCacheIdRef.current;
-         if (cacheId) getCachedDemo(cacheId).then((entry) => entry && putCachedDemo({ ...entry, analysisRows: rows, analysisBytes: event.data.estimatedBytes || 0, updatedAt: new Date().toISOString() })).then(refreshCachedDemos).catch(() => {});
-       }
-       if (event.data.type === 'error') { window.clearTimeout(parseGameTimerRef.current); demoParseProgressRef.current.startedAt = 0; setParseGameState((state) => state === 'visible' ? 'stopped' : 'hidden'); setDemoStatus(`${translate(currentLanguage, 'parseFailed')}: ${event.data.message}`); console.error('Demo parse failed:', event.data.message, event.data.diagnostic); }
-     };
-    worker.onerror = (event) => {
-      window.clearTimeout(parseGameTimerRef.current);
-      setParseGameState('stopped');
-      setDemoStatus(`${translate(languageRef.current, 'parseFailed')}: ${event.message || 'Demo Worker stopped'}`);
-    };
-    worker.onmessageerror = () => {
-      window.clearTimeout(parseGameTimerRef.current);
-      setParseGameState('stopped');
-      setDemoStatus(`${translate(languageRef.current, 'parseFailed')}: Worker message could not be read`);
-    };
-    demoWorkerRef.current = worker;
-    return () => worker.terminate();
-  }, []);
-  const loadDemo = (event) => {
-    const files = [...(event.target.files || [])];
+  const loadDemo = async (event) => {
+    if (platform.capabilities.nativeFilePicker) event.preventDefault();
+    if (demoBatchRunning) return;
+    let files;
+    try { files = await platform.demos.chooseFiles(event); }
+    catch (error) { setDemoStatus(`${t('parseFailed')}: ${error.message}`); return; }
     // Clear the native input immediately so the same set can be selected again after this batch.
-    event.target.value = '';
+    if (!platform.capabilities.nativeFilePicker) event.target.value = '';
     if (files.length === 0 || demoBatchRunning) return;
     window.clearTimeout(parseGameTimerRef.current);
     setParseGameState('hidden');
@@ -1137,12 +1054,11 @@ function App() {
   }, [demoCameraMode, demoPovPlayerId, demoPovPlayer, demoRoundLoading, demoSnapshot]);
   useEffect(() => {
     if (!demoPlaying || !demoData || !demoRound) return undefined;
-    const timer = window.setInterval(() => setDemoTick((tick) => {
-      const next = Math.min(demoRound.endTick, tick + 64 / 30);
+    return startPlaybackClock(seconds => setDemoTick((tick) => {
+      const next = Math.min(demoRound.endTick, tick + seconds * (demoData.demo.tickRate || 64));
       if (next >= demoRound.endTick) setDemoPlaying(false);
       return next;
-    }), 1000 / 30);
-    return () => window.clearInterval(timer);
+    }));
   }, [demoPlaying, demoData, demoRound]);
   useEffect(() => {
      const onDemoKeyDown = (event) => {
@@ -1172,134 +1088,6 @@ function App() {
     window.addEventListener('keydown', onDemoKeyDown, true);
     return () => window.removeEventListener('keydown', onDemoKeyDown, true);
   }, [activeFrameId, activePanel, analysisDuration, analysisRows.length, analysisSelectedPlayers.length, demoData, demoRound, demoRoundLoading, demoViewFlags.analysisMetric, frames, hasActiveFrameContext]);
-  const webMcpRuntimeRef = useRef(null);
-  webMcpRuntimeRef.current = {
-    activePanel, analysisSelectedPlayers, analysisSelectedDemos: selectedAnalysisDemos, analysisPlayersLoading, analysisRows,
-    analysisSide, analysisStatus, combinedAnalysis, demoData, demoRound, demoRoundLoading, demoTick,
-    demoViewFlags, language,
-    hasActiveFrameContext, mapName, modelLoadState, roomCode, utilityNoteCount: currentUtilityNotes.length,
-    resetCamera: () => {
-      if (!boardRef.current?.reset) return false;
-      boardRef.current.reset();
-      return true;
-    },
-    capture3DView: (request) => boardRef.current?.capture3DView?.(request),
-    selectMap: setMapName,
-    selectPanel: switchPanel,
-    selectRound: setDemoRound,
-    setDemoPlaying,
-    setDemoTick,
-  };
-  useEffect(() => registerCsboardTools({
-    maps: MAPS,
-    getRoundAnalysis: (request) => {
-      const state = webMcpRuntimeRef.current;
-      return getRoundAnalysisData({
-        selectedDemos: state.analysisSelectedDemos,
-        playersLoading: state.analysisPlayersLoading,
-        language: state.language,
-      }, request);
-    },
-    getAnalysisContext: () => {
-      const state = webMcpRuntimeRef.current;
-      return getAnalysisModelContext({
-        activePanel: state.activePanel, mapName: state.mapName, language: state.language,
-        playersLoading: state.analysisPlayersLoading, status: state.analysisStatus,
-        selectedPlayers: state.analysisSelectedPlayers, selectedDemos: state.analysisSelectedDemos,
-        side: state.analysisSide, flags: state.demoViewFlags, rows: state.analysisRows,
-        deaths: state.combinedAnalysis.deaths, utilities: state.combinedAnalysis.utilities,
-      });
-    },
-    getFilteredAnalysisData: (request) => {
-      const state = webMcpRuntimeRef.current;
-      return getFilteredAnalysisData({
-        mapName: state.mapName, selectedPlayers: state.analysisSelectedPlayers,
-        selectedDemos: state.analysisSelectedDemos, playersLoading: state.analysisPlayersLoading,
-        side: state.analysisSide, flags: state.demoViewFlags, rows: state.analysisRows,
-        deaths: state.combinedAnalysis.deaths, utilities: state.combinedAnalysis.utilities,
-      }, request);
-    },
-    getContext: () => {
-      const state = webMcpRuntimeRef.current;
-      return {
-        map: state.mapName,
-        panel: state.activePanel,
-        model: state.modelLoadState,
-        demo: state.demoData ? {
-          fileName: state.demoData.demo.fileName,
-          round: state.demoRound?.round || null,
-          tick: state.demoTick,
-          loadingRound: state.demoRoundLoading,
-          availableRounds: state.demoData.rounds.map((round) => round.round),
-        } : null,
-        analysis: { selectedPlayers: state.analysisSelectedPlayers },
-        collaborationRoomActive: Boolean(state.roomCode),
-        utilityNoteCount: state.utilityNoteCount,
-      };
-    },
-    capture3DView: async (request = {}) => {
-      const state = webMcpRuntimeRef.current;
-      const capture = await state.capture3DView(request);
-      if (!capture) throw new Error('The 3D board is not ready yet.');
-      const metadata = {
-        schemaVersion: 1,
-        image: { mimeType: capture.mimeType, bytes: capture.bytes, width: capture.width, height: capture.height, fit: capture.fit },
-        camera: capture.camera,
-        map: state.mapName,
-        panel: state.activePanel,
-        model: state.modelLoadState,
-        demo: state.demoData ? { fileName: state.demoData.demo.fileName, round: state.demoRound?.round || null, tick: state.demoTick } : null,
-        analysis: state.activePanel === 'analysis' ? {
-          selectedPlayers: state.analysisSelectedPlayers,
-          selectedDemos: state.analysisSelectedDemos.map((demo) => demo.data?.demo?.fileName || demo.fileName || demo.id),
-          side: state.analysisSide,
-          type: state.demoViewFlags.analysisMetric,
-          display: state.demoViewFlags.heatStyle,
-        } : null,
-      };
-      const content = [{ type: 'image', data: capture.data, mimeType: capture.mimeType }];
-      if (request.includeContext !== false) content.push({ type: 'text', text: JSON.stringify(metadata) });
-      return { content, ...(request.includeContext === false ? {} : { metadata }) };
-    },
-    selectMap: (map) => {
-      const state = webMcpRuntimeRef.current;
-      if (!MAPS.some((candidate) => candidate.id === map)) throw new Error(`Unsupported map: ${map}`);
-      if (map !== state.mapName && state.activePanel === 'collab' && state.hasActiveFrameContext) {
-        throw new Error('Switch maps through the visible UI while editing a collaboration frame.');
-      }
-      state.setDemoPlaying(false);
-      state.selectMap(map);
-      return { map };
-    },
-    selectPanel: (panel) => {
-      const state = webMcpRuntimeRef.current;
-      if (!['demo', 'analysis', 'utility', 'collab'].includes(panel)) throw new Error(`Unsupported panel: ${panel}`);
-      if (state.activePanel === 'collab' && panel !== 'collab' && state.roomCode) throw new Error('Leave the active collaboration room through the visible UI first.');
-      state.selectPanel(panel);
-      return { panel };
-    },
-    selectDemoRound: (roundNumber) => {
-      const state = webMcpRuntimeRef.current;
-      if (!state.demoData) throw new Error('No parsed Demo is currently open.');
-      const round = state.demoData.rounds.find((candidate) => candidate.round === Number(roundNumber));
-      if (!round) throw new Error(`Round ${roundNumber} is not available in the current Demo.`);
-      state.selectRound(round);
-      return { round: round.round, startTick: round.startTick, endTick: round.endTick };
-    },
-    seekDemoTick: (requestedTick) => {
-      const state = webMcpRuntimeRef.current;
-      if (!state.demoData || !state.demoRound) throw new Error('Select a Demo round before seeking.');
-      if (state.demoRoundLoading) throw new Error('The selected Demo round is still loading.');
-      const tick = THREE.MathUtils.clamp(Number(requestedTick), state.demoRound.startTick, state.demoRound.endTick);
-      state.setDemoPlaying(false);
-      state.setDemoTick(tick);
-      return { tick, clamped: tick !== Number(requestedTick) };
-    },
-    resetCamera: () => {
-      if (!webMcpRuntimeRef.current.resetCamera()) throw new Error('The 3D board is not ready yet.');
-      return { reset: true };
-    },
-  }), []);
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('csboard-nav-visibility', { detail: showNav || !hasMapModel(mapName) }));
   }, [mapName, navData, showNav]);
@@ -1365,12 +1153,12 @@ function App() {
           <div className={`demo-panel ${activePanel === 'demo' ? '' : 'panel-hidden'}${demoData ? ' has-demo' : ''}${broadcastPage && !activeBroadcastId ? ' broadcast-idle' : ''}`}>
            {broadcastPage && <div className="broadcast-model-controls"><button type="button" className="broadcast-model-trigger">{t('model')}</button><div className="broadcast-model-options" /></div>}
            {activePanel === 'demo' && !broadcastPage && <DemoDataWarning warnings={demoData?.warnings} translate={t} />}
-           <div className="demo-toolbar"><div className="demo-source-controls"><label className={`demo-upload${demoBatchRunning ? ' disabled' : ''}`}><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple disabled={demoBatchRunning} onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{t('parsedDemos')} · {cachedDemos.length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{t('parsedDemos')}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{cachedDemos.length === 0 ? <div className="demo-cache-empty">{t('noCachedDemos')}</div> : cachedDemos.map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}</strong><span>{entry.map} · {entry.rounds} {t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(localeForLanguage(language))}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}</div><div className="demo-playback-controls">{demoData && <div className={`demo-round-picker${demoRoundMenuOpen ? ' open' : ''}`}><button type="button" onClick={() => setDemoRoundMenuOpen((open) => !open)}>{demoRound ? `${t('round')} ${demoRound.round} · ${demoRoundEconomies.get(demoRound.round)?.T.label}/${demoRoundEconomies.get(demoRound.round)?.CT.label}` : t('selectRound')}</button>{demoRoundMenuOpen && <div className="demo-round-list">{demoData.rounds.map((round) => { const economy = demoRoundEconomies.get(round.round); return <button type="button" key={round.round} className={demoRound?.round === round.round ? 'active' : ''} style={{ '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => { setDemoRound(round); setDemoRoundMenuOpen(false); }}><span className="economy-t">T {economy?.T.label}</span><strong>R{round.round}</strong><span className="economy-ct">CT {economy?.CT.label}</span><i /></button>; })}</div>}</div>}{demoData && demoRound && <div className="demo-scrub"><span className="demo-time">{((demoTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span><div className="timeline-track"><input className="demo-timeline" disabled={demoRoundLoading} style={{ '--timeline-progress': `${demoRound.endTick > demoRound.startTick ? ((demoTick - demoRound.startTick) / (demoRound.endTick - demoRound.startTick)) * 100 : 0}%` }} type="range" min={demoRound.startTick} max={demoRound.endTick} step="1" value={demoTick} onPointerUp={(event) => event.currentTarget.blur()} onChange={(event) => { setDemoPlaying(false); setDemoTick(Number(event.target.value)); }} />{timelineEvents.map((event, index) => <button type="button" className={`timeline-event event-${event.event_name}`} title={event.title} aria-label={event.title} style={{ left: `${((event.tick - demoRound.startTick) / Math.max(1, demoRound.endTick - demoRound.startTick)) * 100}%` }} key={`${event.event_name}-${event.tick}-${index}`} onClick={() => { setDemoPlaying(false); setDemoTick(event.tick); }}>{event.label}</button>)}</div><span className="demo-duration">/ {((demoRound.endTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span></div>}{demoRound && <button type="button" className="demo-play" disabled={demoRoundLoading} onClick={() => setDemoPlaying((playing) => !playing)}>{demoRoundLoading ? t('loading') : demoPlaying ? t('pause') : t('play')}</button>}<button type="button" className="demo-save-frame" onClick={() => openSaveArchiveModal(true)}>{t('saveFrame')}</button></div></div>
+           <div className="demo-toolbar"><div className="demo-source-controls"><label className={`demo-upload${demoBatchRunning ? ' disabled' : ''}`} onClick={platform.capabilities.nativeFilePicker ? loadDemo : undefined}><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple disabled={demoBatchRunning} onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{t('parsedDemos')} · {cachedDemos.length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{t('parsedDemos')}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{cachedDemos.length === 0 ? <div className="demo-cache-empty">{t('noCachedDemos')}</div> : cachedDemos.map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}</strong><span>{entry.map} · {entry.rounds} {t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(localeForLanguage(language))}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}</div><div className="demo-playback-controls">{demoData && <div className={`demo-round-picker${demoRoundMenuOpen ? ' open' : ''}`}><button type="button" onClick={() => setDemoRoundMenuOpen((open) => !open)}>{demoRound ? `${t('round')} ${demoRound.round} · ${demoRoundEconomies.get(demoRound.round)?.T.label}/${demoRoundEconomies.get(demoRound.round)?.CT.label}` : t('selectRound')}</button>{demoRoundMenuOpen && <div className="demo-round-list">{demoData.rounds.map((round) => { const economy = demoRoundEconomies.get(round.round); return <button type="button" key={round.round} className={demoRound?.round === round.round ? 'active' : ''} style={{ '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => { setDemoRound(round); setDemoRoundMenuOpen(false); }}><span className="economy-t">T {economy?.T.label}</span><strong>R{round.round}</strong><span className="economy-ct">CT {economy?.CT.label}</span><i /></button>; })}</div>}</div>}{demoData && demoRound && <div className="demo-scrub"><span className="demo-time">{((demoTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span><div className="timeline-track"><input className="demo-timeline" disabled={demoRoundLoading} style={{ '--timeline-progress': `${demoRound.endTick > demoRound.startTick ? ((demoTick - demoRound.startTick) / (demoRound.endTick - demoRound.startTick)) * 100 : 0}%` }} type="range" min={demoRound.startTick} max={demoRound.endTick} step="1" value={demoTick} onPointerUp={(event) => event.currentTarget.blur()} onChange={(event) => { setDemoPlaying(false); setDemoTick(Number(event.target.value)); }} />{timelineEvents.map((event, index) => <button type="button" className={`timeline-event event-${event.event_name}`} title={event.title} aria-label={event.title} style={{ left: `${((event.tick - demoRound.startTick) / Math.max(1, demoRound.endTick - demoRound.startTick)) * 100}%` }} key={`${event.event_name}-${event.tick}-${index}`} onClick={() => { setDemoPlaying(false); setDemoTick(event.tick); }}>{event.label}</button>)}</div><span className="demo-duration">/ {((demoRound.endTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span></div>}{demoRound && <button type="button" className="demo-play" disabled={demoRoundLoading} onClick={() => setDemoPlaying((playing) => !playing)}>{demoRoundLoading ? t('loading') : demoPlaying ? t('pause') : t('play')}</button>}<button type="button" className="demo-save-frame" onClick={() => openSaveArchiveModal(true)}>{t('saveFrame')}</button></div></div>
               <DemoParseSettings value={demoSampleRate} onChange={setDemoSampleRate} language={language} />
-             {demoStatus && !demoData && <div className="demo-loading-wrap"><div className="demo-loading" role="progressbar" aria-label="Demo parsing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div><p className="demo-parsing-hint">{t('demoForegroundParsingHint')}</p></div>}
+             {demoStatus && !demoData && <div className="demo-loading-wrap"><div className="demo-loading" role="progressbar" aria-label="Demo parsing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div>{!platform.capabilities.backgroundParsing && <p className="demo-parsing-hint">{t('demoForegroundParsingHint')}</p>}</div>}
             <div className="demo-controls-row">{activePanel === 'demo' && demoData && <div className="demo-view-options"><span>{t('view')}</span><button type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t('showNames')}</button>{[['manual','cameraManual'],['follow','cameraFollow'],['fixed','cameraFixed'],['chase','cameraChase']].map(([mode,key]) => <button type="button" key={mode} className={demoCameraMode === mode ? 'selected' : ''} onClick={() => setDemoCameraMode(mode)}>{t(key)}</button>)}</div>}<div className="demo-options"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}>GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}>TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button>{hasMapModel(mapName) && <><label className="model-opacity"><span>MODEL</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="demo-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET</button></div></div>
           </div>
-          {activePanel === 'analysis' && <AnalysisPanel language={language} translate={t} mapName={mapName} status={analysisStatus} players={analysisPlayers} playersLoading={analysisPlayersLoading} selectedPlayers={analysisSelectedPlayers} playerQuery={analysisPlayerQuery} onPlayerQueryChange={setAnalysisPlayerQuery} onPlayerToggle={toggleAnalysisPlayer} onPlayersClear={clearAnalysisPlayers} demos={analysisDemosForPlayers} selectedDemoIds={analysisSelectedDemoIds} onToggleDemo={(id) => setAnalysisSelectedDemoIds((selected) => selected.includes(id) ? selected.filter((selectedId) => selectedId !== id) : [...selected, id])} side={analysisSide} onSideChange={(value) => { setAnalysisSide(value); setAnalysisTime(0); setAnalysisPlaying(false); }} rowsAvailable={analysisRows.length > 0} playing={analysisPlaying} onTogglePlay={() => setAnalysisPlaying((playing) => !playing)} time={analysisTime} duration={analysisDuration} onTimeChange={(value) => { setAnalysisPlaying(false); setAnalysisTime(value); }} />}
+          {activePanel === 'analysis' && <AnalysisPanel language={language} translate={t} mapName={mapName} status={analysisQueryError || analysisStatus} players={analysisPlayers} playersLoading={analysisPlayersLoading || analysisQueryLoading} selectedPlayers={analysisSelectedPlayers} playerQuery={analysisPlayerQuery} onPlayerQueryChange={setAnalysisPlayerQuery} onPlayerToggle={toggleAnalysisPlayer} onPlayersClear={clearAnalysisPlayers} demos={analysisDemosForPlayers} selectedDemoIds={analysisSelectedDemoIds} onToggleDemo={(id) => setAnalysisSelectedDemoIds((selected) => selected.includes(id) ? selected.filter((selectedId) => selectedId !== id) : [...selected, id])} side={analysisSide} onSideChange={(value) => { setAnalysisSide(value); setAnalysisTime(0); setAnalysisPlaying(false); }} rowsAvailable={analysisRows.length > 0} playing={analysisPlaying} onTogglePlay={() => setAnalysisPlaying((playing) => !playing)} time={analysisTime} duration={analysisDuration} onTimeChange={(value) => { setAnalysisPlaying(false); setAnalysisTime(value); }} />}
           {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>{t('collab')}</h2></div><div className="collab-actions"><button type="button" onClick={() => openSaveArchiveModal()}>{t('saveFrame')}</button>{roomCode ? <button type="button" onClick={leaveRoom}>{t('leaveRoom')}</button> : <button type="button" onClick={() => { const code = window.prompt(t('roomPrompt'), roomJoinCode); if (code != null) { setRoomJoinCode(code); joinRoom(code); } }}>{t('joinRoom')}</button>}<button type="button" disabled={Boolean(roomCode)} onClick={openRoom}>{t('openRoom')}</button></div></div><p className="collab-note">{t('currentMap')}: {mapName} · {t('name')}: {clientName.current}<br />{t('collabHint')}</p>{roomStatus && <div className="analysis-status">{roomStatus}</div>}{roomCode && <div className="room-open"><strong>{t('room')} {roomCode}</strong><span>{roomOwner ? t('owner') : t('member')}</span></div>}<WorkspaceArchiveTree archives={archives} folders={workspaceFolders.state} language={language} roomCode={roomCode} roomOwner={roomOwner} onCreateFolder={(name, parentId) => workspaceFolders.create(name, parentId, archivesRef.current)} onDeleteFolder={(id) => workspaceFolders.remove(id, archivesRef.current)} onMove={(source, target, position) => workspaceFolders.move(archivesRef.current, source, target, position)} onDeleteArchive={deleteWorkspaceArchive} onNewArchive={openNewArchiveModal} onOverwrite={openOverwriteArchiveModal} onRestore={restoreWorkspaceArchive} t={t} /></aside>}
            {activePanel === 'collab' && hasActiveFrameContext && <aside className="collab-objects"><div className="collab-objects-tabs"><button type="button" className={collabObjectTab === 'players' ? 'active' : ''} onClick={() => setCollabObjectTab('players')}>{t('collabPlayers')}</button><button type="button" className={collabObjectTab === 'utility' ? 'active' : ''} onClick={() => setCollabObjectTab('utility')}>{t('addUtility')}</button></div>{collabObjectTab === 'players' ? <div className="collab-players">{activeCollabPlayers().length === 0 ? <div className="archive-empty">{t('noCollabPlayers')}</div> : <div className="collab-player-list" onPointerLeave={() => boardRef.current?.clearCollabUtilityPreview?.()}>{activeCollabPlayers().map((player) => <div className="collab-player-item" key={player.name} onPointerEnter={() => boardRef.current?.focusCollabPlayer?.(player.id)}><span className="collab-player-name">{player.name}</span><button type="button" className="collab-player-rename" onClick={() => openRenameModal(player.id, player.name)}>{t('rename')}</button><div className="collab-player-team" aria-label={t('team')}>{['T', 'CT'].map((team) => <button type="button" key={team} className={(player.team || 'T') === team ? 'active' : ''} aria-pressed={(player.team || 'T') === team} onClick={() => setPointUpdate({ id: player.id, team })}>{team}</button>)}</div></div>)}</div>}</div> : <div className="collab-utility"><label className="collab-utility-search"><span>{t('addUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => setCollabUtilitySearch(event.target.value)} /><select value={''} onChange={(event) => { const id = event.target.value; if (!id) return; const note = currentUtilityNotes.find((candidate) => candidate.id === id); if (note) boardRef.current?.addCollabUtility?.(note); setCollabUtilitySearch(''); event.target.value = ''; }}>{[...currentUtilityNotes].sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0).filter((note) => `${note.name} ${note.summary || ''} ${note.thrower || ''}`.toLowerCase().includes(collabUtilitySearch.trim().toLowerCase())).map((note) => <option key={note.id} value={note.id}>{note.name} · {note.grenadeType || 'custom'}{note.thrower ? ` · ${note.thrower}` : ''}</option>)}</select></label></div>}</aside>}
            {activePanel === 'collab' && hasActiveFrameContext && collabObjectTab === 'utility' && <CollabUtilityPortal><div className="collab-utility-manager"><header><strong>{t('importedUtilities')}</strong><button type="button" onClick={() => { boardRef.current?.clearCollabUtilityPreview?.(); setCollabUtilityPickerOpen(true); setCollabUtilitySelected(''); }}>{t('addUtility')}</button></header>{collabUtilityPickerOpen ? <div className="collab-utility-picker"><label className="collab-utility-search"><span>{t('selectUtility')}</span><input type="text" value={collabUtilitySearch} placeholder={t('searchUtility')} onChange={(event) => { setCollabUtilitySearch(event.target.value); setCollabUtilitySelected(''); boardRef.current?.clearCollabUtilityPreview?.(); }} /></label><div className="collab-utility-options" onPointerLeave={() => boardRef.current?.clearCollabUtilityPreview?.()}>{collabUtilityOptions.length === 0 ? <div className="archive-empty">{t('utilityEmpty')}</div> : collabUtilityOptions.map((note) => <button type="button" key={note.id} className={collabUtilitySelected === note.id ? 'selected' : ''} onPointerEnter={() => boardRef.current?.previewCollabUtility?.(note)} onFocus={() => boardRef.current?.previewCollabUtility?.(note)} onClick={() => setCollabUtilitySelected(note.id)}><span><b>{note.name}</b><em>{note.grenadeType || 'custom'}</em></span><small>{note.summary || note.thrower || t('customUtility')}</small></button>)}</div><div className="collab-utility-picker-actions"><button type="button" onClick={cancelCollabUtilityImport}>{t('cancel')}</button><button type="button" disabled={!collabUtilitySelected} onClick={confirmCollabUtilityImport}>{t('confirmAdd')}</button></div></div> : activeImportedUtilities().length === 0 ? <div className="archive-empty">{t('noImportedUtilities')}</div> : <div className="collab-imported-list" onPointerLeave={() => boardRef.current?.clearCollabUtilityPreview?.()}>{activeImportedUtilities().map((item) => <div className={`collab-imported-item${item.anonymous ? ' anonymous' : ''}`} key={item.id} onPointerEnter={() => { if (item.anonymous) boardRef.current?.focusCollabUtility?.(item.id); }}><div><strong>{item.anonymous ? t('anonymousUtility') : item.noteName || t('unknown')}</strong><span>{item.kind || 'custom'}</span></div><div className="collab-imported-actions">{item.anonymous && <button type="button" className="save" onClick={() => openAnonymousUtilitySave(item)}>{t('save')}</button>}<button type="button" onClick={() => deleteImportedUtility(item.id)}>{t('delete')}</button></div></div>)}</div>}</div></CollabUtilityPortal>}

@@ -1,0 +1,36 @@
+--- a/src/parser/src/parse_demo.rs
++++ b/src/parser/src/parse_demo.rs
+@@ -85,8 +85,31 @@
+     }
+ 
+     fn second_pass_multi_threaded(&self, outer_bytes: &[u8], first_pass_output: FirstPassOutput) -> Result<DemoOutput, DemoParserError> {
+-        let second_pass_outputs: Vec<Result<SecondPassOutput, DemoParserError>> = first_pass_output
+-            .fullpacket_offsets
++        // Native tick queries may replay only full-packet segments overlapping
++        // requested ticks. Stateful properties never enter this parallel path.
++        let mut offsets = first_pass_output.fullpacket_offsets.clone();
++        #[cfg(not(target_arch = "wasm32"))]
++        if !self.input.wanted_ticks.is_empty() && self.input.wanted_events.is_empty()
++            && !self.input.parse_projectiles && !self.input.parse_grenades {
++            use crate::first_pass::read_bits::read_varint;
++            offsets.sort_unstable();
++            let starts = offsets.iter().map(|offset| {
++                if *offset == HEADER_ENDS_AT_BYTE { return Ok(i32::MIN); }
++                let mut ptr = *offset;
++                read_varint(outer_bytes, &mut ptr)?;
++                read_varint(outer_bytes, &mut ptr).map(|tick| tick as i32)
++            }).collect::<Result<Vec<_>, DemoParserError>>()?;
++            // Unexpected tick resets retain the original full scan.
++            if starts.windows(2).all(|pair| pair[0] <= pair[1]) {
++                offsets = offsets.into_iter().enumerate().filter_map(|(index, offset)| {
++                    let end = starts.get(index + 1).copied().unwrap_or(i32::MAX);
++                    // Include both sides of a boundary: packets at that tick can
++                    // belong to either segment and existing merge rules own them.
++                    self.input.wanted_ticks.iter().any(|tick| *tick >= starts[index] && *tick <= end).then_some(offset)
++                }).collect();
++            }
++        }
++        let second_pass_outputs: Vec<Result<SecondPassOutput, DemoParserError>> = offsets
+             .par_iter()
+             .map(|offset| {
+                 let mut parser = SecondPassParser::new(first_pass_output.clone(), *offset, false, None)?;

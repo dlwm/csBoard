@@ -8,7 +8,7 @@ The generated files come from `.local/official/maps/<map>/<map>.nav`. After repl
 source NAV file, rebuild them with:
 
 ```sh
-npm run nav:generate
+make nav-data
 ```
 
 These files contain navigation geometry rather than Valve's visual/material map

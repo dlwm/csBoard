@@ -41,13 +41,14 @@ test('a wall prevents a blast from affecting the smoke behind it', () => {
   wall.material.dispose();
 });
 
-test('recorded and fallback smoke volumes accept temporary blast uniforms', () => {
+test('fallback smoke forwards blast position, radius and strength to the material', () => {
   const smoke = createFallbackSmokeVolume(new THREE.Vector3());
   const volume = smoke.children[0];
   smoke.userData.setSmokeBlasts([{ x: 1, y: 2, z: 3, radius: 4, strength: 0.7 }]);
   assert.equal(volume.material.uniforms.blastCount.value, 1);
   assert.equal(volume.material.uniforms.blastData.value[0].w, 4);
-  assert.ok(volume.material.fragmentShader.includes('blastStrength[blast]'));
+  assert.deepEqual(volume.material.uniforms.blastData.value[0].toArray(), [1, 2, 3, 4]);
+  assert.ok(Math.abs(volume.material.uniforms.blastStrength.value[0] - 0.7) < 1e-6);
   smoke.userData.setSmokeBlasts([]);
   assert.equal(volume.material.uniforms.blastCount.value, 0);
   disposeGrenadeEffect(smoke);

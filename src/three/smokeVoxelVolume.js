@@ -22,12 +22,19 @@ const decodedSceneGrid = (packed) => {
   return [gridB, gridA, gridC];
 };
 
-// Reuse the established metaball field, but render density through its depth
-// instead of extracting a hard shell and adding visibly separate edge layers.
-export function createSmokeVoxelVolume(frame, modelCenter) {
-  const group = new THREE.Group();
-  const centers = Array.from(frame.voxels, decodedSceneGrid);
-  if (centers.length === 0) return group;
+const densityFields = new Map();
+let densityBytes = 0;
+const MAX_DENSITY_BYTES = 16 * 1024 * 1024;
+function smokeField(voxels) {
+  // Exact voxel contents avoid hash collisions; origin/tick do not change density.
+  const key = Array.from(voxels).join(',');
+  const cached = densityFields.get(key);
+  if (cached) {
+    densityFields.delete(key);
+    densityFields.set(key, cached);
+    return cached;
+  }
+  const centers = Array.from(voxels, decodedSceneGrid);
 
   const minima = [0, 1, 2].map((axis) => Math.min(...centers.map((point) => point[axis])));
   const maxima = [0, 1, 2].map((axis) => Math.max(...centers.map((point) => point[axis])));
@@ -52,15 +59,33 @@ export function createSmokeVoxelVolume(frame, modelCenter) {
   // Repeated low-intensity relaxation acts like surface tension: it suppresses
   // the molecule-like bulge around each source while retaining large deformations.
   for (let pass = 0; pass < FIELD_BLUR_PASSES; pass += 1) field.blur(FIELD_BLUR_STRENGTH);
+  const result = { values: field.field, resolution, fieldCells, fieldCenter, count: centers.length };
+  field.geometry.dispose();
+  field.material.dispose();
+  const bytes = result.values.byteLength + key.length * 2;
+  while (densityFields.size && densityBytes + bytes > MAX_DENSITY_BYTES) {
+    const oldest = densityFields.keys().next().value;
+    densityBytes -= densityFields.get(oldest).bytes;
+    densityFields.delete(oldest);
+  }
+  if (bytes <= MAX_DENSITY_BYTES) {
+    densityFields.set(key, { ...result, bytes });
+    densityBytes += bytes;
+  }
+  return result;
+}
+
+export function createSmokeVoxelVolume(frame, modelCenter) {
+  const group = new THREE.Group();
+  if (!frame.voxels.length) return group;
+  const { values, resolution, fieldCells, fieldCenter, count } = smokeField(frame.voxels);
   const position = new THREE.Vector3(
     (fieldCenter[0] - GRID_CENTER) * VOXEL_SCENE_SIZE,
     (fieldCenter[1] - GRID_CENTER) * VOXEL_SCENE_SIZE,
     (fieldCenter[2] - GRID_CENTER) * VOXEL_SCENE_SIZE,
   );
-  const volume = createSmokeDensityVolume(field.field, resolution, fieldCells * VOXEL_SCENE_SIZE / 2, position);
-  field.geometry.dispose();
-  field.material.dispose();
-  volume.userData.smokeVoxelSourceCount = centers.length;
+  const volume = createSmokeDensityVolume(values, resolution, fieldCells * VOXEL_SCENE_SIZE / 2, position);
+  volume.userData.smokeVoxelSourceCount = count;
   group.userData.setSmokeBlasts = volume.userData.setSmokeBlasts;
 
   group.position.set(

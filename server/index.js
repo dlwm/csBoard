@@ -1,3 +1,5 @@
+import { TRANSFER_PATH } from '../shared/broadcast-transfer.js';
+import { handleBroadcastTransfer } from './core/broadcastTransfer.js';
 import parserModule from '../src/wasm/demoparser2_bg.wasm';
 import { initSync, parseEvents, parseHeader, parseTicks } from '../src/wasm/demoparser2.js';
 import { createHttpHandler } from './core/http.js';
@@ -18,6 +20,7 @@ export class RoomDurableObject {
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
+    this.transferQueue = Promise.resolve();
     this.ctx.blockConcurrencyWhile(async () => {
       const stored = await this.ctx.storage.get('document');
       this.initializeRoom(stored);
@@ -38,6 +41,13 @@ export class RoomDurableObject {
   }
 
   async fetch(request) {
+    const transfer = new URL(request.url).pathname.match(TRANSFER_PATH);
+    if (transfer) {
+      if (!this.ctx.getWebSockets().length) await this.ctx.storage.setAlarm(Date.now() + ROOM_EXPIRY_MS);
+      const response = this.transferQueue.catch(() => {}).then(() => handleBroadcastTransfer(request, transfer[2], this.ctx.storage));
+      this.transferQueue = response;
+      return response;
+    }
     if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return json({ error: '需要 WebSocket 连接' }, 426);
     await this.ctx.storage.deleteAlarm();
     const pair = new WebSocketPair();
@@ -75,7 +85,7 @@ export class RoomDurableObject {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const room = url.pathname.match(ROOM_PATH);
+    const room = url.pathname.match(ROOM_PATH) || url.pathname.match(TRANSFER_PATH);
     if (room) {
       const id = env.ROOMS.idFromName(room[1].toUpperCase());
       return env.ROOMS.get(id).fetch(request);

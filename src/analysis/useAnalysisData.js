@@ -1,6 +1,6 @@
 // Lazily loads analysis payloads only while the Analysis panel is active.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getCachedDemo, getCachedDemoRound } from '../demoCache.js';
+import { getPlatform } from '../platform/index.js';
 import { getAnalysisDemosForPlayers } from './buildAnalysisDataset.js';
 import { localize } from '../i18n.js';
 
@@ -44,32 +44,9 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
     }
     setPlayersLoading(true);
     setStatus(localize(language, { zh: '正在读取本地图的分析数据…', en: 'Loading analysis data for this map...', ru: 'Загрузка данных аналитики для этой карты…' }));
-    Promise.all(candidates.map((metadata) => getCachedDemo(metadata.id).catch(() => null))).then(async (entries) => {
+    const controller = new AbortController();
+    getPlatform().compute('analysis.catalog', { ids: candidates.map(entry => entry.id), map: mapName, schema: cacheSchemaVersion }, { signal: controller.signal }).then(indexed => {
       if (cancelled) return;
-      const compatible = entries.filter((entry) => (
-        entry?.data?.cacheSchemaVersion === cacheSchemaVersion
-        && entry.data.demo.map === mapName
-        && entry.analysisRows?.length
-      )).sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)));
-      const available = await Promise.all(compatible.map(async (entry) => {
-        const roundGrenades = {};
-        await Promise.all((entry.data.rounds || []).map(async (round) => {
-          const cachedRound = await getCachedDemoRound(entry.id, round.round).catch(() => null);
-          roundGrenades[round.round] = {
-            projectiles: cachedRound?.projectiles || [],
-            throwSnapshots: cachedRound?.throwSnapshots || [],
-            smokeVoxelFrames: cachedRound?.smokeVoxelFrames || [],
-            infernoFrames: cachedRound?.infernoFrames || [],
-          };
-        }));
-        return { ...entry, analysisRoundGrenades: roundGrenades };
-      }));
-      if (cancelled) return;
-      // Index names once; selection changes should not rescan every snapshot in every Demo.
-      const indexed = available.map((entry) => ({
-        ...entry,
-        analysisPlayerNames: [...new Set(entry.analysisRows.flatMap((snapshot) => snapshot.players.map((player) => player.name)).filter(Boolean))],
-      }));
       setDemos(indexed);
       setPlayers([...new Set(indexed.flatMap((entry) => entry.analysisPlayerNames))].sort((left, right) => left.localeCompare(right)));
       loadedKeyRef.current = loadKey;
@@ -79,7 +56,7 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
     }).finally(() => {
       if (!cancelled) setPlayersLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [active, cachedDemos, cachedDemosLoading, mapName, language, cacheSchemaVersion]);
 
   const playerName = selectedPlayers[0] || '';

@@ -2,6 +2,39 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.16.0] - 2026-09-28
+
+### Added
+
+- Add a native desktop backend: an independent Rust executable parses Demos, while SQLite and compressed files store archives and Demo caches outside browser storage quotas. Keep Electron, Three.js and Yjs for the interface, rendering and collaboration; Web continues to use WASM and IndexedDB through shared platform interfaces.
+- Add concurrent Demo parsing and native multithreaded tick sampling, with Balanced (default), Fast and Custom performance modes. Allocate a shared CPU budget and admit tasks according to available memory, input size and observed usage; allow custom Demo concurrency, thread limits and memory budgets.
+- Add Desktop Manager for task progress, cancellation, thread and memory diagnostics, storage usage, manual cache cleanup, verified backups and restore on restart. Restore retains the previous data; optional sleep prevention applies while tasks run in the current session.
+- Migrate legacy IndexedDB archives and Demo caches into native storage without removing the old database or overwriting newer native records.
+
+### Changed
+
+- Reduce repeated decoding by skipping full-packet segments outside requested ticks, reuse the parser Huffman table, and remove extra copies of large JSON payloads. Preserve sequential parsing for events, smoke/fire journals, button state and properties that cannot safely be split.
+- Move analysis, large import/export serialization and broadcast payload processing into desktop utility processes. Use files and streamed cache reads to reduce large transfers through the Electron main process; inspect cached Demos through compact summaries.
+- Pause 3D rendering when the desktop window is hidden or minimized while native parsing continues. Advance playback by elapsed time so delayed callbacks do not slow its clock.
+- Redesign resource-pack management around resource categories, completeness and per-file import results. Unify the CSBoard application name and icon assets; packaged macOS launches use the CSBoard application identity.
+- Add GitHub Actions checks and three-target installer automation with version validation, packaged-storage checks, SHA-256 checksums and draft Releases. Replace source-string assertions with behavioral, native-storage and publishing-contract tests; missing native prerequisites now fail explicitly.
+- Limit release installers to macOS Apple Silicon, Intel Mac and Windows amd64, with explicit architecture-specific commands and filenames. Consolidate duplicate npm/Make commands; local-model testing is now `desktop:prepare -- --local-models`.
+- Separate Web, desktop renderer and background-task outputs, and share parser/data contracts through platform adapters. `desktop:prepare` builds the application; `desktop:start` opens the existing package; `desktop:dev` retains the Electron development runtime. Desktop source builds require Rust/Cargo and a C toolchain; installed applications include the native component.
+
+### Removed
+
+- Remove the current AI guide, model-access integration and WebMCP registration pending a future redesign. Data analysis and export remain available.
+
+### Fixed
+
+- Preserve cross-segment button state in native parsing; keep smoke/fire output ordering and typed-array storage compatible with existing playback.
+- Handle queued/running task cancellation, reject duplicate Demo jobs and recover storage connections after native-process failure. Publish rebuilt macOS native executables by atomic replacement to avoid stale executable-signature cache failures.
+
+### Validation and limits
+
+- On an Apple M4 with 16 GB RAM at 8 Hz, complete native parsing of a 299 MB Nuke Demo improved from 39.3 s to 15.0 s and a 282 MB Inferno Demo from 45.2 s to 16.3 s. Two Demos sharing a four-thread budget took 18.2 s sequentially and 10.3 s concurrently in Electron. These sample measurements include several optimizations and are not universal speed guarantees.
+- Full outputs from three Demos matched the serial baseline within floating-point tolerance; 87 behavioral/integration tests (zero skipped) and isolated desktop checks passed. Memory budgets control task admission, not hard process limits. Intel Mac/Windows runtime validation and signed/notarized release packages remain outstanding.
+
 ## [1.15.1] - 2026-09-23
 
 ### Fixed
@@ -37,7 +70,6 @@
 
 - Add desktop resource packs with native multi-file SVG/GLB import, per-file results, a completeness checklist, validated replacement, and persistent disk storage. Missing icons retain defaults; missing models use NAV without model controls or automatic OSS downloads. Reload explicitly to apply imported resources. Release packages exclude map models; a separate local-test packaging command may include them.
 - Add single-round model analysis for an exact selected Demo: full-team positioning timelines, combat/bomb events, utility records, optional trajectories, paginated JSON, data-coverage diagnostics, and prompts that distinguish observations from hypotheses about intent, rotations, and fakes. Queries retain original Demo ticks and do not alter playback.
-- Add a Chinese, English, and Russian AI setup guide in Analysis, with readiness checks, a copyable starter prompt, experimental desktop launch instructions, and privacy notes. AI UI and WebMCP registration are now exclusive to Electron through an isolated preload marker; ordinary browsers register no tools, even when their WebMCP API is enabled. API availability does not establish a model connection.
 
 ### Changed
 
@@ -56,7 +88,6 @@
 
 ### Added
 
-- Let vision-capable WebMCP models capture the current 3D canvas as WebP, JPEG, or PNG. The tool accepts bounded dimensions, encoding quality, fit mode, and optional context, and reports camera projection, map, Demo tick, and active Analysis selection alongside the image.
 - Add a Russian README and Changelog, connect all three documentation languages with direct navigation, repair stale documentation links and image paths, and make the offline Changelog dialog follow the Russian interface language.
 
 ### Fixed
@@ -71,7 +102,6 @@
 
 ### Added
 
-- Add an opt-in WebMCP integration for the Electron app. Its Analysis-first tools let a user-supplied model read the active player, Demo, side, economy, phase, utility, and event-location filters; obtain compact paginated KD, area-time, or utility JSON; optionally request projectile trajectories; and receive field semantics plus starter analysis prompts. Six additional state-aware workspace tools remain available for navigation and playback. An origin-isolated, read-only loopback server hosts the packaged renderer and map models, the fixed local origin preserves desktop storage, and single-instance ownership prevents port conflicts.
 - Bundle local GLB map models into Electron packages as streamable external resources. Desktop builds load each packaged model first and fall back per file to the configured OSS origin when the bundled copy is missing or invalid.
 - Replay Molotov and incendiary fire from the Demo's authoritative `CInferno` cells instead of estimating its footprint from connected NAV areas. A strengthened cumulative metaball tension field joins neighboring cells into one irregular, single-color surface, fills enclosed no-fire holes without leaving internal seams, and leaves transparency softness only on the outer edge before projecting onto the nearest same-floor NAV geometry. This avoids both the bead-like cell appearance and vertical flame/model intersections while following ramps and height transitions. Fire frames are stored only when their state changes, fall back to the existing NAV effect for legacy data, and remain available in saved throws and Collaboration frames.
 - Open a formatted, scrollable, fully offline Changelog dialog by clicking the build version beside the CSBoard brand; select the bundled Chinese or English document from the active interface language.

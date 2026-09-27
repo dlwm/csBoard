@@ -1,7 +1,7 @@
 // Owns analysis movement paths, player markers, and utility trajectory lines.
 import * as THREE from 'three';
 import { ANALYSIS_UTILITY_COLORS, ANALYSIS_UTILITY_KINDS, ECONOMY_CATEGORIES } from '../analysis/constants.js';
-import { buildAnalysisTracks, getAnalysisTrackSignature } from '../analysis/buildAnalysisTracks.js';
+import { buildAnalysisTracks } from '../analysis/buildAnalysisTracks.js';
 import { createCollabPlayer, setCollabPlayerCrouch, setCollabPlayerPitch } from './collabPlayer.js';
 import { lerpAngleDegrees } from '../demo/interpolation.js';
 
@@ -26,6 +26,7 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
   const paths = new Map();
   const utilityPaths = new Map();
   let signature = '';
+  let trackRows = null;
   scene.add(pathGroup, utilityGroup);
 
   const clearPaths = () => {
@@ -100,8 +101,8 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
       economyOpponent: refs.flags.current.economyOpponent,
       modelCenter: getModelCenter(),
     };
-    const nextSignature = getAnalysisTrackSignature(trackOptions);
-    if (nextSignature !== signature) {
+    const nextSignature = JSON.stringify([trackOptions.selectedPlayers, trackOptions.side, trackOptions.economyOwn, trackOptions.economyOpponent, trackOptions.modelCenter.x, trackOptions.modelCenter.y, trackOptions.modelCenter.z]);
+    if (trackOptions.rows !== trackRows || nextSignature !== signature) {
       clearPaths();
       buildAnalysisTracks(trackOptions).forEach((track) => {
         const records = track.records.map((record) => ({ ...record, position: new THREE.Vector3(record.position.x, record.position.y, record.position.z) }));
@@ -119,16 +120,18 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
         paths.set(track.key, { line, marker, records });
       });
       signature = nextSignature;
+      trackRows = trackOptions.rows;
     }
     paths.forEach(({ line, marker, records }) => {
-      let visibleCount = 0;
-      let current = records[0];
-      records.forEach((record, index) => {
-        if (record.time <= refs.time.current) {
-          visibleCount = index + 1;
-          current = record;
-        }
-      });
+      let low = 0;
+      let high = records.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (records[middle].time <= refs.time.current) low = middle + 1;
+        else high = middle;
+      }
+      const visibleCount = low;
+      const current = records[Math.max(0, visibleCount - 1)];
       line.geometry.setDrawRange(0, Math.max(0, visibleCount));
       const next = records[visibleCount] || current;
       if (next !== current && next.time > current.time) {

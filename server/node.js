@@ -1,3 +1,6 @@
+import { TRANSFER_PATH } from '../shared/broadcast-transfer.js';
+import { handleBroadcastTransfer } from './core/broadcastTransfer.js';
+import { createTransferStore } from './nodeTransferStore.js';
 // Node.js adapter for static assets, local models, Demo APIs, and Yjs rooms.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -26,7 +29,7 @@ const rooms = new Map();
 function getRoom(name) {
   if (!rooms.has(name)) {
     const clients = new Set();
-    const room = { clients, expiry: null };
+    const room = { clients, expiry: null, transfers: createTransferStore() };
     room.yjs = createYjsRoom({
       broadcast: (message, except) => clients.forEach((socket) => {
         if (socket !== except && socket.readyState === WebSocket.OPEN) socket.send(message);
@@ -82,6 +85,14 @@ const server = http.createServer(async (request, response) => {
   try {
     const webRequest = requestFromNode(request);
     const pathname = new URL(webRequest.url).pathname;
+    const transfer = pathname.match(TRANSFER_PATH);
+    if (transfer) {
+      const room = rooms.get(transfer[1].toUpperCase());
+      const result = room
+        ? await room.transfers.run(() => handleBroadcastTransfer(webRequest, transfer[2], room.transfers))
+        : new Response('Room unavailable', { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } });
+      return await sendNodeResponse(result, response);
+    }
     if (request.method === 'GET' && pathname.startsWith('/maps/')) return await sendNodeResponse(localMapResponse(pathname), response);
     const handled = await handleHttp(webRequest, env);
     await sendNodeResponse(handled || staticResponse(pathname), response);
@@ -106,7 +117,7 @@ sockets.on('connection', (socket, _request, roomName) => {
   socket.on('close', () => {
     removeSocketAwareness(room.yjs, socket, socket.awarenessMetadata);
     room.clients.delete(socket);
-    if (!room.clients.size) room.expiry = setTimeout(() => { if (!room.clients.size) { room.yjs.doc.destroy(); rooms.delete(roomName); } }, ROOM_EXPIRY_MS);
+    if (!room.clients.size) room.expiry = setTimeout(() => { if (!room.clients.size) { room.yjs.doc.destroy(); rooms.delete(roomName); room.transfers.dispose().catch(console.error); } }, ROOM_EXPIRY_MS);
   });
 });
 

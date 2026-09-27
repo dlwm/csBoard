@@ -74,37 +74,45 @@ export default function createDemoMonitorRenderer({ mount, renderer, scene, prim
     if (!currentLayout) return false;
     wasActive = true;
 
-    renderer.setScissorTest(false);
-    renderer.setViewport(0, 0, currentLayout.width, currentLayout.height);
-    renderer.clear();
-    renderer.autoClear = false;
-    renderer.setScissorTest(true);
+    const autoUpdate = scene.matrixWorldAutoUpdate;
+    const primaryOnlyVisibility = primaryOnlyObjects.map(object => object.visible);
+    // All views share this frame's world transforms. Each camera is still updated
+    // separately, but the complete map hierarchy is traversed only once.
+    if (autoUpdate) scene.updateMatrixWorld();
+    scene.matrixWorldAutoUpdate = false;
+    try {
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, currentLayout.width, currentLayout.height);
+      renderer.clear();
+      renderer.autoClear = false;
+      renderer.setScissorTest(true);
 
-    primaryCamera.aspect = currentLayout.mainWidth / Math.max(currentLayout.height, 1);
-    primaryCamera.updateProjectionMatrix();
-    renderer.setViewport(0, 0, currentLayout.mainWidth, currentLayout.height);
-    renderer.setScissor(0, 0, currentLayout.mainWidth, currentLayout.height);
-    renderer.render(scene, primaryCamera);
+      primaryCamera.aspect = currentLayout.mainWidth / Math.max(currentLayout.height, 1);
+      primaryCamera.updateProjectionMatrix();
+      renderer.setViewport(0, 0, currentLayout.mainWidth, currentLayout.height);
+      renderer.setScissor(0, 0, currentLayout.mainWidth, currentLayout.height);
+      renderer.render(scene, primaryCamera);
 
-    const playersById = new Map(players.map((player) => [player.monitorId || playerId(player), player]));
-    const primaryOnlyVisibility = primaryOnlyObjects.map((object) => object.visible);
-    primaryOnlyObjects.forEach((object) => { object.visible = false; });
-    for (const tile of currentLayout.tiles) {
-      const player = playersById.get(tile.id);
-      if (!player || Number(player.health) <= 0 || player.hasPosition === false || !player.position || tile.width < 2 || tile.height < 2) continue;
-      setPlayerCamera(tileCamera, player, tile.width, tile.height);
-      renderer.setViewport(tile.x, tile.y, tile.width, tile.height);
-      renderer.setScissor(tile.x, tile.y, tile.width, tile.height);
-      const marker = markers.get(player.name);
-      const markerVisible = marker?.visible;
-      if (marker) marker.visible = false;
-      renderer.render(scene, tileCamera);
-      if (marker) marker.visible = markerVisible;
+      const playersById = new Map(players.map((player) => [player.monitorId || playerId(player), player]));
+      primaryOnlyObjects.forEach((object) => { object.visible = false; });
+      for (const tile of currentLayout.tiles) {
+        const player = playersById.get(tile.id);
+        if (!player || Number(player.health) <= 0 || player.hasPosition === false || !player.position || tile.width < 2 || tile.height < 2) continue;
+        setPlayerCamera(tileCamera, player, tile.width, tile.height);
+        renderer.setViewport(tile.x, tile.y, tile.width, tile.height);
+        renderer.setScissor(tile.x, tile.y, tile.width, tile.height);
+        const marker = markers.get(player.name);
+        const markerVisible = marker?.visible;
+        if (marker) marker.visible = false;
+        try { renderer.render(scene, tileCamera); }
+        finally { if (marker) marker.visible = markerVisible; }
+      }
+    } finally {
+      scene.matrixWorldAutoUpdate = autoUpdate;
+      primaryOnlyObjects.forEach((object, index) => { object.visible = primaryOnlyVisibility[index]; });
+      renderer.setScissorTest(false);
+      renderer.autoClear = true;
     }
-    primaryOnlyObjects.forEach((object, index) => { object.visible = primaryOnlyVisibility[index]; });
-
-    renderer.setScissorTest(false);
-    renderer.autoClear = true;
     return true;
   };
 

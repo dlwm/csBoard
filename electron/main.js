@@ -4,11 +4,12 @@ import http from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createResourceStore } from './resource-store.js'
+import { registerNativeServices } from './native-services.js'
+import { applyPendingRestore } from './storage-management.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DESKTOP_HOST = '127.0.0.1'
 const DESKTOP_PORT = Number(process.env.CSBOARD_DESKTOP_PORT) || 32145
-const WEB_MCP_ENABLED = process.env.CSBOARD_WEBMCP === '1' || process.argv.includes('--enable-csboard-webmcp')
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8', '.glb': 'model/gltf-binary', '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png',
@@ -16,10 +17,8 @@ const mimeTypes = {
 }
 let mainWindow = null
 let resourceStore = null
+let nativeServices = null
 
-// WebMCP is experimental in Chromium 152. Keep it opt-in until the API ships,
-// while allowing the renderer to use progressive feature detection today.
-if (WEB_MCP_ENABLED) app.commandLine.appendSwitch('enable-experimental-web-platform-features')
 
 function isFileInside(root, filePath) {
   const relative = path.relative(root, filePath)
@@ -27,7 +26,7 @@ function isFileInside(root, filePath) {
 }
 
 function startDesktopServer() {
-  const distRoot = path.resolve(__dirname, '..', 'dist')
+  const distRoot = path.resolve(__dirname, '..', 'build', 'renderer')
   const server = http.createServer(async (request, response) => {
     if (!['GET', 'HEAD'].includes(request.method || '')) {
       response.writeHead(405).end('Method not allowed')
@@ -38,6 +37,7 @@ function startDesktopServer() {
       response.writeHead(400).end('Invalid resource path')
       return
     }
+    if (pathname.startsWith('/native-cache/')) { await nativeServices.serveCache(request, response, pathname); return }
     const resource = pathname.match(/^\/resource-pack\/(icons|models)\/([a-z0-9_]+)\.(svg|glb)$/)
     let filePath
     try {
@@ -68,8 +68,14 @@ function startDesktopServer() {
 }
 
 app.setName('csBoard')
-// A stable loopback origin preserves browser storage between launches and is
-// required for WebMCP's origin isolation. Keep one owner for its fixed port.
+// Keep the existing storage location when changing the displayed product name.
+const existingUserData = app.getPath('userData')
+const metadata = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'))
+const productName = metadata.productName || metadata.build?.productName || 'CSBoard'
+app.setName(productName)
+app.setPath('userData', existingUserData)
+// A stable loopback origin preserves browser storage between launches.
+// Keep one owner for its fixed port.
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) app.quit()
 else app.on('second-instance', () => {
@@ -78,9 +84,10 @@ else app.on('second-instance', () => {
 })
 
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return
+  await applyPendingRestore(app.getPath('userData'))
   // Release packages never read .local/official/maps. Only an explicit local-test package
   // or an unpackaged development run can supply these optional model files.
-  const metadata = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'))
   const localModelsRoot = !app.isPackaged ? path.resolve(__dirname, '..', '.local', 'official', 'maps')
     : metadata.csboardLocalModels === true ? path.join(process.resourcesPath, 'maps') : null
   resourceStore = createResourceStore(path.join(app.getPath('userData'), 'resource-packs'), localModelsRoot)
@@ -90,8 +97,11 @@ app.whenReady().then(async () => {
   }
   ipcMain.handle('resources:status', event => { authorize(event); return resourceStore.status() })
   let importing = false
+  nativeServices = registerNativeServices({ app, authorize, getWindow: () => mainWindow, resourceBusy: () => importing })
+  ipcMain.handle('desktop:presentation', event => { authorize(event); return mainWindow.isVisible() && !mainWindow.isMinimized() })
   ipcMain.handle('resources:import', async event => {
     authorize(event)
+    nativeServices.assertAvailable()
     if (importing) throw new Error('Import already running')
     importing = true
     try {
@@ -105,8 +115,10 @@ app.whenReady().then(async () => {
   })
   const server = await startDesktopServer()
   app.once('will-quit', () => server.close())
-  console.log(app.getPath('userData'))
+  if (!app.isPackaged) app.dock?.setIcon(path.join(__dirname, '../build/icons/icon.png'))
   mainWindow = new BrowserWindow({
+    title: productName,
+    icon: path.join(__dirname, '../build/icons/icon.png'),
     width: 1440,
     height: 900,
     webPreferences: {
@@ -118,6 +130,9 @@ app.whenReady().then(async () => {
   })
 
   mainWindow.on('closed', () => { mainWindow = null })
+  for (const name of ['minimize', 'restore', 'hide', 'show']) mainWindow.on(name, () => {
+    if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('desktop:presentation', mainWindow.isVisible() && !mainWindow.isMinimized())
+  })
   mainWindow.loadURL(`http://${DESKTOP_HOST}:${DESKTOP_PORT}/index.html`)
   if (!app.isPackaged) mainWindow.webContents.openDevTools()
 }).catch((error) => {

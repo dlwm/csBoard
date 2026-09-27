@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import catalog from '../electron/resource-catalog.json' with { type: 'json' };
+import catalog from '../src/resources/catalog.json' with { type: 'json' };
 import { validateResource } from '../electron/resource-store.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

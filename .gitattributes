@@ -1,0 +1,2 @@
+src/wasm/*.patch text eol=lf
+native/*.patch text eol=lf

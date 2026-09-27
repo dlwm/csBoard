@@ -1,3 +1,4 @@
+import { startPlaybackClock } from '../app/playbackClock.js';
 // Owns the shared KD/area/utility analysis timeline and its derived duration.
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 
@@ -38,12 +39,11 @@ export default function useAnalysisPlayback({ rows, selectedPlayers, side, econo
 
   useEffect(() => {
     if (!playing || !rows.length) return undefined;
-    const timer = window.setInterval(() => setTime((currentTime) => {
-      const next = Math.min(duration, currentTime + 64 / 30);
+    return startPlaybackClock(seconds => setTime((currentTime) => {
+      const next = Math.min(duration, currentTime + 64 * seconds);
       if (next >= duration) setPlaying(false);
       return next;
-    }), 1000 / 30);
-    return () => window.clearInterval(timer);
+    }));
   }, [playing, rows.length, duration]);
 
   return { playing, setPlaying, time, setTime, duration };

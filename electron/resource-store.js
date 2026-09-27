@@ -3,7 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import catalog from './resource-catalog.json' with { type: 'json' };
+import catalog from '../src/resources/catalog.json' with { type: 'json' };
 
 const aliases = { glock: 'glock18', hegrenade: 'grenade', usp_silencer: 'usp', m4a1_silencer: 'm4a1' };
 export function identifyResource(filename) {

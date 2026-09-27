@@ -4,7 +4,8 @@ import { MAP_LABEL_TONES, mapLabelStyle } from '../app/mapAppearance.js';
 import { languageLabel, localize, nextLanguage } from '../i18n.js';
 import ChangelogModal from './ChangelogModal.jsx';
 import ResourcePackModal from './ResourcePackModal.jsx';
-import { isDesktopRuntime } from '../app/runtime.js';
+import DesktopManager from './DesktopManager.jsx';
+import { getPlatform } from '../platform/index.js';
 
 const PANELS = [['demo', 'rounds'], ['analysis', 'analysis'], ['broadcast', 'broadcast'], ['utility', 'utilityNotes'], ['collab', 'collab']];
 
@@ -12,6 +13,7 @@ const PANELS = [['demo', 'rounds'], ['analysis', 'analysis'], ['broadcast', 'bro
 export default function BoardHeader({ activePanel, language, mapName, parseGameState, setLanguage, setMapName, setParseGameManual, setParseGameState, switchPanel, t }) {
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [desktopOpen, setDesktopOpen] = useState(false);
   const nextLanguageName = languageLabel(nextLanguage(language));
   const mapLabel = (map) => language === 'zh' ? MAP_LABELS_ZH[map.id] || map.label : map.label;
   const selectedMap = MAPS.find((map) => map.id === mapName);
@@ -25,7 +27,8 @@ export default function BoardHeader({ activePanel, language, mapName, parseGameS
     <div className="brand"><span className="brand-mark"><i /><i /><i /></span><span>CS<span>BOARD</span></span>{BUILD_VERSION && <button type="button" className="build-version" title={localize(language, { zh: '查看更新日志', en: 'View changelog', ru: 'Открыть список изменений' })} onClick={() => setChangelogOpen(true)}>{BUILD_VERSION}</button>}</div>
     <nav className="topbar-panels">{PANELS.map(([panel, label]) => <button type="button" key={panel} className={activePanel === panel ? 'active' : ''} onClick={() => switchPanel(panel)}>{t(label)}</button>)}</nav>
     <div className="header-right">
-      {isDesktopRuntime() && <button type="button" className="resource-pack-button" onClick={() => setResourcesOpen(true)}>{localize(language, { zh: '资源包', en: 'Resources', ru: 'Ресурсы' })}</button>}
+      {getPlatform().maintenance && <button type="button" className="desktop-manager-button" onClick={() => setDesktopOpen(true)}>{localize(language, { zh: '桌面管理', en: 'Desktop', ru: 'Приложение' })}</button>}
+      {getPlatform().capabilities.resourceImport && <button type="button" className="resource-pack-button" onClick={() => setResourcesOpen(true)}>{localize(language, { zh: '资源包', en: 'Resources', ru: 'Ресурсы' })}</button>}
       <label className="map-select header-map-select" style={mapLabelStyle(mapName)}>
         <span>MAP</span>
         <span className="header-map-value">
@@ -43,5 +46,6 @@ export default function BoardHeader({ activePanel, language, mapName, parseGameS
     </div>
     {changelogOpen && <ChangelogModal buildVersion={BUILD_VERSION} language={language} onClose={() => setChangelogOpen(false)} />}
     {resourcesOpen && <ResourcePackModal language={language} onClose={() => setResourcesOpen(false)} />}
+    {desktopOpen && <DesktopManager language={language} onClose={() => setDesktopOpen(false)} />}
   </header>;
 }

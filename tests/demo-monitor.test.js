@@ -79,3 +79,27 @@ test('leaving monitor mode restores the full WebGL viewport', () => {
   assert.deepEqual(viewportCalls.at(-1), [0, 0, 1000, 600]);
   assert.equal(renderer.autoClear, true);
 });
+
+test('monitor views update shared world matrices once and restore flags after errors', () => {
+  const scene = new THREE.Scene();
+  let updates = 0;
+  const update = scene.updateMatrixWorld.bind(scene);
+  scene.updateMatrixWorld = (...args) => { updates++; update(...args); };
+  let fail = false;
+  let renders = 0;
+  const overlay = new THREE.Object3D();
+  const marker = new THREE.Object3D();
+  const renderer = {
+    autoClear: true,
+    domElement: { getBoundingClientRect: () => ({ left: 0, right: 1000, top: 0, bottom: 600, width: 1000, height: 600 }) },
+    clear() {}, setScissor() {}, setScissorTest() {}, setViewport() {},
+    render() { renders++; if (scene.matrixWorldAutoUpdate) scene.updateMatrixWorld(); if (fail) throw Error('renderer failed'); },
+  };
+  const wall = { getBoundingClientRect: () => ({ left: 800 }), querySelectorAll: () => [{ dataset: { monitorPlayerId: '1' }, getBoundingClientRect: () => ({ left: 810, right: 990, top: 0, bottom: 200 }) }] };
+  const monitor = createDemoMonitorRenderer({ mount: { parentElement: { querySelector: () => wall } }, renderer, scene, primaryCamera: new THREE.PerspectiveCamera(), playersRef: { current: [{ monitorId: '1', name: 'P', health: 100, position: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: 0 }] }, modeRef: { current: 'monitor' }, getModelCenter: () => new THREE.Vector3(), markers: new Map([['P', marker]]), primaryOnlyObjects: [overlay] });
+  monitor.render(1000);
+  assert.equal(renders, 2); assert.equal(updates, 1); assert.equal(scene.matrixWorldAutoUpdate, true); assert.equal(marker.visible, true); assert.equal(overlay.visible, true);
+  fail = true;
+  assert.throws(() => monitor.render(1016));
+  assert.equal(scene.matrixWorldAutoUpdate, true); assert.equal(renderer.autoClear, true); assert.equal(overlay.visible, true);
+});

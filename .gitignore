@@ -12,3 +12,4 @@ ref
 .DS_Store
 .local
 exceptions.txt
+/native/target/

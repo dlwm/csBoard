@@ -6,16 +6,16 @@
 
 ![CSBoard demonstration](https://bucket.csboard.kuzuma.asia/output.gif)
 
-CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one browser application.
+CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one application.
 
-## Version 1.15.1
+## Version 1.16.0
 
-- Save a named Demo interval for View Broadcast, open a room from its archive, and download it into another participant's local collection.
-- Watch a team through a main POV and side monitors, switch teams, and see dead players' views clearly marked.
-- Organize Collaboration, View Broadcast, and Utility Notes archives in draggable folder trees; replay smoke has a smoother shared volume, while running trails no longer build up during short back-and-forth movement.
-- Optionally bundle a local SVG icon pack for the Cloudflare Worker frontend; kill-feed icons also recognize suffixed Demo weapon names.
-- Keep the full map zoom range available while its visual model is still downloading.
-- See the [release notes](CHANGELOG.md) and [third-party acknowledgements and licenses](THIRD_PARTY_NOTICES.md).
+- Improve Demo parsing and local storage, with automatic migration of existing archives and caches.
+- Parse multiple Demos concurrently, enable multithreaded sampling, and choose Balanced / Fast / Custom performance modes.
+- Manage background tasks, clean caches, and create or restore verified backups; parsing continues while minimized.
+- Redesign resource management and unify the CSBoard application name and icons.
+- The current AI integration has been removed pending redesign; data analysis and export remain available.
+- See the [release notes](CHANGELOG.md) for measured performance and validation limits, and [third-party acknowledgements and licenses](THIRD_PARTY_NOTICES.md).
 
 ## Highlights
 
@@ -24,7 +24,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 ![Round replay](docs/img/round-replay.png)
 
 - Import one Demo or select multiple Demo parts and merge them into one match.
-- Parse playable rounds once through Rust/WASM, persist each round in IndexedDB, and switch rounds without reparsing the Demo.
+- Parse playable rounds once and switch rounds from cache: Web uses Rust/WASM and IndexedDB; Electron uses native Rust, SQLite metadata and compressed files.
 - Omit empty placeholder rounds and discard incompatible cached parses automatically.
 - Replay from freeze end with player movement, kills, deaths, weapons, health, utility, C4 state, and event markers.
 - Display simplified standing and crouching player models with yaw, pitch, dynamic eye height, and BVH-accelerated line-of-sight collision.
@@ -166,34 +166,55 @@ Build the frontend and start the APIs and collaboration service with the default
 npm run dev
 ```
 
-The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make workers-dev` or `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` for GLB files under `.local/official/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
-
-The same API and Yjs protocol core can also run behind a traditional Node.js HTTP/WebSocket entry:
-
-```bash
-make node-dev
-# or: npm run dev:node
-```
+The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` for GLB files under `.local/official/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
 
 The Node.js Runtime adapter listens on `PORT` (default `3001`) and reads `MAP_BASE_URL` from `process.env`. The Cloudflare Workers adapter uses `env.MAP_BASE_URL` and Durable Object Storage; shared route, parsing, and protocol logic lives under `server/core/`.
 
 Build the production bundle:
 
 ```bash
-make build
+npm run build
+make workers-build
 ```
 
-This creates the frontend in `dist/`, validates the Node.js Runtime adapter, and writes the Cloudflare Workers bundle to `build/workers/`. Make builds derive the header version from Git: a clean exact-tag build uses that tag, while dirty or untagged interactive builds ask before using `git describe`.
+`npm run build` creates the local web frontend in `dist/`; `make workers-build` separately builds both Cloudflare Workers with `--dry-run` into `build/workers/`, including the remote frontend. npm builds use the package version; Workers/Docker Make commands derive the version from Git (interactive dirty/untagged builds request confirmation).
 
-`npm run build` and `npm run build:local` use local `/maps` resources and same-origin APIs. `npm run build:remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
+`npm run build` uses local `/maps` resources and same-origin APIs. `npm run build:remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
-Electron release builds (`npm run desktop:build:mac` / `npm run desktop:build:win`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. See [resource-pack instructions](docs/resource-packs.md).
+Electron release builds (`npm run desktop:build:mac:arm64` / `npm run desktop:build:mac:x64` / `npm run desktop:build:win:x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. See [resource-pack instructions](docs/resource-packs.md).
 
-Unpackaged development runs may read `.local/official/maps`; `npm run desktop:build:local` creates an explicit local-test package containing these models. Ordinary release packaging never includes `.local/official` or `.local/official/maps`. Web builds retain their existing local/OSS model behavior.
+Unpackaged development runs may read `.local/official/maps`; `npm run desktop:prepare -- --local-models` creates an explicit local-test package containing these models. Ordinary release packaging never includes `.local/official` or `.local/official/maps`. Web builds retain their existing local/OSS model behavior.
 
-The Electron renderer also contains an experimental, opt-in WebMCP bridge. Run `npm run build:desktop` once, then `npm run desktop:start:webmcp` to enable experimental API support; successful registration and an actual client call must still be verified; ordinary `npm run desktop:start` launches without Chromium's experimental web-platform switch. In Analysis, a connected user model should call `get_analysis_context` first to read the current filters, field guide, readiness state, and starter prompts, then page through `get_filtered_analysis_data`. The latter returns already-filtered KD, area-time, or utility JSON in pages of at most 200 records; utility trajectories are opt-in to avoid wasting model context. Vision-capable models may call `capture_3d_view` to receive the current 3D canvas with camera and analysis metadata. Width, height, WebP/JPEG/PNG format, quality, fit mode, and context inclusion are configurable; the default is a compact 960px-wide WebP. Both launch modes use the same fixed, read-only `http://127.0.0.1:32145` application origin so desktop storage remains stable. Override the port with `CSBOARD_DESKTOP_PORT` only when necessary.
+Desktop builds write the renderer to `build/renderer/` and bundled background tasks to `build/tasks/`; Web builds keep `dist/`. `npm run desktop:prepare` builds native components, icons and desktop bundles, then creates a CSBoard application for the host platform. `npm run desktop:start` opens that existing application without rebuilding. Run prepare again after source changes. `npm run desktop:dev` launches the unpackaged Electron runtime with DevTools and optional local models; macOS can display this runtime as Electron.
 
-To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.15.1` image version.
+Release packages are limited to these three targets. Run macOS commands on macOS and Windows commands on Windows:
+
+| Target | Command | Output in `build/desktop/` |
+| --- | --- | --- |
+| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.0-mac-arm64.dmg` |
+| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.0-mac-x64.dmg` |
+| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.0-win-x64.exe` |
+
+On macOS, install Xcode Command Line Tools and run `rustup target add aarch64-apple-darwin x86_64-apple-darwin` once to build both architectures on one Mac. On Windows, use x64 Node.js, Rust MSVC and Visual Studio Build Tools with the C++ workload and Windows SDK. The commands select matching Rust and Electron targets and never publish automatically. Signing credentials must be configured separately.
+
+#### GitHub Actions
+
+Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.16.0` tag pointing at the version commit, or run **Actions → Desktop release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
+
+The workflow tests and builds all three targets, checks packaged contents and native storage, then attaches the installers plus `SHA256SUMS.txt` to a **draft Release**. It never publishes the draft or overwrites a published release. Reruns update only a draft for the same commit. Check installation before selecting **Publish release** on GitHub.
+
+Normally no extra Secrets or personal token are needed: the workflow uses the built-in `GITHUB_TOKEN`, with write access only for the draft job. GitHub Actions must be enabled; repository/organization policies must permit these actions and Release writes. Signing and macOS notarization are not configured, so the generated installers are unsigned.
+
+`make help` lists the retained commands. Duplicate npm aliases and Make wrappers have been removed; use `npm ci` for dependencies, `npm run deploy` for Workers deployment, and `docker compose down`, `logs -f` or `ps` for container management. Internal icon and background-task builds run automatically. `desktop:prepare -- --local-models` produces a separate test application under `build/desktop-local/`; open that application directly.
+
+Building the native desktop component requires Git, Rust/Cargo and the target platform's C compiler/linker. Installed applications include the executable and need no Rust or Python setup. Native data lives under the Electron user-data directory in `native-data/`. Legacy IndexedDB data is copied when needed without deleting the original database; browser preferences remain in browser storage. Back up important archives before upgrading.
+
+Desktop → Parser performance offers Balanced (default), Fast and Custom modes. Fast allows the full logical-core budget; concurrent Demos share it and wait when memory is insufficient. Custom controls concurrent Demos, threads per Demo and the memory admission budget. Safe tick sampling uses native threads; events, button state and smoke/fire journals remain sequential. The budget does not impose a hard process memory limit.
+
+Desktop → Storage & backups shows database, cache and resource usage, supports manual least-recently-used cache cleanup, and creates verified backup folders. Restore replaces native data and imported resources on restart while retaining the previous directories. Original Demo files, browser preferences and unsaved work are not included. Background tasks are bounded and cancellable; automatic sleep prevention is optional for the current session.
+
+
+To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.16.0` image version.
 
 ## Controls
 
@@ -257,7 +278,8 @@ For code navigation and validation workflows, see the [development guide (Chines
 - React and Vite for the application shell and UI.
 - Feature-scoped Analysis components and calculations under `src/analysis/`; Demo domain logic and HUD under `src/demo/`; shared UI under `src/components/`; Three.js helpers under `src/three/`; utility-note logic under `src/utility/`; and reusable cross-panel DOM behavior under `src/hooks/`.
 - Three.js for map rendering, tactical objects, effects, and replay visualization.
-- Rust/WASM `demoparser2` for Demo events, ticks, players, inventory, and projectiles.
+- `demoparser2` for Demo events, ticks, players, inventory and projectiles: Rust/WASM in Web, an independent Rust executable on desktop.
+- `src/platform/` selects browser or desktop services; desktop utility processes handle heavy computation, and SQLite plus compressed files persist data.
 - `three-mesh-bvh` for accelerated map raycasting.
 - Yjs and `y-websocket` for collaborative rooms.
 - Cloudflare Workers Fetch API for HTTP routes in the backend Worker and static assets in the frontend Worker.
@@ -273,7 +295,7 @@ The production backend is a Workers module exported from `server/index.js`; it d
 npm install
 npm run dev:workers
 cp deploy.cloudflare.env.example deploy.cloudflare.env
-make workers-deploy
+npm run deploy
 ```
 
 Edit `deploy.cloudflare.env` with the Cloudflare account, frontend and backend Worker names, OSS base URL, backend public URL, and optional custom domains. Prefer supplying `CLOUDFLARE_API_TOKEN` through the shell or CI secret store. The deploy script writes the platform-neutral `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL` values to the ignored `.env.production.local`, then passes the same OSS base URL to the backend as `env.MAP_BASE_URL`.
@@ -297,7 +319,7 @@ Copyright (C) 2026 Colvin Chen. Original CSBoard source code and documentation a
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
 - Remote web builds use cloud storage for GLB models; local/Docker builds use local models. Electron releases require user-imported models; only local-test builds include local models. Bundled NAV geometry and 2D radar remain available offline.
 - Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
-- Round Replay and Demo Analysis require a desktop-sized interface (including desktop web browsers); H5 exposes Utility Notes and Collaboration. AI integration is exclusive to the Electron application.
+- Round Replay and Demo Analysis require a desktop-sized interface (including desktop web browsers); H5 exposes Utility Notes and Collaboration.
 
 ## Roadmap
 
