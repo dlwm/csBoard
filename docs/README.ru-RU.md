@@ -8,7 +8,7 @@
 
 CSBoard превращает карты и Demo-файлы CS2 в интерактивное тактическое пространство. В одном приложении доступны воспроизведение раундов, визуализация игроков и гранат, пространственный анализ, локальные архивы и совместные комнаты на базе Yjs.
 
-## Версия 1.16.0
+## Версия 1.16.2
 
 - Улучшены разбор Demo и локальное хранение данных; существующие архивы и кэш переносятся автоматически.
 - Одновременный разбор нескольких Demo, многопоточная выборка и режимы «Баланс» / «Быстро» / «Настройка».
@@ -161,15 +161,15 @@ npm run desktop:start
 
 | Цель | Команда | Файл в `build/desktop/` |
 | --- | --- | --- |
-| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.0-mac-arm64.dmg` |
-| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.0-mac-x64.dmg` |
-| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.0-win-x64.exe` |
+| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.2-mac-arm64.dmg` |
+| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.2-mac-x64.dmg` |
+| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.2-win-x64.exe` |
 
 На macOS нужны Xcode Command Line Tools и `rustup target add aarch64-apple-darwin x86_64-apple-darwin` для сборки обеих архитектур. На Windows нужны x64 Node.js, Rust MSVC и Visual Studio Build Tools с C++ и Windows SDK. Архитектуры Rust и Electron выбираются совместно. Локальные команды не публикуют установщики. Подпись настраивается отдельно.
 
 #### GitHub Actions
 
-Добавьте `.github/workflows/` в коммит с изменениями версии. Проверки запускаются для PR и push в main/master. Для сборки отправьте тег `v1.16.0`, указывающий на коммит версии, либо выберите **Actions → Desktop release → Run workflow** и укажите существующий тег. Ручной запуск требует наличия workflow в основной ветке. Версии тега, package/lockfile и changelog должны совпадать.
+Добавьте `.github/workflows/` в коммит с изменениями версии. Проверки запускаются для PR и push в main/master. Для сборки отправьте тег `v1.16.2`, указывающий на коммит версии, либо выберите **Actions → Desktop release → Run workflow** и укажите существующий тег. Ручной запуск требует наличия workflow в основной ветке. Версии тега, package/lockfile и changelog должны совпадать.
 
 Workflow проверяет и собирает три платформы, проверяет содержимое пакетов и встроенное хранилище, затем загружает установщики и `SHA256SUMS.txt` в **черновик Release**. Публикация выполняется вручную после проверки установки. Повторный запуск обновляет только черновик для того же коммита; опубликованные релизы не перезаписываются.
 

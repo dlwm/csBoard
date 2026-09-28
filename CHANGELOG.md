@@ -2,6 +2,13 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.16.2] - 2026-09-28
+
+### Fixed
+
+- Keep upstream parser sources and patch files in LF format on Windows so the native build applies both patches consistently.
+- Resolve ASAR entries with platform-native separators when checking Windows installers, then normalize the file list before inspecting packaged resources.
+
 ## [1.16.0] - 2026-09-28
 
 ### Added

@@ -8,7 +8,7 @@
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
-## 1.16.0 版本
+## 1.16.2 版本
 
 - 提升 Demo 解析与本地存储能力，支持已有存档和缓存自动迁移。
 - 支持多 Demo 同时解析、单 Demo 多线程采样，提供均衡／极速／自定义性能模式。
@@ -191,15 +191,15 @@ Electron 正式版使用 `npm run desktop:build:mac:arm64` / `npm run desktop:bu
 
 | 目标 | 命令 | `build/desktop/` 中的产物 |
 | --- | --- | --- |
-| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.0-mac-arm64.dmg` |
-| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.0-mac-x64.dmg` |
-| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.0-win-x64.exe` |
+| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.2-mac-arm64.dmg` |
+| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.2-mac-x64.dmg` |
+| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.2-win-x64.exe` |
 
 macOS 安装 Xcode Command Line Tools 后，执行一次 `rustup target add aarch64-apple-darwin x86_64-apple-darwin`，即可在同一台 Mac 分别构建两种架构。Windows 使用 x64 Node.js、Rust MSVC 和带 C++ 工作负载／Windows SDK 的 Visual Studio Build Tools。命令自动匹配 Rust 与 Electron 架构，不自动上传；签名凭据需另行配置。
 
 #### GitHub Actions 自动化
 
-将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.16.0` tag，或在 **Actions → Desktop release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
+将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.16.2` tag，或在 **Actions → Desktop release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
 
 工作流测试并构建三个目标，检查实际安装包内容和包内原生存储，全部通过后把安装包及 `SHA256SUMS.txt` 上传到 **草稿 Release**。不会自动公开发布，也不会覆盖已发布版本；重跑只更新同一提交的草稿。检查安装运行后，在 GitHub 点击 **Publish release**。
 
@@ -214,7 +214,7 @@ macOS 安装 Xcode Command Line Tools 后，执行一次 `rustup target add aarc
 右上角“桌面管理”可查看空间占用、按最近使用清理 Demo 缓存、创建和恢复备份，以及查看或取消后台任务。备份包含原生存档、Demo 缓存和导入资源，不包含原始 `.dem`、浏览器偏好及未保存内容。恢复重启后生效，恢复前的数据保留在数据目录的 `restores` 文件夹。可为本次运行开启任务期间防自动休眠；窗口最小化时暂停 3D 绘制，后台解析继续。
 
 
-通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.16.0` 版本时才需设置 `BUILD_VERSION`。
+通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.16.2` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式
 

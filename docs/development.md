@@ -189,7 +189,7 @@ ASAR 读取接口在 Windows 上按系统路径分隔符查找条目；安装包
 
 - 常用启动、构建及部署以 npm 为唯一入口；Make 仅保留资源准备、Workers dry-run 与 Docker 一键启动。图标、后台任务和页面构建由内部脚本串联，不维护重复 npm/Make 别名。`desktop:prepare -- --local-models` 保留带模型测试包；不要把低频解析诊断脚本当作无用文件删除。
 - 发布流程见三语 README 的“GitHub Actions”说明。`.github/workflows/desktop-release.yml` 校验 tag／package／lockfile／changelog 后按固定 commit 构建三个目标；全部通过才上传草稿 Release 与 SHA-256。仅汇总任务有 `contents: write`，使用内置 token；重跑拒绝覆盖已发布版本或不同 commit 的草稿。安装包默认未签名，首次云端运行与安装验证仍需分别确认。
-- 版本号看当前 `package.json` 和发布文件，不沿用对话里的旧版本。发布任务才统一核对 lockfile、版本显示、Docker 默认 tag 和三语 changelog／README；普通重构不擅自升版。
+- 版本号看当前 `package.json` 和发布文件，不沿用对话里的旧版本。发布任务才统一核对 lockfile、版本显示、Docker 默认 tag 和三语 changelog／README；先提交这些变更，再为该提交创建 tag。已推送的失败 tag 仍指向旧提交，重新运行不会读取后续修复；使用下一版本 tag，不移动已公开 tag。普通重构不擅自升版。
 - 原创代码采用 `GPL-3.0-only`，第三方软件、字体、解析器和游戏资源不因此改许可证。以 `LICENSE_SCOPE.md`、`THIRD_PARTY_NOTICES.md` 和来源说明为准；不要把来源分组或重新绘制当成自动获得外部素材分发权。
 - 保留必要三方鸣谢，文档正常说明来源和许可即可；不需要反复强调“UI 资源由自己完成”。
 - 用户重视有效、简洁、易懂的注释与说明。日常经验集中维护在本文；`.local/module-relationships.md` 是可选本地图，不可作为新 checkout 必然存在的唯一资料。

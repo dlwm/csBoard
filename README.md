@@ -8,7 +8,7 @@
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one application.
 
-## Version 1.16.0
+## Version 1.16.2
 
 - Improve Demo parsing and local storage, with automatic migration of existing archives and caches.
 - Parse multiple Demos concurrently, enable multithreaded sampling, and choose Balanced / Fast / Custom performance modes.
@@ -191,15 +191,15 @@ Release packages are limited to these three targets. Run macOS commands on macOS
 
 | Target | Command | Output in `build/desktop/` |
 | --- | --- | --- |
-| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.0-mac-arm64.dmg` |
-| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.0-mac-x64.dmg` |
-| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.0-win-x64.exe` |
+| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.2-mac-arm64.dmg` |
+| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.2-mac-x64.dmg` |
+| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.2-win-x64.exe` |
 
 On macOS, install Xcode Command Line Tools and run `rustup target add aarch64-apple-darwin x86_64-apple-darwin` once to build both architectures on one Mac. On Windows, use x64 Node.js, Rust MSVC and Visual Studio Build Tools with the C++ workload and Windows SDK. The commands select matching Rust and Electron targets and never publish automatically. Signing credentials must be configured separately.
 
 #### GitHub Actions
 
-Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.16.0` tag pointing at the version commit, or run **Actions → Desktop release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
+Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.16.2` tag pointing at the version commit, or run **Actions → Desktop release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
 
 The workflow tests and builds all three targets, checks packaged contents and native storage, then attaches the installers plus `SHA256SUMS.txt` to a **draft Release**. It never publishes the draft or overwrites a published release. Reruns update only a draft for the same commit. Check installation before selecting **Publish release** on GitHub.
 
@@ -214,7 +214,7 @@ Desktop → Parser performance offers Balanced (default), Fast and Custom modes.
 Desktop → Storage & backups shows database, cache and resource usage, supports manual least-recently-used cache cleanup, and creates verified backup folders. Restore replaces native data and imported resources on restart while retaining the previous directories. Original Demo files, browser preferences and unsaved work are not included. Background tasks are bounded and cancellable; automatic sleep prevention is optional for the current session.
 
 
-To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.16.0` image version.
+To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.16.2` image version.
 
 ## Controls
 
