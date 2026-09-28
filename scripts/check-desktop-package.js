@@ -15,8 +15,10 @@ const archive = path.join(resources, 'app.asar');
 const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
 const packaged = JSON.parse(extractFile(archive, 'package.json').toString());
 if (packaged.version !== pkg.version || packaged.csboardLocalModels) throw new Error('Wrong packaged version or local-model test build');
-for (const file of ['electron/main.js', 'electron/preload.cjs', 'build/renderer/index.html', 'build/tasks/demo.js', 'build/tasks/data.js']) extractFile(archive, file);
-const names = listPackage(archive).map(name => name.replaceAll('\\', '/'));
+for (const file of ['electron/main.js', 'electron/preload.cjs', 'build/renderer/index.html', 'build/tasks/demo.js', 'build/tasks/data.js']) {
+  extractFile(archive, path.join(...file.split('/')));
+}
+const names = listPackage(archive).map(name => name.replaceAll(path.win32.sep, '/'));
 if (names.some(name => /(^|\/)\.local(\/|$)|\.glb$/i.test(name))) throw new Error('Local resources leaked into app.asar');
 async function inspect(directory) {
   for (const item of await fs.readdir(directory, { withFileTypes: true })) {
