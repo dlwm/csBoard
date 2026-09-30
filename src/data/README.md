@@ -21,4 +21,4 @@ floor selection, and per-floor elevation shading (higher areas are lighter).
 Desktop releases use user-imported GLB resources without OSS fallback; only
 explicit local-test packages include local models. See docs/resource-packs.md.
 Navigation data remains subject to the game-content exclusions in
-[LICENSE_SCOPE.md](../../LICENSE_SCOPE.md); bundling it does not grant additional rights.
+[LICENSE_SCOPE.md](../../docs/LICENSE_SCOPE.md); bundling it does not grant additional rights.

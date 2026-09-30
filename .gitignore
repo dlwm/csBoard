@@ -1,11 +1,13 @@
 node_modules/
 dist/
 build/
+!/config/build/
+!/config/build/**
 .build-version
 .wrangler/
 .env.production.local
 .env.local
-deploy.cloudflare.env
+config/cloudflare/deploy.env
 *.dem
 ref
 .idea/

@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 NPX ?= npx
 DOCKER ?= docker
-COMPOSE ?= $(DOCKER) compose
+COMPOSE ?= $(DOCKER) compose -f config/docker/compose.yml
 .DEFAULT_GOAL := help
 
 .PHONY: help resources nav-data map-export workers-build docker
@@ -25,7 +25,7 @@ help:
 		'  make map-export                     Export local VPK map resources' \
 		'  make workers-build                  Build Workers without deploying' \
 		'  make docker                         Build and start Docker services' \
-		'Use docker compose down/logs/ps directly to manage containers.'
+		'Use docker compose -f config/docker/compose.yml down/logs/ps directly to manage containers.'
 
 resources:
 	node scripts/ensure-maps.js
@@ -37,6 +37,7 @@ map-export:
 	bash scripts/export-map.sh
 
 workers-build:
+	node scripts/build-go-parser.js
 	@version="$$(scripts/resolve-build-version.sh)" && \
 	VITE_BUILD_VERSION="$$version" $(NPX) wrangler deploy \
 		--config config/cloudflare/wrangler.backend.jsonc --dry-run --outdir build/workers/backend && \

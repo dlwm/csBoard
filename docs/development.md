@@ -4,6 +4,10 @@
 
 ## 从哪里开始
 
+源码按职责放在 `src/`、`electron/`、`server/`、`shared/` 和 `native/`；Go 解析与存储分别是 `native/parser/`、`native/storage/` 两个模块。构建配置在 `config/build/`，本地打包配置在 `config/electron/`，容器配置在 `config/docker/`，部署设置与示例在 `config/cloudflare/`。根目录保留包管理、页面入口、Make 命令、项目说明及 `AGENTS.md`。
+
+移动源码与配置时，以项目根路径解析输入和产物；不要让配置目录变成 Vite root 或 Docker 构建上下文。生成产物的路径和解析器运行时 URL 独立于源码位置，当前仍使用 `build/go-parser/`、`build/native/` 和页面内 `go-parser/`。本地 `.local`、IDE 设置和旧构建缓存不因源码整理而清理。
+
 | 要修改的功能 | 主要位置 |
 | --- | --- |
 | 页面组装、面板切换、跨功能联动 | `src/main.jsx` |
@@ -15,16 +19,19 @@
 | 共享界面与通用交互 | `src/components/`、`src/hooks/` |
 | 本地持久化、资源包与运行环境 | `src/app/`、`src/platform/` |
 | 桌面主进程、资源导入与 IPC | `electron/` |
-| 桌面原生解析、SQLite 与大数据文件 | `native/`、`electron/native-*.js` |
+| Demo 解析器、SQLite 与大数据文件 | `native/parser/`、`native/storage/`、`electron/native-*.js` |
 | HTTP 与协作服务端 | `server/` |
+| 浏览器与服务端共用的传输协议 | `shared/` |
 
 `main.jsx` 仍负责部分 Demo 会话、表单状态及跨功能编排；`ThreeBoard.jsx` 仍负责场景生命周期和渲染循环。两者不是纯粹的组件拼装文件。
+
+根目录 `shared/` 当前只有演播分块传输协议，供浏览器与 Node／Cloudflare 服务端共同导入；`src/platform/shared/` 则是 Web 与桌面后台共用的页面业务逻辑。两处的共享范围不同。
 
 ## 数据与状态
 
 **协作**：`archiveStore` 管理存档列表和顺序写入，`archiveCommands` / `archiveRestore` 处理保存与恢复的数据规则。`frameSession` 管理帧集合和当前帧；`workspaceSession` 管理入房前的本地会话与跨地图恢复。房间监听由 `roomConnection` 管理，Yjs 发布和读取集中在 `roomFrames` / `roomWorkspace`。React hook 负责订阅、生命周期和连接适配。
 
-**Demo**：`useDemoBatchParser` 管理批量任务；`useDemoRoundData` / `roundDataStore` 加载当前回合数据并隔离过期请求；`useDemoViewState` 计算展示所需的派生状态。Demo 缓存使用 `demoCache.js`，不是用户存档的存储入口。`parserRuntime.js` 为 Web Worker 和桌面后台提供独立会话；桌面调用 Rust 可执行文件，浏览器调用 WASM。
+**Demo**：`useDemoBatchParser` 管理批量任务；`useDemoRoundData` / `roundDataStore` 加载当前回合数据并隔离过期请求；`useDemoViewState` 计算展示所需的派生状态。Demo 缓存使用 `demoCache.js`，不是用户存档的存储入口。`parserRuntime.js` 为 Web Worker 和桌面后台提供独立会话；桌面调用 Go 可执行文件，浏览器调用同一适配层构建的 Go WASM。
 
 **道具**：`useUtilityNotes` 管理记录的加载、迁移与写入，`noteSchema` 处理版本兼容，`mergeUtilityNotes` 处理导入去重，`savedThrow` 转换解析结果，`useUtilityReplayPlayback` 管理回放时序。道具记录和协作存档通过 `app/persistentStore.js` 写入桌面 SQLite 或浏览器 IndexedDB。
 
@@ -43,6 +50,8 @@
 
 ## 验证
 
+容器命令使用 `docker compose -f config/docker/compose.yml`；配置显式保留 `csboard` 项目名与原模型挂载位置。私有部署配置在被 Git 和 Docker 排除的 `config/cloudflare/deploy.env`，`CF_DEPLOY_CONFIG` 仍可指定外部配置。
+
 在项目根目录运行：
 
 ```bash
@@ -55,7 +64,7 @@ make workers-build
 
 测试断言应观察公开接口的返回值、持久化结果、事件和任务顺序，不扫描源码变量名、组件名或 shader 片段。可以模拟时钟、硬件预算和外部服务，但应执行实际业务模块。生成 SVG 等产品输出的内容检查仍然有效；材质 uniform 检查不能替代 GPU 画面回归。
 
-原生存储测试启动真实 Rust 子进程，使用系统临时目录，结束前等待进程退出；缺少原生组件会直接失败，不再静默跳过。调度／内存测试覆盖并发预算、排队、取消、失败和恢复；发布测试使用模拟 HTTP，不访问 GitHub 或创建 Release。
+原生存储测试启动真实 Go 子进程，使用系统临时目录，结束前等待进程退出；缺少原生组件会直接失败，不再静默跳过。调度／内存测试覆盖并发预算、排队、取消、失败和恢复；发布测试使用模拟 HTTP，不访问 GitHub 或创建 Release。
 
 `checks.yml` 在 PR 和 main/master 推送时运行工作流语法检查、行为测试、原生存储测试、前端构建及真实 Wrangler dry-run。配置是否能构建由实际工具验证；安装包是否混入本地模型由 `scripts/check-desktop-package.js` 检查实际 ASAR 和资源目录，并执行包内原生存储读写，不只检查配置中的排除字符串。
 
@@ -68,6 +77,8 @@ ASAR 读取接口在 Windows 上按系统路径分隔符查找条目；安装包
 ## 项目经验与行为约定
 
 以下记录来自功能迭代和故障修复，最近核对于 2026-09-22。它不是未来功能清单；路径、常量和实现仍以当前代码为准。修改已确认行为前，说明原因及影响，不要把旧设计当作待修复问题。
+
+Changelog 面向应用用户，记录功能、体验、兼容性、性能和问题修复；源码路径、项目目录整理与内部模块拆分留在开发文档。涉及内部实现的功能变化，应说明用户能感知的结果。
 
 ### 重构与运行时错误
 
@@ -82,7 +93,7 @@ ASAR 读取接口在 Windows 上按系统路径分隔符查找条目；安装包
 ### 坐标、楼层与相机
 
 - 游戏／NAV 坐标、Three.js 场景坐标、雷达投影和烟雾字节轴不是同一种约定。沿已有转换函数追踪一次，不要在多个调用方分别交换轴或反号。
-- 烟雾渲染字节轴映射经用户调试确认是场景 **`+B +A +C`**，见 `smokeVoxelVolume.js`。已去掉临时调试器；不能凭观感随意改回。解码和场景转换要一起检查，避免重复交换。
+- 烟雾渲染字节轴映射是场景 **`+B +A +C`**，见 `smokeVoxelVolume.js`。解码和场景转换要一起检查，避免重复交换。
 - 2D 雷达使用 NAV 顶视图，不是把任意长宽比截图拉伸到正方形。上下层共享正方形世界范围与缩放；高度深浅来自 NAV 高度，不是水平位置。
 - 楼层分界集中在 `data/navTopView.js`，2D 与 3D 必须一致。Nuke、Train、Vertigo 都应回归；Train 曾因分界取值把主地面错误归到下层。
 - Anubis 曾因模型底部无意义几何影响包围盒，出现旋转中心过低。改相机中心时先核查有效地面、NAV 与模型范围，不要只调整 Y 偏移或正负号。
@@ -95,7 +106,7 @@ ASAR 读取接口在 Windows 上按系统路径分隔符查找条目；安装包
 ### 烟、火及道具数据
 
 - Demo 烟雾形状来自记录中的体素帧；GLB 不是解码体素的前提。不能把缺模型等同于无法回放烟雾，也不能把效果近似称为完全还原游戏画面。
-- 当前烟雾复用体素构成的 metaball 密度场，用单个三维纹理沿视线积累遮挡；高密度内部应基本不透、边缘平滑变淡，不叠加独立烟球或同心颗粒外壳。`SMOKE_VOLUME_SCALE` 当前为 **1.32**；此前的 1.5、1.25、1.125、1.1、1.14、1.18 是历史试调，不是当前需求。回合浏览、道具速记和协作导入应保持相同基准。
+- 当前烟雾复用体素构成的 metaball 密度场，用单个三维纹理沿视线积累遮挡；高密度内部应基本不透、边缘平滑变淡，不叠加独立烟球或同心颗粒外壳。`SMOKE_VOLUME_SCALE` 当前为 **1.32**；回合浏览、道具速记和协作导入应保持相同基准。
 - 回放中的 HE 炸烟在密度采样时按爆点暂时减去烟量，不能永久改写原始体素帧；时间倒退、切回合及演播片段中途开始都应重算。Valve 确认烟雾会响应爆炸且 HE 不应隔墙影响烟，但未公布可直接使用的炸烟半径；当前半径是视觉近似，不是游戏权威常量。
 - 有真实火焰数据时使用 `CInferno` 的火点、法线和燃烧状态；视觉是贴合 NAV 的单色不规则合并表面，内部填充不应露出独立圆边。手动 Q 添加或缺真实数据时才采用默认范围；调整范围后要更新几何。
 - 烟、闪、雷、诱饵可能空中生效，标记不要强行压到最近地面；轨迹终点与显示位置应对应。火焰贴地是另一条渲染路径。
@@ -127,20 +138,26 @@ ASAR 读取接口在 Windows 上按系统路径分隔符查找条目；安装包
 
 ### 桌面原生组件
 
-- `npm run native:build` 需要 Git、Rust/Cargo 和目标平台 C 编译工具链（SQLite 随 Rust 程序编译）。脚本在 `.local/native-demoparser` 准备固定上游 revision，按顺序应用现有两份 WASM 兼容补丁及 `native/tick-segments.patch` 原生采样补丁，使用仓库已生成的 protobuf，避免构建时下载浮动 GameTracking HEAD。保留 `native/Cargo.lock`。已有源码或补丁不匹配时停止，不重置用户文件。
-- Windows 上这两份补丁会连续修改同一上游 Rust 文件；补丁文件和新克隆的上游源码必须保持 LF 换行。仓库用 `.gitattributes` 固定补丁换行，原生构建脚本在克隆时关闭 `core.autocrlf`。已失败的本地 `.local/native-demoparser` 可能只应用了第一份补丁，脚本会保留该目录并报错；确认没有个人改动后移走它再重新构建。
-- 支持的发布目标为 macOS arm64/x64 和 Windows x64（amd64），不提供 Linux 安装包。`desktop:prepare`、`desktop:dev` 和桌面构建脚本会先构建原生程序；安装后的用户不需要 Rust、Node 或 Python 环境。发布所需原生产物在 `build/native/mac-arm64`、`mac-x64` 或 `win-x64`，通过 `extraResources` 放到 ASAR 外；打包前检查目标架构。`CSBOARD_NATIVE_TARGET` 可指定 Rust target，但仍需对应 linker/SDK；默认只编译宿主平台，不能用 Mac 二进制填充 Windows 包。
-- `native-services.js` 管理文件选择、任务及独立存储进程；`native-demo-task.js` 在 utilityProcess 中复用 JS 回合整理，调用独立 Rust 解析进程。输入文件不经过页面，回合数据在后台持久化成功后才报告任务完成。桌面解析由 `parse-performance.js` 按核心数、可用内存、文件大小和运行任务的观测内存决定并发及每个 Rust 线程池的大小；计算仍单任务。性能设置在桌面管理中保存为均衡／极速／自定义，默认均衡。内存预算用于任务准入，不是操作系统硬限制，不能宣称无限内存或始终满核。
-- 单 Demo 仅安全的 tick 查询进入 Rayon 分段路径，并跳过不含请求 tick 的 full-packet 片段。片段边界 tick 两侧均保留，出现 tick 倒退则保留全量扫描。事件、烟火日志、上游标记不安全的属性及按键查询保持串行；实测 Nuke 的 FIRE 状态会跨分段，不能仅依赖上游属性黑名单判断安全。
-- 原生与 JS 进程分别统计峰值 RSS，二者之和用于保守准入和诊断，不等同于同一瞬间总峰值。macOS 使用 free + inactive 页、Linux 使用 MemAvailable；其余平台回退 Node 可用内存，原生峰值 RSS 目前仅 Unix 提供。窗口最小化不改变解析预算。
+- `npm run native:build` 构建 Go SQLite 存储组件，模块与校验值固定在 `native/storage/go.mod`／`native/storage/go.sum`，使用 modernc.org/sqlite 并设置 `CGO_ENABLED=0`，无需 Rust/Cargo 或 C 编译器。沿用数据库 user_version=2、原表结构和 SHA-256 命名的 gzip 缓存，不清空或迁移用户数据。`.local/native-demoparser` 与旧对照二进制不是当前依赖，不自动删除。
+- 支持的发布目标为 macOS arm64/x64 和 Windows x64（amd64），不提供 Linux 安装包。`desktop:prepare`、`desktop:dev` 和桌面构建脚本会先构建原生程序；安装后的用户不需要 Go、Node 或 Python 环境。发布所需原生产物在 `build/native/mac-arm64`、`mac-x64` 或 `win-x64`，通过 `extraResources` 放到 ASAR 外；打包前检查目标架构。`CSBOARD_NATIVE_TARGET` 可指定 `darwin-arm64`、`darwin-x64` 或 `win32-x64`，与 Electron 目标同步；默认只编译宿主平台，不能用 Mac 二进制填充 Windows 包。
+- `native-services.js` 管理文件选择、任务及独立存储进程；`native-demo-task.js` 在 utilityProcess 中复用 JS 回合整理，调用独立 Go 解析进程。输入文件不经过页面，回合数据在后台持久化成功后才报告任务完成。桌面解析由 `parse-performance.js` 按核心数、可用内存、文件大小和运行任务的观测内存决定并发及每个 Go 进程的 GOMAXPROCS；计算仍单任务。性能设置在桌面管理中保存为均衡／极速／自定义，默认均衡。内存预算用于任务准入，不是操作系统硬限制，不能宣称无限内存或始终满核。
+- 单 Demo 的回合、分析、投掷前动作及武器匹配 tick 合并成 `prepareTicks` 计划，一次顺序扫描后按查询取数据，结束后 `releaseTicks`。Go 的线程配置不等于按 tick 并行解码；实体状态、事件和烟火日志仍有顺序依赖。内部消息队列有固定上限，不随 Demo tick 数量增长。浏览器设置 Go 的 GC 软内存目标，仍受 wasm32 线性内存限制。
+- 原生与 JS 进程分别统计峰值 RSS，二者之和用于保守准入和诊断，不等同于同一瞬间总峰值。Go 原生程序在 macOS/Linux 使用 getrusage、Windows 使用 GetProcessMemoryInfo；窗口最小化不改变解析预算。
 - 批量缓存检查走 `cache.inspect` 小型摘要，避免每个候选 Demo 都把整份分析数据载入页面。旧缓存由存储进程提取摘要，不改写原缓存。原生 RPC 封装移动 JSON Value，JS null 适配原地修改新收到的数据，避免大烟雾日志的额外深拷贝。
-- 性能验证使用 `CS2_PROF=1 node scripts/benchmark-native-parser.js sample.dem --threads 4 --output /tmp/parser-result`；`--threads 1` 是串行基线。按相同采样率比较完整回合及 Demo 输出（浮点容差、类型化数组和顺序均需检查），再检查真实 Electron 批量并发、最小化、取消和打开缓存。单个样本提速不能推断所有 Demo 都等比例提速。
+- 性能验证使用 `node scripts/benchmark-native-parser.js sample.dem --threads 4 --output /tmp/parser-result`；`--threads 1` 限制 Go 调度并行度，不代表另一个解析算法。按相同采样率比较完整回合及 Demo 输出（浮点容差、类型化数组和顺序均需检查），再检查真实 Electron 批量并发、最小化、取消和打开缓存。单个样本提速不能推断所有 Demo 都等比例提速。
 - SQLite 位于 `app.getPath('userData')/native-data/csboard.sqlite3`，用户集合拆成条目行，仅更新变化行；目录单独保存。Demo 载荷保存在 `blobs` 下的校验和命名 gzip 文件，落盘后发布数据库引用。只删除没有其他引用的已知缓存文件，不清理用户存档；异常退出可能留下无引用文件；桌面管理可显式清理合法校验和文件名的未引用缓存，不自动全盘清理。
 - `persistentStore` 首次读取缺失的原生 key 时导入旧 IndexedDB，事务中只在 key 不存在时写入，较新的原生保存优先。Demo 迁移在 `legacyCacheMigration.js` 中执行，逐回合校验，成功后记录完成标记；保留旧数据库。迁移不能调用浏览器缓存的升级清空逻辑，也不能在原生存储失败后悄悄写入另一个后端。
-- 原生通信通过 `storageCodec.js` 保留类型化数组、空值等数据；不能直接用普通 JSON 丢失烟雾体素类型。解析器的 Rust `Option::None` 在 JSON 中为 null，适配层恢复为 WASM 原有的 undefined。
+- 原生通信通过 `storageCodec.js` 保留类型化数组、空值等数据；不能直接用普通 JSON 丢失烟雾体素类型。Go JSON 的 null 由共用 `goParserAdapter.js` 转为已有业务约定的 undefined，不能把未知输入变成已确认的 false。
+- Go 存储替换已验证旧 Rust 写出的数据库和 gzip blob 可直接读写，Go 写出的数据也可被旧读者打开；快照、共享 blob、受保护缓存清理与事务回滚继续保持。macOS `vm_stat` 页大小头包含 `page size of`，不能漏掉 `of` 后把可回收内存统计变成 null；对应测试固定了实际输出格式。 89 项 Node 行为测试及 Go 内存统计测试通过，macOS arm64 应用包验证了最小化解析和缓存读取；Windows amd64／Intel Mac 存储组件仅完成交叉编译，Docker 守护进程未运行，未验证容器构建。
 - macOS 构建产物要复制到临时文件后原子替换可执行文件，不能覆盖已运行文件的 inode。回归中曾遇到磁盘签名有效但启动 SIGKILL；改用原子替换后原生存储与真实解析恢复。
 - 页面刷新、销毁或任务取消会终止所属解析任务；最小化不取消。存储进程独立于解析进程。关闭应用会终止后台组件，尚未完成的解析下次重新开始。
 - 原生修改除通用测试外，运行 `node scripts/verify-native-parser.js /path/to/sample.dem` 比较 Header、事件、采样坐标及烟火属性；浮点比较有容差，此脚本不是完整性能基准。用独立 Electron 数据目录检查最小化解析、打开缓存、快速切回合、迁移中保存、取消及失败后重试。Intel Mac、Windows 和签名安装包必须在对应环境另行验证。
+- 前端和桌面构建默认运行 `scripts/build-go-parser.js`，从 `native/parser/source.json` 固定的 `dlwm/demoinfocs` 提交准备 `.local/demoparser/demoinfocs`。工作区有未提交源码修改时停止；干净工作区与固定提交不同时自动检出目标提交。开发自己的 fork 时可显式用 `node scripts/build-go-parser.js --local-source` 或 `node scripts/build-frontend.js --desktop --local-source`，桌面测试包用 `npm run desktop:prepare -- --local-source`；发行命令及 CI 拒绝此参数；正式构建应先将 fork 改动推送，再更新固定 SHA。Go 适配层编译原生程序和浏览器 WASM，并复制同版本 `wasm_exec.js`。Go WASM 随页面产物交付，桌面包还包含对应目标架构的 Go 可执行文件。正式 Demo 导入已走 Go 会话协议和共用回合整理，缓存 schema 为 31；旧缓存不能掩盖新解析结果。HTTP `/api/parse` 兼容接口也调用同一 Go WASM，会话在请求结束时释放；同一 isolate 的请求串行执行，避免共用回调状态串扰。 Node 接口已用完美世界样本返回 14 回合和 585 个位置快照；本地 workerd 验证健康检查和无效输入，未验证生产大文件解析。离线投掷报告在同一样本生成 178 条记录；无独立 `grenade_thrown` 时使用道具 `weapon_fire`，保留 `releaseEvent` 来源和未知速度。Go fork 的模块路径仍是上游 `/v6`，本项目以本地 `replace` 指向固定 checkout。Go 1.27 工具链由 `GOTOOLCHAIN=auto` 选择，离线构建需提前准备工具链和模块缓存。
+- Go 的购买事件必须来自购买定义与金额的成对网络写入，不能比较数组快照：记录移位会制造新消费。售回标记按 `ItemRefund` 的完整武器 handle（包含 serial）匹配，不按购买槽位跨回合猜测；与旧 Rust 标记并非逐字相同。库存保留网络 weapon-handle 数组顺序；无按钮基线时保留缺失值，WALK 沿用业务 bit 18 约定。
+- 真实对照已覆盖完美世界、5E、HLTV 各一份 Demo 的 30 类业务事件数量与 tick、采样玩家状态和烟火数据；Go 原生完整导入分别生成 14／18／17 个回合。浏览器 Worker 完成完美世界及约 299 MB HLTV 样本；Electron utilityProcess 完成完美世界导入并写入 SQLite 缓存；macOS arm64 本地应用包在窗口最小化期间完成同一导入，包内 Go 原生程序与 SQLite 缓存读取正常。页面已验证导入、打开缓存、连续切换 3／9／2 回合和选手分析数据加载。未做所有平台和全部页面交互回归，对照脚本及样本留在 `.local/parser-compare/`。
+- 本地 Go fork 的检查点修复读取 FullPacket usercmd 建立基线，但不派发重复业务输入事件，拒绝旧检查点回滚较新状态。HLTV 缺基线警告由 147853 降至 10，剩余为同 tick 检查点之前的首条 delta；固定构建提交必须包含此修复才能复现这些结果。不要仅为对齐旧 Rust 的索引列表解码缺陷而保留过期输入状态。
+- CI 与桌面发布构建使用 `native/parser/go.mod` 选择 Go 工具链；更新固定提交或 Go 版本时，须让 `.github/workflows/checks.yml` 和 `desktop-release.yml` 一起可构建。`actionlint` 只能检查工作流语法，不能证明安装器在三个目标系统可运行。
+- 5E Dust2 样本的 Go 原生摘要能读到地图、107946 帧和 14974 条原始游戏事件，但原始 `GenericGameEvent` 中没有 `round_start`；Go 语义事件另有 18 条 `RoundStart`、18 条 `RoundEnd`、17 条 `RoundEndOfficial`。业务事件需要明确合并语义事件并核对回合切分，不能只转发原始事件。这个摘要不是完整回放协议。
 
 ### 桌面任务、备份与绘制
 
@@ -151,7 +168,7 @@ ASAR 读取接口在 Windows 上按系统路径分隔符查找条目；安装包
 - 桌面管理的容量是一次清理的目标，不是自动淘汰配额。备份／恢复／清理在无任务、无存储请求、无资源导入时取得维护锁，之后拒绝新写入。备份使用串行存储进程中的 VACUUM INTO 和引用 blob 文件快照，连同导入资源生成逐文件 SHA-256 清单；不包含浏览器偏好、未迁移的旧 IndexedDB、原始 Demo 或未保存编辑。
 - 恢复先校验清单、资源、SQLite 完整性及 blob 校验和，再发布 pending-restore 日志。重启时交换 native-data/resource-packs；进程在交换中途退出，下次启动回滚。之前的数据保留于 restores/<id>/previous，不自动删除。不要直接复制运行中 SQLite 主文件当作完整备份，也不要覆盖真实用户目录做回归。
 - `renderLoop.js` 同时观察页面可见性与 Electron 窗口的最小化／隐藏事件；不可见时取消 Three.js RAF，恢复后再启动。播放时间仍由实际经过时间决定。防自动休眠仅在用户为本次运行启用且存在后台任务时持有 blocker，任务结束或退出时释放。
-- 本轮在隔离目录验证了完整备份与真实自动重启恢复、损坏备份拒绝、交换的五个中断位置回滚、原生存储进程强制退出后重连、真实 Demo 解析与旧 IndexedDB 迁移。构建不能替代这些运行时检查；Windows/Linux 仍需对应环境验证。
+- 构建不能替代备份恢复、中断回滚、存储进程重连、真实 Demo 解析与旧 IndexedDB 迁移等运行时检查；Windows/Linux 仍需对应环境验证。
 
 ### Web 与桌面的职责边界
 
@@ -160,8 +177,8 @@ ASAR 读取接口在 Windows 上按系统路径分隔符查找条目；安装包
 - `platform/shared/analysis.js` 共用分析查询：先返回小型选手目录，选中 Demo 后逐回合读取并聚合。Web 在 Worker 中读 IndexedDB；桌面由 `data-service.js` 启动 utilityProcess，调用原生缓存。取消、页面导航和销毁会停止任务；旧结果不能覆盖新选择。当前仍返回所选分析结果及其烟火上下文，并非无限内存或完全分页查询。
 - 桌面 `records` 按条目编码比较，只向 SQLite 发送变化 slot、集合长度和元数据，事务一次提交；成功后才更新比较基线。条目编码仍在页面执行，排序导致 slot 改变时会重新发送对应条目。Web 集合保持原 IndexedDB 格式，原生迁移保留源数据库。
 - JSON 导入／导出及演播序列化使用 `compute` 服务。文件读取和最终下载仍使用现有文件入口；结构化克隆和页面展示仍占内存，不能称为完全流式文件管线。
-- Web 构建输出 `dist/`；桌面页面输出 `build/renderer/`，后台任务由 `vite.tasks.config.js` 从两个入口打包到 `build/tasks/`，自动追踪领域模块依赖。不要手工追加一串共享源码到安装包白名单。资源清单位于 `src/resources/catalog.json`，图标由同一 SVG 生成 PNG／ICO／ICNS。
-- `package.json` 的 `build` 是正式包配置，`electron-builder.local.cjs` 继承并仅追加本地测试模型及名称。发布入口仅保留 `desktop:build:mac:arm64`、`desktop:build:mac:x64`、`desktop:build:win:x64`；`scripts/package-desktop.js` 同步选择 Electron 与 Rust target，拒绝跨操作系统打包和冲突的环境变量。安装包名包含系统与架构，构建不自动上传。桌面与 Web 共用 React / Three / Yjs 领域功能，不复制两份页面。
+- Web 构建输出 `dist/`；桌面页面输出 `build/renderer/`，后台任务由 `config/build/vite.tasks.config.js` 从两个入口打包到 `build/tasks/`，自动追踪领域模块依赖。不要手工追加一串共享源码到安装包白名单。资源清单位于 `src/resources/catalog.json`，图标由同一 SVG 生成 PNG／ICO／ICNS。
+- `package.json` 的 `build` 是正式包配置，`config/electron/local.cjs` 继承并仅追加本地测试模型及名称。发布入口仅保留 `desktop:build:mac:arm64`、`desktop:build:mac:x64`、`desktop:build:win:x64`；`scripts/package-desktop.js` 同步选择 Electron 与 Go target，拒绝跨操作系统打包和冲突的环境变量。安装包名包含系统与架构，构建不自动上传。桌面与 Web 共用 React / Three / Yjs 领域功能，不复制两份页面。
 - 演播 HTTP 协议见 `shared/broadcast-transfer.js`、`server/core/broadcastTransfer.js`。单块 64 KiB、单载荷最多 128 MiB，逐块 SHA-256，Yjs 只保存带 manifest 校验值的摘要。Node 分块写临时目录，Cloudflare 写 Durable Object 存储；房间到期清理。上传凭证不放入 Yjs。新前端必须与支持该协议的后端一起更新，旧房间需由更新后的房主重开；本地存档格式未改变。
 - 烟雾密度场缓存最多约 16 MiB（字段和键），GPU 纹理仍由各场景独立释放。多视角共用一次场景矩阵更新；分析轨迹依赖数据引用与筛选值重建、时间定位用二分查找。这些改动不代表已测得 FPS 提升。
 
@@ -183,18 +200,15 @@ ASAR 读取接口在 Windows 上按系统路径分隔符查找条目；安装包
 - Wrangler 配置位于 `config/cloudflare/`。从项目根目录执行脚本，保留根目录 `.wrangler/state`；配置内资源路径与 `build.cwd` 的相对基准不同，搬配置后需 dry-run 验证。部署命令不是只读检查，不作为默认验证步骤。
 - Worker UI 资源包由 `.local/worker-resource-pack.json` 在前端构建时选取 SVG，缺配置沿用内置图标；本地 `dev:workers` 与生产前端必须走同一构建脚本，否则本地击杀栏会误显示旧图标。不要把本地 GLB 顺手复制进 Workers Static Assets，模型仍走 OSS。资源包修改需用 Wrangler dry-run 核对实际资产清单。
 - Docker 挂载、Node 模型路径、Electron 测试打包与地图脚本需共同检查；当前本地官方模型目录是 `.local/official/maps`，不要只改某一个入口。
-- `eyeletic.com`、`notificationContentScript` 等报错曾来自疑似浏览器扩展注入。先查项目引用、请求发起源及禁用扩展复现，不要直接放宽项目 CORS，更不能关闭浏览器安全策略。
+- 遇到异常跨域请求或内容脚本报错时，先查项目引用和请求发起源，并禁用浏览器扩展复现；不要直接放宽项目 CORS 或关闭浏览器安全策略。
 
-### 发布、许可证与交付习惯
+### 发布与许可证
 
 - 常用启动、构建及部署以 npm 为唯一入口；Make 仅保留资源准备、Workers dry-run 与 Docker 一键启动。图标、后台任务和页面构建由内部脚本串联，不维护重复 npm/Make 别名。`desktop:prepare -- --local-models` 保留带模型测试包；不要把低频解析诊断脚本当作无用文件删除。
 - 发布流程见三语 README 的“GitHub Actions”说明。`.github/workflows/desktop-release.yml` 校验 tag／package／lockfile／changelog 后按固定 commit 构建三个目标；全部通过才上传草稿 Release 与 SHA-256。仅汇总任务有 `contents: write`，使用内置 token；重跑拒绝覆盖已发布版本或不同 commit 的草稿。安装包默认未签名，首次云端运行与安装验证仍需分别确认。
-- 版本号看当前 `package.json` 和发布文件，不沿用对话里的旧版本。发布任务才统一核对 lockfile、版本显示、Docker 默认 tag 和三语 changelog／README；先提交这些变更，再为该提交创建 tag。已推送的失败 tag 仍指向旧提交，重新运行不会读取后续修复；使用下一版本 tag，不移动已公开 tag。普通重构不擅自升版。
-- 原创代码采用 `GPL-3.0-only`，第三方软件、字体、解析器和游戏资源不因此改许可证。以 `LICENSE_SCOPE.md`、`THIRD_PARTY_NOTICES.md` 和来源说明为准；不要把来源分组或重新绘制当成自动获得外部素材分发权。
-- 保留必要三方鸣谢，文档正常说明来源和许可即可；不需要反复强调“UI 资源由自己完成”。
-- 用户重视有效、简洁、易懂的注释与说明。日常经验集中维护在本文；`.local/module-relationships.md` 是可选本地图，不可作为新 checkout 必然存在的唯一资料。
-- 工作区可能有大量尚未提交的连续改动。先看 `git status`，不覆盖用户工作，不自动提交／发布。用户说“自己继续”意味着连续推进已授权目标，不代表允许部署或删除数据。
-- 汇报明确区分自动测试、构建、页面冒烟、真实双客户端与真实性能测量。修复了明显开销但没测 FPS，就不要宣称具体提升；模拟连接通过也不能说联网完整回归通过。
+- 版本号以当前 `package.json` 和发布文件为准。发布任务统一核对 lockfile、版本显示、Docker 默认 tag 和三语 changelog／README；先提交这些变更，再为该提交创建 tag。已推送的失败 tag 仍指向旧提交，重新运行不会读取后续修复；使用下一版本 tag，不移动已公开 tag。
+- 原创代码采用 `GPL-3.0-only`，第三方软件、字体、解析器和游戏资源不因此改许可证。以 `docs/LICENSE_SCOPE.md`、`docs/THIRD_PARTY_NOTICES.md` 和来源说明为准；不要把来源分组或重新绘制当成自动获得外部素材分发权。
+- 保留必要三方鸣谢，按来源和许可说明第三方资源。
 
 ## 按改动选择回归场景
 
@@ -211,7 +225,6 @@ ASAR 读取接口在 Windows 上按系统路径分隔符查找条目；安装包
 
 ## 专项说明
 
-- [WASM 构建与解析器补丁](../src/wasm/README.md)
 - [地图与 NAV 数据](../src/data/README.md)
 - [默认道具与存档数据](../src/default-data/README.md)
 - [桌面资源包](resource-packs.md)

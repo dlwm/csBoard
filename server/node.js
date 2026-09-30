@@ -8,7 +8,8 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
-import { parseEvents, parseHeader, parseTicks } from '@laihoe/demoparser2';
+import '../build/go-parser/web/wasm_exec.js';
+import { createGoHttpParser } from './go-parser.js';
 import { createHttpHandler } from './core/http.js';
 import { createYjsRoom, handleYjsMessage, removeSocketAwareness, sendSyncStep1 } from './core/yjs.js';
 
@@ -19,11 +20,9 @@ const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 // Docker and local development can point this at an external read-only model mount.
 const LOCAL_MAPS_DIR = path.resolve(process.env.LOCAL_MAPS_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.local', 'official', 'maps'));
 const env = { MAP_BASE_URL: process.env.MAP_BASE_URL || '' };
-const handleHttp = createHttpHandler({
-  parseHeader,
-  parseEvents,
-  parseTicks: (bytes, props, ticks) => parseTicks(bytes, props, ticks, null, false),
-});
+const handleHttp = createHttpHandler(createGoHttpParser(async () => WebAssembly.compile(
+  await fs.promises.readFile(new URL('../build/go-parser/web/parser.wasm', import.meta.url)),
+)));
 const rooms = new Map();
 
 function getRoom(name) {

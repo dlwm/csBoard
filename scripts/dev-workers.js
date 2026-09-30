@@ -1,9 +1,11 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const wrangler = path.join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+const build = spawnSync(process.execPath, [path.join(root, 'scripts/build-go-parser.js')], { cwd: root, stdio: 'inherit' });
+if (build.error || build.status !== 0) throw build.error || new Error('Go parser build failed');
 const children = [
   spawn(process.execPath, [path.join(root, 'scripts', 'map-server.js')], { cwd: root, stdio: 'inherit' }),
   // Pin persistence to the existing root directory when relocating the config;

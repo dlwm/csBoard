@@ -1,0 +1,26 @@
+name: csboard
+
+services:
+  csboard:
+    build:
+      context: ../..
+      dockerfile: config/docker/Dockerfile
+      args:
+        BUILD_VERSION: ${BUILD_VERSION:-v1.17.0}
+
+    container_name: csboard
+    restart: unless-stopped
+
+    ports:
+      - "${PORT:-3000}:3000"
+
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      LOCAL_MAPS_DIR: /app/.local/official/maps
+
+    volumes:
+      - type: bind
+        source: ../../.local/official/maps
+        target: /app/.local/official/maps
+        read_only: true

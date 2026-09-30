@@ -4,7 +4,7 @@
   "author": "colvin chen",
   "license": "GPL-3.0-only",
   "private": true,
-  "version": "1.16.2",
+  "version": "1.17.0",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -16,8 +16,8 @@
     "files": [
       "electron/**/*",
       "LICENSE",
-      "LICENSE_SCOPE.md",
-      "THIRD_PARTY_NOTICES.md",
+      "docs/LICENSE_SCOPE.md",
+      "docs/THIRD_PARTY_NOTICES.md",
       "package.json",
       "build/renderer/**/*",
       "build/icons/icon.png",
@@ -28,6 +28,13 @@
       {
         "from": "build/native/${os}-${arch}",
         "to": "native",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "build/go-parser/native/${os}-${arch}",
+        "to": "go-parser",
         "filter": [
           "**/*"
         ]
@@ -77,7 +84,6 @@
   "dependencies": {
     "@fontsource/dm-mono": "^5.3.0",
     "@fontsource/space-grotesk": "^5.3.0",
-    "@laihoe/demoparser2": "^0.42.0",
     "@vitejs/plugin-react": "latest",
     "lib0": "^0.2.114",
     "react": "latest",

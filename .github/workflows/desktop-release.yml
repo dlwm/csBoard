@@ -49,19 +49,19 @@ jobs:
           - target: mac-arm64
             runner: macos-15
             arch: arm64
-            rust: aarch64-apple-darwin
+            native: darwin-arm64
             command: desktop:build:mac:arm64
             extension: dmg
           - target: mac-x64
             runner: macos-15-intel
             arch: x64
-            rust: x86_64-apple-darwin
+            native: darwin-x64
             command: desktop:build:mac:x64
             extension: dmg
           - target: win-x64
             runner: windows-2022
             arch: x64
-            rust: x86_64-pc-windows-msvc
+            native: win32-x64
             command: desktop:build:win:x64
             extension: exe
     runs-on: ${{ matrix.runner }}
@@ -71,27 +71,31 @@ jobs:
         shell: bash
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      CSBOARD_NATIVE_TARGET: ${{ matrix.rust }}
+      CSBOARD_NATIVE_TARGET: ${{ matrix.native }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ needs.prepare.outputs.commit }}
           persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: native/parser/go.mod
+          cache-dependency-path: |
+            native/parser/go.sum
+            native/storage/go.sum
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
           architecture: ${{ matrix.arch }}
           cache: npm
-      - name: Prepare Rust and dependencies
+      - name: Prepare dependencies
         run: |
-          rustup toolchain install 1.85.1 --profile minimal
-          rustup default 1.85.1
-          rustup target add "$CSBOARD_NATIVE_TARGET"
           npm ci
       - name: Build native component and run behavioral tests
         run: |
           npm run native:build
           node --test tests/*.test.js
+          go -C native/storage test ./...
       - name: Build installer
         run: npm run ${{ matrix.command }}
       - name: Inspect packaged files and exercise packaged storage

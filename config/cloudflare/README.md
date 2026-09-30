@@ -28,8 +28,22 @@ npx wrangler dev --config config/cloudflare/wrangler.dev.jsonc --persist-to .wra
 Entrypoint, asset, schema and watch paths are relative to these configuration
 files. `build.cwd` is relative to the command's working directory, so invoke
 Wrangler from the repository root as the project scripts do.
-Keep deployment credentials in the existing ignored `deploy.cloudflare.env`
+Keep deployment credentials in the existing ignored `config/cloudflare/deploy.env`
 or environment variables, never in these tracked configuration files.
+
+## Demo parser
+
+The backend HTTP parser uses the generated Go WASM in `build/go-parser/web/`.
+Worker commands build it from the pinned fork before bundling. The browser's
+normal Demo import runs in its own Worker; it does not upload to `/api/parse`.
+The HTTP compatibility route retains the original response structure and
+serializes sessions within an isolate, releasing source references afterward.
+
+Dry-run bundling and local workerd initialization have passed. They do not prove
+that large Demo files fit production Workers: the platform has a 128 MB memory
+limit per isolate and CPU limits depending on the plan. Use browser or desktop
+import for large Demos; the Node HTTP adapter was verified with a real 59 MB
+sample. See [Cloudflare limits](https://developers.cloudflare.com/workers/platform/limits/).
 
 ## Optional Worker UI resource pack
 

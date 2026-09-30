@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-CONFIG_FILE="${CF_DEPLOY_CONFIG:-$ROOT_DIR/deploy.cloudflare.env}"
+CONFIG_FILE="${CF_DEPLOY_CONFIG:-$ROOT_DIR/config/cloudflare/deploy.env}"
 VITE_ENV_FILE="$ROOT_DIR/.env.production.local"
 
 ENV_CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-}"
@@ -120,6 +120,7 @@ printf 'OSS: %s\n' "$OSS_BASE_URL"
 [[ -n "${CF_FRONTEND_CUSTOM_DOMAIN:-}" ]] && printf 'Frontend domain: %s\n' "$CF_FRONTEND_CUSTOM_DOMAIN"
 
 cd "$ROOT_DIR"
+node scripts/build-go-parser.js
 printf '\nDeploying backend Worker...\n'
 npx wrangler "${backend_args[@]}"
 printf '\nDeploying frontend Worker...\n'

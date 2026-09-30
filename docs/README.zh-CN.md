@@ -8,14 +8,14 @@
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
-## 1.16.2 版本
+## 1.17.0 版本
 
-- 提升 Demo 解析与本地存储能力，支持已有存档和缓存自动迁移。
-- 支持多 Demo 同时解析、单 Demo 多线程采样，提供均衡／极速／自定义性能模式。
-- 新增后台任务管理、缓存清理、校验备份和恢复；最小化后继续解析。
-- 重设计资源包管理界面，统一 CSBoard 应用名称和图标。
-- 当前 AI 集成已移除，后续重新设计；数据分析与导出保留。
-- 实测性能及验证范围见[版本记录](CHANGELOG.zh-CN.md)，许可信息见[第三方鸣谢及许可证](../THIRD_PARTY_NOTICES.md)。
+- Demo 解析改用可自定义的 Go fork，由共用适配层生成原生程序和 WASM。
+- 回放、分析及投掷前采样共用一次解码扫描，保留真实烟雾与火焰数据。
+- SQLite 存储改为 Go，兼容已有存档、压缩缓存、备份与恢复流程。
+- HTTP 解析和离线分析也使用 Go，源码构建不再需要 Rust/Cargo 或 C 编译器。
+- 修复检查点输入基线，以及 macOS 内存统计缺失导致解析一直排队的问题。
+- 已验证三种来源的 Demo 和 macOS Apple Silicon 应用包；Intel Mac、Windows 仍需实机验证。详见[版本记录](CHANGELOG.zh-CN.md)和[第三方许可证](THIRD_PARTY_NOTICES.md)。
 
 ## 主要功能
 
@@ -24,7 +24,7 @@ CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在�
 ![回合浏览](img/round-replay.png)
 
 - 导入单个 Demo，或多选 Demo 分片并合并为一场比赛。
-- 一次解析后从缓存切换回合：Web 使用 Rust/WASM 与 IndexedDB；Electron 使用原生 Rust、SQLite 元数据和压缩文件。
+- 一次解析后从缓存切换回合：Go 解析器生成回放与分析数据，回合通过 IndexedDB 或 SQLite 元数据及压缩文件缓存。
 - 自动忽略空的占位回合，并丢弃不兼容的旧解析缓存。
 - 从冻结结束开始回放玩家移动、击杀、死亡、武器、血量、道具、C4 状态和事件标记。
 - 使用简化的站立/蹲伏人物模型，并显示 yaw、pitch、动态视点高度和 BVH 加速的视线墙体碰撞。
@@ -191,30 +191,30 @@ Electron 正式版使用 `npm run desktop:build:mac:arm64` / `npm run desktop:bu
 
 | 目标 | 命令 | `build/desktop/` 中的产物 |
 | --- | --- | --- |
-| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.2-mac-arm64.dmg` |
-| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.2-mac-x64.dmg` |
-| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.2-win-x64.exe` |
+| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.17.0-mac-arm64.dmg` |
+| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.17.0-mac-x64.dmg` |
+| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.17.0-win-x64.exe` |
 
-macOS 安装 Xcode Command Line Tools 后，执行一次 `rustup target add aarch64-apple-darwin x86_64-apple-darwin`，即可在同一台 Mac 分别构建两种架构。Windows 使用 x64 Node.js、Rust MSVC 和带 C++ 工作负载／Windows SDK 的 Visual Studio Build Tools。命令自动匹配 Rust 与 Electron 架构，不自动上传；签名凭据需另行配置。
+源码构建使用 Git、Node.js 和 Go。两个原生组件都使用 Go 并关闭 CGO；同一台 Mac 可构建两种 macOS 架构，Windows 使用 x64 Node.js。命令自动匹配 Go、存储组件与 Electron 架构，不自动上传；签名凭据需另行配置。
 
 #### GitHub Actions 自动化
 
-将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.16.2` tag，或在 **Actions → Desktop release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
+将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.17.0` tag，或在 **Actions → Desktop release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
 
 工作流测试并构建三个目标，检查实际安装包内容和包内原生存储，全部通过后把安装包及 `SHA256SUMS.txt` 上传到 **草稿 Release**。不会自动公开发布，也不会覆盖已发布版本；重跑只更新同一提交的草稿。检查安装运行后，在 GitHub 点击 **Publish release**。
 
 通常无需新增 Secrets 或个人 token：使用 GitHub 自带的 `GITHUB_TOKEN`，只有草稿汇总任务申请写权限。仓库需启用 Actions，仓库／组织策略需允许相关 Actions 和 Release 写入。当前未配置签名和 macOS 公证，生成的是未签名安装包。
 
-`make help` 列出保留的入口。依赖安装统一用 `npm ci`，Workers 部署用 `npm run deploy`，容器管理直接用 `docker compose down`、`logs -f`、`ps`；重复 npm 别名和 Make 包装已移除，图标及后台任务构建自动执行。带模型的测试包用 `desktop:prepare -- --local-models`，生成到 `build/desktop-local/`，直接打开其中的测试应用。
+`make help` 列出保留的入口。依赖安装统一用 `npm ci`，Workers 部署用 `npm run deploy`，容器管理直接用 `docker compose -f config/docker/compose.yml down`、`logs -f`、`ps`；重复 npm 别名和 Make 包装已移除，图标及后台任务构建自动执行。带模型的测试包用 `desktop:prepare -- --local-models`，生成到 `build/desktop-local/`，直接打开其中的测试应用。
 
-桌面原生组件的源码构建需要 Git、Rust/Cargo 及目标平台的 C 编译／链接工具链；安装后的应用自带可执行文件，无需安装 Rust 或 Python。原生数据位于 Electron 用户数据目录的 `native-data/`，旧 IndexedDB 数据按需复制，保留原数据库；浏览器偏好仍留在浏览器存储中。升级前建议备份重要存档。
+桌面原生组件的源码构建需要 Git、Node.js 和 Go（工具链按 `native/parser/go.mod` 与 `native/storage/go.mod` 选择）；SQLite 使用纯 Go 驱动，无需 Rust/Cargo 或 C 编译器。安装后的应用自带可执行文件，无需安装 Go 或 Python。原生数据位于 Electron 用户数据目录的 `native-data/`，旧 IndexedDB 数据按需复制，保留原数据库；浏览器偏好仍留在浏览器存储中。升级前建议备份重要存档。
 
-“桌面管理 → 解析性能”提供均衡（默认）、极速和自定义模式。极速允许使用全部逻辑核心预算，多份 Demo 共享该预算；自定义可设置同时解析数量、单任务线程上限及内存预算。安全的 tick 查询使用原生多线程，事件、按键及烟火状态继续顺序处理。内存预算用于决定是否启动任务，内存不足时等待，并非进程硬性上限。
+“桌面管理 → 解析性能”提供均衡（默认）、极速和自定义模式。极速允许使用全部逻辑核心预算，多份 Demo 共享该预算；自定义可设置同时解析数量、单任务线程上限及内存预算。每段 Demo 的回放、分析与动作采样共用一次扫描；Go 运行线程受预算限制，实体、事件及烟火状态保持顺序处理。内存预算用于决定是否启动任务，内存不足时等待，并非进程硬性上限。
 
 右上角“桌面管理”可查看空间占用、按最近使用清理 Demo 缓存、创建和恢复备份，以及查看或取消后台任务。备份包含原生存档、Demo 缓存和导入资源，不包含原始 `.dem`、浏览器偏好及未保存内容。恢复重启后生效，恢复前的数据保留在数据目录的 `restores` 文件夹。可为本次运行开启任务期间防自动休眠；窗口最小化时暂停 3D 绘制，后台解析继续。
 
 
-通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.16.2` 版本时才需设置 `BUILD_VERSION`。
+通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.17.0` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式
 
@@ -278,7 +278,7 @@ GLB 存储桶需返回 `Access-Control-Allow-Origin` 头。`src/navParser.js` �
 - React 与 Vite：应用外壳和界面。
 - `src/analysis/` 收纳分析组件与计算逻辑，`src/demo/` 放置 Demo 领域逻辑和 HUD，`src/components/` 放置共享 UI，`src/three/` 放置 Three.js 辅助模块，`src/utility/` 放置道具速记逻辑，`src/hooks/` 放置跨面板 DOM 行为。
 - Three.js：地图、战术对象、效果和回放渲染。
-- `demoparser2`：解析 Demo 事件、Tick、玩家、库存和投掷物；Web 使用 Rust/WASM，桌面使用独立 Rust 可执行文件。
+- 固定提交的 `dlwm/demoinfocs` fork 与 `native/parser/` 适配层：解析 Demo 事件、Tick、玩家、库存及投掷物，构建为 Go WASM 和原生可执行文件。
 - `src/platform/` 选择浏览器或桌面服务；桌面后台进程处理重计算，SQLite 与压缩文件保存数据。
 - `three-mesh-bvh`：地图射线检测加速。
 - Yjs 与 `y-websocket`：协作房间协议。
@@ -292,11 +292,11 @@ Wrangler 配置统一放在 [`config/cloudflare/`](../config/cloudflare/README.m
 
 ```bash
 npm install
-cp deploy.cloudflare.env.example deploy.cloudflare.env
+cp config/cloudflare/deploy.env.example config/cloudflare/deploy.env
 npm run deploy
 ```
 
-在 `deploy.cloudflare.env` 中填写 Cloudflare Account ID、前后端 Worker 名称、OSS 根地址、后端公网地址和两个可选自定义域名。建议通过终端环境变量或 CI Secret 提供 `CLOUDFLARE_API_TOKEN`。
+在 `config/cloudflare/deploy.env` 中填写 Cloudflare Account ID、前后端 Worker 名称、OSS 根地址、后端公网地址和两个可选自定义域名。建议通过终端环境变量或 CI Secret 提供 `CLOUDFLARE_API_TOKEN`。
 
 部署脚本先部署后端 Worker（API、房间 WebSocket 和 Durable Objects），再部署前端 Worker（Workers Static Assets）。它会把与平台无关的 `VITE_OSS_BASE_URL` 和 `VITE_BACKEND_BASE_URL` 写入已忽略的 `.env.production.local`，其中 `BACKEND_PUBLIC_URL` 会被嵌入前端用于连接独立后端服务。
 
@@ -304,7 +304,7 @@ npm run deploy
 
 ## 许可证
 
-Copyright (C) 2026 Colvin Chen。CSBoard 原创源代码与文档采用 [GNU GPL v3.0 only](../LICENSE)；对外分发的修改版本必须继续使用 GPLv3，并提供对应源代码。第三方库和资源仍分别遵循自己的许可证，准确范围见 [LICENSE_SCOPE.md](../LICENSE_SCOPE.md)。CSBoard 许可证不授予 Valve、Counter-Strike、地图、雷达图、Demo 或其他第三方游戏内容的相关权利。
+Copyright (C) 2026 Colvin Chen。CSBoard 原创源代码与文档采用 [GNU GPL v3.0 only](../LICENSE)；对外分发的修改版本必须继续使用 GPLv3，并提供对应源代码。第三方库和资源仍分别遵循自己的许可证，准确范围见 [LICENSE_SCOPE.md](LICENSE_SCOPE.md)。CSBoard 许可证不授予 Valve、Counter-Strike、地图、雷达图、Demo 或其他第三方游戏内容的相关权利。
 
 ## 当前限制
 
@@ -320,3 +320,5 @@ Copyright (C) 2026 Colvin Chen。CSBoard 原创源代码与文档采用 [GNU GPL
 ### 模型尺寸缩减
 
 - 缩减地图模型资源体积、下载开销和运行时内存占用。
+
+HTTP 解析接口及离线分析工具也使用生成的 Go WASM；请求结束释放解析会话，同一运行实例串行处理。Cloudflare 的 CPU、内存及包体限制仍然适用。

@@ -2,7 +2,7 @@ import { appendChangedInfernoFrame } from './infernoFrames.js';
 import { smokeVoxelFramesFromRow } from './smokeVoxels.js';
 
 // Each task owns its parser state; both Web Workers and desktop jobs use this contract.
-export function createDemoParser({ init, parseEvents, parseGrenades, parseHeader, parseTicks, openSources, postMessage }) {
+export function createDemoParser({ init, parseEvents, parseGrenades, parseHeader, parseTicks, prepareTicks, releaseTicks, openSources, postMessage }) {
 let parserReady;
 let wasmInstance;
 let demoBytes;
@@ -18,7 +18,7 @@ let activeWeaponNamesByPart = [];
 let equippedWeaponsByPlayer = new Map();
 let currentPhase = 'idle';
 let phaseStartedAt = 0;
-const CACHE_SCHEMA_VERSION = 30;
+const CACHE_SCHEMA_VERSION = 31;
 const ACTIVE_WEAPON_HANDLE_PROP = 'CCSPlayerPawn.CCSPlayer_WeaponServices.m_hActiveWeapon';
 // Some GOTV demos retain the player controller but lose its pawn association.
 // These controller fields keep the roster/state truthful even when coordinates cannot be recovered.
@@ -389,7 +389,7 @@ return async (data) => {
             allProjectiles = projectilesByPart.flatMap((projectiles, index) => projectiles.filter((projectile) => includesPartTick(projectile.tick, index)).map((projectile) => ({ ...projectile, tick: projectile.tick + partOffsets[index] })));
             allSmokeVoxelFrames = grenadeDataByPart.flatMap((data, index) => data.smokeVoxelFrames.filter((frame) => includesPartTick(frame.tick, index)).map((frame) => ({ ...frame, tick: frame.tick + partOffsets[index] })));
             allInfernoFrames = grenadeDataByPart.flatMap((data, index) => data.infernoFrames.filter((frame) => includesPartTick(frame.tick, index)).map((frame) => ({ ...frame, tick: frame.tick + partOffsets[index] })));
-            activeWeaponNamesByPart = await Promise.all(demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index])));
+            if (!prepareTicks) activeWeaponNamesByPart = await Promise.all(demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index])));
         const sampleRate = [1, 2, 4, 8, 16, 32].includes(Number(data.sampleRate)) ? Number(data.sampleRate) : 8;
        const sampleStep = 64 / sampleRate;
        const maxTick = allEvents.at(-1)?.tick || 0;
@@ -413,6 +413,25 @@ return async (data) => {
                  return { part, index, offset, localTicks };
               });
             });
+            const analysisGlobalTicks = [...new Set(rounds.flatMap(round => {
+              const ticks = [];
+              for (let tick = round.startTick; tick <= round.endTick; tick += 32) ticks.push(tick);
+              return ticks;
+            }))];
+            if (prepareTicks) {
+              const props = [...new Set([...replayProps, ...throwProps, ...analysisProps])];
+              await Promise.all(demoParts.map(async (part, index) => {
+                const offset = partOffsets[index];
+                const ticks = [...new Set([
+                  ...roundTickPlans.flatMap(plans => plans[index].localTicks),
+                  ...throwPlans[index].localTicks,
+                  ...partEvents[index].filter(event => event.event_name === 'weapon_fire').map(event => event.tick),
+                  ...analysisGlobalTicks.filter(tick => tick >= offset && tick - offset <= 1000000).map(tick => tick - offset),
+                ])].sort((left, right) => left - right);
+                await prepareTicks(part, props, ticks);
+              }));
+              activeWeaponNamesByPart = await Promise.all(demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index])));
+            }
             const totalBatches = roundTickPlans.flat().reduce((sum, plan) => sum + Math.ceil(plan.localTicks.length / PARSE_TICK_BATCH_SIZE), 0) + throwPlans.reduce((sum, plan) => sum + (plan.throwers.length ? Math.ceil(plan.localTicks.length / PARSE_TICK_BATCH_SIZE) : 0), 0) + 1;
            let completedBatches = 0;
            let progressStageIndex = -1;
@@ -452,15 +471,13 @@ return async (data) => {
              }
             reportProgress();
             const playerNames = [...playerNameSet].sort();
-            const analysisStep = 32;
-            const analysisGlobalTicks = [];
-            rounds.forEach((round) => { for (let tick = round.startTick; tick <= round.endTick; tick += analysisStep) analysisGlobalTicks.push(tick); });
              const analysisRows = (await Promise.all(demoParts.map(async (part, index) => {
               const offset = partOffsets[index];
               const localTicks = [...new Set(analysisGlobalTicks)].filter((tick) => tick >= offset && tick - offset <= 1000000).map((tick) => tick - offset);
               if (localTicks.length === 0) return [];
                return (await parseTicksBatched(part, analysisProps, localTicks)).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset }));
             }))).flat();
+            if (releaseTicks) await Promise.all(demoParts.map(part => releaseTicks(part)));
             const analysis = normalizeRows(analysisRows, 0);
              // Report only players with no usable position in any gameplay sample; brief spawn/disconnect gaps are normal.
              const missingPositionPlayers = [...playerPositionCoverage.values()]

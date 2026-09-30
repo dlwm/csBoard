@@ -14,8 +14,8 @@ const resources = path.resolve('build/desktop', folders[target]);
 const archive = path.join(resources, 'app.asar');
 const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
 const packaged = JSON.parse(extractFile(archive, 'package.json').toString());
-if (packaged.version !== pkg.version || packaged.csboardLocalModels) throw new Error('Wrong packaged version or local-model test build');
-for (const file of ['electron/main.js', 'electron/preload.cjs', 'build/renderer/index.html', 'build/tasks/demo.js', 'build/tasks/data.js']) {
+if (packaged.version !== pkg.version || packaged.csboardLocalModels || packaged.csboardLocalParser) throw new Error('Wrong packaged version or local-model test build');
+for (const file of ['electron/main.js', 'electron/preload.cjs', 'LICENSE', 'docs/LICENSE_SCOPE.md', 'docs/THIRD_PARTY_NOTICES.md', 'build/renderer/index.html', 'build/renderer/go-parser/parser.wasm', 'build/renderer/go-parser/wasm_exec.js', 'build/tasks/demo.js', 'build/tasks/data.js']) {
   extractFile(archive, path.join(...file.split('/')));
 }
 const names = listPackage(archive).map(name => name.replaceAll(path.win32.sep, '/'));
@@ -28,8 +28,14 @@ async function inspect(directory) {
 }
 await inspect(resources);
 const info = JSON.parse(await fs.readFile(path.join(resources, 'native/build-info.json'), 'utf8'));
-const triples = { 'mac-arm64': 'aarch64-apple-darwin', 'mac-x64': 'x86_64-apple-darwin', 'win-x64': 'x86_64-pc-windows-msvc' };
-if (info.target !== triples[target]) throw new Error('Wrong packaged native target');
+const triples = { 'mac-arm64': 'darwin-arm64', 'mac-x64': 'darwin-x64', 'win-x64': 'win32-x64' };
+if (info.target !== triples[target] || info.component !== 'storage' || info.language !== 'go') throw new Error('Wrong packaged native target');
+const goInfo = JSON.parse(await fs.readFile(path.join(resources, 'go-parser/build-info.json'), 'utf8'));
+const goPin = JSON.parse(await fs.readFile('native/parser/source.json', 'utf8'));
+if (goInfo.dirty || goInfo.revision !== goPin.revision) throw new Error('Packaged parser does not match its clean source pin');
+const goTargets = { 'mac-arm64': 'darwin-arm64', 'mac-x64': 'darwin-x64', 'win-x64': 'win32-x64' };
+if (goInfo.target !== goTargets[target] || goInfo.protocol !== 1) throw new Error('Wrong packaged Go parser target');
+await fs.access(path.join(resources, 'go-parser', `csboard-go-parser${target === 'win-x64' ? '.exe' : ''}`));
 const binary = path.join(resources, 'native', `csboard-native${target === 'win-x64' ? '.exe' : ''}`);
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'csboard-package-'));
 let native;

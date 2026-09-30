@@ -2,6 +2,21 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.17.0] - 2026-09-30
+
+### Changed
+
+- Use the pinned `dlwm/demoinfocs` fork for Demo parsing, with one Go adapter producing native and WASM components. Source builds prepare the fork automatically; applications include the compiled parser.
+- Combine replay, analysis and pre-throw position samples into one decoding pass per Demo part. Retain real smoke journals and fire cells, read only appended smoke bytes, and refresh incompatible parser caches.
+- Replace SQLite storage with Go, retaining the existing database format, compressed caches, backups and restore behavior.
+- Move HTTP parsing and offline analysis tools to Go WASM. Release HTTP source sessions after each request; identify grenade-release event sources and retain unknown velocity values in offline reports.
+- Remove Rust/Cargo requirements, the previous parser artifacts and patches, and the native npm parser dependency. Update builds, installer checks, GitHub Actions and Docker to use Go.
+
+### Fixed
+
+- Restore Source 2 user-command baselines from checkpoints without duplicate input events or stale-state rollback.
+- Read macOS available memory from both observed `vm_stat` page-size header formats so parsing does not remain queued because of a missing memory sample.
+
 ## [1.16.2] - 2026-09-28
 
 ### Fixed
@@ -80,7 +95,6 @@
 
 ### Changed
 
-- Consolidate local game-sourced maps, UI test assets, and VPKs under `.local/official/`; update development, download/export, Docker, and local-test packaging paths. Demo samples and generated previews stay separate.
 - Generate offline 2D radar views from bundled NAV geometry instead of static radar images. Share square bounds, padding, and floor cuts with radar markers; correct stretched layouts and Train floor selection. Higher NAV areas appear lighter within each floor, and higher surfaces render over lower ones.
 - Smooth the 3D NAV surface through shared vertices, normals, and height colors; remove NAV edge rendering and its toggle.
 - Refresh weapon, knife, grenade, C4, defuser, faction, armor, and HUD silhouettes. Use a hollow shield for armor and a central circle for helmet-plus-armor; improve equipment and utility-reserve icon sizing.
@@ -153,10 +167,9 @@
 ### Changed
 
 - Index player names once per loaded Demo, defer expensive dataset rebuilding during selection updates, group multi-player area calculations by player-round, and reuse selected Demo filters when players are added or removed.
-- Continue reducing `main.jsx` by moving the complete Three.js board, runtime configuration, default-record loading, localization dictionaries, collaboration workspace normalization, responsive/radar/floor hooks, Demo presentation state, saved-throw conversion, utility replay timing, the global header, viewport controls, loading status, and workspace modals behind dedicated module boundaries. Split changing scene inputs, Demo player rendering, and brush-line lifecycle out of the Three.js board as well.
 - Bundle parsed NAV data for all supported maps into the frontend, removing the runtime NAV download and legacy parsing API dependency while preserving offline map geometry.
 - Add an offline region-data generation pipeline that preserves `env_cs_place` height bounds and associates each region with bundled NAV areas.
-- Make the Docker service read GLB models directly from the read-only `.local/maps` bind mount instead of running a resource downloader at startup.
+- Make the Docker service read local GLB models from a read-only mount without downloading resources at startup.
 - Temporarily hide T/CT spawn and bombsite zone models while a clearer replacement visualization is designed.
 
 ### Fixed
@@ -174,11 +187,6 @@
 - Make the language-switch button identify the active Chinese, English, or Russian locale while its tooltip announces the next locale.
 
 ## [1.10.0] - 2026-09-06
-
-### Changed
-
-- Begin decomposing the oversized `main.jsx`: move Analysis UI and calculations, Demo domain logic and HUD, shared UI, floor clipping, NAV boundaries, Analysis, death-heat, Demo utility, utility-note, collaboration-utility, and C4 scene controllers, camera input and state persistence, and scroll-edge detection into dedicated modules.
-- Reorganized the development tooling structure: project scripts have been consolidated under scripts/, while local third-party tools are now stored under .local/.
 
 ### Fixed
 
@@ -249,7 +257,7 @@
 
 ### Added
 
-- Add a committable `src/default-data/` directory whose utility notes and Collaboration archives seed first-time visits without replacing existing local data.
+- Automatically load bundled utility notes and Collaboration archives on first use without replacing existing local data.
 - Add a NAV ground visibility switch to independently show or hide the navigation-mesh fill.
 - Add a self-contained minimalist Training Ground with lower streets, linked rooftops, connecting ramps, a subdivided two-level NAV layout, a practice frame, and a bilingual walkthrough covering utility, camera positions, tactical frames, archives, and collaboration.
 - Limit Training Ground to Utility Notes and Collaboration, automatically returning to Dust II when opening Round Replay or Analysis.
