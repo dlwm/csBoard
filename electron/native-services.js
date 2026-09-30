@@ -16,6 +16,7 @@ const storageMethods = new Set(['record.get', 'record.put', 'record.patch', 'rec
 
 export function registerNativeServices({ app, authorize, getWindow, resourceBusy = () => false }) {
   const binary = path.join(app.isPackaged ? path.join(process.resourcesPath, 'native') : path.join(here, '../build/native', `${process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`), `csboard-native${process.platform === 'win32' ? '.exe' : ''}`);
+  const parserBinary = path.join(app.isPackaged ? path.join(process.resourcesPath, 'go-parser') : path.join(here, '../build/go-parser/native', `${process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : process.platform}-${process.arch}`), `csboard-go-parser${process.platform === 'win32' ? '.exe' : ''}`);
   const root = path.join(app.getPath('userData'), 'native-data');
   const transfers = createCacheTransfers(root);
   const sources = new Map(), jobs = new Map(), owners = new Map();
@@ -186,7 +187,7 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
         });
         worker.on('exit', code => { if (!stopped) finish(new Error(`Demo task exited (${code}); retry to start a new process.`)); });
         if (signal.aborted) { cancel(); return; }
-        worker.postMessage({ type: 'start', binary, staging, allocation, job: { cacheId, fileName: descriptors.map(file => file.name).join(' + '), sampleRate: input.sampleRate, paths: selected.map(source => source.path) } });
+        worker.postMessage({ type: 'start', binary: parserBinary, staging, allocation, job: { cacheId, fileName: descriptors.map(file => file.name).join(' + '), sampleRate: input.sampleRate, paths: selected.map(source => source.path) } });
       }); } finally { await fs.rm(staging, { recursive: true, force: true }); }
     } });
     jobs.set(key, job);

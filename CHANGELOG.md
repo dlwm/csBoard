@@ -2,6 +2,21 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.17.0] - 2026-09-30
+
+### Changed
+
+- Use the pinned `dlwm/demoinfocs` fork for Demo parsing, with one Go adapter producing native and WASM components. Source builds prepare the fork automatically; applications include the compiled parser.
+- Combine replay, analysis and pre-throw position samples into one decoding pass per Demo part. Retain real smoke journals and fire cells, read only appended smoke bytes, and refresh incompatible parser caches.
+- Replace SQLite storage with Go, retaining the existing database format, compressed caches, backups and restore behavior.
+- Move HTTP parsing and offline analysis tools to Go WASM. Release HTTP source sessions after each request; identify grenade-release event sources and retain unknown velocity values in offline reports.
+- Remove Rust/Cargo requirements, the previous parser artifacts and patches, and the native npm parser dependency. Update builds, installer checks, GitHub Actions and Docker to use Go.
+
+### Fixed
+
+- Restore Source 2 user-command baselines from checkpoints without duplicate input events or stale-state rollback.
+- Read macOS available memory from both observed `vm_stat` page-size header formats so parsing does not remain queued because of a missing memory sample.
+
 ## [1.16.2] - 2026-09-28
 
 ### Fixed

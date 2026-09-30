@@ -1,13 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const { parseEvents, parseHeader, parseTicks } = require('@laihoe/demoparser2');
+import '../build/go-parser/web/wasm_exec.js';
+import { createGoHttpParser } from '../server/go-parser.js';
+const parser = createGoHttpParser(async () => WebAssembly.compile(await fs.promises.readFile(new URL('../build/go-parser/web/parser.wasm', import.meta.url))));
 
 const root = process.cwd();
-const inputDir = path.join(root, 'ref', 'dem');
-const outputDir = path.join(inputDir, 'throw-analysis');
+const inputDir = path.resolve(process.argv[2] || path.join(root, 'ref', 'dem'));
+const outputDir = path.resolve(process.argv[3] || path.join(inputDir, 'throw-analysis'));
 const tickRate = 64;
 const maxRunupTicks = tickRate * 2;
 const attackLookbackTicks = tickRate * 2;
@@ -15,7 +14,6 @@ const jumpLookbackTicks = Math.round(tickRate * 0.5);
 const zeroSpeedThreshold = 5;
 const runupSpeedThreshold = 20;
 const props = ['X', 'Y', 'Z', 'pitch', 'yaw', 'FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'WALK', 'duck_amount', 'is_airborne'];
-const eventProps = [...props, 'velocity', 'velocity_X', 'velocity_Y', 'velocity_Z', 'active_weapon_name'];
 
 const asRows = (value) => Array.isArray(value) ? value : Object.values(value || {});
 const bool = (value) => value === true || value === 1 || value === '1';
@@ -124,6 +122,7 @@ function analyzeThrow(fileName, mapName, event, playerRows) {
     demo: fileName,
     map: mapName,
     tick: eventTick,
+    releaseEvent: event.releaseEvent,
     player: event.user_name || '',
     steamid: String(event.user_steamid || ''),
     grenade: event.weapon || event.user_active_weapon_name || 'unknown',
@@ -169,16 +168,22 @@ const results = [];
 
 for (const fileName of demos) {
   const filePath = path.join(inputDir, fileName);
-  const header = parseHeader(filePath);
-  const events = asRows(parseEvents(filePath, ['grenade_thrown'], eventProps, ['total_rounds_played'])).sort((left, right) => left.tick - right.tick);
-  const wantedTicks = [...new Set(events.flatMap((event) => Array.from({ length: maxRunupTicks + 3 }, (_, index) => Math.max(0, event.tick - maxRunupTicks + index))))].sort((left, right) => left - right);
-  const throwers = [...new Set(events.map((event) => String(event.user_steamid)).filter(Boolean))];
-  console.log(`${fileName}: ${events.length} throws, ${wantedTicks.length} ticks, ${throwers.length} throwers`);
-  const tickRows = asRows(parseTicks(filePath, props, wantedTicks, throwers, false));
-  const byPlayer = new Map();
-  tickRows.forEach((row) => { const key = String(row.steamid); if (!byPlayer.has(key)) byPlayer.set(key, []); byPlayer.get(key).push(row); });
-  byPlayer.forEach((rows) => rows.sort((left, right) => left.tick - right.tick));
-  events.forEach((event) => results.push(analyzeThrow(fileName, header.map_name || '', event, byPlayer.get(String(event.user_steamid)) || [])));
+  await parser.withSource(new Uint8Array(fs.readFileSync(filePath)), async ({ parseHeader, parseEvents, parseTicks }) => {
+    const header = parseHeader();
+    const sourceEvents = asRows(parseEvents(null, ['grenade_thrown', 'weapon_fire']));
+    const explicitThrows = sourceEvents.filter(event => event.event_name === 'grenade_thrown');
+    // Some demos only record grenade release as weapon_fire; keep that tick explicit.
+    const events = (explicitThrows.length ? explicitThrows : sourceEvents.filter(event => event.event_name === 'weapon_fire' && /^(hegrenade|smokegrenade|flashbang|molotov|incgrenade|decoy)$/.test(String(event.weapon || '').replace(/^weapon_/, ''))))
+      .map(event => ({ ...event, releaseEvent: event.event_name })).sort((left, right) => left.tick - right.tick);
+    const wantedTicks = [...new Set(events.flatMap((event) => Array.from({ length: maxRunupTicks + 3 }, (_, index) => Math.max(0, event.tick - maxRunupTicks + index))))].sort((left, right) => left - right);
+    const throwers = [...new Set(events.map((event) => String(event.user_steamid)).filter(Boolean))];
+    console.log(`${fileName}: ${events.length} throws, ${wantedTicks.length} ticks, ${throwers.length} throwers`);
+    const tickRows = asRows(parseTicks(null, props, wantedTicks, throwers));
+    const byPlayer = new Map();
+    tickRows.forEach((row) => { const key = String(row.steamid); if (!byPlayer.has(key)) byPlayer.set(key, []); byPlayer.get(key).push(row); });
+    byPlayer.forEach((rows) => rows.sort((left, right) => left.tick - right.tick));
+    events.forEach((event) => results.push(analyzeThrow(fileName, header.map_name || '', event, byPlayer.get(String(event.user_steamid)) || [])));
+  });
 }
 
 const groupMap = new Map();
@@ -234,6 +239,6 @@ const representativeExamples = [
   exampleFor('助跑截断 2 秒', (row) => row.hasRunup && row.runupTruncated),
 ].join('\n');
 const examples = groups.slice(0, 30).map((group) => `| ${group.count} | ${group.attack} | ${group.jumped ? group.jumpMovement : '否'} | ${group.stance} | ${group.walking ? '是' : '否'} | ${group.movement} | ${group.initialSpeedClass} | ${group.hasRunup ? group.runupMovement : '否'} | ${group.exampleDemo} | ${group.exampleTick} | ${group.examplePlayer} |`).join('\n');
-const report = `# CS2 道具投掷行为案例集\n\n生成时间：${new Date().toISOString()}\n\n- Demo 数量：${demos.length}\n- 投掷总数：${results.length}\n- 行为组合数：${groups.length}\n- Tick rate 假定：${tickRate}\n\n## 判定规则\n\n- 攻击方式：向前最多 2 秒找到出手前最近的连续攻击按键段；FIRE 为主键、RIGHTCLICK 为副键、同一 Tick 两者同时按下才判定双键。\n- 跳投：出手前 0.5 秒内出现落地到离地变化，并要求 Z 上升速度或事件 velocity_Z > 20 u/s，避免把跌落识别为跳投。\n- 移动、静步、蹲伏：取攻击释放附近到 grenade_thrown 事件之间的状态。\n- 助跑：用逐 Tick XY 坐标差计算水平速度，向前回溯到最近一次速度 <= ${zeroSpeedThreshold} u/s；最多记录 2 秒。没有零速样本时标记 runupTruncated。\n- 初速：使用 grenade_thrown 事件的水平 velocity，并分为 stationary (<5)、low (<80)、medium (<180)、fast (>=180)。\n- 事件自带 velocity 仅作为出手水平速度，逐 Tick助跑速度由坐标计算，因为非事件 Tick 的 velocity 可能为空。\n\n## 分布\n\n### 攻击方式\n\n${counts('attack').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 跳跃\n\n${counts('jumped').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 姿态\n\n${counts('stance').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 静步\n\n${counts('walking').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 初速\n\n${counts('initialSpeedClass').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 助跑\n\n${counts('hasRunup').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n## 代表案例\n\n| 类型 | Demo | Tick | 选手 | 道具 | 攻击 | 跳跃方向 | 姿态 | 静步 | 出手移动 | 初速 | 助跑方向 |\n| --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n${representativeExamples}\n\n## 高频行为组合示例\n\n| 数量 | 攻击 | 跳跃方向 | 姿态 | 静步 | 出手移动 | 初速 | 助跑方向 | Demo | Tick | 选手 |\n| ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- |\n${examples}\n\n## 输出\n\n- grenade-throws.csv：所有投掷明细，行为维度使用独立列。\n- behavior-groups.csv：按变量组合分组统计，保留 behaviorGroup 并将其组成维度拆分为独立列。\n- grenade-throws.json：完整机器可读数据。\n`;
+const report = `# CS2 道具投掷行为案例集\n\n生成时间：${new Date().toISOString()}\n\n- Demo 数量：${demos.length}\n- 投掷总数：${results.length}\n- 行为组合数：${groups.length}\n- Tick rate 假定：${tickRate}\n\n## 判定规则\n\n- releaseEvent 记录实际来源；无 grenade_thrown 时使用道具 weapon_fire 的释放 tick。缺失网络速度保留未知，不推断为静止。\n- 攻击方式：向前最多 2 秒找到出手前最近的连续攻击按键段；FIRE 为主键、RIGHTCLICK 为副键、同一 Tick 两者同时按下才判定双键。\n- 跳投：出手前 0.5 秒内出现落地到离地变化，并要求 Z 上升速度或事件 velocity_Z > 20 u/s，避免把跌落识别为跳投。\n- 移动、静步、蹲伏：取攻击释放附近到 grenade_thrown 事件之间的状态。\n- 助跑：用逐 Tick XY 坐标差计算水平速度，向前回溯到最近一次速度 <= ${zeroSpeedThreshold} u/s；最多记录 2 秒。没有零速样本时标记 runupTruncated。\n- 初速：使用 grenade_thrown 事件的水平 velocity，并分为 stationary (<5)、low (<80)、medium (<180)、fast (>=180)。\n- 事件自带 velocity 仅作为出手水平速度，逐 Tick助跑速度由坐标计算，因为非事件 Tick 的 velocity 可能为空。\n\n## 分布\n\n### 攻击方式\n\n${counts('attack').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 跳跃\n\n${counts('jumped').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 姿态\n\n${counts('stance').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 静步\n\n${counts('walking').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 初速\n\n${counts('initialSpeedClass').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n### 助跑\n\n${counts('hasRunup').map((item) => `- ${item.value}: ${item.count}`).join('\n')}\n\n## 代表案例\n\n| 类型 | Demo | Tick | 选手 | 道具 | 攻击 | 跳跃方向 | 姿态 | 静步 | 出手移动 | 初速 | 助跑方向 |\n| --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n${representativeExamples}\n\n## 高频行为组合示例\n\n| 数量 | 攻击 | 跳跃方向 | 姿态 | 静步 | 出手移动 | 初速 | 助跑方向 | Demo | Tick | 选手 |\n| ---: | --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- |\n${examples}\n\n## 输出\n\n- grenade-throws.csv：所有投掷明细，行为维度使用独立列。\n- behavior-groups.csv：按变量组合分组统计，保留 behaviorGroup 并将其组成维度拆分为独立列。\n- grenade-throws.json：完整机器可读数据。\n`;
 fs.writeFileSync(path.join(outputDir, 'REPORT.md'), report);
 console.log(`Wrote ${results.length} throws and ${groups.length} groups to ${path.relative(root, outputDir)}`);

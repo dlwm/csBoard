@@ -20,6 +20,12 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go-parser/go.mod
+          cache-dependency-path: |
+            go-parser/go.sum
+            native/go.sum
       - name: Validate workflow syntax
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -28,13 +34,17 @@ jobs:
           cache: npm
       - name: Prepare native test prerequisites
         run: |
-          rustup toolchain install 1.85.1 --profile minimal
-          rustup default 1.85.1
           npm ci
           npm run native:build
       - name: Run behavioral and native storage tests
         run: node --test tests/*.test.js
+      - name: Run Go storage tests
+        working-directory: native
+        run: go test ./...
       - name: Build web frontend
         run: npm run build
+      - name: Run Go parser adapter tests
+        working-directory: go-parser
+        run: go test ./...
       - name: Validate Workers with their real bundler (no deployment)
         run: make workers-build

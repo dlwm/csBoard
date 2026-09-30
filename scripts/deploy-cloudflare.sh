@@ -120,6 +120,7 @@ printf 'OSS: %s\n' "$OSS_BASE_URL"
 [[ -n "${CF_FRONTEND_CUSTOM_DOMAIN:-}" ]] && printf 'Frontend domain: %s\n' "$CF_FRONTEND_CUSTOM_DOMAIN"
 
 cd "$ROOT_DIR"
+node scripts/build-go-parser.js
 printf '\nDeploying backend Worker...\n'
 npx wrangler "${backend_args[@]}"
 printf '\nDeploying frontend Worker...\n'

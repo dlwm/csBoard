@@ -8,14 +8,14 @@
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one application.
 
-## Version 1.16.2
+## Version 1.17.0
 
-- Improve Demo parsing and local storage, with automatic migration of existing archives and caches.
-- Parse multiple Demos concurrently, enable multithreaded sampling, and choose Balanced / Fast / Custom performance modes.
-- Manage background tasks, clean caches, and create or restore verified backups; parsing continues while minimized.
-- Redesign resource management and unify the CSBoard application name and icons.
-- The current AI integration has been removed pending redesign; data analysis and export remain available.
-- See the [release notes](CHANGELOG.md) for measured performance and validation limits, and [third-party acknowledgements and licenses](THIRD_PARTY_NOTICES.md).
+- Demo parsing now uses your configurable Go fork, with native and WASM output from a shared adapter.
+- Replay, analysis and pre-throw samples share one decoding pass per Demo part; real smoke and fire data are retained.
+- SQLite storage uses Go and preserves existing archives, compressed caches, backups and restore behavior.
+- HTTP parsing and offline analysis also use Go; source builds no longer require Rust/Cargo or a C compiler.
+- Fix checkpoint input baselines and macOS memory statistics that could leave parsing queued.
+- Validation covers three Demo sources and macOS Apple Silicon; Intel Mac and Windows still need runtime verification. See the [release notes](CHANGELOG.md) and [third-party licenses](THIRD_PARTY_NOTICES.md).
 
 ## Highlights
 
@@ -24,7 +24,7 @@ CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It
 ![Round replay](docs/img/round-replay.png)
 
 - Import one Demo or select multiple Demo parts and merge them into one match.
-- Parse playable rounds once and switch rounds from cache: Web uses Rust/WASM and IndexedDB; Electron uses native Rust, SQLite metadata and compressed files.
+- Parse playable rounds once and switch rounds from cache: The Go parser builds replay and analysis data; rounds are cached in IndexedDB or SQLite plus compressed files.
 - Omit empty placeholder rounds and discard incompatible cached parses automatically.
 - Replay from freeze end with player movement, kills, deaths, weapons, health, utility, C4 state, and event markers.
 - Display simplified standing and crouching player models with yaw, pitch, dynamic eye height, and BVH-accelerated line-of-sight collision.
@@ -191,15 +191,15 @@ Release packages are limited to these three targets. Run macOS commands on macOS
 
 | Target | Command | Output in `build/desktop/` |
 | --- | --- | --- |
-| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.16.2-mac-arm64.dmg` |
-| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.16.2-mac-x64.dmg` |
-| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.16.2-win-x64.exe` |
+| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.17.0-mac-arm64.dmg` |
+| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.17.0-mac-x64.dmg` |
+| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.17.0-win-x64.exe` |
 
-On macOS, install Xcode Command Line Tools and run `rustup target add aarch64-apple-darwin x86_64-apple-darwin` once to build both architectures on one Mac. On Windows, use x64 Node.js, Rust MSVC and Visual Studio Build Tools with the C++ workload and Windows SDK. The commands select matching Rust and Electron targets and never publish automatically. Signing credentials must be configured separately.
+Use Git, Node.js and Go to build. Both native components use Go with CGO disabled; one Mac can build both macOS architectures. On Windows, use x64 Node.js. The commands select matching Go, storage and Electron targets and never publish automatically. Signing credentials must be configured separately.
 
 #### GitHub Actions
 
-Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.16.2` tag pointing at the version commit, or run **Actions → Desktop release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
+Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.17.0` tag pointing at the version commit, or run **Actions → Desktop release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
 
 The workflow tests and builds all three targets, checks packaged contents and native storage, then attaches the installers plus `SHA256SUMS.txt` to a **draft Release**. It never publishes the draft or overwrites a published release. Reruns update only a draft for the same commit. Check installation before selecting **Publish release** on GitHub.
 
@@ -207,14 +207,14 @@ Normally no extra Secrets or personal token are needed: the workflow uses the bu
 
 `make help` lists the retained commands. Duplicate npm aliases and Make wrappers have been removed; use `npm ci` for dependencies, `npm run deploy` for Workers deployment, and `docker compose down`, `logs -f` or `ps` for container management. Internal icon and background-task builds run automatically. `desktop:prepare -- --local-models` produces a separate test application under `build/desktop-local/`; open that application directly.
 
-Building the native desktop component requires Git, Rust/Cargo and the target platform's C compiler/linker. Installed applications include the executable and need no Rust or Python setup. Native data lives under the Electron user-data directory in `native-data/`. Legacy IndexedDB data is copied when needed without deleting the original database; browser preferences remain in browser storage. Back up important archives before upgrading.
+Building the native desktop component requires Git, Node.js and Go (the toolchain follows `go-parser/go.mod` and `native/go.mod`). SQLite uses a pure Go driver, with no Rust/Cargo or C compiler requirement. Installed applications include the executables and need no Go or Python setup. Native data lives under the Electron user-data directory in `native-data/`. Legacy IndexedDB data is copied when needed without deleting the original database; browser preferences remain in browser storage. Back up important archives before upgrading.
 
 Desktop → Parser performance offers Balanced (default), Fast and Custom modes. Fast allows the full logical-core budget; concurrent Demos share it and wait when memory is insufficient. Custom controls concurrent Demos, threads per Demo and the memory admission budget. Safe tick sampling uses native threads; events, button state and smoke/fire journals remain sequential. The budget does not impose a hard process memory limit.
 
 Desktop → Storage & backups shows database, cache and resource usage, supports manual least-recently-used cache cleanup, and creates verified backup folders. Restore replaces native data and imported resources on restart while retaining the previous directories. Original Demo files, browser preferences and unsaved work are not included. Background tasks are bounded and cancellable; automatic sleep prevention is optional for the current session.
 
 
-To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.16.2` image version.
+To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.17.0` image version.
 
 ## Controls
 
@@ -278,7 +278,7 @@ For code navigation and validation workflows, see the [development guide (Chines
 - React and Vite for the application shell and UI.
 - Feature-scoped Analysis components and calculations under `src/analysis/`; Demo domain logic and HUD under `src/demo/`; shared UI under `src/components/`; Three.js helpers under `src/three/`; utility-note logic under `src/utility/`; and reusable cross-panel DOM behavior under `src/hooks/`.
 - Three.js for map rendering, tactical objects, effects, and replay visualization.
-- `demoparser2` for Demo events, ticks, players, inventory and projectiles: Rust/WASM in Web, an independent Rust executable on desktop.
+- The pinned `dlwm/demoinfocs` fork and `go-parser/` adapter for Demo events, ticks, players, inventory and projectiles, built as Go WASM and a native executable.
 - `src/platform/` selects browser or desktop services; desktop utility processes handle heavy computation, and SQLite plus compressed files persist data.
 - `three-mesh-bvh` for accelerated map raycasting.
 - Yjs and `y-websocket` for collaborative rooms.
@@ -306,7 +306,7 @@ Optional Worker UI icons can be selected with the ignored `.local/worker-resourc
 
 The legacy `POST /api/parse` response contract is retained using the existing browser-compatible parser WASM. Cloudflare request-body, memory, and CPU limits still apply, so large Demo files should continue to be parsed locally in the browser.
 
-The native `@laihoe/demoparser2` package is used only by the Node.js Runtime adapter and offline tools. It is not imported by or bundled into Cloudflare Workers because the runtime cannot load N-API addons or start subprocesses; the Cloudflare Workers adapter uses the existing parser WASM instead.
+Node.js, Cloudflare Workers and offline analysis tools use the generated Go WASM parser. HTTP parsing releases its source session after each request and serializes access within each runtime. Cloudflare CPU, memory and bundle limits still apply. Build the parser before running the server; worker commands prepare it automatically.
 
 ## License
 

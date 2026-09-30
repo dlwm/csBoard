@@ -37,6 +37,7 @@ map-export:
 	bash scripts/export-map.sh
 
 workers-build:
+	node scripts/build-go-parser.js
 	@version="$$(scripts/resolve-build-version.sh)" && \
 	VITE_BUILD_VERSION="$$version" $(NPX) wrangler deploy \
 		--config config/cloudflare/wrangler.backend.jsonc --dry-run --outdir build/workers/backend && \

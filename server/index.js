@@ -1,20 +1,15 @@
 import { TRANSFER_PATH } from '../shared/broadcast-transfer.js';
 import { handleBroadcastTransfer } from './core/broadcastTransfer.js';
-import parserModule from '../src/wasm/demoparser2_bg.wasm';
-import { initSync, parseEvents, parseHeader, parseTicks } from '../src/wasm/demoparser2.js';
+import parserModule from '../build/go-parser/web/parser.wasm';
+import '../build/go-parser/web/wasm_exec.js';
+import { createGoHttpParser } from './go-parser.js';
 import { createHttpHandler } from './core/http.js';
 import { createYjsRoom, handleYjsMessage, removeSocketAwareness, sendSyncStep1 } from './core/yjs.js';
-
-initSync({ module: parserModule });
 
 const ROOM_EXPIRY_MS = 300_000;
 const ROOM_PATH = /^\/rooms\/([0-9A-F]{6})$/i;
 const json = (body, status = 200) => Response.json(body, { status });
-const handleHttp = createHttpHandler({
-  parseHeader,
-  parseEvents,
-  parseTicks: (bytes, props, ticks) => parseTicks(bytes, props, new Int32Array(ticks), null, false),
-});
+const handleHttp = createHttpHandler(createGoHttpParser(async () => parserModule));
 
 export class RoomDurableObject {
   constructor(ctx, env) {

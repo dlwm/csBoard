@@ -8,11 +8,13 @@ The GPL license applies only to material for which the CSBoard copyright holder 
 
 ## Third-party software
 
-Third-party libraries retain their own licenses. In particular, the Rust/WASM Demo parser under `src/wasm/` is a modified build of `LaihoE/demoparser` commit `266a831` and remains subject to its MIT license and the licenses of its Rust dependencies. The local modifications are recorded in that directory's patch files and README.
+Third-party libraries retain their own licenses.
 
-The dependency inventory, acknowledgements, and bundled license texts are provided in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Preserve applicable copyright and license notices when redistributing dependencies. Space Grotesk and DM Mono remain under SIL Open Font License 1.1; Electron/Chromium and Rust dependency notices must also accompany distributions containing those components. These notices do not relicense third-party components under GPL.
+Current Demo imports use the MIT-licensed `dlwm/demoinfocs` fork, pinned by `go-parser/source.json`, with the original CSBoard adapter in `go-parser/`. Go and its module dependency notices accompany generated artifacts.
 
-Release 1.16.0 retains GPL-3.0-only for CSBoard; the standard GPL text in `LICENSE` is unchanged. Corresponding source for distributed modified parser builds includes the upstream revision and local patches documented in `src/wasm/README.md`.
+The dependency inventory, acknowledgements, and bundled license texts are provided in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Preserve applicable copyright and license notices when redistributing dependencies. Space Grotesk and DM Mono remain under SIL Open Font License 1.1; Electron/Chromium and Go dependency notices must also accompany distributions containing those components. These notices do not relicense third-party components under GPL.
+
+Release 1.16.0 retains GPL-3.0-only for CSBoard; the standard GPL text in `LICENSE` is unchanged. Corresponding source for distributed modified parser builds includes the fork revision pinned in `go-parser/source.json` and the CSBoard Go adapter. Storage dependencies are pinned in `native/go.mod` and `native/go.sum`.
 
 ## Game and other third-party assets
 

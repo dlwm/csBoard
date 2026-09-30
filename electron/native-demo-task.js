@@ -1,5 +1,6 @@
 import { createNativeClient } from './native-client.js';
 import { createDemoParser } from '../src/demo/parserRuntime.js';
+import { createGoParserAdapter } from '../src/demo/goParserAdapter.js';
 import { encodeStoredValue } from '../src/app/storageCodec.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -9,12 +10,6 @@ let parser;
 let sequence = 0;
 const storageRequests = new Map();
 const send = message => process.parentPort.postMessage(message);
-// serde-wasm-bindgen represents Rust Option::None as undefined.
-const wasmShape = value => {
-  if (value === null) return undefined;
-  if (value && typeof value === 'object') for (const key of Object.keys(value)) value[key] = wasmShape(value[key]);
-  return value;
-};
 let staging;
 const store = async (method, args) => {
   const name = `${randomUUID()}.json`;
@@ -54,16 +49,14 @@ process.parentPort.on('message', async ({ data }) => {
   parser.child.on('spawn', () => send({ type: 'parserPid', pid: parser.child.pid }));
   parser.child.on('exit', () => send({ type: 'parserPid', pid: null }));
   try {
-    await parser.ready();
-    await parser.request('configure', { threads: data.allocation?.threads || 1, parallelTicks: data.allocation?.parallelTicks === true });
-    const call = async (method, part, args = {}) => wasmShape(await parser.request(method, { part: part.part, ...args }));
+    const parserInfo = await parser.ready();
+    await parser.request('configure', { threads: data.allocation?.threads || 1 });
     const parse = createDemoParser({
-      init: async () => null,
-      openSources: () => parser.request('source', { paths: job.paths }),
-      parseHeader: part => call('header', part),
-      parseEvents: (part, events, props) => call('events', part, { events, props }),
-      parseGrenades: (part, props) => call('grenades', part, { props }),
-      parseTicks: (part, props, ticks, players) => call('ticks', part, { props, ticks: Array.from(ticks), players }),
+      ...createGoParserAdapter({
+        init: async () => null,
+        openSources: () => parser.request('source', { paths: job.paths }),
+        request: (method, args) => parser.request(method, args),
+      }),
       postMessage: async message => {
         if (message.type === 'round') {
           await store('cache.putRound', { id: job.cacheId, round: message.data.round, value: encodeStoredValue(message.data) });
@@ -72,7 +65,7 @@ process.parentPort.on('message', async ({ data }) => {
         if (message.type === 'loaded') {
           const { analysisRows, ...data } = message.data;
           const now = new Date().toISOString();
-          const metadata = { id: job.cacheId, fileName: job.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate, sourceBytes: data.demo.bytes, dataBytes: message.estimatedBytes, analysisBytes: data.analysisBytes, createdAt: now, updatedAt: now, parserRevision: '266a831-csboard-1' };
+          const metadata = { id: job.cacheId, fileName: job.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate, sourceBytes: data.demo.bytes, dataBytes: message.estimatedBytes, analysisBytes: data.analysisBytes, createdAt: now, updatedAt: now, parserRevision: `go-${parserInfo.sourceRevision || 'local'}-adapter-1` };
           metadata.analysisIndexVersion = 1;
           metadata.cacheSchemaVersion = data.cacheSchemaVersion;
           metadata.analysisPlayerNames = [...new Set((analysisRows || []).flatMap(row => row.players.map(player => player.name).filter(Boolean)))];

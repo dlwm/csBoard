@@ -1,18 +1,21 @@
 # Third-party acknowledgements and licenses
 
-CSBoard 1.16.2 — Copyright (C) 2026 Colvin Chen
+CSBoard 1.17.0 — Copyright (C) 2026 Colvin Chen
 
 Thanks to the maintainers and contributors of the projects below. CSBoard's
 GPL-3.0-only license does not replace their licenses. This document records
 direct runtime dependencies and bundled fonts; it is not a complete inventory
-of Electron/Chromium, native parser, Rust, or build-tool transitive dependencies.
+of Electron/Chromium, Go components, or build-tool transitive dependencies.
 Retain their accompanying notices when shipping those binaries.
 
-The desktop Rust component includes a generated `native/licenses/dependencies.json`
-inventory and available dependency license files in the packaged resources, plus
-the upstream demoparser license. Its dependency versions are pinned in
-`native/Cargo.lock`; build preparation uses the WASM compatibility patches plus
-the native-only `native/tick-segments.patch` sampling optimization.
+The desktop Go storage component includes a generated `native/licenses/dependencies.json`
+inventory and available dependency license files in the packaged resources.
+Its dependencies are pinned in `native/go.mod` and `native/go.sum`; SQLite uses
+modernc.org/sqlite (BSD-3-Clause), with SQLite itself in the public domain.
+
+The Go parser build uses the `dlwm/demoinfocs` fork at a pinned commit and
+includes its MIT license, the Go runtime license, and available Go module
+license files in `go-parser/licenses/` alongside the generated web artifact.
 
 ## Components
 
@@ -20,7 +23,8 @@ the native-only `native/tick-segments.patch` sampling optimization.
 | --- | --- | --- |
 | React / React DOM | MIT | Interface |
 | Three.js / three-mesh-bvh | MIT | 3D rendering and accelerated spatial queries |
-| LaihoE/demoparser / @laihoe/demoparser2 | MIT | Native and modified Rust/WASM Demo parsing |
+| dlwm/demoinfocs, based on markus-wa/demoinfocs-golang | MIT | Native and WASM Demo import |
+| modernc.org/sqlite | BSD-3-Clause, plus bundled component licenses | Native SQLite storage |
 | Yjs / y-websocket / y-protocols / lib0 | MIT | Collaboration |
 | ws | MIT | Node WebSocket transport |
 | Electron | MIT, plus bundled component licenses | Desktop runtime |
@@ -32,41 +36,9 @@ Versions below identify the installed direct dependencies used for this release.
 The lockfile records resolved packages. Build-tool dependencies retain their
 own license files even when they are not included in the application bundle.
 Electron distributions include `LICENSES.chromium.html`; preserve it with the
-runtime. The parser revision and local patches are recorded in
-[src/wasm/README.md](src/wasm/README.md). Game-derived NAV, map models, and Demo
+runtime. The Go parser revision is recorded in `go-parser/source.json`. Game-derived NAV, map models, and Demo
 content remain subject to [LICENSE_SCOPE.md](LICENSE_SCOPE.md), not these
 software licenses.
-
-## LaihoE/demoparser
-
-Source: https://github.com/LaihoE/demoparser/tree/266a831
-Upstream license: https://github.com/LaihoE/demoparser/blob/266a831/LICENSE
-
-The upstream copyright line is reproduced verbatim, including its placeholders.
-
-```text
-MIT License
-
-Copyright (c) [year] [fullname]
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
 
 ## react 19.2.8 (MIT)
 

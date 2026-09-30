@@ -71,7 +71,7 @@ import useBroadcastArchives from './broadcast/useBroadcastArchives.js';
 import useBroadcastRoom from './broadcast/useBroadcastRoom.js';
 
 const platform = getPlatform();
-const DEMO_CACHE_SCHEMA_VERSION = 30;
+const DEMO_CACHE_SCHEMA_VERSION = 31;
 
 
 function App() {

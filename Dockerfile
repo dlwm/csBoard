@@ -1,7 +1,12 @@
-FROM node:22-bookworm-slim AS builder
+FROM golang:1.27-bookworm AS go-toolchain
+
+FROM node:24-bookworm-slim AS builder
+COPY --from=go-toolchain /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:${PATH}"
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-ARG BUILD_VERSION=v1.16.2
+ARG BUILD_VERSION=v1.17.0
 
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -16,7 +21,7 @@ RUN node --check server/node.js \
     && node --check server/core/yjs.js
 
 
-FROM node:22-alpine AS runtime
+FROM node:24-alpine AS runtime
 
 WORKDIR /app
 
@@ -30,7 +35,9 @@ RUN npm ci --omit=dev \
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
-COPY LICENSE LICENSE_SCOPE.md ./
+COPY --from=builder /app/build/go-parser/web ./build/go-parser/web
+COPY --from=builder /app/shared ./shared
+COPY LICENSE LICENSE_SCOPE.md THIRD_PARTY_NOTICES.md ./
 
 EXPOSE 3000
 

@@ -28,7 +28,7 @@ export function recommendedDemoParseConcurrency(jobCount, jobs) {
   const memory = Number(navigator.deviceMemory) || null;
   const mobile = navigator.userAgentData?.mobile || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
   const largestSource = Math.max(0, ...jobs.map((job) => job.files.reduce((sum, file) => sum + file.size, 0)));
-  // A ~300 MiB source can still need several GiB while Rust columns are converted
+  // A ~300 MiB source can still need several GiB while decoded samples are converted
   // to JavaScript. Keep large jobs sequential so two workers cannot multiply that peak.
   if (mobile || cores < 4 || (memory != null && memory < 8) || largestSource > 256 * 1024 * 1024) return 1;
   return Math.min(2, jobCount);
