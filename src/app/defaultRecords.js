@@ -1,5 +1,5 @@
-const defaultUtilityNoteModules = import.meta.glob('../default-data/utility-notes/**/*.json', { eager: true, import: 'default' });
-const defaultWorkspaceArchiveModules = import.meta.glob('../default-data/workspace-archives/**/*.json', { eager: true, import: 'default' });
+const defaultUtilityNoteModules = import.meta.glob('../../docs/presets/utility-notes/**/*.json', { eager: true, import: 'default' });
+const defaultWorkspaceArchiveModules = import.meta.glob('../../docs/presets/workspace-archives/**/*.json', { eager: true, import: 'default' });
 
 const collectDefaultRecords = (modules, collectionKey) => Object.values(modules).flatMap((data) => {
   if (Array.isArray(data)) return data;

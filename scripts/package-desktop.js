@@ -1,8 +1,12 @@
+import { buildFeatures } from '../config/build/features.js';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const features = buildFeatures(root, 'desktop');
+process.env.CSBOARD_AI_ENABLED = String(features.ai);
 const targets = {
   'mac-arm64': { platform: 'darwin', arch: 'arm64', format: 'dmg' },
   'mac-x64': { platform: 'darwin', arch: 'x64', format: 'dmg' },
@@ -34,11 +38,15 @@ if (command === 'dev') {
   const { build, Platform, Arch } = await import('electron-builder');
   const platform = target.platform === 'darwin' ? Platform.MAC : Platform.WINDOWS;
   const localConfiguration = localModels ? (await import('../config/electron/local.cjs')).default : {};
-  const config = localSource ? { ...localConfiguration, extraMetadata: { ...localConfiguration.extraMetadata, csboardLocalParser: true } } : localModels ? path.join(root, 'config/electron/local.cjs') : undefined;
+  const config = {
+    ...localConfiguration,
+    extraMetadata: { ...localConfiguration.extraMetadata, csboardAiEnabled: features.ai, ...(localSource ? { csboardLocalParser: true } : {}) },
+    ...(!features.ai ? { files: [...(localConfiguration.files || JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).build.files), '!electron/ai-service.js', '!shared/ai-protocol.js', '!shared/ai-providers.js'] } : {}),
+  };
   await build({
     projectDir: root,
     targets: platform.createTarget(command === 'prepare' ? 'dir' : target.format, Arch[target.arch]),
-    ...(config ? { config } : {}),
+    config,
     publish: 'never',
   });
 }

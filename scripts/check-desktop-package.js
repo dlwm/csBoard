@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { once } from 'node:events';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createNativeClient } from '../electron/native-client.js';
 
@@ -12,13 +13,28 @@ const folders = { 'mac-arm64': 'mac-arm64/CSBoard.app/Contents/Resources', 'mac-
 if (!folders[target]) throw new Error('Expected mac-arm64, mac-x64 or win-x64');
 const resources = path.resolve('build/desktop', folders[target]);
 const archive = path.join(resources, 'app.asar');
+// Verify sealed app contents and both native executables before publishing.
+// This checks signature integrity, not Developer ID trust or notarization.
+if (target.startsWith('mac-')) {
+  const appBundle = path.resolve(resources, '../..');
+  execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', appBundle], { stdio: 'inherit' });
+  for (const file of ['native/csboard-native', 'go-parser/csboard-go-parser']) {
+    execFileSync('/usr/bin/codesign', ['--verify', '--strict', '--verbose=2', path.join(resources, file)], { stdio: 'inherit' });
+  }
+}
+
 const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
 const packaged = JSON.parse(extractFile(archive, 'package.json').toString());
 if (packaged.version !== pkg.version || packaged.csboardLocalModels || packaged.csboardLocalParser) throw new Error('Wrong packaged version or local-model test build');
-for (const file of ['electron/main.js', 'electron/preload.cjs', 'LICENSE', 'docs/LICENSE_SCOPE.md', 'docs/THIRD_PARTY_NOTICES.md', 'build/renderer/index.html', 'build/renderer/go-parser/parser.wasm', 'build/renderer/go-parser/wasm_exec.js', 'build/tasks/demo.js', 'build/tasks/data.js']) {
+for (const file of ['electron/main.js', 'electron/preload.cjs', 'shared/record-keys.js', 'LICENSE', 'docs/THIRD_PARTY_NOTICES.md', 'build/renderer/index.html', 'build/renderer/go-parser/parser.wasm', 'build/renderer/go-parser/wasm_exec.js', 'build/tasks/demo.js', 'build/tasks/data.js']) {
   extractFile(archive, path.join(...file.split('/')));
 }
+const features = JSON.parse(extractFile(archive, path.join('build', 'renderer', 'features.json')).toString());
+if (features.ai !== (packaged.csboardAiEnabled !== false)) throw new Error('Renderer and desktop AI features differ');
+const aiFiles = ['electron/ai-service.js', 'shared/ai-protocol.js', 'shared/ai-providers.js'];
+if (packaged.csboardAiEnabled !== false) for (const file of aiFiles) extractFile(archive, path.join(...file.split('/')));
 const names = listPackage(archive).map(name => name.replaceAll(path.win32.sep, '/'));
+if (packaged.csboardAiEnabled === false && names.some(name => aiFiles.includes(name.replace(/^\//, '')))) throw new Error('AI files leaked into disabled package');
 if (names.some(name => /(^|\/)\.local(\/|$)|\.glb$/i.test(name))) throw new Error('Local resources leaked into app.asar');
 async function inspect(directory) {
   for (const item of await fs.readdir(directory, { withFileTypes: true })) {

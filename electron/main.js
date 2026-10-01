@@ -71,6 +71,7 @@ app.setName('csBoard')
 // Keep the existing storage location when changing the displayed product name.
 const existingUserData = app.getPath('userData')
 const metadata = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'))
+const aiEnabled = app.isPackaged ? metadata.csboardAiEnabled !== false : process.env.CSBOARD_AI_ENABLED !== 'false'
 const productName = metadata.productName || metadata.build?.productName || 'CSBoard'
 app.setName(productName)
 app.setPath('userData', existingUserData)
@@ -95,6 +96,7 @@ app.whenReady().then(async () => {
     if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame
       || new URL(event.senderFrame.url).origin !== `http://${DESKTOP_HOST}:${DESKTOP_PORT}`) throw new Error('Invalid resource request')
   }
+  const aiService = aiEnabled ? (await import('./ai-service.js')).registerAiService({ app, authorize }) : null
   ipcMain.handle('resources:status', event => { authorize(event); return resourceStore.status() })
   let importing = false
   nativeServices = registerNativeServices({ app, authorize, getWindow: () => mainWindow, resourceBusy: () => importing })
@@ -123,13 +125,15 @@ app.whenReady().then(async () => {
     height: 900,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
+      additionalArguments: aiEnabled ? ['--csboard-ai-enabled'] : [],
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false,
     },
   })
 
-  mainWindow.on('closed', () => { mainWindow = null })
+  mainWindow.on('closed', () => { aiService?.cancelAll(); mainWindow = null })
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) aiService?.cancelAll() })
   for (const name of ['minimize', 'restore', 'hide', 'show']) mainWindow.on(name, () => {
     if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('desktop:presentation', mainWindow.isVisible() && !mainWindow.isMinimized())
   })

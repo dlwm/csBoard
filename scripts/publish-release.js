@@ -38,7 +38,7 @@ export async function publishDraft({ repository, token, tag, commit, notes, dire
     if (release || releases.length < 100) break;
   }
   if (release && (!release.draft || release.target_commitish !== commit)) throw new Error('Refusing to overwrite a published release or a draft for another commit');
-  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notes}\n\nInstallers are unsigned; validate installation before publishing. SHA-256 checksums are attached.`, draft: true, make_latest: 'false' };
+  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notes}\n\nmacOS apps are ad-hoc signed, without Apple notarization; Gatekeeper may require manual approval or removal of the app quarantine attribute. Windows installers are unsigned. SHA-256 checksums are attached.`, draft: true, make_latest: 'false' };
   release = await api(`${base}/releases${release ? `/${release.id}` : ''}`, release ? 'PATCH' : 'POST', payload);
   const upload = new URL(release.upload_url.split('{')[0]);
   if (upload.origin !== 'https://uploads.github.com') throw new Error('Unexpected GitHub upload endpoint');

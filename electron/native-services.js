@@ -9,9 +9,9 @@ import { createTaskScheduler } from './task-scheduler.js';
 import { createCacheTransfers } from './cache-files.js';
 import { registerStorageManagement } from './storage-management.js';
 import { createParsePerformance } from './parse-performance.js';
+import { isAllowedRecordKey } from '../shared/record-keys.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const recordKeys = new Set(['workspace-archives', 'utility-notes', 'broadcast-archives', 'archive-folders-workspace', 'archive-folders-broadcast', 'archive-folders-utility', 'native-demo-migration-v1']);
 const storageMethods = new Set(['record.get', 'record.put', 'record.patch', 'record.import', 'cache.list', 'cache.inspect', 'cache.get', 'cache.round', 'cache.count', 'cache.put', 'cache.putRound', 'cache.delete']);
 
 export function registerNativeServices({ app, authorize, getWindow, resourceBusy = () => false }) {
@@ -96,7 +96,7 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
   ipcMain.handle('native:storage', async (event, method, args = {}) => {
     authorize(event);
     if (!storageMethods.has(method)) throw new Error('Invalid storage operation');
-    if (method.startsWith('record.') && !recordKeys.has(args.key)) throw new Error('Invalid record key');
+    if (method.startsWith('record.') && !isAllowedRecordKey(args.key)) throw new Error('Invalid record key');
     if (method.startsWith('cache.') && method !== 'cache.list' && (typeof args.id !== 'string' || args.id.length > 16384)) throw new Error('Invalid cache ID');
     if (method === 'cache.delete' && [...jobs.values()].some(job => job.cacheId === args.id)) throw new Error('This Demo is still being parsed');
     return request(method, args, { priority: method.startsWith('record.') ? 10 : method === 'cache.round' ? 20 : 0 });

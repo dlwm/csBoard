@@ -6,7 +6,8 @@ services:
       context: ../..
       dockerfile: config/docker/Dockerfile
       args:
-        BUILD_VERSION: ${BUILD_VERSION:-v1.17.0}
+        BUILD_VERSION: ${BUILD_VERSION:-v1.18.0}
+        CSBOARD_AI_ENABLED: ${CSBOARD_AI_ENABLED:-true}
 
     container_name: csboard
     restart: unless-stopped
@@ -18,6 +19,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       LOCAL_MAPS_DIR: /app/.local/official/maps
+      AI_ALLOWED_BASE_URLS: ${AI_ALLOWED_BASE_URLS:-}
+      AI_ALLOWED_WEB_ORIGINS: ${AI_ALLOWED_WEB_ORIGINS:-}
 
     volumes:
       - type: bind

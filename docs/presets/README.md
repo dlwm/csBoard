@@ -1,7 +1,9 @@
-# Default Starter Data
+# Default Starter Data / 预设道具与存档
 
-Files in this directory seed browser-local data only when the corresponding
-IndexedDB record has never been created. Existing user data is never merged,
+本目录管理应用预设数据，与 [AI 内容目录](../ai/README.md) 并列。道具放入 `utility-notes/`，存档放入 `workspace-archives/`，无需修改文档清单；仅首次创建本地记录时导入，现有用户数据不会被覆盖。
+
+Files in this directory seed local data only when the corresponding
+storage record has never been created. Existing user data is never merged,
 replaced, or restored after deletion.
 
 ## Utility Notes

@@ -1,18 +1,22 @@
 import { TUTORIAL_MAP_ID } from '../three/tutorialMap.js';
 import { isDesktopRuntime } from './runtime.js';
 
-const OSS_BASE = String(import.meta.env.VITE_OSS_BASE_URL || '').replace(/\/$/, '');
-const BACKEND_BASE = String(import.meta.env.VITE_BACKEND_BASE_URL || '').replace(/\/$/, '');
-const USE_LOCAL_MAPS = import.meta.env.DEV || import.meta.env.VITE_USE_LOCAL_MAPS === 'true';
+// Vite supplies build settings; direct Node imports use the application defaults.
+// Keep the feature flag reference explicit so Vite can remove disabled AI code.
+export const AI_ENABLED = typeof import.meta.env === 'undefined' ? true : import.meta.env.CSBOARD_AI_ENABLED;
+const OSS_BASE = String(import.meta.env?.VITE_OSS_BASE_URL || '').replace(/\/$/, '');
+const BACKEND_BASE = String(import.meta.env?.VITE_BACKEND_BASE_URL || '').replace(/\/$/, '');
+export const AI_CHAT_URL = `${BACKEND_BASE}/api/ai/chat`;
+const USE_LOCAL_MAPS = import.meta.env?.DEV || import.meta.env?.VITE_USE_LOCAL_MAPS === 'true';
 const IS_DESKTOP_RUNTIME = isDesktopRuntime();
 
-export const IS_DEVELOPMENT_RUNTIME = import.meta.env.DEV || ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
+export const IS_DEVELOPMENT_RUNTIME = Boolean(import.meta.env?.DEV) || ['localhost', '127.0.0.1', '::1'].includes(globalThis.location?.hostname);
 export const MAP_BASE = USE_LOCAL_MAPS || !OSS_BASE ? '/maps' : `${OSS_BASE}/maps`;
 // Desktop model sources are resolved per map by its resource pack, never OSS.
 export const MAP_MODEL_BASES = IS_DESKTOP_RUNTIME
   ? []
   : [MAP_BASE];
-export const BUILD_VERSION = String(import.meta.env.VITE_BUILD_VERSION || '').trim();
+export const BUILD_VERSION = String(import.meta.env?.VITE_BUILD_VERSION || '').trim();
 
 export const VIEW_PREFERENCES_KEY = 'csboard-view-preferences';
 export const MODEL_VIEW_RANGE_EVENT = 'csboard-model-view-range';

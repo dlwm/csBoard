@@ -49,7 +49,7 @@ import '@fontsource/space-grotesk/700.css';
 import './styles.css';
 import useRoomConnection from './collaboration/useRoomConnection.js';
 import { localeForLanguage, localize, normalizeLanguage, translate } from './i18n.js';
-import { ANALYSIS_HEAT_DATA_EVENT, IS_DEVELOPMENT_RUNTIME, loadViewPreferences, MAP_LABELS_ZH, MAPS, MODEL_VIEW_RANGE_EVENT, VIEW_PREFERENCES_KEY } from './app/config.js';
+import { AI_ENABLED, ANALYSIS_HEAT_DATA_EVENT, IS_DEVELOPMENT_RUNTIME, loadViewPreferences, MAP_LABELS_ZH, MAPS, MODEL_VIEW_RANGE_EVENT, VIEW_PREFERENCES_KEY } from './app/config.js';
 import { generateClientName, generatedClientNames } from './app/clientIdentity.js';
 import useUtilityNotes from './utility/useUtilityNotes.js';
 import { UTILITY_NOTES_VERSION } from './utility/noteSchema.js';
@@ -69,6 +69,7 @@ import useArchiveFolders from './app/useArchiveFolders.js';
 import { buildBroadcastArchive } from './broadcast/archive.js';
 import useBroadcastArchives from './broadcast/useBroadcastArchives.js';
 import useBroadcastRoom from './broadcast/useBroadcastRoom.js';
+import AiPanel from './ai/AiPanel.jsx';
 
 const platform = getPlatform();
 const DEMO_CACHE_SCHEMA_VERSION = 31;
@@ -240,6 +241,7 @@ function App() {
   const collabDirtyRef = useRef(false);
   const collabSaveTimerRef = useRef(null);
   const scheduleCollabSave = (delay = 700) => {
+    window.dispatchEvent(new Event('csboard:context-change'));
     collabDirtyRef.current = true;
     window.clearTimeout(collabSaveTimerRef.current);
     collabSaveTimerRef.current = window.setTimeout(() => {
@@ -257,7 +259,7 @@ function App() {
     if (activePanel !== 'collab') return;
     return () => flushCollabSave();
   }, [activePanel]);
-  const { utilityNotes, utilityNotesRef, persistUtilityNotes } = useUtilityNotes(() => setUtilityError(t('utilityStorageFailed')));
+  const { utilityNotes, utilityNotesRef, utilityNotesStatusRef, persistUtilityNotes } = useUtilityNotes(() => setUtilityError(t('utilityStorageFailed')));
   const utilityFolders = useArchiveFolders('utility', () => setUtilityError(t('utilityStorageFailed')));
   const [utilitySaveFolderId, setUtilitySaveFolderId] = useState(ROOT_FOLDER_ID);
   const [pendingUtilityNote, setPendingUtilityNote] = useState(null);
@@ -1062,6 +1064,7 @@ function App() {
   }, [demoPlaying, demoData, demoRound]);
   useEffect(() => {
      const onDemoKeyDown = (event) => {
+       if (AI_ENABLED && event.target?.closest?.('.ai-panel')) return;
        // Reading/copying a modal guide must not seek or start Demo playback.
        if (event.target?.closest?.('dialog[open]')) return;
        if (event.code === 'ArrowLeft' || event.code === 'ArrowRight') {
@@ -1112,6 +1115,27 @@ function App() {
     });
   }, [activePanel, demoData, language, trackpadDetection]);
   const { currentLayerUrl, cycleFloor: cycleMapFloor, floorOptions, layers: currentMapLayers, selectFloor: selectMapFloor } = useMapFloorControls({ map2dLayer, mapName, modelFloor, navData, setMap2dLayer, setModelFloor, t });
+  const aiPorts = AI_ENABLED ? {
+    context: () => ({ mapName, panel: activePanel, controls: { showGrid, showModel, modelFloor, modelViewMode, modelOpacity, brushColor, brushWidth, eraserEnabled }, archiveName: archivesRef.current.find(item => item.id === activeArchiveId)?.name || '', frameId: activeFrameIdRef.current, archiveId: activeArchiveId, roomCode, enabled: activePanel === 'collab' && hasActiveFrameContext }),
+    board: () => boardRef.current,
+    nav: () => navData,
+    frames: () => framesRef.current,
+    notes: () => utilityNotesRef.current,
+    notesStatus: () => utilityNotesStatusRef.current,
+    archives: () => archivesRef.current,
+    room: () => ({ code: roomCode, owner: roomOwner }),
+    folders: () => workspaceFolders,
+    roomActions: { open: openRoom, join: joinRoom, leave: leaveRoom },
+    flush: () => { flushCollabSave(); setCollabUtilityRevision(value => value + 1); },
+    edit: action => { const doc = roomDocRef.current; if (doc) doc.transact(action); else action(); },
+    frameActions: { create: insertFrame, duplicate: duplicateFrame, switch: switchFrame, delete: deleteFrame },
+    cameraActions: { save_slot: slot => boardRef.current?.saveCameraSlot?.(slot), restore_slot: slot => boardRef.current?.restoreCameraSlot?.(slot) },
+    saveArchive: () => openSaveArchiveModal(),
+    newArchive: openNewArchiveModal,
+    overwriteArchive: openOverwriteArchiveModal,
+    deleteArchive: deleteWorkspaceArchive,
+    restoreArchive: archive => restoreWorkspaceArchive(archive),
+  } : null;
   return <main className={`board-shell${isMobile ? ' is-mobile' : ''}${!hasLeftSidebar || !leftSidebarOpen ? ' left-sidebar-collapsed' : ''}${hasRightSidebar && !rightSidebarOpen ? ' right-sidebar-collapsed' : ''}`} data-panel={displayPanel} data-analysis-metric={demoViewFlags.analysisMetric}>
     {tutorialOfferOpen && <TutorialOffer language={language} devMode={IS_DEVELOPMENT_RUNTIME} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
     <BoardHeader activePanel={displayPanel} language={language} mapName={mapName} parseGameState={parseGameState} setLanguage={setLanguage} setMapName={setMapName} setParseGameManual={setParseGameManual} setParseGameState={setParseGameState} switchPanel={switchMainPanel} t={t} />
@@ -1124,6 +1148,7 @@ function App() {
          {mapName === TUTORIAL_MAP_ID && <TutorialGuide language={language} open={tutorialOpen} step={tutorialStep} onOpen={() => { setTutorialStep(0); setTutorialOpen(true); }} onStep={moveTutorial} onFinish={finishTutorial} onExit={() => { finishTutorial(); setMapName('de_dust2'); }} />}
          {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><SideGameHub language={language} stopped={!parseGameManual && parseGameState === 'stopped'} manual={parseGameManual} onClose={() => { setParseGameDismissed(true); setParseGameManual(false); setParseGameState('hidden'); }} /></div>}
         <ThreeBoard key={mapName} mapName={mapName} navData={navData} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={activePanel === 'demo' ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoInfernoFrames={activePanel === 'demo' ? demoInfernoFrames : utilityReplay?.note.replay.infernoFrames || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={combinedAnalysis.utilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
+         {AI_ENABLED && <AiPanel language={language} ports={aiPorts} transport={platform.ai} enabled={activePanel === 'collab' && hasActiveFrameContext} visible={activePanel === 'collab'} />}
          {isMobile && <MobileCameraWheel slots={cameraSlotState} active={activeCameraSlot} language={language} onRestore={(slot) => boardRef.current?.restoreCameraSlot?.(slot)} onSave={(slot) => boardRef.current?.saveCameraSlot?.(slot)} onReset={() => boardRef.current?.reset?.()} />}
          <div className="stage-vignette" />
           {activePanel === 'demo' && (!broadcastPage || activeBroadcastId) && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} minimal={broadcastPage} />}

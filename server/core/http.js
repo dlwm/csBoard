@@ -1,4 +1,5 @@
 // Runtime-neutral HTTP routes shared by the Node.js and Cloudflare adapters.
+// Wrangler replaces this constant at build time; Node uses its runtime setting.
 const json = (body, status = 200) => Response.json(body, { status });
 const toPlainObject = (value) => value instanceof Map ? Object.fromEntries(value) : value;
 
@@ -39,9 +40,16 @@ async function parseDemo(request, parser) {
   }
 }
 
-export function createHttpHandler(parser) {
+export function createHttpHandler(parser, options = {}) {
   return async function handleHttp(request, env = {}) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/ai/chat') {
+      if (typeof __CSBOARD_AI_ENABLED__ !== 'undefined' ? __CSBOARD_AI_ENABLED__ : options.aiEnabled !== false && process.env.CSBOARD_AI_ENABLED !== 'false') {
+        const { handleAiRequest } = await import('./ai.js');
+        return handleAiRequest(request, env);
+      }
+      return json({ error: 'Not found' }, 404);
+    }
     const mapBaseUrl = String(env.MAP_BASE_URL || '').replace(/\/$/, '');
     if (request.method === 'GET' && url.pathname === '/api/health') return json({ ok: true, parser: parser.name || 'demoinfocs-go' });
     if (request.method === 'POST' && url.pathname === '/api/parse') return parseDemo(request, parser);

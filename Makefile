@@ -40,7 +40,7 @@ workers-build:
 	node scripts/build-go-parser.js
 	@version="$$(scripts/resolve-build-version.sh)" && \
 	VITE_BUILD_VERSION="$$version" $(NPX) wrangler deploy \
-		--config config/cloudflare/wrangler.backend.jsonc --dry-run --outdir build/workers/backend && \
+		--config config/cloudflare/wrangler.backend.jsonc --define __CSBOARD_AI_ENABLED__:$${CF_AI_ENABLED:-false} --dry-run --outdir build/workers/backend && \
 	VITE_BUILD_VERSION="$$version" $(NPX) wrangler deploy \
 		--config config/cloudflare/wrangler.frontend.jsonc --dry-run --outdir build/workers/frontend
 

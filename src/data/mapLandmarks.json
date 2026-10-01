@@ -1,0 +1,255 @@
+{
+  "version": 1,
+  "source": {
+    "url": "https://github.com/CS2OpenDev/CS2OpenDev-Docs",
+    "revision": "3d82674b31c75704586a7ca232aa8c734ffd3261",
+    "path": "docs/generated/data/maps.json",
+    "readAt": "2026-09-30",
+    "kind": "radar_overview_markers",
+    "license": "MIT License\n\nCopyright (c) 2026 CS2OpenDev\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+  },
+  "maps": {
+    "de_ancient": {
+      "overview": {
+        "posX": -2953,
+        "posY": 2164,
+        "scale": 5
+      },
+      "markers": {
+        "A": [
+          -1365.8,
+          884
+        ],
+        "B": [
+          1143,
+          116
+        ],
+        "CT": [
+          -341.8000000000002,
+          1293.6
+        ],
+        "T": [
+          -469.8000000000002,
+          -2290.3999999999996
+        ]
+      }
+    },
+    "de_anubis": {
+      "overview": {
+        "posX": -2796,
+        "posY": 3328,
+        "scale": 5.22
+      },
+      "markers": {
+        "CT": [
+          464.6207999999997,
+          2152.0384000000004
+        ],
+        "T": [
+          304.2623999999996,
+          -1643.1103999999996
+        ]
+      }
+    },
+    "de_cache": {
+      "overview": {
+        "posX": -2000,
+        "posY": 3250,
+        "scale": 5.5
+      },
+      "markers": {
+        "A": [
+          -169.5999999999999,
+          1785.6799999999998
+        ],
+        "B": [
+          -56.960000000000036,
+          -1199.2800000000007
+        ],
+        "CT": [
+          -1449.472,
+          586.0640000000003
+        ],
+        "T": [
+          2995.584,
+          -44.7199999999998
+        ]
+      }
+    },
+    "de_dust2": {
+      "overview": {
+        "posX": -2476,
+        "posY": 3239,
+        "scale": 4.4
+      },
+      "markers": {
+        "A": [
+          1128.4800000000005,
+          2518.104
+        ],
+        "B": [
+          -1529.824,
+          2698.328
+        ],
+        "CT": [
+          317.4720000000002,
+          2292.824
+        ],
+        "T": [
+          -718.8159999999998,
+          -861.0960000000005
+        ]
+      }
+    },
+    "de_inferno": {
+      "overview": {
+        "posX": -2087,
+        "posY": 3870,
+        "scale": 4.9
+      },
+      "markers": {
+        "A": [
+          1977.2560000000008,
+          407.8560000000002
+        ],
+        "B": [
+          371.62400000000025,
+          2766.1279999999997
+        ],
+        "CT": [
+          2428.84,
+          2113.84
+        ],
+        "T": [
+          -1585.24,
+          508.20799999999963
+        ]
+      }
+    },
+    "de_mirage": {
+      "overview": {
+        "posX": -3230,
+        "posY": 1713,
+        "scale": 5
+      },
+      "markers": {
+        "A": [
+          -465.1999999999998,
+          -2178.2
+        ],
+        "B": [
+          -2052.3999999999996,
+          279.39999999999986
+        ],
+        "CT": [
+          -1796.3999999999999,
+          -1871
+        ],
+        "T": [
+          1224.3999999999996,
+          -130.19999999999982
+        ]
+      }
+    },
+    "de_nuke": {
+      "overview": {
+        "posX": -3453,
+        "posY": 2887,
+        "scale": 7
+      },
+      "markers": {
+        "A": [
+          704.4399999999996,
+          -553.6399999999999
+        ],
+        "B": [
+          704.4399999999996,
+          -1270.4399999999996
+        ],
+        "CT": [
+          2424.7599999999993,
+          -338.5999999999999
+        ],
+        "T": [
+          -2091.08,
+          -983.7200000000003
+        ]
+      }
+    },
+    "de_overpass": {
+      "overview": {
+        "posX": -4831,
+        "posY": 1781,
+        "scale": 5.2
+      },
+      "markers": {
+        "A": [
+          -1902.3599999999997,
+          556.2959999999998
+        ],
+        "B": [
+          -1103.6400000000003,
+          130.3119999999999
+        ],
+        "CT": [
+          -2221.848,
+          716.04
+        ],
+        "T": [
+          -1316.6319999999996,
+          -3171.0640000000003
+        ]
+      }
+    },
+    "de_train": {
+      "overview": {
+        "posX": -2308,
+        "posY": 2078,
+        "scale": 4.082077
+      },
+      "markers": {
+        "A": [
+          325.4295142400001,
+          29.77704447999986
+        ],
+        "B": [
+          -134.3756390399999,
+          -1098.8356044799998
+        ],
+        "CT": [
+          1286.84028928,
+          -1140.63607296
+        ],
+        "T": [
+          -1806.3943782400002,
+          1032.988288
+        ]
+      }
+    },
+    "de_vertigo": {
+      "overview": {
+        "posX": -3168,
+        "posY": 1762,
+        "scale": 4
+      },
+      "markers": {
+        "A": [
+          -280.32000000000016,
+          -634.1599999999999
+        ],
+        "B": [
+          -2258.688,
+          848.592
+        ],
+        "CT": [
+          -956.1599999999999,
+          738
+        ],
+        "T": [
+          -2348.8,
+          -1310
+        ]
+      }
+    }
+  }
+}

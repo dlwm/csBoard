@@ -2,6 +2,27 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.18.0] - 2026-10-01
+
+### Added
+
+- Add an experimental operation assistant that reads and edits players, recorded utilities, schematic effects, lines, frames and archives, and manages collaboration actions. Edits support undo and room synchronization; destructive actions require confirmation.
+- Add persistent sessions with editable memory, application context, switching and JSON import/export. Arrange ordered workflows with per-step tool permissions.
+- Add configurable automatic context compression with a 60,000-character default. Save summaries while retaining original conversations for retrieval.
+- Let image-capable models inspect numbered current, top and custom focused views of NAV ground and resolve image pixels into location candidates. Text-only models can inspect polygons, floor heights, connections and relative positions.
+- Add common AI provider presets and custom service settings. Let the assistant read bundled application and resource guides by language, section and page.
+
+### Changed
+
+- Improve chat formatting, copying, collapsible activity, keyboard controls, panel sizing and history scrolling. Localize tool names; reveal technical IDs on hover or focus.
+
+### Fixed
+
+- Fix assistant session saving failing on valid record names.
+- Handle long streamed replies without counting repeated transmission metadata toward content limits. Preserve provider reasoning across tool requests, improve argument compatibility and show specific service errors.
+- Reduce repeated location searches and unchanged reads; stop loops without progress. Cancellation, declined actions and pending user input stop subsequent edits while preserving completed work.
+- Align player position reads and writes and explain invalid arguments. Improve NAV region queries, incomplete-place and empty-library diagnostics, schematic-effect reporting and operation outcomes; clarify frame creation/copying and protect the confirmed deletion target.
+
 ## [1.17.0] - 2026-09-30
 
 ### Changed

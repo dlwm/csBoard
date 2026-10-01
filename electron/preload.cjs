@@ -3,6 +3,17 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Only business operations cross the bridge. Native paths stay in the main process.
 contextBridge.exposeInMainWorld('csboardDesktop', {
   isDesktop: true,
+  ...(process.argv.includes('--csboard-ai-enabled') ? { ai: {
+    config: () => ipcRenderer.invoke('ai:config'),
+    save: config => ipcRenderer.invoke('ai:save', config),
+    complete: (id, payload) => ipcRenderer.invoke('ai:complete', id, payload),
+    cancel: id => ipcRenderer.invoke('ai:cancel', id),
+    onDelta: callback => {
+      const listener = (_event, value) => callback(value);
+      ipcRenderer.on('ai:delta', listener);
+      return () => ipcRenderer.removeListener('ai:delta', listener);
+    },
+  } } : {}),
   maintenance: {
     performance: () => ipcRenderer.invoke('native:performance'),
     savePerformance: settings => ipcRenderer.invoke('native:performance-save', settings),

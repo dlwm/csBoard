@@ -1,3 +1,4 @@
+import { featureFlag } from '../config/build/features.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -52,9 +53,9 @@ async function main() {
     ? path.resolve(root, process.env.CF_RESOURCE_PACK_CONFIG)
     : defaultConfig;
   const icons = await collectWorkerIcons(configFile, !process.env.CF_RESOURCE_PACK_CONFIG);
-  const result = spawnSync('npm', ['run', 'build:remote'], {
+  const result = spawnSync(process.execPath, [path.join(root, 'scripts/build-frontend.js'), '--remote'], {
     cwd: root,
-    env: { ...process.env, VITE_WORKER_RESOURCE_ICONS: JSON.stringify(icons.map(icon => icon.name)) },
+    env: { ...process.env, CSBOARD_AI_ENABLED: String(featureFlag(process.env.CF_AI_ENABLED, false, 'CF_AI_ENABLED')), VITE_WORKER_RESOURCE_ICONS: JSON.stringify(icons.map(icon => icon.name)) },
     stdio: 'inherit',
   });
   if (result.error) throw result.error;

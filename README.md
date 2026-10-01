@@ -8,14 +8,28 @@
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one application.
 
-## Version 1.17.0
+## Operation assistant
 
-- Demo parsing now uses your configurable Go fork, with native and WASM output from a shared adapter.
-- Replay, analysis and pre-throw samples share one decoding pass per Demo part; real smoke and fire data are retained.
-- SQLite storage uses Go and preserves existing archives, compressed caches, backups and restore behavior.
-- HTTP parsing and offline analysis also use Go; source builds no longer require Rust/Cargo or a C compiler.
-- Fix checkpoint input baselines and macOS memory statistics that could leave parsing queued.
-- Validation covers three Demo sources and macOS Apple Silicon; Intel Mac and Windows still need runtime verification. See the [release notes](CHANGELOG.md) and [third-party licenses](docs/THIRD_PARTY_NOTICES.md).
+**Experimental feature.**
+
+Open or create an archive in Collaboration, expand **Operation assistant**, and configure the service URL, model and API key. The service must support Chat Completions tool calls. Local services can use HTTP on localhost; other services require HTTPS.
+
+Chat can read and edit players, illustrative utility effects, drawn routes, tactical frames, camera views and archive folders, or open the normal archive dialogs. A batch formation is one undo step. Room edits synchronize; chat persists locally in separate sessions. Stopping preserves completed edits.
+
+Sessions can be switched, renamed and imported/exported as JSON. Edit persistent memory or create ordered workflow steps with allowed tools. Archive, frame, panel and board changes are observed locally and supplied on the next request. Views exclude building models and allow focused azimuth/elevation controls; the main camera stays unchanged.
+
+Desktop keys use system encryption. Web keys stay in memory until refresh and requests pass through your backend; configure allowed service base URLs and, for separate hosting, the frontend origin. No API key is included in room data or exports. Current NAV data has no named callouts, so map-location suggestions require review. Drawn routes and manually placed effects are not physics simulations.
+
+For image-capable models, enable **Model supports image input** in settings. The assistant can inspect numbered current, top and focused board views and resolve image pixels into NAV candidates. Leave this off for text-only models: local polygon geometry, heights, connections and relative positions remain available. Screenshots cover only the board, use a temporary camera and are not retained in model history across turns. Image recognition and imported geometry do not validate CS2 cover, line of sight or utility coverage.
+
+
+## Version 1.18.0
+
+- Introduce the experimental operation assistant with editing tools, undo and collaboration support.
+- Keep separate sessions, editable memory and application context; import/export conversations and arrange workflows with per-step tool permissions.
+- Add configurable context compression, ground-focused views for multimodal models and spatial queries for text-only models.
+- Improve provider setup, tool labels, chat interaction and error reporting; reduce repeated tool loops.
+- See the [release notes](CHANGELOG.md) for details.
 
 ## Highlights
 
@@ -181,7 +195,7 @@ make workers-build
 
 `npm run build` uses local `/maps` resources and same-origin APIs. `npm run build:remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
-Electron release builds (`npm run desktop:build:mac:arm64` / `npm run desktop:build:mac:x64` / `npm run desktop:build:win:x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. See [resource-pack instructions](docs/resource-packs.md).
+Electron release builds (`npm run desktop:build:mac:arm64` / `npm run desktop:build:mac:x64` / `npm run desktop:build:win:x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. See [resource-pack instructions](docs/ai/references/resource-packs.en.md).
 
 Unpackaged development runs may read `.local/official/maps`; `npm run desktop:prepare -- --local-models` creates an explicit local-test package containing these models. Ordinary release packaging never includes `.local/official` or `.local/official/maps`. Web builds retain their existing local/OSS model behavior.
 
@@ -191,19 +205,19 @@ Release packages are limited to these three targets. Run macOS commands on macOS
 
 | Target | Command | Output in `build/desktop/` |
 | --- | --- | --- |
-| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.17.0-mac-arm64.dmg` |
-| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.17.0-mac-x64.dmg` |
-| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.17.0-win-x64.exe` |
+| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.18.0-mac-arm64.dmg` |
+| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.18.0-mac-x64.dmg` |
+| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.18.0-win-x64.exe` |
 
 Use Git, Node.js and Go to build. Both native components use Go with CGO disabled; one Mac can build both macOS architectures. On Windows, use x64 Node.js. The commands select matching Go, storage and Electron targets and never publish automatically. Signing credentials must be configured separately.
 
 #### GitHub Actions
 
-Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.17.0` tag pointing at the version commit, or run **Actions → Desktop release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
+Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.18.0` tag pointing at the version commit, or run **Actions → Desktop release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
 
 The workflow tests and builds all three targets, checks packaged contents and native storage, then attaches the installers plus `SHA256SUMS.txt` to a **draft Release**. It never publishes the draft or overwrites a published release. Reruns update only a draft for the same commit. Check installation before selecting **Publish release** on GitHub.
 
-Normally no extra Secrets or personal token are needed: the workflow uses the built-in `GITHUB_TOKEN`, with write access only for the draft job. GitHub Actions must be enabled; repository/organization policies must permit these actions and Release writes. Signing and macOS notarization are not configured, so the generated installers are unsigned.
+Normally no extra Secrets or personal token are needed: the workflow uses the built-in `GITHUB_TOKEN`, with write access only for the draft job. GitHub Actions must be enabled; repository/organization policies must permit these actions and Release writes. macOS apps and bundled native programs use free ad-hoc signing, and CI verifies their signatures before upload. They are not Developer ID signed or Apple notarized; Windows installers remain unsigned.
 
 `make help` lists the retained commands. Duplicate npm aliases and Make wrappers have been removed; use `npm ci` for dependencies, `npm run deploy` for Workers deployment, and `docker compose -f config/docker/compose.yml down`, `logs -f` or `ps` for container management. Internal icon and background-task builds run automatically. `desktop:prepare -- --local-models` produces a separate test application under `build/desktop-local/`; open that application directly.
 
@@ -214,7 +228,7 @@ Desktop → Parser performance offers Balanced (default), Fast and Custom modes.
 Desktop → Storage & backups shows database, cache and resource usage, supports manual least-recently-used cache cleanup, and creates verified backup folders. Restore replaces native data and imported resources on restart while retaining the previous directories. Original Demo files, browser preferences and unsaved work are not included. Background tasks are bounded and cancellable; automatic sleep prevention is optional for the current session.
 
 
-To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.17.0` image version.
+To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.18.0` image version.
 
 ## Controls
 
@@ -242,12 +256,18 @@ To run the Node.js Runtime in Docker, place the GLB models under `.local/officia
 
 ## Resource Layout
 
+AI prompts and references live in [docs/ai](docs/ai/README.md); starter records live separately in [docs/presets](docs/presets/README.md).
+
 ```text
 assets/
   readme/                 # README screenshots and demonstration GIF
 src/
   data/nav/               # generated, committed NAV JSON bundled by Vite
-  default-data/           # committable data imported on first visit
+docs/
+  ai/                     # AI prompts and references
+    prompts/
+    references/
+  presets/                # starter records
     utility-notes/        # utility-note JSON files
     workspace-archives/   # Collaboration archive JSON files
 .local/
@@ -259,7 +279,7 @@ src/
   previews/               # generated previews and local checks
 ```
 
-Contributors can place default utility-note or Collaboration-archive JSON files directly in the corresponding `src/default-data/` subdirectory. See [`src/default-data/README.md`](src/default-data/README.md) for accepted formats. These files are imported only when the browser has never created the corresponding local data, so existing user data is never replaced or repopulated.
+Contributors can place default utility-note or Collaboration-archive JSON files directly in the corresponding `docs/presets/` subdirectory. See [`docs/presets/README.md`](docs/presets/README.md) for accepted formats. These files are imported only when the browser has never created the corresponding local data, so existing user data is never replaced or repopulated.
 
 Running `make resources` checks each local map source/model and downloads missing files from `VITE_OSS_BASE_URL` (or `MAP_DOWNLOAD_BASE_URL`) configured in `.env.local`. The command fails clearly when no download origin is configured. After replacing source NAV files, run `make nav-data` to regenerate the committed frontend data.
 
@@ -287,30 +307,21 @@ For code navigation and validation workflows, see the [development guide (Chines
 
 ## Cloudflare Workers
 
-Wrangler configuration lives in [`config/cloudflare/`](config/cloudflare/README.md): `wrangler.dev.jsonc` for local development, plus separate backend and frontend deployment files. Use the project scripts rather than bare `wrangler dev`; they select the right configuration and preserve the existing root `.wrangler/state` store.
+Use the project commands from the repository root:
 
-The production backend is a Workers module exported from `server/index.js`; it does not open a local port. A separate frontend Worker serves `dist` through Workers Static Assets, while the backend routes `/rooms/<code>` to one Durable Object per room.
-
-```bash
-npm install
-npm run dev:workers
-cp config/cloudflare/deploy.env.example config/cloudflare/deploy.env
-npm run deploy
+```sh
+npm run dev:workers                # Local Workers development
+npm run deploy -- --dry-run        # Build without publishing
+npm run deploy                    # Authorize and deploy
 ```
 
-Edit `config/cloudflare/deploy.env` with the Cloudflare account, frontend and backend Worker names, OSS base URL, backend public URL, and optional custom domains. Prefer supplying `CLOUDFLARE_API_TOKEN` through the shell or CI secret store. The deploy script writes the platform-neutral `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL` values to the ignored `.env.production.local`, then passes the same OSS base URL to the backend as `env.MAP_BASE_URL`.
+Deployment reuses Wrangler OAuth or opens the browser for authorization. Configure optional frontend/backend domains in the ignored `config/cloudflare/deploy.env`; Cloudflare manages DNS and certificates when the root zone belongs to the selected account. The script deploys both Workers and reports their URLs after health and frontend asset checks.
 
-The script deploys the API, room WebSockets, and Durable Objects to the backend Worker first, then deploys the Vite bundle to the frontend Workers Static Assets service. `BACKEND_PUBLIC_URL` is embedded into the frontend so collaboration connections use the separate backend origin.
-
-Optional Worker UI icons can be selected with the ignored `.local/worker-resource-pack.json` file. Its `iconDirectory` points to a local pack (for example `.local/official/ui`); only recognized SVG icons are bundled. Without this file, the existing built-in UI remains unchanged. This does not include GLB models or change `OSS_BASE_URL`. See [Cloudflare deployment configuration](config/cloudflare/README.md) for the format and validation rules. Verify redistribution rights before deploying third-party icons.
-
-The legacy `POST /api/parse` response contract is retained using the existing browser-compatible parser WASM. Cloudflare request-body, memory, and CPU limits still apply, so large Demo files should continue to be parsed locally in the browser.
-
-Node.js, Cloudflare Workers and offline analysis tools use the generated Go WASM parser. HTTP parsing releases its source session after each request and serializes access within each runtime. Cloudflare CPU, memory and bundle limits still apply. Build the parser before running the server; worker commands prepare it automatically.
+For map resources, custom domains, CI credentials, AI provider permissions and optional UI icons, see the [Cloudflare deployment guide](config/cloudflare/README.md). Large Demos should be parsed locally because Workers memory and CPU limits still apply.
 
 ## License
 
-Copyright (C) 2026 Colvin Chen. Original CSBoard source code and documentation are licensed under the [GNU General Public License v3.0 only](LICENSE). Distributed modified versions must remain under GPLv3 and provide their corresponding source code. Third-party libraries and assets retain their own licenses; see [LICENSE_SCOPE.md](docs/LICENSE_SCOPE.md) for the exact scope. The CSBoard license does not grant rights to Valve, Counter-Strike, map, radar, Demo, or other third-party game content.
+Copyright (C) 2026 Colvin Chen. Original CSBoard source code and documentation are licensed under the [GNU General Public License v3.0 only](LICENSE). Distributed modified versions must remain under GPLv3 and provide their corresponding source code. Third-party libraries and assets retain their own licenses; see [licensing scope](docs/THIRD_PARTY_NOTICES.md#licensing-scope) for the exact scope.
 
 ## Current Limitations
 

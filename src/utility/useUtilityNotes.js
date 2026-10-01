@@ -12,6 +12,7 @@ export default function useUtilityNotes(onWriteError) {
     const notes = initialLocalRecords('csboard-utility-notes', DEFAULT_UTILITY_NOTES, false);
     return compatibleUtilityNotes(notes, version);
   });
+  const utilityNotesStatusRef = useRef({ status: 'loading' });
   const utilityNotesRef = useRef(utilityNotes);
   const utilityNotesWriteRef = useRef(Promise.resolve());
   const utilityNotesRevisionRef = useRef(0);
@@ -54,7 +55,8 @@ export default function useUtilityNotes(onWriteError) {
       // Remove legacy large records only after their IndexedDB copy is durable.
       localStorage.removeItem('csboard-utility-notes');
       localStorage.removeItem('csboard-utility-notes-version');
-    }).catch((error) => console.error('utility notes migration', error));
+      utilityNotesStatusRef.current = { status: 'ready' };
+    }).catch((error) => { if (!cancelled) utilityNotesStatusRef.current = { status: 'error' }; console.error('utility notes migration', error); });
     // Old room snapshots were never read; discard them so they cannot retain quota.
     try {
       Object.keys(localStorage).filter((key) => key.startsWith('csboard-room-')).forEach((key) => localStorage.removeItem(key));
@@ -62,5 +64,5 @@ export default function useUtilityNotes(onWriteError) {
     return () => { cancelled = true; };
   }, []);
  
-  return { utilityNotes, utilityNotesRef, persistUtilityNotes };
+  return { utilityNotes, utilityNotesRef, utilityNotesStatusRef, persistUtilityNotes };
 }

@@ -8,14 +8,28 @@
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
-## 1.17.0 版本
+## 操作助手
 
-- Demo 解析改用可自定义的 Go fork，由共用适配层生成原生程序和 WASM。
-- 回放、分析及投掷前采样共用一次解码扫描，保留真实烟雾与火焰数据。
-- SQLite 存储改为 Go，兼容已有存档、压缩缓存、备份与恢复流程。
-- HTTP 解析和离线分析也使用 Go，源码构建不再需要 Rust/Cargo 或 C 编译器。
-- 修复检查点输入基线，以及 macOS 内存统计缺失导致解析一直排队的问题。
-- 已验证三种来源的 Demo 和 macOS Apple Silicon 应用包；Intel Mac、Windows 仍需实机验证。详见[版本记录](CHANGELOG.zh-CN.md)和[第三方许可证](THIRD_PARTY_NOTICES.md)。
+**实验性功能。**
+
+在协作面板打开或新建存档，展开 **操作助手**，配置服务地址、模型和 API Key。服务需支持 Chat Completions 工具调用；本地服务允许 localhost HTTP，其余服务需 HTTPS。
+
+AI 可以读取和编辑玩家、示意道具效果、绘制路线、战术帧、镜头和存档目录，也可打开现有保存流程。一次批量布阵对应一次撤销。房间内的编辑同步给队友，对话按独立会话长期保存在本地；停止后已完成的编辑保留。
+
+可切换、重命名及导入导出会话，编辑长期记忆，编排步骤并限制每步允许的工具。存档、帧、功能面板和画布变化记录在本地，下次请求发送给助手。视图排除建筑模型、聚焦 NAV 地面；助手可选择局部观察的方位角和俯仰角，不改变主界面镜头。
+
+桌面密钥由系统加密保存；网页密钥仅在内存中保留到刷新，请求经后端代理。部署时配置允许的服务地址；前后端分开部署还需允许前端来源。密钥不进入房间或导出文件。当前 NAV 没有地点名称，地图位置建议需要核对；绘制路线和手动效果不代表物理模拟。
+
+使用支持图像输入的模型时，在设置中开启 **模型支持图像输入**。助手可查看带编号的当前、俯视和局部画布视图，并将图像像素定位到 NAV 候选。纯文本模型保持关闭，仍可查询局部多边形、高差、连接和相对位置。截图只包含画布，使用临时相机，不保留到后续对话轮次；图像识别和导入模型几何不能证明游戏内掩体、视线或道具覆盖。
+
+
+## 1.18.0 版本
+
+- 新增实验性操作助手，提供编辑工具、撤销与协作同步。
+- 支持独立会话、可编辑记忆和应用上下文，可导入导出对话并编排工具权限受控的工作流。
+- 新增可配置上下文压缩、多模态地面视图和纯文本空间查询。
+- 优化服务商配置、工具名称、对话交互与错误反馈，减少重复工具调用。
+- 详细内容见[版本记录](CHANGELOG.zh-CN.md)。
 
 ## 主要功能
 
@@ -181,7 +195,7 @@ make workers-build
 
 `npm run build` 使用本地 `/maps` 和同源 API；`npm run build:remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
 
-Electron 正式版使用 `npm run desktop:build:mac:arm64` / `npm run desktop:build:mac:x64` 或 `npm run desktop:build:win:x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。详见[资源包说明](resource-packs.md)。
+Electron 正式版使用 `npm run desktop:build:mac:arm64` / `npm run desktop:build:mac:x64` 或 `npm run desktop:build:win:x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。详见[资源包说明](ai/references/resource-packs.zh.md)。
 
 未打包的开发启动可读取 `.local/official/maps`；`npm run desktop:prepare -- --local-models` 专门构建带本地模型的测试包。正式构建不包含 `.local/official` 或 `.local/official/maps`；网页版保留现有本地/OSS 模型逻辑。
 
@@ -191,19 +205,19 @@ Electron 正式版使用 `npm run desktop:build:mac:arm64` / `npm run desktop:bu
 
 | 目标 | 命令 | `build/desktop/` 中的产物 |
 | --- | --- | --- |
-| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.17.0-mac-arm64.dmg` |
-| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.17.0-mac-x64.dmg` |
-| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.17.0-win-x64.exe` |
+| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.18.0-mac-arm64.dmg` |
+| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.18.0-mac-x64.dmg` |
+| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.18.0-win-x64.exe` |
 
 源码构建使用 Git、Node.js 和 Go。两个原生组件都使用 Go 并关闭 CGO；同一台 Mac 可构建两种 macOS 架构，Windows 使用 x64 Node.js。命令自动匹配 Go、存储组件与 Electron 架构，不自动上传；签名凭据需另行配置。
 
 #### GitHub Actions 自动化
 
-将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.17.0` tag，或在 **Actions → Desktop release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
+将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.18.0` tag，或在 **Actions → Desktop release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
 
 工作流测试并构建三个目标，检查实际安装包内容和包内原生存储，全部通过后把安装包及 `SHA256SUMS.txt` 上传到 **草稿 Release**。不会自动公开发布，也不会覆盖已发布版本；重跑只更新同一提交的草稿。检查安装运行后，在 GitHub 点击 **Publish release**。
 
-通常无需新增 Secrets 或个人 token：使用 GitHub 自带的 `GITHUB_TOKEN`，只有草稿汇总任务申请写权限。仓库需启用 Actions，仓库／组织策略需允许相关 Actions 和 Release 写入。当前未配置签名和 macOS 公证，生成的是未签名安装包。
+通常无需新增 Secrets 或个人 token：使用 GitHub 自带的 `GITHUB_TOKEN`，只有草稿汇总任务申请写权限。仓库需启用 Actions，仓库／组织策略需允许相关 Actions 和 Release 写入。macOS 应用及内置原生程序使用免费 ad-hoc 签名，上传前检查签名完整性；未进行 Developer ID 签名或 Apple 公证。Windows 安装包仍未签名。
 
 `make help` 列出保留的入口。依赖安装统一用 `npm ci`，Workers 部署用 `npm run deploy`，容器管理直接用 `docker compose -f config/docker/compose.yml down`、`logs -f`、`ps`；重复 npm 别名和 Make 包装已移除，图标及后台任务构建自动执行。带模型的测试包用 `desktop:prepare -- --local-models`，生成到 `build/desktop-local/`，直接打开其中的测试应用。
 
@@ -214,7 +228,7 @@ Electron 正式版使用 `npm run desktop:build:mac:arm64` / `npm run desktop:bu
 右上角“桌面管理”可查看空间占用、按最近使用清理 Demo 缓存、创建和恢复备份，以及查看或取消后台任务。备份包含原生存档、Demo 缓存和导入资源，不包含原始 `.dem`、浏览器偏好及未保存内容。恢复重启后生效，恢复前的数据保留在数据目录的 `restores` 文件夹。可为本次运行开启任务期间防自动休眠；窗口最小化时暂停 3D 绘制，后台解析继续。
 
 
-通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.17.0` 版本时才需设置 `BUILD_VERSION`。
+通过 Docker 运行 Node.js Runtime 时，将 GLB 放到 `.local/official/maps/<map>/` 后执行 `make docker`。Compose 会把该目录只读挂载到 `/app/.local/official/maps`；只有需要覆盖镜像默认的 `v1.18.0` 版本时才需设置 `BUILD_VERSION`。
 
 ## 操作方式
 
@@ -242,12 +256,18 @@ Electron 正式版使用 `npm run desktop:build:mac:arm64` / `npm run desktop:bu
 
 ## 资源结构
 
+AI 提示词与参考资料位于 [docs/ai](ai/README.md)，预设数据独立位于 [docs/presets](presets/README.md)。
+
 ```text
 assets/
   readme/                 # README 截图与演示 GIF
 src/
   data/nav/               # 由脚本生成并提交、由 Vite 构建的 NAV JSON
-  default-data/           # 首次访问时导入的可提交默认数据
+docs/
+  ai/                     # AI 提示词与参考资料
+    prompts/
+    references/
+  presets/                # 预设数据
     utility-notes/        # 道具速记 JSON
     workspace-archives/   # 协作面板存档 JSON
 .local/
@@ -259,7 +279,7 @@ src/
   previews/               # 生成的预览和本地检查
 ```
 
-贡献者可将默认道具速记或协作存档 JSON 直接放入 `src/default-data/` 对应子目录，具体格式见 [`src/default-data/README.md`](../src/default-data/README.md)。这些文件只会在浏览器从未创建对应本地数据时导入，不会覆盖或重新填充现有用户数据。
+贡献者可将默认道具速记或协作存档 JSON 直接放入 `docs/presets/` 对应子目录，具体格式见 [`docs/presets/README.md`](presets/README.md)。这些文件只会在浏览器从未创建对应本地数据时导入，不会覆盖或重新填充现有用户数据。
 
 运行 `make resources` 时，`scripts/ensure-maps.js` 会检测本地地图源文件与模型，并从 `.env.local` 的 `VITE_OSS_BASE_URL`（或 `MAP_DOWNLOAD_BASE_URL`）下载缺失文件。未配置下载源时命令会明确报错。替换源 NAV 后，运行 `make nav-data` 重新生成需要提交的前端数据。
 
@@ -288,23 +308,21 @@ GLB 存储桶需返回 `Access-Control-Allow-Origin` 头。`src/navParser.js` �
 
 ## Cloudflare Workers 部署
 
-Wrangler 配置统一放在 [`config/cloudflare/`](../config/cloudflare/README.md)：`wrangler.dev.jsonc` 用于本地开发，另两份分别用于前后端部署。请使用项目命令启动，不再直接运行不带配置路径的 `wrangler dev`；开发脚本会继续使用根目录 `.wrangler/state`，无需迁移现有状态。
+在项目根目录执行：
 
-```bash
-npm install
-cp config/cloudflare/deploy.env.example config/cloudflare/deploy.env
-npm run deploy
+```sh
+npm run dev:workers                # 本地 Workers 开发
+npm run deploy -- --dry-run        # 仅构建，不发布
+npm run deploy                    # 登录并部署
 ```
 
-在 `config/cloudflare/deploy.env` 中填写 Cloudflare Account ID、前后端 Worker 名称、OSS 根地址、后端公网地址和两个可选自定义域名。建议通过终端环境变量或 CI Secret 提供 `CLOUDFLARE_API_TOKEN`。
+部署复用 Wrangler OAuth，未登录时打开浏览器授权。在被忽略的 `config/cloudflare/deploy.env` 中可选配置前后端域名；根域名托管在所选账户时，Cloudflare 自动管理 DNS 与证书。脚本发布两个 Worker，通过健康与前端资源检查后输出访问地址。
 
-部署脚本先部署后端 Worker（API、房间 WebSocket 和 Durable Objects），再部署前端 Worker（Workers Static Assets）。它会把与平台无关的 `VITE_OSS_BASE_URL` 和 `VITE_BACKEND_BASE_URL` 写入已忽略的 `.env.production.local`，其中 `BACKEND_PUBLIC_URL` 会被嵌入前端用于连接独立后端服务。
-
-可选的 Worker UI 资源包配置放在被忽略的 `.local/worker-resource-pack.json`，其中 `iconDirectory` 指向本地图标目录，例如 `.local/official/ui`。只打包清单中已识别的 SVG；缺少的图标继续使用内置 UI，没有配置文件时完全沿用原样。GLB 模型不会打包，仍使用现有 `OSS_BASE_URL`。配置格式、校验规则见 [Cloudflare 部署说明](../config/cloudflare/README.md)。发布第三方图标前需自行确认分发权利。
+地图资源、域名、CI 凭据、AI 服务允许列表与可选 UI 图标的配置统一见 [Cloudflare 部署指南](../config/cloudflare/README.md)。Workers 仍有内存与 CPU 限制，大型 Demo 应在本地解析。
 
 ## 许可证
 
-Copyright (C) 2026 Colvin Chen。CSBoard 原创源代码与文档采用 [GNU GPL v3.0 only](../LICENSE)；对外分发的修改版本必须继续使用 GPLv3，并提供对应源代码。第三方库和资源仍分别遵循自己的许可证，准确范围见 [LICENSE_SCOPE.md](LICENSE_SCOPE.md)。CSBoard 许可证不授予 Valve、Counter-Strike、地图、雷达图、Demo 或其他第三方游戏内容的相关权利。
+Copyright (C) 2026 Colvin Chen。CSBoard 原创源代码与文档采用 [GNU GPL v3.0 only](../LICENSE)；对外分发的修改版本必须继续使用 GPLv3，并提供对应源代码。第三方库和资源仍分别遵循自己的许可证，准确范围见 [许可范围](THIRD_PARTY_NOTICES.md#licensing-scope)。
 
 ## 当前限制
 

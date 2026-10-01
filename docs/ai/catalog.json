@@ -1,0 +1,42 @@
+[
+  {
+    "id": "readme",
+    "title": {
+      "en": "Application guide",
+      "zh": "应用使用说明",
+      "ru": "Руководство приложения"
+    },
+    "topics": "features, supported maps, controls, current limitations, desktop performance and backups",
+    "files": {
+      "en": "references/application.en.md",
+      "zh": "references/application.zh.md",
+      "ru": "references/application.ru.md"
+    }
+  },
+  {
+    "id": "resource-packs",
+    "title": {
+      "en": "Resource pack guide",
+      "zh": "资源包使用说明",
+      "ru": "Пакеты ресурсов"
+    },
+    "topics": "importing SVG/GLB, supported files, size limits, replacement and reload behavior",
+    "files": {
+      "en": "references/resource-packs.en.md",
+      "zh": "references/resource-packs.zh.md",
+      "ru": "references/resource-packs.ru.md"
+    }
+  },
+  {
+    "id": "assistant",
+    "title": {
+      "en": "Assistant guide (Chinese source)",
+      "zh": "操作助手使用说明",
+      "ru": "Руководство помощника (на китайском)"
+    },
+    "topics": "sessions, memory, context, workflows, views, compression and capability limits",
+    "files": {
+      "zh": "references/assistant.zh.md"
+    }
+  }
+]

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing version tag (for example v1.16.0)
+        description: Existing version tag (for example v1.18.0)
         required: true
         type: string
 
@@ -70,6 +70,7 @@ jobs:
       run:
         shell: bash
     env:
+      # mac.identity='-' explicitly signs ad-hoc without paid credentials.
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       CSBOARD_NATIVE_TARGET: ${{ matrix.native }}
     steps:
@@ -98,7 +99,7 @@ jobs:
           go -C native/storage test ./...
       - name: Build installer
         run: npm run ${{ matrix.command }}
-      - name: Inspect packaged files and exercise packaged storage
+      - name: Inspect package signatures, files and packaged storage
         run: node scripts/check-desktop-package.js ${{ matrix.target }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

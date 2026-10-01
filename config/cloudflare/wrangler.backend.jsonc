@@ -2,6 +2,9 @@
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "csboard-backend",
   "main": "../../server/index.js",
+  // Minification removes the disabled AI branch and its module dependencies.
+  "minify": true,
+  "define": { "__CSBOARD_AI_ENABLED__": "false" },
   "compatibility_date": "2026-08-29",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {

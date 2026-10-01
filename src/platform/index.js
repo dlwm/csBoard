@@ -8,6 +8,8 @@ import { startBrowserDemo } from './browser/demoTask.js';
 import { createDesktopCache } from './desktop/cache.js';
 import { createDesktopRecords } from './desktop/records.js';
 import { startNativeDemo } from './desktop/demoTask.js';
+import { createAiTransport } from '../ai/transport.js';
+import { AI_ENABLED, AI_CHAT_URL } from '../app/config.js';
 
 let platform;
 
@@ -20,6 +22,7 @@ export function getPlatform() {
   if (desktop && !bridge.native) throw new Error('Desktop native bridge unavailable');
   platform = Object.freeze({
     kind: desktop ? 'desktop' : 'web',
+    ai: AI_ENABLED ? createAiTransport(desktop ? bridge.ai : null, AI_CHAT_URL) : null,
     capabilities: Object.freeze({ nativeFilePicker: desktop, backgroundParsing: desktop, resourceImport: desktop }),
     cache: desktop ? createDesktopCache(bridge.native) : browserCache,
     records: desktop ? createDesktopRecords(bridge.native, browserRecords) : browserRecords,

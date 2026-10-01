@@ -19,10 +19,12 @@ const ROOM_PATH = /^\/rooms\/([0-9A-F]{6})$/i;
 const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 // Docker and local development can point this at an external read-only model mount.
 const LOCAL_MAPS_DIR = path.resolve(process.env.LOCAL_MAPS_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.local', 'official', 'maps'));
-const env = { MAP_BASE_URL: process.env.MAP_BASE_URL || '' };
+const env = { MAP_BASE_URL: process.env.MAP_BASE_URL || '', AI_ALLOWED_BASE_URLS: process.env.AI_ALLOWED_BASE_URLS, AI_ALLOWED_WEB_ORIGINS: process.env.AI_ALLOWED_WEB_ORIGINS };
+const featuresFile = path.join(DIST_DIR, 'features.json');
+const features = fs.existsSync(featuresFile) ? JSON.parse(fs.readFileSync(featuresFile, 'utf8')) : { ai: true };
 const handleHttp = createHttpHandler(createGoHttpParser(async () => WebAssembly.compile(
   await fs.promises.readFile(new URL('../build/go-parser/web/parser.wasm', import.meta.url)),
-)));
+)), { aiEnabled: features.ai });
 const rooms = new Map();
 
 function getRoom(name) {
@@ -42,13 +44,13 @@ function getRoom(name) {
   return room;
 }
 
-function requestFromNode(request) {
+function requestFromNode(request, signal) {
   const headers = new Headers();
   Object.entries(request.headers).forEach(([name, value]) => {
     if (Array.isArray(value)) value.forEach((item) => headers.append(name, item));
     else if (value != null) headers.set(name, value);
   });
-  const init = { method: request.method, headers };
+  const init = { method: request.method, headers, signal };
   if (!['GET', 'HEAD'].includes(request.method)) {
     init.body = Readable.toWeb(request);
     init.duplex = 'half';
@@ -60,7 +62,10 @@ async function sendNodeResponse(response, target) {
   target.statusCode = response.status;
   response.headers.forEach((value, name) => target.setHeader(name, value));
   if (!response.body) return target.end();
-  return Readable.fromWeb(response.body).pipe(target);
+  const source = Readable.fromWeb(response.body);
+  source.on('error', () => target.destroy());
+  target.once('close', () => { if (!source.readableEnded) source.destroy(); });
+  return source.pipe(target);
 }
 
 const mimeTypes = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' };
@@ -81,8 +86,11 @@ function staticResponse(pathname) {
 }
 
 const server = http.createServer(async (request, response) => {
+  const controller = new AbortController();
+  request.once('aborted', () => controller.abort());
+  response.once('close', () => { if (!response.writableFinished) controller.abort(); });
   try {
-    const webRequest = requestFromNode(request);
+    const webRequest = requestFromNode(request, controller.signal);
     const pathname = new URL(webRequest.url).pathname;
     const transfer = pathname.match(TRANSFER_PATH);
     if (transfer) {
@@ -96,6 +104,7 @@ const server = http.createServer(async (request, response) => {
     const handled = await handleHttp(webRequest, env);
     await sendNodeResponse(handled || staticResponse(pathname), response);
   } catch (error) {
+    if (response.headersSent || response.destroyed) { response.destroy(); return; }
     await sendNodeResponse(Response.json({ error: error.message }, { status: 500 }), response);
   }
 });

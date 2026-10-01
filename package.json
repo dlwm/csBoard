@@ -4,7 +4,7 @@
   "author": "colvin chen",
   "license": "GPL-3.0-only",
   "private": true,
-  "version": "1.17.0",
+  "version": "1.18.0",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -15,8 +15,10 @@
     },
     "files": [
       "electron/**/*",
+      "shared/ai-protocol.js",
+      "shared/ai-providers.js",
+      "shared/record-keys.js",
       "LICENSE",
-      "docs/LICENSE_SCOPE.md",
       "docs/THIRD_PARTY_NOTICES.md",
       "package.json",
       "build/renderer/**/*",
@@ -50,6 +52,13 @@
             "x64"
           ]
         }
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "notarize": false,
+      "binaries": [
+        "Contents/Resources/native/csboard-native",
+        "Contents/Resources/go-parser/csboard-go-parser"
       ]
     },
     "win": {
@@ -70,7 +79,7 @@
     "dev": "npm run build && node server/node.js",
     "dev:workers": "node scripts/dev-workers.js",
     "server": "node server/node.js",
-    "deploy": "bash scripts/deploy-cloudflare.sh",
+    "deploy": "node scripts/cloudflare-deployment.js",
     "build": "node scripts/build-frontend.js",
     "build:remote": "node scripts/build-frontend.js --remote",
     "desktop:start": "node scripts/start-desktop.js",
