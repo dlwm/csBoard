@@ -1,6 +1,6 @@
 import { encodeStoredValue, decodeStoredValue } from '../../app/storageCodec.js';
 
-export function createDesktopRecords(backend, legacy) {
+export function createNativeRecords(backend, legacy = { get: async () => undefined }) {
   const baselines = new Map();
   const queues = new Map();
   return {

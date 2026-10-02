@@ -1,6 +1,7 @@
 package goparser
 
 import (
+	"context"
 	"sort"
 	"strconv"
 	"strings"
@@ -213,6 +214,10 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 
 // ParseTicks samples the requested server ticks without retaining every frame.
 func ParseTicks(data []byte, ticks []int, props, players []string) ([]map[string]any, error) {
+	return parseTicksWithContext(context.Background(), data, ticks, props, players)
+}
+
+func parseTicksWithContext(ctx context.Context, data []byte, ticks []int, props, players []string) ([]map[string]any, error) {
 	wanted := make(map[int]struct{}, len(ticks))
 	for _, tick := range ticks {
 		wanted[tick] = struct{}{}
@@ -222,7 +227,7 @@ func ParseTicks(data []byte, ticks []int, props, players []string) ([]map[string
 		selected[player] = struct{}{}
 	}
 	rows := []map[string]any{}
-	parser := newParser(data, dem.UserCmdParsingFull)
+	parser := newParserWithContext(ctx, data, dem.UserCmdParsingFull)
 	commandButtons := map[int]uint64{}
 	parser.RegisterEventHandler(func(event events.UserCmd) {
 		buttons := event.Command.GetBase().GetButtonsPb()

@@ -16,6 +16,7 @@ terms and is outside the GPL grant unless explicitly licensed otherwise.
 | React / React DOM, Three.js / three-mesh-bvh | MIT |
 | Yjs / y-websocket / y-protocols / lib0, ws | MIT |
 | Electron | MIT and bundled component licenses |
+| Capacitor / App / Screen Orientation | MIT |
 | dlwm/demoinfocs (based on markus-wa/demoinfocs-golang) | MIT |
 | modernc.org/sqlite | BSD-3-Clause and bundled component licenses; SQLite is public domain |
 | Space Grotesk / DM Mono | OFL-1.1 |
@@ -68,6 +69,13 @@ Copyright (c) 2016 Luigi Pinca and contributors
 electron 44.2.0
 Copyright (c) Electron contributors
 Copyright (c) 2013-2020 GitHub Inc.
+
+Capacitor
+Copyright (c) 2017-present Drifty Co.
+
+Capacitor App / Screen Orientation
+Copyright 2020-present Ionic
+https://ionic.io
 
 CS2OpenDev radar overview reference
 Copyright (c) 2026 CS2OpenDev

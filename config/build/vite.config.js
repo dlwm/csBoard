@@ -14,7 +14,7 @@ const buildVersion = String(process.env.VITE_BUILD_VERSION || packageVersion || 
 export default defineConfig(({ mode }) => {
   const features = buildFeatures(projectRoot, mode);
   const disabledAi = path.join(projectRoot, 'src/platform/disabledAi.js');
-  const outputDirectory = mode === 'desktop' ? 'build/renderer' : 'dist';
+  const outputDirectory = mode === 'desktop' ? 'build/renderer' : mode === 'mobile' ? 'build/mobile/web' : 'dist';
   return {
     root: projectRoot,
     build: { outDir: outputDirectory },
@@ -28,6 +28,8 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       'import.meta.env.CSBOARD_AI_ENABLED': JSON.stringify(features.ai),
+      'import.meta.env.CSBOARD_PARSER_ENGINE': JSON.stringify(features.parser),
+      'import.meta.env.CSBOARD_APP_SHELL': JSON.stringify(mode === 'mobile' ? 'capacitor' : 'auto'),
       'import.meta.env.VITE_BUILD_VERSION': JSON.stringify(buildVersion),
     },
     plugins: [

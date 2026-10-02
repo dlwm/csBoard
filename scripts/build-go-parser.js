@@ -1,19 +1,16 @@
+import { prepareGoParserSource } from './lib/parser-source.js';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = path.join(root, '.local/demoparser/demoinfocs');
-const goRoot = path.join(root, 'native/parser');
-const { revision, repository: remote } = JSON.parse(fs.readFileSync(path.join(goRoot, 'source.json'), 'utf8'));
-if (!/^https:\/\/github\.com\/dlwm\/demoinfocs(?:\.git)?$/.test(remote) || !/^[0-9a-f]{40}$/.test(revision)) {
-  throw new Error('Invalid Go parser source pin');
-}
 const output = path.join(root, 'build/go-parser');
+const goRoot = path.join(root, 'native/parser');
 const localSource = process.argv.includes('--local-source');
-if (process.argv.slice(2).some(arg => arg !== '--local-source')) throw new Error('Expected only optional --local-source');
-if (localSource && process.env.CI) throw new Error('--local-source is for local fork development only');
+const wasmOnly = process.argv.includes('--wasm-only');
+if (process.argv.slice(2).some(arg => !['--local-source', '--wasm-only'].includes(arg))) throw new Error('Expected --local-source or --wasm-only');
+const { source, revision: sourceRevision, dirty } = prepareGoParserSource(root, { localSource });
 function run(command, args, cwd = root, env = process.env) {
   const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', stdio: 'inherit' });
   if (result.error) throw result.error;
@@ -34,21 +31,6 @@ function copyGenerated(from, to) {
     fs.rmSync(staged, { force: true });
   }
 }
-if (!fs.existsSync(source)) {
-  fs.mkdirSync(path.dirname(source), { recursive: true });
-  run('git', ['clone', remote, source]);
-  run('git', ['checkout', '--detach', revision], source);
-}
-if (path.resolve(read('git', ['rev-parse', '--show-toplevel'], source)) !== source) throw new Error(`Unexpected parser checkout at ${source}`);
-const dirty = Boolean(read('git', ['status', '--porcelain', '--', '.', ':!**/.DS_Store', ':!.DS_Store'], source));
-if (dirty && !localSource) {
-  throw new Error(`Parser checkout has local changes in ${source}; use node scripts/build-go-parser.js --local-source for local development, or publish the fork changes and update native/parser/source.json for a reproducible build.`);
-}
-if (!localSource && read('git', ['rev-parse', 'HEAD'], source) !== revision) {
-  run('git', ['fetch', remote, revision], source);
-  run('git', ['checkout', '--detach', revision], source);
-}
-const sourceRevision = read('git', ['rev-parse', 'HEAD'], source);
 const target = process.env.CSBOARD_GO_TARGET || `${process.platform}-${process.arch}`;
 const platforms = {
   'darwin-arm64': ['darwin', 'arm64'],
@@ -58,19 +40,21 @@ const platforms = {
   'linux-arm64': ['linux', 'arm64'],
 };
 const platform = platforms[target];
-if (!platform) throw new Error(`Unsupported Go parser target: ${target}`);
+if (!platform && !wasmOnly) throw new Error(`Unsupported Go parser target: ${target}`);
 const env = { ...process.env, GOTOOLCHAIN: 'auto', CGO_ENABLED: '0' };
-const packageTarget = `${platform[0] === 'darwin' ? 'mac' : platform[0] === 'windows' ? 'win' : platform[0]}-${target.split('-').at(-1)}`;
-fs.mkdirSync(path.join(output, 'native', packageTarget), { recursive: true });
+const packageTarget = platform && `${platform[0] === 'darwin' ? 'mac' : platform[0] === 'windows' ? 'win' : platform[0]}-${target.split('-').at(-1)}`;
 fs.mkdirSync(path.join(output, 'web'), { recursive: true });
-const name = `csboard-go-parser${platform[0] === 'windows' ? '.exe' : ''}`;
-const executable = path.join(output, 'native', packageTarget, name);
-const stagedExecutable = `${executable}.${process.pid}.tmp`;
-try {
-  run('go', ['build', '-mod=readonly', '-trimpath', '-ldflags', `-X main.sourceRevision=${sourceRevision}${dirty ? '-dirty' : ''}`, '-o', stagedExecutable, './cmd/native'], goRoot, { ...env, GOOS: platform[0], GOARCH: platform[1] });
-  fs.renameSync(stagedExecutable, executable);
-} finally {
-  fs.rmSync(stagedExecutable, { force: true });
+if (!wasmOnly) {
+  fs.mkdirSync(path.join(output, 'native', packageTarget), { recursive: true });
+  const name = `csboard-go-parser${platform[0] === 'windows' ? '.exe' : ''}`;
+  const executable = path.join(output, 'native', packageTarget, name);
+  const stagedExecutable = `${executable}.${process.pid}.tmp`;
+  try {
+    run('go', ['build', '-mod=readonly', '-trimpath', '-ldflags', `-X main.sourceRevision=${sourceRevision}${dirty ? '-dirty' : ''}`, '-o', stagedExecutable, './cmd/native'], goRoot, { ...env, GOOS: platform[0], GOARCH: platform[1] });
+    fs.renameSync(stagedExecutable, executable);
+  } finally {
+    fs.rmSync(stagedExecutable, { force: true });
+  }
 }
 run('go', ['build', '-mod=readonly', '-trimpath', '-ldflags', '-s -w', '-o', path.join(output, 'web', 'parser.wasm'), './cmd/wasm'], goRoot, { ...env, GOOS: 'js', GOARCH: 'wasm' });
 const goroot = read('go', ['env', 'GOROOT'], goRoot);
@@ -94,4 +78,4 @@ for (const line of modules) {
 }
 fs.writeFileSync(path.join(licenseDirectory, 'dependencies.json'), JSON.stringify(notices, null, 2));
 fs.writeFileSync(path.join(output, 'build-info.json'), JSON.stringify({ revision: sourceRevision, dirty, target, goVersion: read('go', ['version'], goRoot) }, null, 2));
-fs.writeFileSync(path.join(output, 'native', packageTarget, 'build-info.json'), JSON.stringify({ revision: sourceRevision, dirty, target, protocol: 1 }, null, 2));
+if (!wasmOnly) fs.writeFileSync(path.join(output, 'native', packageTarget, 'build-info.json'), JSON.stringify({ revision: sourceRevision, dirty, target, protocol: 1 }, null, 2));

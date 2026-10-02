@@ -4,7 +4,7 @@
   "author": "colvin chen",
   "license": "GPL-3.0-only",
   "private": true,
-  "version": "1.18.1",
+  "version": "1.19.0",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -88,9 +88,15 @@
     "desktop:build:mac:arm64": "node scripts/package-desktop.js mac-arm64",
     "desktop:build:mac:x64": "node scripts/package-desktop.js mac-x64",
     "desktop:build:win:x64": "node scripts/package-desktop.js win-x64",
-    "native:build": "node scripts/build-native.js"
+    "native:build": "node scripts/build-native.js",
+    "mobile": "node scripts/mobile.js"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "@capacitor/screen-orientation": "^8.0.1",
     "@fontsource/dm-mono": "^5.3.0",
     "@fontsource/space-grotesk": "^5.3.0",
     "@vitejs/plugin-react": "latest",
@@ -105,6 +111,7 @@
     "yjs": "latest"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "electron": "^44.2.0",
     "electron-builder": "^26.15.3",
     "sharp": "0.35.2",

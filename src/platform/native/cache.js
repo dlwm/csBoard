@@ -1,9 +1,9 @@
 import { migrateLegacyCache } from '../../demo/legacyCacheMigration.js';
 import { encodeStoredValue, decodeStoredValue } from '../../app/storageCodec.js';
 
-export function createDesktopCache(backend) {
+export function createNativeCache(backend, { migrate = () => migrateLegacyCache(backend), readEncoded } = {}) {
   async function nativeCall(method, args = {}) {
-    await migrateLegacyCache(backend);
+    await migrate();
     return backend.storage(method, args);
   }
   async function getCachedDemo(id) {
@@ -15,7 +15,8 @@ export function createDesktopCache(backend) {
     return value == null ? null : decodeStoredValue(value);
   }
   async function readCache(id, round) {
-    await migrateLegacyCache(backend);
+    await migrate();
+    if (readEncoded) return readEncoded(id, round);
     const url = await backend.readCache(id, round);
     if (url == null) return null;
     const response = await fetch(url, { cache: 'no-store' });

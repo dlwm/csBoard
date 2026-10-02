@@ -4,15 +4,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildFeatures } from '../config/build/features.js';
+import { prepareGoParserSource } from './lib/parser-source.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const localSource = args.includes('--local-source');
 const modes = args.filter(arg => arg !== '--local-source');
 const mode = modes[0] || '--local';
-if (modes.length > 1 || !['--local', '--remote', '--desktop'].includes(mode)) throw new Error('Expected --local, --remote or --desktop');
+if (modes.length > 1 || !['--local', '--remote', '--desktop', '--mobile'].includes(mode)) throw new Error('Expected --local, --remote, --desktop or --mobile');
 process.chdir(root);
-const features = buildFeatures(root, mode === '--desktop' ? 'desktop' : 'production');
+const buildMode = mode === '--desktop' ? 'desktop' : mode === '--mobile' ? 'mobile' : 'production';
+const features = buildFeatures(root, buildMode);
 process.env.CSBOARD_AI_ENABLED = String(features.ai);
 console.log(`AI build: ${features.ai ? 'enabled' : 'excluded'}`);
 // Disabled builds neither load nor validate optional AI content.
@@ -30,9 +32,14 @@ if (features.ai) {
     if (!text || file === 'system.en.md' && !text.includes('{{language}}')) throw new Error(`Invalid AI prompt template: ${file}`);
   }
 }
-const goParser = spawnSync(process.execPath, [path.join(root, 'scripts/build-go-parser.js'), ...(localSource ? ['--local-source'] : [])], { stdio: 'inherit' });
-if (goParser.error) throw goParser.error;
-if (goParser.status !== 0) throw new Error('Go parser build failed');
+const embeddedParser = mode === '--mobile' && features.parser !== 'wasm';
+if (embeddedParser) {
+  prepareGoParserSource(root, { localSource });
+} else {
+  const goParser = spawnSync(process.execPath, [path.join(root, 'scripts/build-go-parser.js'), ...(localSource ? ['--local-source'] : []), ...(mode === '--mobile' ? ['--wasm-only'] : [])], { stdio: 'inherit' });
+  if (goParser.error) throw goParser.error;
+  if (goParser.status !== 0) throw new Error('Go parser build failed');
+}
 if (mode === '--desktop') {
   const icons = spawnSync(process.execPath, [path.join(root, 'scripts/build-icons.js')], { stdio: 'inherit' });
   if (icons.error) throw icons.error;
@@ -43,6 +50,6 @@ if (mode === '--desktop') {
   process.env.VITE_USE_LOCAL_MAPS = mode === '--local' ? 'true' : 'false';
   if (mode === '--local') process.env.VITE_BACKEND_BASE_URL = '/';
 }
-await build({ configFile: path.join(root, 'config/build/vite.config.js'), mode: mode === '--desktop' ? 'desktop' : 'production' });
-const output = path.join(root, mode === '--desktop' ? 'build/renderer' : 'dist', 'go-parser');
-fs.cpSync(path.join(root, 'build/go-parser/web'), output, { recursive: true, force: true });
+await build({ configFile: path.join(root, 'config/build/vite.config.js'), mode: buildMode });
+const output = path.join(root, mode === '--desktop' ? 'build/renderer' : mode === '--mobile' ? 'build/mobile/web' : 'dist', 'go-parser');
+if (!embeddedParser) fs.cpSync(path.join(root, 'build/go-parser/web'), output, { recursive: true, force: true });

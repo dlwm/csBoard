@@ -9,5 +9,7 @@ export function featureFlag(value, fallback, name) {
 
 export function buildFeatures(root, mode = 'production', environment = process.env) {
   const settings = { ...loadEnv(mode, root, 'CSBOARD_'), ...environment };
-  return { ai: featureFlag(settings.CSBOARD_AI_ENABLED, true, 'CSBOARD_AI_ENABLED') };
+  const parser = settings.CSBOARD_PARSER_ENGINE || 'auto';
+  if (!['auto', 'wasm', 'native'].includes(parser)) throw new Error('CSBOARD_PARSER_ENGINE must be auto, wasm or native');
+  return { ai: featureFlag(settings.CSBOARD_AI_ENABLED, mode !== 'mobile', 'CSBOARD_AI_ENABLED'), parser };
 }

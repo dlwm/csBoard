@@ -1,22 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import * as THREE from 'three';
-
-const MOBILE_QUERY = '(max-width: 820px)';
 
 // Keep viewport observation and its CSS sizing contract outside application business state.
 export default function useResponsiveWorkspace({ activePanel, leftSidebarOpen, mapName, navData }) {
-  const [isMobile, setIsMobile] = useState(() => window.matchMedia?.(MOBILE_QUERY).matches ?? false);
-
   useEffect(() => {
-    const query = window.matchMedia?.(MOBILE_QUERY);
+    const query = window.matchMedia?.('(orientation: landscape) and (max-height: 600px)');
     if (!query) return undefined;
-    const onChange = () => setIsMobile(query.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
+    const update = () => document.documentElement.toggleAttribute('data-compact-landscape', query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => { query.removeEventListener('change', update); document.documentElement.removeAttribute('data-compact-landscape'); };
   }, []);
 
   useEffect(() => {
-    if (isMobile) return undefined;
     const target = document.querySelector('.three-board');
     if (!target || !window.ResizeObserver) return undefined;
     let frame;
@@ -43,7 +39,6 @@ export default function useResponsiveWorkspace({ activePanel, leftSidebarOpen, m
       stage?.removeAttribute('data-map-status-overlap');
       ['--map-bar-height', '--map-bar-width', '--status-bar-height', '--frame-window-width'].forEach((property) => stage?.style.removeProperty(property));
     };
-  }, [activePanel, isMobile, leftSidebarOpen, mapName, navData]);
+  }, [activePanel, leftSidebarOpen, mapName, navData]);
 
-  return isMobile;
 }

@@ -1,0 +1,12 @@
+{
+  "appId": "com.csboard.app",
+  "appName": "CSBoard",
+  "webDir": "build/mobile/web",
+  "android": {
+    "path": "native/android"
+  },
+  "ios": {
+    "path": "native/ios"
+  },
+  "backgroundColor": "#090d0d"
+}

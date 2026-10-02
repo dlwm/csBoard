@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDesktopRecords } from '../src/platform/desktop/records.js';
+import { createNativeRecords } from '../src/platform/native/records.js';
 import { runAnalysisQuery } from '../src/platform/shared/analysis.js';
 import { startPlaybackClock } from '../src/app/playbackClock.js';
 import { handleBroadcastTransfer } from '../server/core/broadcastTransfer.js';
@@ -9,7 +9,7 @@ import { digest, TRANSFER_CHUNK_BYTES } from '../shared/broadcast-transfer.js';
 test('desktop collection saves send changed slots and reset after uncertain writes', async () => {
   const requests = [];
   let fail = false;
-  const records = createDesktopRecords({ storage: async (method, args) => { requests.push({ method, args }); if (fail) { fail = false; throw Error('lost response'); } } }, {});
+  const records = createNativeRecords({ storage: async (method, args) => { requests.push({ method, args }); if (fail) { fail = false; throw Error('lost response'); } } }, {});
   await records.put('workspace-archives', [{ id: 'a', name: 'A' }, { id: 'b' }]);
   assert.equal(requests.at(-1).args.replace, true);
   await records.put('workspace-archives', [{ id: 'a', name: 'changed' }, { id: 'b' }]);

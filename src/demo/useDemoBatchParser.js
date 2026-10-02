@@ -60,6 +60,7 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
   };
 
   const startBatch = async (files) => {
+    if (!getPlatform().capabilities.demoParsing) throw new Error('Demo parsing is unavailable in mobile H5');
     if (!files?.length || batch?.running) return;
     const groups = groupDemoFiles(files);
     const jobs = groups.map((group, index) => ({ id: `demo-${Date.now()}-${index + 1}`, files: group, label: batchTaskLabel(group) }));
@@ -76,7 +77,10 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
         await parseTask(batchId, jobs[index], concurrency, runId);
       }
     });
-    await Promise.all(runners);
+    try { await Promise.all(runners); }
+    finally {
+      await getPlatform().demos.releaseFiles(files).catch(error => console.warn('Demo source cleanup failed', error));
+    }
     if (runIdRef.current !== runId) return;
     await onCacheChanged?.();
     setBatch((current) => current?.id === batchId ? { ...current, running: false, finishedAt: new Date().toISOString() } : current);

@@ -123,6 +123,7 @@ export default function createCameraInputController({
   };
 
   const onWheel = (event) => {
+    event.stopImmediatePropagation();
     onCameraInterrupt();
     onManualInteraction();
     event.preventDefault();
@@ -170,7 +171,8 @@ export default function createCameraInputController({
     if (attached) return;
     attached = true;
     mount.appendChild(cursor);
-    element.addEventListener('wheel', onWheel, { passive: false });
+    // This controller owns wheel/trackpad input; OrbitControls owns touch zoom.
+    element.addEventListener('wheel', onWheel, { passive: false, capture: true });
     document.addEventListener('mousemove', onWrappedPanMove, { signal: abortController.signal });
     document.addEventListener('mouseup', (event) => { if (event.button === 1) endPan(); }, { signal: abortController.signal });
     document.addEventListener('pointerlockchange', onPointerLockChange, { signal: abortController.signal });
@@ -180,7 +182,7 @@ export default function createCameraInputController({
   const dispose = () => {
     endPan();
     abortController.abort();
-    element.removeEventListener('wheel', onWheel);
+    element.removeEventListener('wheel', onWheel, true);
     cursor.remove();
     attached = false;
   };

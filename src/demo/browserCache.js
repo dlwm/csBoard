@@ -35,7 +35,7 @@ function runTransaction(storeNames, mode, action) {
 }
 
 export function demoCacheId(files, sampleRate = 8) {
-  return `${sampleRate}hz|${[...files].sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true })).map((file) => `${file.name}:${file.size}:${file.lastModified}`).join('|')}`;
+  return `${sampleRate}hz|${[...files].sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true })).map((file) => `${file.name}:${file.size}:${/^[a-f0-9]{64}$/.test(file.contentHash || '') ? `sha256-${file.contentHash}` : file.lastModified}`).join('|')}`;
 }
 
 export function getCachedDemo(id) {

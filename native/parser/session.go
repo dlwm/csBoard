@@ -1,6 +1,7 @@
 package goparser
 
 import (
+	"context"
 	"fmt"
 	"sort"
 )
@@ -27,12 +28,15 @@ type sessionPart struct {
 // Session owns per-import state. Native reads are lazy; the browser retains
 // transferred input bytes. Neither session reads or writes product caches.
 type Session struct {
-	read  func(int) ([]byte, error)
-	parts []sessionPart
+	ctx    context.Context
+	cancel context.CancelFunc
+	read   func(int) ([]byte, error)
+	parts  []sessionPart
 }
 
 func NewSession(count int, read func(int) ([]byte, error)) *Session {
-	return &Session{read: read, parts: make([]sessionPart, count)}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Session{ctx: ctx, cancel: cancel, read: read, parts: make([]sessionPart, count)}
 }
 
 func ValidateSource(data []byte, size int64) error {
@@ -46,7 +50,16 @@ func ValidateSource(data []byte, size int64) error {
 	return nil
 }
 
+func (s *Session) Cancel() { s.cancel() }
+
+// Close releases retained rows after all requests have stopped. Hosts must
+// serialize this with Request; Cancel alone is safe during a running request.
+func (s *Session) Close() { s.cancel(); s.parts = nil; s.read = nil }
+
 func (s *Session) Request(method string, q Query) (any, error) {
+	if err := s.ctx.Err(); err != nil {
+		return nil, err
+	}
 	if q.Part < 0 || q.Part >= len(s.parts) {
 		return nil, fmt.Errorf("invalid source part %d", q.Part)
 	}
@@ -58,7 +71,7 @@ func (s *Session) Request(method string, q Query) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			report, err := Parse(data)
+			report, err := parseWithContext(s.ctx, data)
 			if err != nil {
 				return nil, err
 			}
@@ -87,7 +100,7 @@ func (s *Session) Request(method string, q Query) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return ParseGrenades(data)
+		return parseGrenadesWithContext(s.ctx, data)
 	case "prepareTicks":
 		// Replacing a prepared plan releases the previous rows. Callers provide the
 		// union of round, analysis and pre-throw samples, so only one pass is needed.
@@ -95,7 +108,7 @@ func (s *Session) Request(method string, q Query) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		rows, err := ParseTicks(data, q.Ticks, q.Props, nil)
+		rows, err := parseTicksWithContext(s.ctx, data, q.Ticks, q.Props, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -157,7 +170,7 @@ func (s *Session) Request(method string, q Query) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return ParseTicks(data, q.Ticks, q.Props, q.Players)
+		return parseTicksWithContext(s.ctx, data, q.Ticks, q.Props, q.Players)
 	default:
 		return nil, fmt.Errorf("unknown parser method %q", method)
 	}

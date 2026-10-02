@@ -2,6 +2,20 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.19.0] - 2026-10-03
+
+### Added
+
+- Add Android and iOS development previews with a landscape workspace, native Demo parsing and local archive, note and Demo storage. Physical-device validation is still pending.
+- Add touch controls for player movement, aim and pitch; retain mouse, keyboard and trackpad support on phones and tablets.
+
+### Changed
+
+- Use landscape layouts with collapsible sidebars, larger touch targets and scrollable lists on mobile devices. Portrait mode shows a rotation prompt and pauses map rendering.
+- Keep mobile H5 focused on Utility Notes and Collaboration, without Demo import, Round Replay, Analysis or Broadcast; connecting a mouse does not change the available features.
+- Support one-finger editing and camera rotation, with two-finger zoom and pan. Switching to camera gestures preserves completed edits for undo.
+- Cancel native mobile parsing when the app enters the background and clean up temporary Demo files after import or cancellation.
+
 ## [1.18.1] - 2026-10-02
 
 ### Fixed

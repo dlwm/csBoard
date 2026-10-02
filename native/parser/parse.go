@@ -1,6 +1,7 @@
 package goparser
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sort"
@@ -116,12 +117,14 @@ func purchaseName(index uint64) string {
 	return ""
 }
 
-func Parse(data []byte) (Report, error) {
+func Parse(data []byte) (Report, error) { return parseWithContext(context.Background(), data) }
+
+func parseWithContext(ctx context.Context, data []byte) (Report, error) {
 	result := Report{Protocol: 1, EventCounts: make(map[string]int), Events: []RawEvent{}, SemanticEvents: []RawEvent{}, ProductEvents: []map[string]any{}, FirstTick: -1}
 	if len(data) < 8 || string(data[:8]) != "PBDEMS2\x00" {
 		return result, fmt.Errorf("invalid Source 2 demo header")
 	}
-	parser := newParser(data, dem.UserCmdParsingDisabled)
+	parser := newParserWithContext(ctx, data, dem.UserCmdParsingDisabled)
 	defer parser.Close()
 	names := make(map[string]struct{})
 	seenFrame := false

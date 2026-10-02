@@ -3,6 +3,8 @@ import { startRenderLoop } from './renderLoop.js';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createTouchInputController } from './touchInputController.js';
+import { localize } from '../i18n.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import { createNavMesh } from './navMesh.js';
@@ -44,6 +46,9 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 // Owns the imperative Three.js scene and exposes its workspace API to the React shell.
 export default function ThreeBoard(props) {
+  const [touchEditMode, setTouchEditMode] = useState('move');
+  const touchEditModeRef = useRef(touchEditMode);
+  touchEditModeRef.current = touchEditMode;
   const { mapName, navData, showGrid, showModel, modelOpacity, modelViewMode, demoProjectiles, analysisRounds, deletePointId, pointUpdate, onCameraSlots, onReady } = props;
   const mountRef = useRef(null);
   const {
@@ -227,7 +232,7 @@ export default function ThreeBoard(props) {
     controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
     controls.touches.ONE = THREE.TOUCH.ROTATE;
     controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
-    controls.enableZoom = window.matchMedia?.('(pointer: coarse)').matches === true;
+    controls.enableZoom = true;
     const pressedKeys = new Set();
     const pathLines = [];
     let placing = false;
@@ -938,7 +943,10 @@ export default function ThreeBoard(props) {
     };
     const onPointerDown = (event) => {
       pointerCurrent = pointerPosition(event);
-      if (event.pointerType === 'touch') { cameraState.clearActiveSlot(); return; }
+      if (event.pointerType === 'touch') {
+        cameraState.clearActiveSlot();
+        if (demoCameraModeRef.current !== 'manual' || demoInEyePlayerRef.current) demoCameraInterruptRef.current?.();
+      }
       if ((event.button === 1 || event.button === 2) && (demoCameraModeRef.current !== 'manual' || demoInEyePlayerRef.current)) demoCameraInterruptRef.current?.();
       if (event.button === 1) cameraInput.beginPan(event);
       if (event.button === 0) renderer.domElement.setPointerCapture?.(event.pointerId);
@@ -1015,7 +1023,9 @@ export default function ThreeBoard(props) {
             const targetY = aimTarget?.position.y ?? 0.15;
             const targetZ = aimTarget?.position.z ?? -0.05;
             pointPointerRayLength = Math.max(Math.hypot(targetY - 0.15, targetZ), 0.05);
-            pointPointerDragging = !pressedKeys.has('control') && !pressedKeys.has('shift') && (pointPointerTarget.userData.collabPlayer || !hit.userData.aimTarget);
+            pointPointerDragging = !pressedKeys.has('control') && !pressedKeys.has('shift')
+              && (event.pointerType !== 'touch' || touchEditModeRef.current === 'move' || !pointPointerTarget.userData.collabPlayer)
+              && (pointPointerTarget.userData.collabPlayer || !hit.userData.aimTarget);
           }
         } else pointSelectRef.current?.(null);
       }
@@ -1038,7 +1048,6 @@ export default function ThreeBoard(props) {
     const onPointerMove = (event) => {
       if (cameraInput.continuePan(event)) return;
       pointerCurrent = pointerPosition(event);
-      if (event.pointerType === 'touch') return;
       raycaster.setFromCamera(pointerCurrent, camera);
       const demoHit = raycaster.intersectObjects([...demoMarkers.values()], true).find((candidate) => isInteractiveFloorPoint(candidate.point) && !candidate.object.userData.aimRay && !candidate.object.userData.aimTarget)?.object;
       let demoOwner = demoHit;
@@ -1152,11 +1161,11 @@ export default function ThreeBoard(props) {
             pointPointerTarget.position.copy(targetPosition).add(new THREE.Vector3(0, 0.002, 0));
             if (isCollabPlayer) { pointPointerTarget.userData.aimCollisionVersion = -1; updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionVersion); }
           }
-        } else if (isCollabPlayer && pressedKeys.has('control')) {
+        } else if (isCollabPlayer && (pressedKeys.has('control') || event.pointerType === 'touch' && touchEditModeRef.current === 'aim')) {
           pointPointerMoved = true;
           const targetPosition = pointerToAim(pointerCurrent, pointPointerTarget.position.y);
           if (targetPosition) applyPlacedAim(pointPointerTarget, targetPosition);
-        } else if (isCollabPlayer && pressedKeys.has('shift')) {
+        } else if (isCollabPlayer && (pressedKeys.has('shift') || event.pointerType === 'touch' && touchEditModeRef.current === 'pitch')) {
           pointPointerMoved = true;
           const pitch = THREE.MathUtils.clamp(pointPointerBasePitch - deltaY * 1.8, -Math.PI * 0.42, Math.PI * 0.42);
           setCollabPlayerPitch(pointPointerTarget, pitch);
@@ -1183,7 +1192,6 @@ export default function ThreeBoard(props) {
       }
     };
     const onPointerUp = (event) => {
-      if (event.pointerType === 'touch') return;
       if (event.button === 1) {
         const wasWrapped = cameraInput.endPan();
         if (wasWrapped) return;
@@ -1287,10 +1295,15 @@ export default function ThreeBoard(props) {
     renderer.domElement.setAttribute('aria-label', 'Dust II 3D tactical map');
     mount.appendChild(renderer.domElement);
     cameraInput.attach(mount);
-    renderer.domElement.addEventListener('pointerdown', onPointerDown, { capture: true });
-    renderer.domElement.addEventListener('pointermove', onPointerMove);
-    renderer.domElement.addEventListener('pointerup', onPointerUp);
-    renderer.domElement.addEventListener('pointercancel', cancelPointerInteraction);
+    const touchInput = createTouchInputController({
+      element: renderer.domElement, down: onPointerDown, move: onPointerMove,
+      up: onPointerUp, cancel: cancelPointerInteraction,
+      editing: () => Boolean(pointPointerTarget || grenadeAdjusting || brushPointerDown || eraserActive || placing),
+    });
+    renderer.domElement.addEventListener('pointerdown', touchInput.pointerDown, { capture: true });
+    renderer.domElement.addEventListener('pointermove', touchInput.pointerMove);
+    renderer.domElement.addEventListener('pointerup', touchInput.pointerUp);
+    renderer.domElement.addEventListener('pointercancel', touchInput.pointerCancel);
     renderer.domElement.addEventListener('contextmenu', onContextMenu);
     const floor = new THREE.GridHelper(240, 48, '#354239', '#17231d');
     floor.position.y = -0.32;
@@ -1710,7 +1723,7 @@ export default function ThreeBoard(props) {
       if (!demoMonitorRenderer.render(now)) renderer.render(scene, camera);
     };
     const stopRenderLoop = startRenderLoop(animate);
-     return () => { disposed = true; stopRenderLoop(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', onPointerDown, true); renderer.domElement.removeEventListener('pointermove', onPointerMove); renderer.domElement.removeEventListener('pointerup', onPointerUp); renderer.domElement.removeEventListener('pointercancel', cancelPointerInteraction); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; stopRenderLoop(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {
@@ -1783,5 +1796,9 @@ export default function ThreeBoard(props) {
 
   // Demo POV owns its animated HUD crosshair; this simpler one is only for utility replay.
   const utilityCrosshairVisible = Boolean(props.utilityFirstPerson?.player);
-  return <div ref={(node) => { mountRef.current = node; }} className="three-board">{error && <div className="board-error">{error}</div>}{utilityCrosshairVisible && <div className="pov-crosshair" aria-hidden="true"><i /><i /><i /><i /></div>}</div>;
+  return <div ref={(node) => { mountRef.current = node; }} className="three-board">{props.collabEditingEnabled && <div className="touch-edit-tools" role="group" aria-label={localize(props.language, { zh: '触控编辑', en: 'Touch editing', ru: 'Сенсорное редактирование' })}>{[
+    ['move', { zh: '移动', en: 'Move', ru: 'Переместить' }],
+    ['aim', { zh: '朝向', en: 'Aim', ru: 'Направление' }],
+    ['pitch', { zh: '俯仰', en: 'Pitch', ru: 'Наклон' }],
+  ].map(([mode, label]) => <button key={mode} type="button" aria-pressed={touchEditMode === mode} onClick={() => setTouchEditMode(mode)}>{localize(props.language, label)}</button>)}</div>}{error && <div className="board-error">{error}</div>}{utilityCrosshairVisible && <div className="pov-crosshair" aria-hidden="true"><i /><i /><i /><i /></div>}</div>;
 }

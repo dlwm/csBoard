@@ -129,12 +129,11 @@ For image-capable models, enable **Model supports image input** in settings. The
 
 ![Mobile collaboration](docs/img/mobile.jpeg)
 
-- Use a dedicated mobile layout with a 4:3 Three.js viewport above the operation panels.
-- Rotate with one finger; use two fingers to zoom and pan.
-- Select camera presets from a cyclic iPhone-style semicircular dial overlaid on the bottom of the 3D viewport.
-- Tap a saved camera position to restore it, rotate through positions continuously, swipe up to save the centered slot, or select `RESET`.
-- Keep collaboration frames at the top of the operation area for quick switching.
-- Hide Round Replay, Demo Analysis, map controls, brush controls, trackpad settings, and model-lens modes on H5. Utility Notes and Collaboration remain available.
+- Native apps and mobile H5 use landscape layouts with collapsible sidebars and larger touch controls; mouse and keyboard remain supported.
+- Native apps retain the full workspace. Mobile H5 offers Utility Notes and Collaboration, with Demo import, Round Replay, Analysis and Broadcast disabled.
+- Portrait mode prompts you to rotate the device and pauses map rendering.
+- Rotate with one finger; use two fingers to zoom and pan. Move, aim and pitch controls support touch editing.
+- Android/iOS development builds use native Go parsing and SQLite, with optional WASM parsing. See the [mobile development guide](docs/mobile.md) for build commands and current limitations.
 
 ## Supported Maps
 
@@ -330,7 +329,7 @@ Copyright (C) 2026 Colvin Chen. Original CSBoard source code and documentation a
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
 - Remote web builds use cloud storage for GLB models; local/Docker builds use local models. Electron releases require user-imported models; only local-test builds include local models. Bundled NAV geometry and 2D radar remain available offline.
 - Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
-- Round Replay and Demo Analysis require a desktop-sized interface (including desktop web browsers); H5 exposes Utility Notes and Collaboration.
+- Round Replay and Demo Analysis are available in desktop browsers and native applications; mobile H5 exposes Utility Notes and Collaboration.
 
 ## Roadmap
 

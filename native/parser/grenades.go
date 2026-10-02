@@ -1,6 +1,7 @@
 package goparser
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sort"
@@ -92,7 +93,11 @@ func smokeBytes(entity st.Entity, start, count int) ([]int, bool) {
 
 // ParseGrenades returns the projectile and effect journals consumed by parserRuntime.
 func ParseGrenades(data []byte) ([]map[string]any, error) {
-	parser := newParser(data, dem.UserCmdParsingDisabled)
+	return parseGrenadesWithContext(context.Background(), data)
+}
+
+func parseGrenadesWithContext(ctx context.Context, data []byte) ([]map[string]any, error) {
+	parser := newParserWithContext(ctx, data, dem.UserCmdParsingDisabled)
 	defer parser.Close()
 	rows := []map[string]any{}
 	previousSmokeSize := map[int]int{}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createArchiveStore } from '../collaboration/archiveStore.js';
 import { loadBroadcastArchives, storeBroadcastArchives } from '../app/persistentStore.js';
 
-export default function useBroadcastArchives(onWriteError) {
+export default function useBroadcastArchives(onWriteError, enabled = true) {
   const errorRef = useRef(onWriteError);
   errorRef.current = onWriteError;
   const [store] = useState(() => createArchiveStore({
@@ -17,9 +17,10 @@ export default function useBroadcastArchives(onWriteError) {
   const archives = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [archivesRef] = useState(() => ({ get current() { return store.getSnapshot(); } }));
   useEffect(() => {
+    if (!enabled) return undefined;
     let cancelled = false;
     store.initialize(() => cancelled);
     return () => { cancelled = true; };
-  }, [store]);
+  }, [store, enabled]);
   return { archives, archivesRef, persist: store.persist, remove: (id) => store.remove(id) };
 }
