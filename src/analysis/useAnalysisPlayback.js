@@ -5,24 +5,26 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 function calculateAnalysisDuration(rows, selectedPlayers, side, economyOwn, economyOpponent) {
   if (!selectedPlayers.length || !rows.length) return 0;
   const selected = new Set(selectedPlayers);
-  const rowsByRound = new Map();
-  rows.forEach((snapshot) => {
-    if (!snapshot.analysisRound?.id) return;
-    if (!rowsByRound.has(snapshot.analysisRound.id)) rowsByRound.set(snapshot.analysisRound.id, []);
-    rowsByRound.get(snapshot.analysisRound.id).push(snapshot);
-  });
-  return Math.max(0, ...[...rowsByRound.values()].map((roundRows) => {
-    const round = roundRows[0].analysisRound;
-    const [ownEconomy, opponentEconomy] = String(round.economyMatchup || '').split(':');
-    if (!economyOwn.includes(ownEconomy) || !economyOpponent.includes(opponentEconomy)) return 0;
-    const records = roundRows.flatMap((snapshot) => snapshot.players
-      .filter((player) => selected.has(player.name))
-      .map((player) => ({ ...player, tick: snapshot.tick })));
-    const roundSide = records[0]?.team === 2 ? 'T' : records[0] ? 'CT' : null;
-    if (side !== 'ALL' && roundSide !== side) return 0;
-    const last = records.find((player) => player.health != null && player.health <= 0) || records.at(-1);
-    return last ? Math.min(last.tick - round.startTick, round.endTick - round.startTick) : 0;
-  }));
+  const rounds = new Map();
+  for (const snapshot of rows) {
+    const round = snapshot.analysisRound;
+    if (!round?.id) continue;
+    const [own, opponent] = String(round.economyMatchup || '').split(':');
+    if (!economyOwn.includes(own) || !economyOpponent.includes(opponent)) continue;
+    for (const player of snapshot.players) {
+      if (!selected.has(player.name)) continue;
+      const playerSide = player.team === 2 ? 'T' : 'CT';
+      if (side !== 'ALL' && playerSide !== side) continue;
+      const current = rounds.get(round.id);
+      if (current?.dead) continue;
+      rounds.set(round.id, { round, tick: snapshot.tick, dead: player.health != null && player.health <= 0 });
+    }
+  }
+  let duration = 0;
+  for (const { round, tick } of rounds.values()) {
+    duration = Math.max(duration, Math.min(tick - round.startTick, round.endTick - round.startTick));
+  }
+  return duration;
 }
 
 export default function useAnalysisPlayback({ rows, selectedPlayers, side, economyOwn, economyOpponent }) {

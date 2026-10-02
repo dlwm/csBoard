@@ -42,42 +42,60 @@ function findRoundAtTick(rounds, tick) {
   return null;
 }
 
-function buildRoundMetadata(entry, rounds, playerName, getRoundEconomy) {
-  return new Map(rounds.map((round) => {
-    const player = entry.analysisRows.find((snapshot) => (
-      snapshot.tick >= round.startTick
-      && snapshot.tick <= round.endTick
-      && snapshot.players.some((candidate) => candidate.name === playerName)
-    ))?.players.find((candidate) => candidate.name === playerName);
+// Scan snapshots/events once per Demo instead of once per player per round.
+function indexRoundMetadata(entry, rounds, selectedPlayers, getRoundEconomy) {
+  const selected = new Set(selectedPlayers);
+  const firstPlayers = new Map(rounds.map(round => [round.round, new Map()]));
+  for (const snapshot of entry.analysisRows) {
+    const round = findRoundAtTick(rounds, snapshot.tick);
+    if (!round) continue;
+    const players = firstPlayers.get(round.round);
+    for (const player of snapshot.players) {
+      if (selected.has(player.name) && !players.has(player.name)) players.set(player.name, player);
+    }
+  }
+  const eventsByRound = new Map();
+  for (const event of entry.data.events || []) {
+    if (event.event_name !== 'round_end' && event.event_name !== 'bomb_planted') continue;
+    const round = findRoundAtTick(rounds, event.tick);
+    if (!round) continue;
+    const events = eventsByRound.get(round.round) || {};
+    if (!events[event.event_name]) events[event.event_name] = event;
+    eventsByRound.set(round.round, events);
+  }
+  const roundData = new Map((entry.data.roundData || []).map(data => [data.round, data]));
+  return new Map(rounds.map(round => [round.round, {
+    players: firstPlayers.get(round.round),
+    economy: getRoundEconomy(round, roundData.get(round.round)),
+    events: eventsByRound.get(round.round) || {},
+  }]));
+}
+
+function buildRoundMetadata(entry, rounds, playerName, index) {
+  return new Map(rounds.map(round => {
+    const { players, economy, events } = index.get(round.round);
+    const player = players.get(playerName);
     const side = player?.team === 2 ? 'T' : player?.team === 3 ? 'CT' : null;
-    const economy = getRoundEconomy(round, entry.data.roundData?.find((item) => item.round === round.round));
-    const matchup = side ? `${economy[side].label}:${economy[side === 'T' ? 'CT' : 'T'].label}` : 'UNKNOWN:UNKNOWN';
-    const roundEndEvent = entry.data.events?.find((event) => (
-      event.event_name === 'round_end' && event.tick >= round.startTick && event.tick <= round.endTick
-    ));
-    const plantEvent = entry.data.events?.find((event) => (
-      event.event_name === 'bomb_planted'
-      && event.tick >= round.startTick
-      && event.tick <= (roundEndEvent?.tick ?? round.endTick)
-    ));
+    const endTick = events.round_end?.tick ?? round.endTick;
+    const plantTick = events.bomb_planted?.tick;
     return [round.round, {
-      // A player-specific id keeps economy and side metadata independent in multi-select mode.
       id: `${entry.id}:${round.round}:${playerName}`,
       demoId: entry.id,
       fileName: entry.data.demo?.fileName || entry.fileName || 'Demo',
       roundNumber: round.round,
       playerName,
       startTick: round.startTick,
-      endTick: roundEndEvent?.tick ?? round.endTick,
-      plantTick: plantEvent?.tick ?? null,
+      endTick,
+      plantTick: Number.isFinite(plantTick) && plantTick <= endTick ? plantTick : null,
       tickRate: entry.data.demo?.tickRate || 64,
-      economyMatchup: matchup,
+      economyMatchup: side ? `${economy[side].label}:${economy[side === 'T' ? 'CT' : 'T'].label}` : 'UNKNOWN:UNKNOWN',
       side,
     }];
   }));
 }
 
 function appendAnalysisRows(rows, entry, rounds, roundMetadataByPlayer, selectedPlayers, shift) {
+  const shiftedMetadata = new Map();
   entry.analysisRows.forEach((snapshot) => {
     const round = findRoundAtTick(rounds, snapshot.tick);
     if (!round) return;
@@ -85,17 +103,14 @@ function appendAnalysisRows(rows, entry, rounds, roundMetadataByPlayer, selected
       if (!selectedPlayers.has(player.name)) return;
       const metadata = roundMetadataByPlayer.get(player.name)?.get(round.round);
       if (!metadata?.side) return;
-      rows.push({
-        ...snapshot,
-        tick: snapshot.tick + shift,
-        players: [player],
-        analysisRound: {
-          ...metadata,
-          startTick: metadata.startTick + shift,
+      let analysisRound = shiftedMetadata.get(metadata.id);
+      if (!analysisRound) {
+        analysisRound = { ...metadata, startTick: metadata.startTick + shift,
           endTick: metadata.endTick + shift,
-          plantTick: Number.isFinite(metadata.plantTick) ? metadata.plantTick + shift : null,
-        },
-      });
+          plantTick: Number.isFinite(metadata.plantTick) ? metadata.plantTick + shift : null };
+        shiftedMetadata.set(metadata.id, analysisRound);
+      }
+      rows.push({ ...snapshot, tick: snapshot.tick + shift, players: [player], analysisRound });
     });
   });
 }
@@ -134,8 +149,10 @@ function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, se
           fileName: entry.data.demo?.fileName || entry.fileName || 'Demo',
           round: round.round,
           tickRate: entry.data.demo?.tickRate || 64,
-          smokeVoxelFrames: grenadeData.smokeVoxelFrames || [],
-          infernoFrames: grenadeData.infernoFrames || [],
+          smokeVoxelFrames: segment.kind === 'smoke' ? (grenadeData.smokeVoxelFrames || []).filter(frame =>
+            (Number(frame.entityId) === Number(segment.entityId) || Number(frame.entityId) === Number(segment.landing?.entityid))) : [],
+          infernoFrames: segment.kind === 'fire' ? (grenadeData.infernoFrames || []).filter(frame =>
+            (Number(frame.entityId) === Number(segment.entityId) || Number(frame.entityId) === Number(segment.landing?.entityid))) : [],
         },
       });
     });
@@ -159,7 +176,7 @@ function appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer) {
   }));
 }
 
-export function buildAnalysisDataset({ demos, selectedPlayers, playerName, getRoundEconomy }) {
+export function buildAnalysisDataset({ demos, selectedPlayers, playerName, getRoundEconomy, includeUtilities = true }) {
   const rows = [];
   const deaths = [];
   const utilities = [];
@@ -173,13 +190,14 @@ export function buildAnalysisDataset({ demos, selectedPlayers, playerName, getRo
     const sourceEnd = Math.max(...rounds.map((round) => round.endTick), sourceStart);
     const shift = cursor - sourceStart;
     const roundMetadataByPlayer = new Map();
+    const metadataIndex = indexRoundMetadata(entry, rounds, playerNames, getRoundEconomy);
     playerNames.forEach((name) => {
       if (entry.analysisPlayerNames && !entry.analysisPlayerNames.includes(name)) return;
-      const roundMetadata = buildRoundMetadata(entry, rounds, name, getRoundEconomy);
+      const roundMetadata = buildRoundMetadata(entry, rounds, name, metadataIndex);
       roundMetadataByPlayer.set(name, roundMetadata);
     });
     appendAnalysisRows(rows, entry, rounds, roundMetadataByPlayer, selected, shift);
-    appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, selected, buildDemoGrenadeSegments);
+    if (includeUtilities) appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, selected, buildDemoGrenadeSegments);
     appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer);
     cursor += Math.max(256, sourceEnd - sourceStart + 256);
   });

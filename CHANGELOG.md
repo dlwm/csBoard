@@ -2,6 +2,13 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.18.1] - 2026-10-02
+
+### Fixed
+
+- Reduce delays when selecting players in Demo Analysis and keep player search available while results update.
+- Load utility replay data only when needed, reduce repeated calculations and combine rapid selection changes.
+
 ## [1.18.0] - 2026-10-01
 
 ### Added
