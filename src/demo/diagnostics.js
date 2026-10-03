@@ -21,3 +21,9 @@ export function resultDiagnostic(data, estimatedBytes, elapsedMs) {
   };
 }
 
+
+// Keep runtime stacks in JSON diagnostics, while the task row shows the cause.
+export function conciseDemoError(message) {
+  const cause = String(message || '').split(/stacktrace:|\n\s*at |\n\s*goroutine /i)[0].trim();
+  return cause.length > 300 ? `${cause.slice(0, 300)}…` : cause;
+}

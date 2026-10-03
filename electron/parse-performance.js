@@ -6,13 +6,13 @@ import { randomUUID } from 'node:crypto';
 const GiB = 1024 ** 3, MiB = 1024 ** 2;
 export function createParsePerformance(userData, hardware = { cores: Math.min(128, os.availableParallelism()), totalMemory: os.totalmem(), freeMemory: os.freemem }) {
   const file = path.join(userData, 'parse-performance.json');
-  const defaults = { mode: 'balanced', maxDemos: Math.min(4, hardware.cores), threadsPerDemo: Math.min(4, hardware.cores), memoryGB: Math.max(0.5, Math.floor(hardware.totalMemory / GiB / 2)), parallelTicks: true };
+  const defaults = { mode: 'balanced', maxDemos: Math.min(4, hardware.cores), threadsPerDemo: Math.min(4, hardware.cores), memoryGB: Math.max(0.5, Math.floor(hardware.totalMemory / GiB / 2)), parallelTicks: true, analysisRealtime: false };
   const validate = input => {
-    if (!input || !['balanced', 'fast', 'custom'].includes(input.mode) || typeof input.parallelTicks !== 'boolean'
+    if (!input || !['balanced', 'fast', 'custom'].includes(input.mode) || typeof input.parallelTicks !== 'boolean' || (input.analysisRealtime != null && typeof input.analysisRealtime !== 'boolean')
       || !Number.isInteger(input.maxDemos) || input.maxDemos < 1 || input.maxDemos > Math.min(16, hardware.cores)
       || !Number.isInteger(input.threadsPerDemo) || input.threadsPerDemo < 1 || input.threadsPerDemo > hardware.cores
       || !Number.isFinite(input.memoryGB) || input.memoryGB < 0.5 || input.memoryGB > Math.max(0.5, hardware.totalMemory / GiB - 0.5)) throw new Error('Invalid parser performance settings');
-    return { mode: input.mode, maxDemos: input.maxDemos, threadsPerDemo: input.threadsPerDemo, memoryGB: input.memoryGB, parallelTicks: input.parallelTicks };
+    return { mode: input.mode, maxDemos: input.maxDemos, threadsPerDemo: input.threadsPerDemo, memoryGB: input.memoryGB, parallelTicks: input.parallelTicks, analysisRealtime: input.analysisRealtime ?? false };
   };
   let settings = defaults;
   let memorySample = null;

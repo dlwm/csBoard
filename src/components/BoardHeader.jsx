@@ -44,6 +44,12 @@ export default function BoardHeader({ activePanel, language, mapName, parseGameS
           </select>
         </span>
       </label>
+      {getPlatform().kind === 'web' && <a className="release-download" href="https://github.com/dlwm/csBoard/releases/latest" target="_blank" rel="noopener noreferrer"
+        title={localize(language, { zh: '下载最新版本', en: 'Download latest version', ru: 'Скачать последнюю версию' })}
+        aria-label={localize(language, { zh: '下载最新版本', en: 'Download latest version', ru: 'Скачать последнюю версию' })}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" /></svg>
+        <span>{localize(language, { zh: '下载最新版本', en: 'Download latest', ru: 'Скачать' })}</span>
+      </a>}
       <a className="github-link" href="https://github.com/dlwm/csBoard" target="_blank" rel="noreferrer">GITHUB</a>
       <button type="button" className={`game-switch${parseGameState !== 'hidden' ? ' active' : ''}`} title={localize(language, { zh: '小游戏', en: 'Mini games', ru: 'Мини-игры' })} aria-label={localize(language, { zh: '打开小游戏', en: 'Open mini games', ru: 'Открыть мини-игры' })} aria-pressed={parseGameState !== 'hidden'} onClick={toggleGames}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 8h9.6a4 4 0 0 1 3.8 5.2l-1.2 3.7a2.2 2.2 0 0 1-3.5 1.1l-2.1-1.7h-3.6L8.1 18a2.2 2.2 0 0 1-3.5-1.1l-1.2-3.7A4 4 0 0 1 7.2 8Z"/><path d="M8 11v4M6 13h4M16.5 11.5h.01M18 14h.01"/></svg></button>
       <button type="button" className="language-switch" title={languageSwitchTitle} aria-label={languageSwitchTitle} onClick={() => setLanguage(nextLanguage)}>{languageLabel(language)}</button>

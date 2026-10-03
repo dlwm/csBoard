@@ -1,3 +1,4 @@
+import { withAnalysisCache } from './analysis-cache.js';
 import { runSerialization } from '../src/platform/shared/serialization.js';
 import { runAnalysisQuery } from '../src/platform/shared/analysis.js';
 import { decodeStoredValue } from '../src/app/storageCodec.js';
@@ -26,6 +27,10 @@ process.parentPort.on('message', async ({ data }) => {
     return;
   }
   if (data.type !== 'start') return;
-  try { process.parentPort.postMessage({ type: 'complete', result: await (data.method.startsWith('analysis.') ? runAnalysisQuery(cache, data.method, data.args) : runSerialization(data.method, data.args)) }); }
+  try {
+    const compute = () => data.method.startsWith('analysis.') ? runAnalysisQuery(cache, data.method, data.args) : runSerialization(data.method, data.args);
+    const result = await (data.method === 'analysis.query' ? withAnalysisCache(data.analysisCache, data.args, cache, compute) : compute());
+    process.parentPort.postMessage({ type: 'complete', result });
+  }
   catch (error) { process.parentPort.postMessage({ type: 'error', message: error.message }); }
 });

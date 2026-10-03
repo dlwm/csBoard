@@ -2,6 +2,14 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.19.3] - 2026-10-03
+
+### Changed
+
+- Make the parsing list collapsible, add localized details with a JSON view, and let failed Demos be retried individually.
+- Reuse versioned analysis caches by default on desktop, with an optional realtime mode; recommend throws occurring at least four times using endpoint heights, trajectories and flight times, with counts, frequency scores, spotlight previews, group focus and one-click saving.
+- Add a latest-version download shortcut that opens the GitHub release page.
+
 ## [1.19.2] - 2026-10-03
 
 ### Changed

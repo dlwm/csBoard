@@ -69,7 +69,7 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
   }
   const memoryTimer = setInterval(() => { if (scheduler.busy) refreshMemory(); }, 2000);
   memoryTimer.unref();
-  registerDataService({ app, authorize, storage: request, scheduler, root, assertAvailable });
+  registerDataService({ app, authorize, storage: request, scheduler, root, assertAvailable, analysisRealtime: () => performance.snapshot().settings.analysisRealtime });
   const emit = (owner, id, message) => { if (!owner.isDestroyed()) owner.send('native:demo-event', { id, ...message }); };
   const cancelOwner = owner => {
     scheduler.cancelOwner(owner.id);

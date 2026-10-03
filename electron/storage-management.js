@@ -83,14 +83,18 @@ export function registerStorageManagement({ app, authorize, getWindow, binary, r
     const usage = await request('storage.usage', {});
     const size = async dir => (await inventory(dir)).reduce((sum, file) => sum + file.bytes, 0);
     const databaseBytes = (await inventory(root)).filter(file => /^csboard\.sqlite3(?:-wal|-shm)?$/.test(file.path)).reduce((sum, file) => sum + file.bytes, 0);
-    return { ...usage, databaseBytes, resourceBytes: await size(resources), stagingBytes: await size(path.join(root, 'staging')), recoveryBytes: await size(path.join(userData, 'restores')), keepAwake: keepAwake() };
+    return { ...usage, databaseBytes, resourceBytes: await size(resources), analysisBytes: await size(path.join(userData, 'analysis-cache')), stagingBytes: await size(path.join(root, 'staging')), recoveryBytes: await size(path.join(userData, 'restores')), keepAwake: keepAwake() };
   });
   ipcMain.handle('desktop:storage-folder', async event => { authorize(event); await shell.openPath(userData); });
   ipcMain.handle('desktop:storage-clean', async (event, maxBytes) => {
     authorize(event);
     if (maxBytes !== null && (!Number.isSafeInteger(maxBytes) || maxBytes < 0)) throw new Error('Invalid cache size');
     begin();
-    try { return await native(maxBytes === null ? 'storage.cleanOrphans' : 'storage.prune', { maxBytes, protected: [] }); }
+    try {
+      const result = await native(maxBytes === null ? 'storage.cleanOrphans' : 'storage.prune', { maxBytes, protected: [] });
+      await fs.rm(path.join(userData, 'analysis-cache'), { recursive: true, force: true });
+      return result;
+    }
     finally { end(); }
   });
   ipcMain.handle('desktop:backup', async event => {

@@ -303,3 +303,58 @@
 .analysis-loading-spinner { display: inline-block; flex: 0 0 16px; width: 16px; height: 16px; border: 2px solid #c9f76b33; border-top-color: #c9f76b; border-radius: 50%; animation: analysis-loading-spin 0.8s linear infinite; }
 @keyframes analysis-loading-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .analysis-loading-spinner { animation: none; } }
+
+.demo-batch-retry, .demo-detail-modes button { padding: 5px 9px; border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); font: inherit; cursor: pointer; }
+.demo-batch-retry { justify-self: end; }
+.demo-batch-retry:hover, .demo-detail-modes button:hover { border-color: var(--accent); }
+.demo-detail-modes { display: flex; gap: 6px; margin-top: 8px; }
+.demo-detail-modes button[aria-pressed=false] { background: transparent; color: inherit; border-color: #35463d; }
+.demo-detail-display { max-height: 260px; overflow: auto; font-size: 9px; line-height: 1.5; }
+.demo-detail-display dl { display: grid; gap: 5px; margin: 10px 0; }
+.demo-detail-display dl > div { display: flex; justify-content: space-between; gap: 12px; }
+.demo-detail-display dt { color: #819287; }
+.demo-detail-display dd { margin: 0; color: #cbd6ce; text-align: right; overflow-wrap: anywhere; }
+.demo-detail-display p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.demo-detail-display h4 { margin: 10px 0 4px; font-size: inherit; }
+
+.utility-recommendations { grid-column: 1; grid-row: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 16px 12px; background: #090f0ef0; border-right: 1px solid var(--accent-border); overflow: hidden; z-index: 6; }
+.utility-recommendations > header { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.utility-recommendations h2 { margin: 0; color: var(--accent); font: 600 13px var(--font-ui); }
+.utility-recommendations p { margin: 0; color: #8c9b8d; font: 10px/1.5 var(--font-ui); }
+.utility-recommendation-list { min-height: 0; overflow: auto; display: grid; gap: 8px; align-content: start; scrollbar-width: thin; touch-action: pan-y; }
+.utility-recommendation-list article { display: grid; gap: 7px; padding: 10px; border: 1px solid #354238; border-radius: 5px; background: #101815; }
+.utility-recommendation-list article:hover, .utility-recommendation-list article:focus-within, .utility-recommendation-list article[data-focused=true] { border-color: var(--accent); background: var(--accent-bg); }
+.recommendation-title { display: flex; gap: 6px; align-items: center; color: #e8ede6; font: 10px var(--font-ui); }
+.recommendation-title svg { width: 20px; height: 20px; flex: none; }
+.recommendation-title b { margin-left: auto; color: var(--accent); white-space: nowrap; }
+.utility-recommendation-list small, .recommendation-source { color: #8c9b8d; font: 9px var(--font-ui); }
+.recommendation-source { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recommendation-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.utility-recommendations button { padding: 6px 8px; border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); font: 10px var(--font-ui); cursor: pointer; }
+.utility-recommendations button[aria-pressed=true] { border-color: var(--accent); }
+.utility-recommendations button:disabled { opacity: .5; cursor: wait; }
+.recommendation-loading { position: absolute; left: calc(var(--left-column, 0px) + 12px); bottom: 70px; display: flex; align-items: center; gap: 7px; z-index: 25; padding: 7px 9px; border-radius: 4px; background: #090f0ed9; color: #8c9b8d; font: 9px var(--font-ui); pointer-events: none; }
+.recommendation-loading .analysis-loading-spinner { width: 12px; height: 12px; flex-basis: 12px; }
+.board-shell.left-sidebar-collapsed .utility-recommendations { display: none; }
+:root[data-compact-landscape] .board-shell[data-panel=analysis][data-analysis-metric=utility]:not(.left-sidebar-collapsed) .board-stage { --left-column: clamp(160px, 22vw, 240px); }
+
+.demo-batch-panel > header > div { flex: 1; }
+.demo-batch-panel > header .demo-batch-collapse { width: auto; min-width: 48px; padding: 0 7px; font: 9px var(--font-ui); }
+.demo-batch-tasks[hidden] { display: none; }
+.demo-batch-panel.collapsed { width: min(300px, calc(100% - 36px)); }
+
+.release-download { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none; padding: 7px 9px; border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); font: 9px var(--font-ui); text-decoration: none; white-space: nowrap; }
+.release-download:hover, .release-download:focus-visible { border-color: var(--accent); background: var(--accent-hover); }
+.release-download svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+:root[data-compact-landscape] .release-download, .board-shell[data-mobile-workspace] .release-download { min-width: 32px; min-height: 32px; box-sizing: border-box; padding: 7px; }
+:root[data-compact-landscape] .release-download span, .board-shell[data-mobile-workspace] .release-download span { display: none; }
+
+/* Match Utility Notes / Collaboration: reserve the map section above the list. */
+.board-shell:not(.is-mobile) .utility-recommendations { grid-row: 1 / 3; margin-top: calc(var(--map-bar-height, 230px) + 10px); }
+.recommendation-score { color: var(--accent); font: 10px var(--font-ui); }
+.recommendation-formula-editor { flex: none; max-height: 45%; overflow: auto; color: #8c9b8d; font: 9px var(--font-ui); }
+.recommendation-formula-editor summary { cursor: pointer; }
+.recommendation-formula-editor form { display: grid; gap: 8px; margin-top: 8px; }
+.recommendation-formula-editor label { display: grid; gap: 4px; }
+.recommendation-formula-editor textarea { width: 100%; box-sizing: border-box; resize: vertical; padding: 5px; border: 1px solid var(--accent-border); background: #090f0e; color: #e8ede6; font: 9px/1.4 var(--font-mono); }
+.recommendation-formula-editor form > div { display: flex; flex-wrap: wrap; gap: 6px; }

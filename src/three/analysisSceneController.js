@@ -41,13 +41,13 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
 
   const updateUtilities = () => {
     const flags = refs.flags.current;
-    const enabled = refs.enabled.current && flags.analysisMetric === 'utility' && flags.heatStyle === 'points';
+    const enabled = refs.enabled.current && flags.analysisMetric === 'utility' && (flags.heatStyle === 'points' || Boolean(refs.highlightedUtilityId.current));
     utilityGroup.visible = enabled;
     if (!enabled) {
       if (utilityPaths.size) clearUtilityPaths();
       return;
     }
-    const utilities = refs.utilities.current.filter(utility => utilityMatchesFilters(utility, flags, refs.side.current));
+    const utilities = refs.utilities.current.filter(utility => utilityMatchesFilters(utility, flags, refs.side.current) && (flags.heatStyle === 'points' || utility.id === refs.highlightedUtilityId.current));
     const active = new Set(utilities.map((utility) => utility.id));
     const modelCenter = getModelCenter();
     utilities.forEach((utility) => {

@@ -1,3 +1,4 @@
+import { buildUtilityRecommendations } from '../../analysis/utilityRecommendations.js';
 import { buildAnalysisDataset } from '../../analysis/buildAnalysisDataset.js';
 import { buildDemoGrenadeSegments } from '../../demo/grenades.js';
 import { buildSavedThrowNote } from '../../utility/savedThrow.js';
@@ -6,6 +7,7 @@ import { roundEconomy } from '../../demo/economy.js';
 // The same query runs beside IndexedDB in a Worker or beside SQLite in a
 // desktop utility process. Only catalogue rows and selected results reach React.
 export async function runAnalysisQuery(cache, method, args) {
+  if (method === 'analysis.recommendations') return buildUtilityRecommendations(args);
   if (method === 'analysis.catalog') {
     const result = [];
     const index = new Map(cache.listCachedDemos ? (await cache.listCachedDemos()).map(entry => [entry.id, entry]) : []);

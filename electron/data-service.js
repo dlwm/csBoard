@@ -1,16 +1,19 @@
 import { ipcMain, utilityProcess } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { prepareAnalysisCache } from './analysis-cache-files.js';
 import { cacheBlobPath } from './cache-files.js';
 const taskPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../build/tasks/data.js');
 
-export function registerDataService({ app, authorize, storage, scheduler, root, assertAvailable }) {
+export function registerDataService({ app, authorize, storage, scheduler, root, assertAvailable, analysisRealtime = () => false }) {
+  void prepareAnalysisCache(path.join(app.getPath('userData'), 'analysis-cache'), app.getVersion()).catch(error => console.warn('Analysis cache cleanup failed:', error.message));
   ipcMain.handle('data:run', (event, id, method, args) => {
     authorize(event); assertAvailable();
-    const analysis = ['analysis.catalog', 'analysis.query', 'analysis.utility'].includes(method);
+    const analysis = ['analysis.catalog', 'analysis.query', 'analysis.utility', 'analysis.recommendations'].includes(method);
     if ((!analysis && !['json.encode', 'json.decode', 'broadcast.encode', 'broadcast.decode'].includes(method)) || typeof id !== 'string' || !args
       || (analysis && (!Array.isArray(args.ids) || !args.ids.every(value => typeof value === 'string')))
       || (['analysis.query', 'analysis.utility'].includes(method) && (!Array.isArray(args.players) || !args.players.every(value => typeof value === 'string')))
+      || (method === 'analysis.recommendations' && (!Array.isArray(args.utilities) || args.utilities.length > 50000))
       || (method === 'analysis.utility' && (args.ids.length !== 1 || !Number.isInteger(args.round) || typeof args.segmentId !== 'string'))) throw new Error('Invalid data operation');
     const key = `${event.sender.id}:${id}`;
     return scheduler.submit({ id: key, owner: event.sender.id, kind: 'compute', label: method, priority: ['analysis.query', 'analysis.utility'].includes(method) ? 10 : 0,
@@ -47,7 +50,7 @@ export function registerDataService({ app, authorize, storage, scheduler, root, 
           } else if (message.type === 'complete') finish(null, message.result);
           else if (message.type === 'error') finish(new Error(message.message));
         });
-        worker.postMessage({ type: 'start', method, args });
+        worker.postMessage({ type: 'start', method, args, analysisCache: { directory: path.join(app.getPath('userData'), 'analysis-cache'), version: app.getVersion(), realtime: analysisRealtime() } });
       }),
     });
   });

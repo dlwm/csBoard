@@ -1,3 +1,7 @@
+import { DEFAULT_RECOMMENDATION_FORMULAS } from './analysis/recommendationFormulas.js';
+import { analysisUtilityPreviewNote } from './analysis/utilityPreview.js';
+import useUtilityRecommendations from './analysis/useUtilityRecommendations.js';
+import UtilityRecommendationsPanel from './analysis/UtilityRecommendationsPanel.jsx';
 import useAnalysisDataset from './analysis/useAnalysisDataset.js';
 import { startPlaybackClock } from './app/playbackClock.js';
 import { getPlatform } from './platform/index.js';
@@ -384,7 +388,7 @@ function App() {
     }).catch(() => { if (revision === cacheCatalogueRevisionRef.current) setDemoStatus(t('cacheFailed')); }).finally(() => { if (revision === cacheCatalogueRevisionRef.current) setCachedDemosLoading(false); });
   };
   // Batch imports write each Demo to the existing cache without changing the currently viewed match.
-  const { batch: demoBatch, counts: demoBatchCounts, running: demoBatchRunning, startBatch: startDemoBatch, clearBatch: clearDemoBatch } = useDemoBatchParser({
+  const { batch: demoBatch, counts: demoBatchCounts, running: demoBatchRunning, startBatch: startDemoBatch, retryTask: retryDemoTask, clearBatch: clearDemoBatch } = useDemoBatchParser({
     language,
     sampleRate: demoSampleRate,
     cacheSchemaVersion: DEMO_CACHE_SCHEMA_VERSION,
@@ -401,6 +405,18 @@ function App() {
   }, [demoBatch, demoBatchRunning, parseGameManual]);
   useEffect(() => { refreshCachedDemos(); }, []);
   const { data: combinedAnalysis, loading: analysisQueryLoading, error: analysisQueryError } = useAnalysisDataset(selectedAnalysisDemos, analysisSelectedPlayers, activePanel === 'analysis', demoViewFlags.analysisMetric === 'utility');
+  const [recommendationFormulas, setRecommendationFormulas] = useState(DEFAULT_RECOMMENDATION_FORMULAS);
+  const recommendationPreviewRef = useRef({ id: '', timer: null, controller: null, cache: new Map() });
+  const utilityRecommendations = useUtilityRecommendations({ data: combinedAnalysis, flags: demoViewFlags, side: analysisSide,
+    active: activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility', datasetLoading: analysisQueryLoading, formulas: IS_DEVELOPMENT_RUNTIME ? recommendationFormulas : undefined });
+  const [focusedAnalysisGroupId, setFocusedAnalysisGroupId] = useState('');
+  useEffect(() => { setFocusedAnalysisGroupId(''); }, [utilityRecommendations.groups]);
+  const visibleAnalysisUtilities = useMemo(() => {
+    const group = utilityRecommendations.groups.find(group => group.id === focusedAnalysisGroupId);
+    if (!group) return combinedAnalysis.utilities;
+    const ids = new Set(group.memberIds);
+    return combinedAnalysis.utilities.filter(utility => ids.has(utility.id));
+  }, [combinedAnalysis.utilities, utilityRecommendations.groups, focusedAnalysisGroupId]);
   const analysisEconomyAvailability = useMemo(() => getAnalysisEconomyAvailability(combinedAnalysis.rows), [combinedAnalysis.rows]);
   useEffect(() => {
     setAnalysisRows(combinedAnalysis.rows);
@@ -933,7 +949,7 @@ function App() {
   };
   const selectedMode = showModel ? modelViewMode : -1;
   const displayPanel = broadcastPage ? 'broadcast' : activePanel;
-  const hasLeftSidebar = activePanel === 'utility' || (activePanel === 'collab' && hasActiveFrameContext);
+  const hasLeftSidebar = activePanel === 'utility' || (activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility') || (activePanel === 'collab' && hasActiveFrameContext);
   const hasRightSidebar = broadcastPage || ['analysis', 'utility', 'collab'].includes(activePanel);
   const modelControlsTarget = broadcastPage ? '.broadcast-model-options' : activePanel === 'demo' ? '.demo-options' : activePanel === 'collab' && hasActiveFrameContext ? '.collab-frame-strip' : '.workspace-bottom-bar';
   const currentUtilityNotes = utilityNotes.filter((note) => note.mapName === mapName);
@@ -1000,25 +1016,71 @@ function App() {
     setAnalysisUtilitySave({ loading: false, error: '' });
     return () => analysisUtilitySaveRequestRef.current?.abort();
   }, [selectedAnalysisUtility]);
-  const saveAnalysisUtility = async () => {
-    if (!selectedAnalysisUtility || analysisUtilitySave.loading) return;
+  const prepareAnalysisUtility = async (utility, quickSave = false) => {
+    if (!utility || analysisUtilitySave.loading || (quickSave && savedAnalysisUtilityIds.has(utility.id))) return;
     analysisUtilitySaveRequestRef.current?.abort();
     const controller = new AbortController();
     analysisUtilitySaveRequestRef.current = controller;
-    setAnalysisUtilitySave({ loading: true, error: '' });
+    setAnalysisUtilitySave({ loading: true, error: '', utilityId: utility.id });
     try {
       const note = await getPlatform().compute('analysis.utility', {
-        ids: [selectedAnalysisUtility.source.demoId], players: [selectedAnalysisUtility.segment.throwEvent.user_name],
-        round: selectedAnalysisUtility.source.round, segmentId: selectedAnalysisUtility.segment.id,
+        ids: [utility.source.demoId], players: [utility.segment.throwEvent.user_name],
+        round: utility.source.round, segmentId: utility.segment.id,
       }, { signal: controller.signal });
       if (controller.signal.aborted) return;
-      setUtilitySaveFolderId(ROOT_FOLDER_ID);
-      setPendingUtilityNote(note);
+      if (quickSave) {
+        if (!await persistUtilityNotes([...utilityNotesRef.current, note])) throw new Error(localize(language, { zh: '道具保存失败', en: 'Unable to save utility', ru: 'Не удалось сохранить гранату' }));
+        await utilityFolders.assign(note.id, ROOT_FOLDER_ID, utilityNotesRef.current);
+      } else {
+        setUtilitySaveFolderId(ROOT_FOLDER_ID);
+        setPendingUtilityNote(note);
+      }
       setAnalysisUtilitySave({ loading: false, error: '' });
     } catch (error) {
       if (!controller.signal.aborted) setAnalysisUtilitySave({ loading: false, error: error.message });
     }
   };
+  const savedAnalysisUtilityIds = useMemo(() => {
+    const saved = new Set(utilityNotes.filter(note => note.mapName === mapName && note.demoSource).map(note => JSON.stringify([note.demoSource.fileName, note.demoSource.round, note.demoSource.tick])));
+    return new Set(combinedAnalysis.utilities.filter(utility => saved.has(JSON.stringify([utility.source.fileName, utility.source.round, utility.segment.throwTick]))).map(utility => utility.id));
+  }, [utilityNotes, mapName, combinedAnalysis.utilities]);
+  const saveAnalysisUtility = () => prepareAnalysisUtility(selectedAnalysisUtility);
+  const previewAnalysisRecommendation = id => {
+    const preview = recommendationPreviewRef.current;
+    if (preview.id === id) return;
+    window.clearTimeout(preview.timer);
+    preview.controller?.abort();
+    preview.id = id;
+    window.clearTimeout(analysisUtilityHoverTimerRef.current);
+    analysisUtilityHoverInsideRef.current = Boolean(id);
+    setAnalysisUtilityHover(null);
+    setAnalysisHighlightedUtilityId('');
+    if (!id) { boardRef.current?.clearCollabUtilityPreview?.(); return; }
+    const utility = combinedAnalysis.utilities.find(utility => utility.id === id);
+    if (!utility) return;
+    const recorded = preview.cache.get(id);
+    boardRef.current?.focusUtilityNote?.(recorded || analysisUtilityPreviewNote(utility));
+    if (recorded) return;
+    preview.timer = window.setTimeout(async () => {
+      const controller = new AbortController();
+      preview.controller = controller;
+      try {
+        const note = await getPlatform().compute('analysis.utility', { ids: [utility.source.demoId],
+          players: [utility.segment.throwEvent.user_name], round: utility.source.round, segmentId: utility.segment.id }, { signal: controller.signal });
+        if (controller.signal.aborted || preview.id !== id) return;
+        preview.cache.set(id, note);
+        if (preview.cache.size > 8) preview.cache.delete(preview.cache.keys().next().value);
+        boardRef.current?.focusUtilityNote?.(note);
+      } catch (error) { if (!controller.signal.aborted) console.warn('Recorded utility preview unavailable:', error.message); }
+    }, 180);
+  };
+  useEffect(() => () => {
+    const preview = recommendationPreviewRef.current;
+    window.clearTimeout(preview.timer);
+    preview.controller?.abort(); preview.id = ''; preview.cache.clear();
+    analysisUtilityHoverInsideRef.current = false;
+    boardRef.current?.clearCollabUtilityPreview?.();
+  }, [activePanel, demoViewFlags.analysisMetric, combinedAnalysis.utilities, utilityRecommendations.groups]);
   const playUtilityReplay = (note, firstPerson = false) => {
     if (!note.replay) return;
     // Older smoke notes stopped before their expansion reached the standard size.
@@ -1177,14 +1239,19 @@ function App() {
     {tutorialOfferOpen && <TutorialOffer language={language} devMode={IS_DEVELOPMENT_RUNTIME} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
     <BoardHeader activePanel={displayPanel} language={language} mapName={mapName} parseGameState={parseGameState} setLanguage={setLanguage} setMapName={setMapName} setParseGameManual={setParseGameManual} setParseGameState={setParseGameState} switchPanel={switchMainPanel} t={t} />
     <section className="board-stage">
+      {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && <UtilityRecommendationsPanel language={language}
+        groups={utilityRecommendations.groups} utilities={combinedAnalysis.utilities} loading={utilityRecommendations.loading} error={utilityRecommendations.error}
+        selectedPlayers={analysisSelectedPlayers} focusedId={focusedAnalysisGroupId} onFocus={setFocusedAnalysisGroupId}
+        onPreview={previewAnalysisRecommendation} onSave={utility => prepareAnalysisUtility(utility, true)} saveState={analysisUtilitySave} savedIds={savedAnalysisUtilityIds} development={IS_DEVELOPMENT_RUNTIME} formulas={recommendationFormulas} onFormulasChange={setRecommendationFormulas} />}
+      {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && utilityRecommendations.loading && <div className="recommendation-loading" role="status"><i className="analysis-loading-spinner" aria-hidden="true" />{localize(language, { zh: '正在准备道具推荐…', en: 'Preparing utility recommendations…', ru: 'Подготовка рекомендаций гранат…' })}</div>}
          {broadcastPage && <BroadcastPanel archives={broadcastArchives} activeId={activeBroadcastId} folders={broadcastFolders.state} language={language} room={broadcastRoom.session} onCreateFolder={(name, parentId) => broadcastFolders.create(name, parentId, broadcastArchivesRef.current)} onDeleteFolder={(id) => broadcastFolders.remove(id, broadcastArchivesRef.current)} onMove={(source, target, position) => broadcastFolders.move(broadcastArchivesRef.current, source, target, position)} onDelete={async (id) => { if (!await removeBroadcastArchive(id)) return; await broadcastFolders.unassign(id); if (id === activeBroadcastId) setActiveBroadcastId(''); }} onJoin={broadcastRoom.join} onLeave={broadcastRoom.leave} onSelect={hostBroadcastArchive} />}
          {!broadcastPage && activePanel === 'demo' && demoData && demoRound && <DemoPlaybackActionsPortal><button type="button" className="demo-save-clip" disabled={demoRoundLoading} onClick={openBroadcastClipModal}>{localize(language, { zh: '保存时间段', en: 'Save Interval', ru: 'Сохранить отрезок' })}</button></DemoPlaybackActionsPortal>}
          {broadcastClipDraft && <BroadcastClipModal draft={broadcastClipDraft} folders={broadcastFolders.state} language={language} round={demoRound} tickRate={demoData?.demo?.tickRate || 64} onChange={setBroadcastClipDraft} onClose={() => setBroadcastClipDraft(null)} onSave={saveBroadcastClip} />}
          <BroadcastDownloadOverlay download={broadcastRoom.download} language={language} onCancel={broadcastRoom.leave} />
-         <DemoBatchPanel batch={demoBatch} counts={demoBatchCounts} development={IS_DEVELOPMENT_RUNTIME} language={language} onClose={clearDemoBatch} />
+         <DemoBatchPanel batch={demoBatch} counts={demoBatchCounts} development={IS_DEVELOPMENT_RUNTIME} language={language} onClose={clearDemoBatch} onRetry={retryDemoTask} />
          {mapName === TUTORIAL_MAP_ID && <TutorialGuide language={language} open={tutorialOpen} step={tutorialStep} onOpen={() => { setTutorialStep(0); setTutorialOpen(true); }} onStep={moveTutorial} onFinish={finishTutorial} onExit={() => { finishTutorial(); setMapName('de_dust2'); }} />}
          {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><SideGameHub language={language} stopped={!parseGameManual && parseGameState === 'stopped'} manual={parseGameManual} onClose={() => { setParseGameDismissed(true); setParseGameManual(false); setParseGameState('hidden'); }} /></div>}
-        <ThreeBoard language={language} key={mapName} mapName={mapName} navData={navData} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={activePanel === 'demo' ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoInfernoFrames={activePanel === 'demo' ? demoInfernoFrames : utilityReplay?.note.replay.infernoFrames || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={combinedAnalysis.utilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} touchDrawingEnabled={!mobileWorkspace || touchDrawingEnabled} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
+        <ThreeBoard language={language} key={mapName} mapName={mapName} navData={navData} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={activePanel === 'demo' ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoInfernoFrames={activePanel === 'demo' ? demoInfernoFrames : utilityReplay?.note.replay.infernoFrames || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={visibleAnalysisUtilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} touchDrawingEnabled={!mobileWorkspace || touchDrawingEnabled} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
          {AI_ENABLED && <AiPanel language={language} ports={aiPorts} transport={platform.ai} enabled={activePanel === 'collab' && hasActiveFrameContext} visible={activePanel === 'collab'} />}
          {activePanel === 'analysis' && analysisQueryLoading && <div className="analysis-loading-overlay" role="status" aria-live="polite"><i className="analysis-loading-spinner" aria-hidden="true" />{localize(language, demoViewFlags.analysisMetric === 'utility'
            ? { zh: '正在加载道具点位与轨迹…', en: 'Loading utility positions and trajectories…', ru: 'Загрузка позиций и траекторий гранат…' }

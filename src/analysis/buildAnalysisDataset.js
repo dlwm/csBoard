@@ -158,6 +158,7 @@ function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, se
         segment: includeReplay ? segment : { ...segment, projectiles: [], snapshots: [] },
         source: {
           demoId: entry.id,
+          demoIdentity: JSON.stringify([entry.data.demo?.fileName || entry.fileName, entry.data.demo?.bytes, entry.data.demo?.maxTick]),
           fileName: entry.data.demo?.fileName || entry.fileName || 'Demo',
           round: round.round,
           tickRate: entry.data.demo?.tickRate || 64,
