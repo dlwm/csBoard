@@ -11,6 +11,7 @@
 
 ### Changed
 
+- Mobile view settings now share one panel. Map and camera controls expand on demand, with touch-friendly camera saving and a simpler workspace before importing a Demo.
 - Use landscape layouts with collapsible sidebars, larger touch targets and scrollable lists on mobile devices. Portrait mode shows a rotation prompt and pauses map rendering.
 - Keep mobile H5 focused on Utility Notes and Collaboration, without Demo import, Round Replay, Analysis or Broadcast; connecting a mouse does not change the available features.
 - Support one-finger editing and camera rotation, with two-finger zoom and pan. Switching to camera gestures preserves completed edits for undo.

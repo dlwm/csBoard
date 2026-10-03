@@ -1,3 +1,4 @@
+import { useEffect, useId, useState } from 'react';
 import { localize } from '../i18n.js';
 import useRadarOverlay from '../hooks/useRadarOverlay.js';
 
@@ -14,9 +15,22 @@ function RadarOverlay({ activePanel, boardRef, mapName, navData }) {
 const BRUSH_COLORS = ['#a5e0ff', '#ff6b6b', '#7cf29c', '#ffd166', '#ffffff', '#c084fc'];
 const BRUSH_WIDTHS = [2, 3, 5, 8];
 
-// Desktop camera, radar-floor, and drawing controls surrounding the Three.js viewport.
-export default function ViewTools({ activePanel, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
-  return <div className="view-tools">
+// Shared camera, radar-floor and drawing controls; mobile collapses the surface.
+export default function ViewTools({ mobile = false, activePanel, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
+  const [open, setOpen] = useState(false);
+  const [savingCamera, setSavingCamera] = useState(false);
+  const contentId = useId();
+  useEffect(() => { setOpen(false); setSavingCamera(false); }, [activePanel, mapName]);
+  useEffect(() => {
+    if (!mobile || !open) return undefined;
+    const close = event => { if (event.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [mobile, open]);
+  const text = (zh, en, ru) => localize(language, { zh, en, ru });
+  return <div className={`view-tools${mobile ? ' mobile-view-tools' : ''}${open ? ' expanded' : ''}`}>
+    {mobile && <button type="button" className="mobile-view-tools-toggle" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen(value => !value)}>{text('地图 / 机位', 'Map / Cameras', 'Карта / Камеры')} <span aria-hidden="true">{open ? '−' : '+'}</span></button>}
+    {(!mobile || open) && <div id={contentId} className="view-tools-content">
     <div className="view-tools-top">
       {currentMapLayers.length ? <button type="button" className="map-preview-slot" aria-label={localize(language, { zh: '切换地图层级', en: 'Switch map floor', ru: 'Переключить этаж карты' })} onClick={cycleMapFloor}>
         <img src={currentLayerUrl} alt="" />
@@ -25,8 +39,12 @@ export default function ViewTools({ activePanel, mapName, navData, activeCameraS
       </button> : <div className="map-preview-slot map-preview-empty" aria-hidden="true" />}
       <div className="camera-slots">
         <span>{t('cameraPositions')}</span>
-        {cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved} className={activeCameraSlot === index ? 'active' : ''} onClick={() => boardRef.current?.restoreCameraSlot?.(index)}>{index === 9 ? 0 : index + 1}</button>)}
+        {cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved && !(mobile && savingCamera)} className={activeCameraSlot === index ? 'active' : ''} aria-label={text(`${savingCamera ? '保存' : '恢复'}机位 ${index + 1}`, `${savingCamera ? 'Save' : 'Restore'} camera ${index + 1}`, `${savingCamera ? 'Сохранить' : 'Восстановить'} камеру ${index + 1}`)} onClick={() => {
+          if (mobile && savingCamera) { boardRef.current?.saveCameraSlot?.(index); setSavingCamera(false); }
+          else boardRef.current?.restoreCameraSlot?.(index);
+        }}>{index === 9 ? 0 : index + 1}</button>)}
         <div className="floor-controls">{floorOptions.map(([floor, label]) => <button type="button" key={floor} className={modelFloor === floor ? 'active' : ''} onClick={() => selectMapFloor(floor)}>{label}</button>)}</div>
+        {mobile && <button type="button" className="camera-save-toggle" aria-pressed={savingCamera} onClick={() => setSavingCamera(value => !value)}>{savingCamera ? text('选择保存位置', 'Choose a slot', 'Выберите слот') : text('保存机位', 'Save camera', 'Сохранить камеру')}</button>}
         <button type="button" className="camera-reset" onClick={() => boardRef.current?.reset()}>{t('resetView')}</button>
       </div>
     </div>
@@ -37,5 +55,6 @@ export default function ViewTools({ activePanel, mapName, navData, activeCameraS
         <button type="button" className={`brush-eraser${eraserEnabled ? ' active' : ''}`} title={t('eraser')} aria-label={t('eraser')} onClick={() => setEraserEnabled((value) => !value)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M11 3 14 6l-5 5H5l-3-3z" /><path d="M8 6 11 9" /></svg></button>
       </div>
     </div>
+    </div>}
   </div>;
 }
