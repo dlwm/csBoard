@@ -16,6 +16,10 @@
 - Support one-finger editing and camera rotation, with two-finger zoom and pan. Switching to camera gestures preserves completed edits for undo.
 - Cancel native mobile parsing when the app enters the background and clean up temporary Demo files after import or cancellation.
 
+### Fixed
+
+- Fix the iOS workspace failing to load at startup.
+
 ## [1.18.1] - 2026-10-02
 
 ### Fixed

@@ -154,6 +154,21 @@ public class CSBoardCorePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDel
     private func failure(_ message: String) -> NSError { NSError(domain: "CSBoard", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
 }
 
+// Capacitor's default router converts an empty path through Foundation. With
+// a Go static library linked, this can resolve to the app bundle instead of /
+// and attempt to read the public directory as a file (upstream issue #7844).
+private struct CSBoardAssetRouter: Router {
+    var basePath: String = ""
+
+    func route(for path: String) -> String {
+        if path.isEmpty || path == "/" { return basePath + "/index.html" }
+        var router = CapacitorRouter()
+        router.basePath = basePath
+        return router.route(for: path)
+    }
+}
+
 class CSBoardViewController: CAPBridgeViewController {
+    override func router() -> Router { CSBoardAssetRouter() }
     override func capacitorDidLoad() { bridge?.registerPluginInstance(CSBoardCorePlugin()) }
 }
