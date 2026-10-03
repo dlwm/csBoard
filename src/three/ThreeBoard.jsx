@@ -49,6 +49,8 @@ export default function ThreeBoard(props) {
   const [touchEditMode, setTouchEditMode] = useState('move');
   const touchEditModeRef = useRef(touchEditMode);
   touchEditModeRef.current = touchEditMode;
+  const touchDrawingEnabledRef = useRef(props.touchDrawingEnabled !== false);
+  touchDrawingEnabledRef.current = props.touchDrawingEnabled !== false;
   const { mapName, navData, showGrid, showModel, modelOpacity, modelViewMode, demoProjectiles, analysisRounds, deletePointId, pointUpdate, onCameraSlots, onReady } = props;
   const mountRef = useRef(null);
   const {
@@ -1029,7 +1031,7 @@ export default function ThreeBoard(props) {
           }
         } else pointSelectRef.current?.(null);
       }
-      if (event.button === 0 && brushEnabledRef.current && (!pointPlacementEnabledRef.current || collabEditingEnabledRef.current) && !placing && !grenadeWheelOpen && !grenadeAdjusting && !pointPointerTarget && !activeGrenade) {
+      if (event.button === 0 && (event.pointerType !== 'touch' || touchDrawingEnabledRef.current) && brushEnabledRef.current && (!pointPlacementEnabledRef.current || collabEditingEnabledRef.current) && !placing && !grenadeWheelOpen && !grenadeAdjusting && !pointPointerTarget && !activeGrenade) {
         const brushSurface = pointerToSurface(pointerCurrent);
         if (!brushSurface && !brushEraserRef.current && !pressedKeys.has('control')) return;
         brushCollabSnapshot = pointPlacementEnabledRef.current ? collabSnapshot() : null;

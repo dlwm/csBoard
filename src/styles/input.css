@@ -259,3 +259,28 @@
 :root .board-shell[data-mobile-workspace] .demo-view-options button { flex: none; }
 
 :root .board-shell[data-mobile-workspace] .camera-slots>span { font-size: 12px; }
+
+/* Long-press belongs to scene gestures, not iOS page selection. Keep editable
+   fields and readable notes selectable so copy/paste remains available. */
+.board-shell[data-mobile-workspace] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.board-shell[data-mobile-workspace] :is(input, textarea, [contenteditable=true],
+  .ai-markdown, .ai-message.user>p, .utility-detail p, .utility-detail dd) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+.touch-drawing-toggle {
+  min-height: 44px;
+  border: 1px solid var(--accent-border);
+  padding: 8px 12px;
+  background: #101815;
+  color: var(--accent);
+  font: 12px var(--font-ui);
+  cursor: pointer;
+}
+.touch-drawing-toggle[aria-pressed=true] { background: var(--accent-bg); border-color: var(--accent); }
+.mobile-view-tools-toggle small { color: #ffd166; font-size: 11px; }

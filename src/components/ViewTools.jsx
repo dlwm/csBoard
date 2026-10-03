@@ -16,7 +16,7 @@ const BRUSH_COLORS = ['#a5e0ff', '#ff6b6b', '#7cf29c', '#ffd166', '#ffffff', '#c
 const BRUSH_WIDTHS = [2, 3, 5, 8];
 
 // Shared camera, radar-floor and drawing controls; mobile collapses the surface.
-export default function ViewTools({ mobile = false, activePanel, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
+export default function ViewTools({ mobile = false, touchDrawingEnabled = false, setTouchDrawingEnabled, activePanel, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
   const [open, setOpen] = useState(false);
   const [savingCamera, setSavingCamera] = useState(false);
   const contentId = useId();
@@ -29,7 +29,7 @@ export default function ViewTools({ mobile = false, activePanel, mapName, navDat
   }, [mobile, open]);
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   return <div className={`view-tools${mobile ? ' mobile-view-tools' : ''}${open ? ' expanded' : ''}`}>
-    {mobile && <button type="button" className="mobile-view-tools-toggle" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen(value => !value)}>{text('地图 / 机位', 'Map / Cameras', 'Карта / Камеры')} <span aria-hidden="true">{open ? '−' : '+'}</span></button>}
+    {mobile && <button type="button" className="mobile-view-tools-toggle" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen(value => !value)}>{text('地图 / 机位', 'Map / Cameras', 'Карта / Камеры')}{touchDrawingEnabled && <small>{text('绘图', 'Draw', 'Рисование')}</small>} <span aria-hidden="true">{open ? '−' : '+'}</span></button>}
     {(!mobile || open) && <div id={contentId} className="view-tools-content">
     <div className="view-tools-top">
       {currentMapLayers.length ? <button type="button" className="map-preview-slot" aria-label={localize(language, { zh: '切换地图层级', en: 'Switch map floor', ru: 'Переключить этаж карты' })} onClick={cycleMapFloor}>
@@ -48,6 +48,7 @@ export default function ViewTools({ mobile = false, activePanel, mapName, navDat
         <button type="button" className="camera-reset" onClick={() => boardRef.current?.reset()}>{t('resetView')}</button>
       </div>
     </div>
+    {mobile && <button type="button" className="touch-drawing-toggle" aria-pressed={touchDrawingEnabled} onClick={() => { setTouchDrawingEnabled(value => !value); setOpen(false); }}>{touchDrawingEnabled ? text('关闭绘图，旋转视角', 'Stop drawing; rotate view', 'Выключить рисование') : text('开启绘图', 'Enable drawing', 'Включить рисование')}</button>}
     <div className="brush-controls">
       <div className="brush-swatches">{BRUSH_COLORS.map((color) => <button type="button" key={color} className={`brush-swatch${brushColor.toLowerCase() === color ? ' active' : ''}`} style={{ background: color }} aria-label={color} title={color} onClick={() => { setBrushColor(color); localStorage.setItem('csboard-brush-color', color); }} />)}</div>
       <div className="brush-util-row">

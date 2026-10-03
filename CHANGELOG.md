@@ -20,6 +20,7 @@
 ### Fixed
 
 - Fix the iOS workspace failing to load at startup.
+- Prevent long-press selection of mobile controls and accidental drawing while rotating the map; touch drawing now requires an explicit mode.
 
 ## [1.18.1] - 2026-10-02
 
