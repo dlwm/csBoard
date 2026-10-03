@@ -361,7 +361,7 @@ return async (data) => {
         postMessage({ type: 'sourceReady' });
       }
       if (data.type === 'load') {
-      beginPhase('wasm');
+      beginPhase('parser');
       postMessage({ type: 'progress', phase: 'load', completed: 0, total: 1, percent: 0 });
       postMessage({ type: 'status', message: '正在加载 Demo 解析器…' });
       parserReady ||= init();

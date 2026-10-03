@@ -12,7 +12,26 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
   const languageRef = useRef(language);
   const runIdRef = useRef(0);
   const workersRef = useRef(new Set());
+  const onCacheChangedRef = useRef(onCacheChanged);
+  const cacheRefreshRef = useRef({ dirty: false, promise: null });
   languageRef.current = language;
+  onCacheChangedRef.current = onCacheChanged;
+
+  // Publish durable results throughout the batch. Coalesce completions while
+  // a catalogue read is in flight without delaying the next parser task.
+  const refreshCache = () => {
+    const refresh = cacheRefreshRef.current;
+    refresh.dirty = true;
+    if (refresh.promise) return refresh.promise;
+    refresh.promise = Promise.resolve().then(async () => {
+      while (refresh.dirty) {
+        refresh.dirty = false;
+        try { await onCacheChangedRef.current?.(); }
+        catch (error) { console.warn('Demo catalogue refresh failed', error); }
+      }
+    }).finally(() => { refresh.promise = null; });
+    return refresh.promise;
+  };
 
   const updateTask = (batchId, taskId, update) => setBatch((current) => {
     if (!current || current.id !== batchId) return current;
@@ -37,22 +56,31 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
       if (runIdRef.current !== runId) return;
       if (cached?.data?.cacheSchemaVersion === cacheSchemaVersion && await countCachedDemoRounds(cacheId) === cached.data.rounds?.length) {
         updateTask(batchId, task.id, { status: 'cached', progress: 100, statusText: '', finishedAt: new Date().toISOString(), summary: resultDiagnostic(cached.data, cached.dataBytes || 0, performance.now() - startedAt) });
+        void refreshCache();
         return;
       }
       if (cached) await deleteCachedDemo(cacheId).catch(() => {});
       if (runIdRef.current !== runId) return;
       const taskHandle = getPlatform().demos.start({ id: `${batchId}:${task.id}`, cacheId, files: task.files, sampleRate, batchSize: concurrency, baseDiagnostic, onMessage: message => {
         if (message.type === 'queued') updateTask(batchId, task.id, { status: 'queued', statusText: '', waitReason: message.reason });
-        if (message.type === 'started') updateTask(batchId, task.id, { status: 'parsing', allocation: message.allocation, waitReason: null });
-        if (message.type === 'status') updateTask(batchId, task.id, { status: 'parsing', statusText: translateDemoWorkerStatus(languageRef.current, message.message) });
-        if (message.type === 'progress') updateTask(batchId, task.id, { status: 'parsing', progress: Math.max(0, Math.min(99, Number(message.percent) || 0)) });
+        if (message.type === 'started') updateTask(batchId, task.id, { status: 'parsing', parseStartedAt: performance.now(), allocation: message.allocation, waitReason: null });
+        if (message.type === 'status') updateTask(batchId, task.id, current => ({ status: 'parsing', parseStartedAt: current.parseStartedAt ?? performance.now(), statusText: translateDemoWorkerStatus(languageRef.current, message.message) }));
+        if (message.type === 'progress') updateTask(batchId, task.id, current => ({
+          status: 'parsing', parseStartedAt: current.parseStartedAt ?? performance.now(),
+          progress: Math.max(current.progress, Math.min(99, Number(message.percent) || 0)),
+          progressReceivedAt: performance.now(),
+          hasTickProgress: current.hasTickProgress || message.phase === 'ticks',
+          progressTotal: message.total,
+        }));
         if (message.type === 'caching') updateTask(batchId, task.id, { status: 'caching', progress: 99, statusText: '' });
+        if (message.type === 'round-cached') updateTask(batchId, task.id, { cachedRounds: message.completed });
         if (message.type === 'diagnostic') updateTask(batchId, task.id, current => ({ diagnostic: { ...current.diagnostic, phases: [...(current.diagnostic?.phases || []), { phase: message.phase, receivedAt: new Date().toISOString(), ...message.data }] } }));
       } });
       workersRef.current.add(taskHandle);
       try {
         const result = await taskHandle.promise;
         updateTask(batchId, task.id, { status: 'success', progress: 100, finishedAt: new Date().toISOString(), summary: { ...result.summary, elapsedMs: performance.now() - startedAt } });
+        if (runIdRef.current === runId) void refreshCache();
       } finally { workersRef.current.delete(taskHandle); }
     } catch (error) {
       updateTask(batchId, task.id, (current) => ({ status: 'failed', progress: 100, finishedAt: new Date().toISOString(), error: { name: error?.name || 'Error', message: error?.message || String(error), stack: error?.stack || null }, diagnostic: { ...current.diagnostic, elapsedMs: performance.now() - startedAt, failure: error?.diagnostic || null } }));
@@ -82,7 +110,7 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
       await getPlatform().demos.releaseFiles(files).catch(error => console.warn('Demo source cleanup failed', error));
     }
     if (runIdRef.current !== runId) return;
-    await onCacheChanged?.();
+    await refreshCache();
     setBatch((current) => current?.id === batchId ? { ...current, running: false, finishedAt: new Date().toISOString() } : current);
   };
 

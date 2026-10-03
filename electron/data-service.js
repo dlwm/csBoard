@@ -7,12 +7,13 @@ const taskPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../bui
 export function registerDataService({ app, authorize, storage, scheduler, root, assertAvailable }) {
   ipcMain.handle('data:run', (event, id, method, args) => {
     authorize(event); assertAvailable();
-    const analysis = method === 'analysis.catalog' || method === 'analysis.query';
+    const analysis = ['analysis.catalog', 'analysis.query', 'analysis.utility'].includes(method);
     if ((!analysis && !['json.encode', 'json.decode', 'broadcast.encode', 'broadcast.decode'].includes(method)) || typeof id !== 'string' || !args
       || (analysis && (!Array.isArray(args.ids) || !args.ids.every(value => typeof value === 'string')))
-      || (method === 'analysis.query' && !Array.isArray(args.players))) throw new Error('Invalid data operation');
+      || (['analysis.query', 'analysis.utility'].includes(method) && (!Array.isArray(args.players) || !args.players.every(value => typeof value === 'string')))
+      || (method === 'analysis.utility' && (args.ids.length !== 1 || !Number.isInteger(args.round) || typeof args.segmentId !== 'string'))) throw new Error('Invalid data operation');
     const key = `${event.sender.id}:${id}`;
-    return scheduler.submit({ id: key, owner: event.sender.id, kind: 'compute', label: method, priority: method === 'analysis.query' ? 10 : 0,
+    return scheduler.submit({ id: key, owner: event.sender.id, kind: 'compute', label: method, priority: ['analysis.query', 'analysis.utility'].includes(method) ? 10 : 0,
       run: signal => new Promise((resolve, reject) => {
         const worker = utilityProcess.fork(taskPath, [], { serviceName: 'CSBoard Data', stdio: 'pipe' });
         let stopped = false;

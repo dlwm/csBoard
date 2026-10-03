@@ -57,10 +57,15 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
       return await current.request(method, args, options);
     } finally { inFlight--; }
   }
+  let memoryRefreshing = false;
   async function refreshMemory() {
-    if (closing || maintenance || inFlight) return;
-    try { performance.sampleMemory(await request('system.memory', {}, { priority: -10 })); scheduler.wake(); }
+    if (closing || maintenance || memoryRefreshing) return;
+    memoryRefreshing = true;
+    // Sample between writes even during sustained imports; otherwise a busy
+    // storage queue prevents all updates and admission uses stale free memory.
+    try { performance.sampleMemory(await request('system.memory', {}, { priority: 10 })); scheduler.wake(); }
     catch (error) { scheduler.rejectQueued('parse', error); }
+    finally { memoryRefreshing = false; }
   }
   const memoryTimer = setInterval(() => { if (scheduler.busy) refreshMemory(); }, 2000);
   memoryTimer.unref();
@@ -168,7 +173,11 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
             return;
           }
           if (stopped) return;
-          if (message.type === 'telemetry') { scheduler.metrics(key, message.metrics); return; }
+          if (message.type === 'telemetry') {
+            scheduler.metrics(key, message.metrics);
+            if (message.metrics?.parserReleased) refreshMemory();
+            return;
+          }
           if (message.type === 'storage') {
             const write = (async () => {
               try {
@@ -192,7 +201,7 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
     } });
     jobs.set(key, job);
     refreshMemory();
-    promise.then(message => emit(event.sender, input.id, message), error => emit(event.sender, input.id, { type: 'error', message: error.message })).finally(() => jobs.delete(key));
+    promise.then(message => emit(event.sender, input.id, message), error => emit(event.sender, input.id, { type: 'error', message: error.message })).finally(() => { jobs.delete(key); refreshMemory(); });
     return { id: input.id };
   });
   ipcMain.handle('native:cancel-demo', (event, id) => { authorize(event); scheduler.cancel(`${event.sender.id}:demo:${id}`, event.sender.id); });

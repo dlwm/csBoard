@@ -33,11 +33,11 @@ process.parentPort.on('message', async ({ data }) => {
   if (data.type !== 'start' || parser) return;
   const { binary, job } = data;
   staging = data.staging;
-  let nativePeak = 0, workerPeak = 0;
+  let nativePeak = 0, workerPeak = 0, parserReleased = false, cachedRounds = 0;
   const timings = {};
   const reportMemory = () => {
     workerPeak = Math.max(workerPeak, process.memoryUsage().rss);
-    send({ type: 'telemetry', metrics: { peakBytes: nativePeak + workerPeak, nativePeakBytes: nativePeak, workerPeakBytes: workerPeak, timings } });
+    send({ type: 'telemetry', metrics: { peakBytes: nativePeak + workerPeak, nativePeakBytes: nativePeak, workerPeakBytes: workerPeak, parserReleased, timings } });
   };
   const memoryTimer = setInterval(reportMemory, 1500);
   parser = createNativeClient(binary, [], { timeoutMs: 30 * 60_000, onMetrics: metrics => {
@@ -60,9 +60,19 @@ process.parentPort.on('message', async ({ data }) => {
       postMessage: async message => {
         if (message.type === 'round') {
           await store('cache.putRound', { id: job.cacheId, round: message.data.round, value: encodeStoredValue(message.data) });
+          send({ type: 'round-cached', completed: ++cachedRounds });
           return;
         }
         if (message.type === 'loaded') {
+          send({ type: 'caching' });
+          // Parsing is done. Release the Go heap before serializing the final
+          // cache so another Demo can use its CPU and memory allocation.
+          const exited = parser.child.exitCode !== null || parser.child.signalCode !== null
+            ? Promise.resolve() : new Promise(resolve => parser.child.once('exit', resolve));
+          parser.close();
+          await exited;
+          parserReleased = true;
+          reportMemory();
           const { analysisRows, ...data } = message.data;
           const now = new Date().toISOString();
           const metadata = { id: job.cacheId, fileName: job.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate, sourceBytes: data.demo.bytes, dataBytes: message.estimatedBytes, analysisBytes: data.analysisBytes, createdAt: now, updatedAt: now, parserRevision: `go-${parserInfo.sourceRevision || 'local'}-adapter-1` };

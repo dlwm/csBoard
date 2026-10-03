@@ -21,9 +21,9 @@ export function getAnalysisDemosForPlayers(demos, playerNames) {
 export const getAnalysisDemosForPlayer = (demos, playerName) => getAnalysisDemosForPlayers(demos, playerName ? [playerName] : []);
 
 function toWorldPosition(record, eventPrefix = '') {
-  const x = Number(record?.[`${eventPrefix}X`] ?? record?.x);
-  const y = Number(record?.[`${eventPrefix}Y`] ?? record?.y);
-  const z = Number(record?.[`${eventPrefix}Z`] ?? record?.z);
+  const coordinates = ['X', 'Y', 'Z'].map(axis => record?.[`${eventPrefix}${axis}`] ?? record?.[axis.toLowerCase()]);
+  if (coordinates.some(value => value == null)) return null;
+  const [x, y, z] = coordinates.map(Number);
   return [x, y, z].every(Number.isFinite)
     ? { x: y * MAP_UNITS_TO_METERS, y: z * MAP_UNITS_TO_METERS, z: x * MAP_UNITS_TO_METERS }
     : null;
@@ -115,7 +115,10 @@ function appendAnalysisRows(rows, entry, rounds, roundMetadataByPlayer, selected
   });
 }
 
-function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, selectedPlayers, buildGrenadeSegments) {
+function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, selectedPlayers, buildGrenadeSegments, includeReplay, diagnostics) {
+  const selectedThrows = (entry.data.events || []).filter(event => event.event_name === 'grenade_thrown' && selectedPlayers.has(event.user_name) && rounds.some(round => event.tick >= (round.contextStartTick ?? round.startTick) && event.tick <= round.endTick));
+  diagnostics.throwEvents += selectedThrows.length;
+  const matchedThrows = new Set();
   rounds.forEach((round) => {
     const grenadeData = entry.analysisRoundGrenades?.[round.round] || { projectiles: [], throwSnapshots: [] };
     buildGrenadeSegments(
@@ -128,13 +131,22 @@ function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, se
       const playerName = segment.throwEvent?.user_name;
       if (!selectedPlayers.has(playerName)) return;
       const metadata = roundMetadataByPlayer.get(playerName)?.get(round.round);
-      if (!metadata?.side) return;
+      matchedThrows.add(segment.throwEvent);
+      if (!metadata?.side) { diagnostics.missingSide += 1; return; }
       const throwPosition = toWorldPosition(segment.throwEvent, 'user_');
-      const projectilePath = segment.projectiles.map((record) => toWorldPosition(record)).filter(Boolean);
+      const projectilePath = [];
+      for (const record of segment.projectiles) {
+        const point = toWorldPosition(record);
+        if (!point) continue;
+        const previous = projectilePath.at(-1);
+        // Resting grenades can repeat the same position for thousands of ticks.
+        // Keep every moving point; identical positions add no trajectory geometry.
+        if (!previous || point.x !== previous.x || point.y !== previous.y || point.z !== previous.z) projectilePath.push(point);
+      }
       const landing = AIRBURST_UTILITY_KINDS.has(segment.kind)
         ? projectilePath.at(-1) || toWorldPosition(segment.landing)
         : toWorldPosition(segment.landing) || projectilePath.at(-1) || null;
-      if (!throwPosition || !landing) return;
+      if (!throwPosition || !landing) { diagnostics.missingPosition += 1; return; }
       utilities.push({
         id: `${entry.id}:${round.round}:${segment.id}`,
         kind: segment.kind,
@@ -143,20 +155,21 @@ function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, se
         throwPosition,
         landing,
         projectiles: projectilePath,
-        segment,
+        segment: includeReplay ? segment : { ...segment, projectiles: [], snapshots: [] },
         source: {
           demoId: entry.id,
           fileName: entry.data.demo?.fileName || entry.fileName || 'Demo',
           round: round.round,
           tickRate: entry.data.demo?.tickRate || 64,
-          smokeVoxelFrames: segment.kind === 'smoke' ? (grenadeData.smokeVoxelFrames || []).filter(frame =>
+          smokeVoxelFrames: includeReplay && segment.kind === 'smoke' ? (grenadeData.smokeVoxelFrames || []).filter(frame =>
             (Number(frame.entityId) === Number(segment.entityId) || Number(frame.entityId) === Number(segment.landing?.entityid))) : [],
-          infernoFrames: segment.kind === 'fire' ? (grenadeData.infernoFrames || []).filter(frame =>
+          infernoFrames: includeReplay && segment.kind === 'fire' ? (grenadeData.infernoFrames || []).filter(frame =>
             (Number(frame.entityId) === Number(segment.entityId) || Number(frame.entityId) === Number(segment.landing?.entityid))) : [],
         },
       });
     });
   });
+  diagnostics.unmatchedThrows += selectedThrows.filter(event => !matchedThrows.has(event)).length;
 }
 
 function appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer) {
@@ -176,10 +189,11 @@ function appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer) {
   }));
 }
 
-export function buildAnalysisDataset({ demos, selectedPlayers, playerName, getRoundEconomy, includeUtilities = true }) {
+export function buildAnalysisDataset({ demos, selectedPlayers, playerName, getRoundEconomy, includeUtilities = true, includeReplay = true }) {
   const rows = [];
   const deaths = [];
   const utilities = [];
+  const utilityDiagnostics = { throwEvents: 0, unmatchedThrows: 0, missingPosition: 0, missingSide: 0 };
   const playerNames = selectedPlayers?.length ? selectedPlayers : playerName ? [playerName] : [];
   const selected = new Set(playerNames);
   let cursor = 0;
@@ -197,12 +211,12 @@ export function buildAnalysisDataset({ demos, selectedPlayers, playerName, getRo
       roundMetadataByPlayer.set(name, roundMetadata);
     });
     appendAnalysisRows(rows, entry, rounds, roundMetadataByPlayer, selected, shift);
-    if (includeUtilities) appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, selected, buildDemoGrenadeSegments);
+    if (includeUtilities) appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, selected, buildDemoGrenadeSegments, includeReplay, utilityDiagnostics);
     appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer);
     cursor += Math.max(256, sourceEnd - sourceStart + 256);
   });
 
-  return { rows: rows.sort((left, right) => left.tick - right.tick), deaths, utilities };
+  return { rows: rows.sort((left, right) => left.tick - right.tick), deaths, utilities, utilityDiagnostics };
 }
 
 export function getAnalysisEconomyAvailability(rows) {

@@ -32,14 +32,20 @@ export function createParsePerformance(userData, hardware = { cores: Math.min(12
     if (task.kind !== 'parse') return {};
     const policy = budget();
     const parsers = running.filter(task => task.kind === 'parse');
-    if (parsers.length >= policy.maxDemos) return { waitReason: 'slots' };
-    const cpuUsed = parsers.reduce((sum, task) => sum + task.allocation.threads, 0);
+    const decoding = parsers.filter(task => !task.metrics?.parserReleased);
+    if (decoding.length >= policy.maxDemos) return { waitReason: 'slots' };
+    // A caching JS worker still needs one CPU share after Go has exited.
+    const cpuUsed = decoding.reduce((sum, task) => sum + task.allocation.threads, 0) + parsers.length - decoding.length;
     const cpuLeft = policy.cpu - cpuUsed;
     if (cpuLeft < 1) return { waitReason: 'cpu' };
-    const reserved = parsers.reduce((sum, task) => sum + Math.max(task.allocation.memoryBytes, (task.metrics?.peakBytes || 0) * 1.2), 0);
+    const reservation = task => task.metrics?.parserReleased
+      ? Math.max(256 * MiB, (task.metrics.workerPeakBytes || 0) * 1.2)
+      : Math.max(task.allocation.memoryBytes, (task.metrics?.peakBytes || 0) * 1.2);
+    const resident = task => task.metrics?.parserReleased ? task.metrics.workerPeakBytes || 0 : task.metrics?.peakBytes || 0;
+    const reserved = parsers.reduce((sum, task) => sum + reservation(task), 0);
     // Subtract only the unallocated part of reservations: observed RSS already
     // reduces OS free memory. The budget controls admission, not an OS hard limit.
-    const unallocated = parsers.reduce((sum, task) => sum + Math.max(0, task.allocation.memoryBytes - (task.metrics?.peakBytes || 0)), 0);
+    const unallocated = parsers.reduce((sum, task) => sum + Math.max(0, reservation(task) - resident(task)), 0);
     const available = Math.max(0, Math.min(policy.memory - reserved, availableMemory() - policy.reserve - unallocated));
     const sourceBytes = task.resources.sourceBytes;
     const base = 1.5 * GiB + sourceBytes * (task.resources.sampleRate >= 16 ? 12 : 8);

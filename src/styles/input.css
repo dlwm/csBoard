@@ -48,7 +48,7 @@
     background: var(--accent-bg);
     color: var(--accent);
   }
-  .board-shell button, .board-shell select, .board-shell input:not([type=range]) {
+  .board-shell[data-mobile-workspace] button, .board-shell[data-mobile-workspace] select, .board-shell[data-mobile-workspace] input:not([type=range]) {
     min-height: 40px;
   }
   .board-shell input[type=range] { min-height: 36px; touch-action: pan-y; }
@@ -108,7 +108,7 @@
 }
 
 /* The shell selects mobile features; these controls also work with a mouse. */
-.view-tools-content { display: contents; }
+.view-tools-content { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: inherit; }
 :root .board-shell[data-mobile-workspace] {
   height: var(--mobile-viewport-height, 100dvh);
   --mobile-control-size: 44px;
@@ -296,3 +296,10 @@
 .mobile-view-dialog :is(input:not([type=range]), textarea):focus {
   font-size: 16px;
 }
+
+.analysis-query-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.analysis-query-status small { flex-basis: 100%; }
+.analysis-loading-overlay { position: absolute; left: 50%; bottom: 100px; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 10px; max-width: 80%; padding: 12px 18px; border: 1px solid #c9f76b55; border-radius: 8px; background: #151b20ee; color: #e8f1de; pointer-events: none; }
+.analysis-loading-spinner { display: inline-block; flex: 0 0 16px; width: 16px; height: 16px; border: 2px solid #c9f76b33; border-top-color: #c9f76b; border-radius: 50%; animation: analysis-loading-spin 0.8s linear infinite; }
+@keyframes analysis-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .analysis-loading-spinner { animation: none; } }

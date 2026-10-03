@@ -1,6 +1,7 @@
 // Owns analysis movement paths, player markers, and utility trajectory lines.
 import * as THREE from 'three';
-import { ANALYSIS_UTILITY_COLORS, ANALYSIS_UTILITY_KINDS, ECONOMY_CATEGORIES } from '../analysis/constants.js';
+import { utilityMatchesFilters } from '../analysis/utilityFilters.js';
+import { ANALYSIS_UTILITY_COLORS } from '../analysis/constants.js';
 import { buildAnalysisTracks } from '../analysis/buildAnalysisTracks.js';
 import { createCollabPlayer, setCollabPlayerCrouch, setCollabPlayerPitch } from './collabPlayer.js';
 import { lerpAngleDegrees } from '../demo/interpolation.js';
@@ -46,13 +47,7 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
       if (utilityPaths.size) clearUtilityPaths();
       return;
     }
-    const utilities = refs.utilities.current.filter((utility) => {
-      const [own, opponent] = String(utility.economyMatchup || '').split(':');
-      return (flags.utilityKinds || ANALYSIS_UTILITY_KINDS).includes(utility.kind)
-        && (flags.economyOwn || ECONOMY_CATEGORIES).includes(own)
-        && (flags.economyOpponent || ECONOMY_CATEGORIES).includes(opponent)
-        && (refs.side.current === 'ALL' || utility.side === refs.side.current);
-    });
+    const utilities = refs.utilities.current.filter(utility => utilityMatchesFilters(utility, flags, refs.side.current));
     const active = new Set(utilities.map((utility) => utility.id));
     const modelCenter = getModelCenter();
     utilities.forEach((utility) => {

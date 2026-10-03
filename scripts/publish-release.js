@@ -41,8 +41,18 @@ export async function publishDraft({ repository, token, tag, commit, notes, dire
     release = releases.find(item => item.tag_name === tag);
     if (release || releases.length < 100) break;
   }
-  if (release && (!release.draft || release.target_commitish !== commit)) throw new Error('Refusing to overwrite a published release or a draft for another commit');
-  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notes}\n\nmacOS apps are ad-hoc signed, without Apple notarization; Gatekeeper may require manual approval or removal of the app quarantine attribute. Windows installers are unsigned. Android APKs use a development signature. iOS ZIPs contain unsigned arm64 app bundles, not installable IPAs; signing is required before installation. SHA-256 checksums are attached separately for desktop and mobile assets.`, draft: true, make_latest: 'false' };
+  if (release && !release.draft) {
+    throw new Error(`Release ${tag} is already published (${release.html_url}). Automatic uploads only modify drafts; wait for desktop and mobile uploads before publishing a new release.`);
+  }
+  // GitHub may retain a branch name in target_commitish. For an existing tag
+  // that field does not select the release commit; the verified tag above does.
+  // Keep explicit SHA provenance so moving a tag cannot mix builds in a draft.
+  const recordedCommit = release?.body?.match(/<!-- csboard-release-commit: ([a-f0-9]{40}) -->/)?.[1];
+  const targetCommit = /^[a-f0-9]{40}$/i.test(release?.target_commitish || '') ? release.target_commitish.toLowerCase() : null;
+  if ((recordedCommit && recordedCommit !== commit) || (targetCommit && targetCommit !== commit)) {
+    throw new Error(`Draft ${tag} belongs to another commit: draft=${recordedCommit || targetCommit}, build=${commit} (${release.html_url}). Use a new version tag, or remove the obsolete unpublished draft before rebuilding; do not mix assets from different commits.`);
+  }
+  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notes}\n\nmacOS apps are ad-hoc signed, without Apple notarization; Gatekeeper may require manual approval or removal of the app quarantine attribute. Windows installers are unsigned. Android APKs use a development signature. iOS ZIPs contain unsigned arm64 app bundles, not installable IPAs; signing is required before installation. SHA-256 checksums are attached separately for desktop and mobile assets.\n\n<!-- csboard-release-commit: ${commit} -->`, draft: true, make_latest: 'false' };
   release = await api(`${base}/releases${release ? `/${release.id}` : ''}`, release ? 'PATCH' : 'POST', payload);
   const upload = new URL(release.upload_url.split('{')[0]);
   if (upload.origin !== 'https://uploads.github.com') throw new Error('Unexpected GitHub upload endpoint');

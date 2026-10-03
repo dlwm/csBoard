@@ -170,14 +170,9 @@ func parseWithContext(ctx context.Context, data []byte) (Report, error) {
 		}
 		position := player.Position()
 		row[prefix+"_X"], row[prefix+"_Y"], row[prefix+"_Z"] = position.X, position.Y, position.Z
-		pitch, yaw := float64(player.ViewDirectionY()), float64(player.ViewDirectionX())
-		if pitch > 180 {
-			pitch -= 360
+		if pitch, yaw, ok := playerViewAngles(player); ok {
+			row[prefix+"_pitch"], row[prefix+"_yaw"] = pitch, yaw
 		}
-		if yaw > 180 {
-			yaw -= 360
-		}
-		row[prefix+"_pitch"], row[prefix+"_yaw"] = pitch, yaw
 	}
 	parser.RegisterNetMessageHandler(func(header *msg.CDemoFileHeader) {
 		result.Header = map[string]string{

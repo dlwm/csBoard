@@ -2,12 +2,25 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.19.2] - 2026-10-03
+
+### Changed
+
+- Show loading and empty-result diagnostics in data analysis, and load individual utility replays on demand to reduce display delays.
+
 ## [1.19.1] - 2026-10-03
 
 ### Changed
 
+- Show estimated progress during Demo preparation, sort batch tasks by progress, and refresh parsed Demos as each result is saved.
+- Release parsing resources before final cache writes to help queued Demos start sooner.
 - Adapt the mobile workspace to the on-screen keyboard, keep the 3D view aligned when panels resize, and reduce rendering load on high-density screens.
 - Pause map rendering while selecting Demo files in the mobile app to reduce competition with the system file picker.
+
+### Fixed
+
+- Keep Demo parsing running when a player entity lacks view-angle data.
+- Fix oversized camera buttons and drawing controls in the desktop toolbar on touch-capable computers.
 
 ## [1.19.0] - 2026-10-03
 

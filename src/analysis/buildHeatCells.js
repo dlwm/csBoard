@@ -1,5 +1,7 @@
 // Aggregates KD, area-time, and utility events into render-ready spatial cells.
-import { ANALYSIS_AREA_PHASES, ANALYSIS_UTILITY_COLORS, ANALYSIS_UTILITY_KINDS, ECONOMY_CATEGORIES } from './constants.js';
+import { ANALYSIS_AREA_PHASES, ANALYSIS_UTILITY_COLORS, ECONOMY_CATEGORIES } from './constants.js';
+
+import { utilityMatchesFilters } from './utilityFilters.js';
 
 const MAP_UNITS_TO_METERS = 0.0254;
 const clamp = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
@@ -54,8 +56,7 @@ export default function buildHeatCells({
 
   if (utilityMode) {
     analysisUtilities.forEach((utility) => {
-      if (!(flags.utilityKinds || ANALYSIS_UTILITY_KINDS).includes(utility.kind) || !economyMatches(utility.economyMatchup)) return;
-      if (side !== 'ALL' && utility.side !== side) return;
+      if (!utilityMatchesFilters(utility, flags, side)) return;
       const color = ANALYSIS_UTILITY_COLORS[utility.kind] || '#c9f76b';
       if (globalHeat) {
         if (flags.utilityLanding !== false && utility.landing) addWorld(`utility-${utility.kind}`, utility.landing.x - modelCenter.x, utility.landing.y - modelCenter.y, utility.landing.z - modelCenter.z, color);

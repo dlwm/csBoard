@@ -1,4 +1,5 @@
 // Composes the Analysis sidebar without owning data loading or scene rendering.
+import AnalysisQueryStatus from './AnalysisQueryStatus.jsx';
 import AnalysisPlayerPicker from './AnalysisPlayerPicker.jsx';
 import { localeForLanguage, localize } from '../i18n.js';
 
@@ -10,6 +11,9 @@ export default function AnalysisPanel({
   players,
   playersLoading,
   queryLoading,
+  queryError,
+  analysisData,
+  flags,
   selectedPlayers,
   playerQuery,
   onPlayerQueryChange,
@@ -29,13 +33,13 @@ export default function AnalysisPanel({
 }) {
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const hasPlayers = selectedPlayers.length > 0;
-  return <aside className="analysis-panel">
+  return <aside className="analysis-panel" aria-busy={queryLoading}>
     <div className="collab-heading">
       <div><span>DEMO ANALYSIS</span><h2>{translate('analysis')}</h2></div>
       <button type="button" disabled={queryLoading || !hasPlayers || !rowsAvailable} onClick={onTogglePlay}>{playing ? translate('pause') : translate('play')}</button>
     </div>
     <p className="collab-note">{text(`从 ${mapName.toUpperCase()} 已解析的 Demo 中按用户名聚合多名选手。`, `Aggregate selected players across parsed ${mapName.toUpperCase()} Demos.`, `Объединяет выбранных игроков из разобранных Demo на ${mapName.toUpperCase()}.`)}</p>
-    {queryLoading && <div className="analysis-status" role="status">{text('正在更新分析…', 'Updating analysis…', 'Обновление анализа…')}</div>}
+    <AnalysisQueryStatus language={language} loading={queryLoading} error={queryError} data={analysisData} flags={flags} side={side} enabled={hasPlayers && selectedDemoIds.length > 0} />
     {status && <div className="analysis-status">{status}</div>}
     <AnalysisPlayerPicker language={language} players={players} loading={playersLoading} values={selectedPlayers} query={playerQuery} onQueryChange={onPlayerQueryChange} onToggle={onPlayerToggle} onClear={onPlayersClear} />
     {hasPlayers && <section className="analysis-demo-picker">

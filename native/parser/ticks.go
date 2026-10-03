@@ -2,6 +2,7 @@ package goparser
 
 import (
 	"context"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,6 +30,44 @@ func entityValue(entity st.Entity, name string) any {
 		return nil
 	}
 	return value.Any
+}
+
+// A pawn may exist before its eye-angle property is available (e.g. during
+// spawn/disconnect transitions). Missing angles are unknown, not a fatal Demo
+// error and not a recorded zero-degree direction.
+func playerViewAngles(player *common.Player) (pitch, yaw float64, ok bool) {
+	if player == nil {
+		return 0, 0, false
+	}
+	pawn := player.PlayerPawnEntity()
+	if pawn == nil {
+		return 0, 0, false
+	}
+	value, present := pawn.PropertyValue("m_angEyeAngles")
+	if !present {
+		return 0, 0, false
+	}
+	switch angles := value.Any.(type) {
+	case [3]float32:
+		pitch, yaw = float64(angles[0]), float64(angles[1])
+	case []float32:
+		if len(angles) < 2 {
+			return 0, 0, false
+		}
+		pitch, yaw = float64(angles[0]), float64(angles[1])
+	default:
+		return 0, 0, false
+	}
+	if math.IsNaN(pitch) || math.IsInf(pitch, 0) || math.IsNaN(yaw) || math.IsInf(yaw, 0) {
+		return 0, 0, false
+	}
+	if pitch > 180 {
+		pitch -= 360
+	}
+	if yaw > 180 {
+		yaw -= 360
+	}
+	return pitch, yaw, true
 }
 
 func equipmentName(item *common.Equipment) string {
@@ -81,24 +120,15 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 		return player.Health()
 	case "team_num":
 		return int(player.Team)
-	case "pitch":
-		if pawn == nil {
+	case "pitch", "yaw":
+		pitch, yaw, ok := playerViewAngles(player)
+		if !ok {
 			return nil
 		}
-		angle := float64(player.ViewDirectionY())
-		if angle > 180 {
-			angle -= 360
+		if name == "pitch" {
+			return pitch
 		}
-		return angle
-	case "yaw":
-		if pawn == nil {
-			return nil
-		}
-		angle := float64(player.ViewDirectionX())
-		if angle > 180 {
-			angle -= 360
-		}
-		return angle
+		return yaw
 	case "duck_amount":
 		return entityValue(pawn, "m_pMovementServices.m_flDuckAmount")
 	case "user_id":
