@@ -1,5 +1,5 @@
 {
-  "appId": "com.csboard.app",
+  "appId": "com.dlwm.csboard",
   "appName": "CSBoard",
   "webDir": "build/mobile/web",
   "android": {

@@ -8,7 +8,7 @@
   "type": "module",
   "main": "electron/main.js",
   "build": {
-    "appId": "com.csboard.app",
+    "appId": "com.dlwm.csboard",
     "productName": "CSBoard",
     "directories": {
       "output": "build/desktop"

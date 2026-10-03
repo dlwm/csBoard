@@ -1,4 +1,4 @@
-package com.csboard.app;
+package com.dlwm.csboard;
 
 import android.app.Activity;
 import android.content.Intent;

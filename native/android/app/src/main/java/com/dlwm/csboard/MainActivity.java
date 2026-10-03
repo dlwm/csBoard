@@ -1,4 +1,4 @@
-package com.csboard.app;
+package com.dlwm.csboard;
 
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
