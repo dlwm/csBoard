@@ -1,5 +1,6 @@
 import { AI_ENABLED } from '../app/config.js';
 import { startRenderLoop } from './renderLoop.js';
+import { getShell } from '../platform/index.js';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -1293,7 +1294,9 @@ export default function ThreeBoard(props) {
     const sun = new THREE.DirectionalLight('#fff3d1', 2.6);
     sun.position.set(12, 25, 10);
     scene.add(sun);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Bound fill-rate and render-target memory on high-density phones/tablets.
+    const maxPixelRatio = getShell().mobile ? 1.5 : 2;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
     renderer.domElement.setAttribute('aria-label', 'Dust II 3D tactical map');
     mount.appendChild(renderer.domElement);
     cameraInput.attach(mount);
@@ -1446,8 +1449,19 @@ export default function ThreeBoard(props) {
       markers: demoMarkers,
       primaryOnlyObjects: [demoPovEquipment, povThrownUtility],
     });
-    const resize = () => { const { width, height } = mount.getBoundingClientRect(); renderer.setSize(width, height, false); renderer.getDrawingBufferSize(viewportSize); camera.aspect = width / Math.max(height, 1); camera.updateProjectionMatrix(); demoMonitorRenderer.invalidateLayout(); };
+    const resize = () => {
+      const { width, height } = mount.getBoundingClientRect();
+      if (width <= 0 || height <= 0) return;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
+      renderer.setSize(width, height, false);
+      renderer.getDrawingBufferSize(viewportSize);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      demoMonitorRenderer.invalidateLayout();
+    };
     resize();
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(mount);
     window.addEventListener('resize', resize);
     let lastMoveTime = performance.now();
     const moveCamera = (now) => {
@@ -1725,7 +1739,7 @@ export default function ThreeBoard(props) {
       if (!demoMonitorRenderer.render(now)) renderer.render(scene, camera);
     };
     const stopRenderLoop = startRenderLoop(animate);
-     return () => { disposed = true; stopRenderLoop(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; stopRenderLoop(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => object.material?.dispose())); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) scene.remove(worldModel); renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {

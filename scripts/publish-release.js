@@ -4,10 +4,14 @@ import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { readReleaseMetadata } from './release-metadata.js';
 
-export async function collectReleaseAssets(directory, version) {
-  const expected = [`CSBoard-${version}-mac-arm64.dmg`, `CSBoard-${version}-mac-x64.dmg`, `CSBoard-${version}-win-x64.exe`];
-  const actual = (await fs.readdir(directory)).filter(name => name !== 'SHA256SUMS.txt').sort();
-  if (JSON.stringify(actual) !== JSON.stringify([...expected].sort())) throw new Error('Expected exactly the three versioned installers');
+export async function collectReleaseAssets(directory, version, kind = 'desktop') {
+  if (!['desktop', 'mobile'].includes(kind)) throw new Error('Unknown release asset kind');
+  const expected = kind === 'mobile'
+    ? [`CSBoard-${version}-android-development.apk`, `CSBoard-${version}-ios-arm64-unsigned.zip`]
+    : [`CSBoard-${version}-mac-arm64.dmg`, `CSBoard-${version}-mac-x64.dmg`, `CSBoard-${version}-win-x64.exe`];
+  const checksumName = kind === 'mobile' ? 'SHA256SUMS-mobile.txt' : 'SHA256SUMS.txt';
+  const actual = (await fs.readdir(directory)).filter(name => name !== checksumName).sort();
+  if (JSON.stringify(actual) !== JSON.stringify([...expected].sort())) throw new Error(kind === 'mobile' ? 'Expected exactly the Android APK and unsigned iOS device bundle' : 'Expected exactly the three versioned installers');
   const checksums = [];
   for (const name of expected) {
     const file = path.join(directory, name);
@@ -15,8 +19,8 @@ export async function collectReleaseAssets(directory, version) {
     if (!stat.isFile() || stat.size === 0) throw new Error(`Invalid installer: ${name}`);
     checksums.push(`${createHash('sha256').update(await fs.readFile(file)).digest('hex')}  ${name}`);
   }
-  await fs.writeFile(path.join(directory, 'SHA256SUMS.txt'), `${checksums.join('\n')}\n`);
-  return [...expected, 'SHA256SUMS.txt'];
+  await fs.writeFile(path.join(directory, checksumName), `${checksums.join('\n')}\n`);
+  return [...expected, checksumName];
 }
 
 export async function publishDraft({ repository, token, tag, commit, notes, directory, assets, fetchImpl = fetch }) {
@@ -38,7 +42,7 @@ export async function publishDraft({ repository, token, tag, commit, notes, dire
     if (release || releases.length < 100) break;
   }
   if (release && (!release.draft || release.target_commitish !== commit)) throw new Error('Refusing to overwrite a published release or a draft for another commit');
-  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notes}\n\nmacOS apps are ad-hoc signed, without Apple notarization; Gatekeeper may require manual approval or removal of the app quarantine attribute. Windows installers are unsigned. SHA-256 checksums are attached.`, draft: true, make_latest: 'false' };
+  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notes}\n\nmacOS apps are ad-hoc signed, without Apple notarization; Gatekeeper may require manual approval or removal of the app quarantine attribute. Windows installers are unsigned. Android APKs use a development signature. iOS ZIPs contain unsigned arm64 app bundles, not installable IPAs; signing is required before installation. SHA-256 checksums are attached separately for desktop and mobile assets.`, draft: true, make_latest: 'false' };
   release = await api(`${base}/releases${release ? `/${release.id}` : ''}`, release ? 'PATCH' : 'POST', payload);
   const upload = new URL(release.upload_url.split('{')[0]);
   if (upload.origin !== 'https://uploads.github.com') throw new Error('Unexpected GitHub upload endpoint');
@@ -54,7 +58,7 @@ export async function publishDraft({ repository, token, tag, commit, notes, dire
 async function main() {
   const metadata = await readReleaseMetadata(process.env.RELEASE_TAG || '');
   const directory = path.resolve('build/release');
-  const assets = await collectReleaseAssets(directory, metadata.version);
+  const assets = await collectReleaseAssets(directory, metadata.version, process.env.RELEASE_ASSET_KIND || 'desktop');
   const url = await publishDraft({ ...metadata, commit: process.env.RELEASE_COMMIT || '', repository: process.env.GITHUB_REPOSITORY || '', token: process.env.GITHUB_TOKEN, directory, assets });
   console.log(`Draft release: ${url}`);
 }

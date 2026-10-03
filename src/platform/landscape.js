@@ -1,7 +1,9 @@
 import { localize, normalizeLanguage } from '../i18n.js';
+import { installMobileViewport } from './mobileViewport.js';
 
 // Shared orientation gate for native and H5; actual orientation locks belong to the shell.
 export function installLandscapeNotice() {
+  installMobileViewport();
   document.documentElement.setAttribute('data-landscape-only', '');
   const portrait = window.matchMedia('(orientation: portrait)');
   const notice = document.createElement('div');

@@ -6,7 +6,8 @@
     "path": "native/android"
   },
   "ios": {
-    "path": "native/ios"
+    "path": "native/ios",
+    "allowsLinkPreview": false
   },
   "backgroundColor": "#090d0d"
 }

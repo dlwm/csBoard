@@ -28,20 +28,35 @@ export async function startMobileApplication() {
   // Static native configuration also locks orientation. Keep this request for
   // supported tablets; OS windowing policies may still override the lock.
   await ScreenOrientation.lock({ orientation: 'landscape' }).catch(error => console.warn('Orientation lock unavailable', error));
+  let pickingFiles = false;
+  const presentationUpdates = new Set();
   const presentation = {
-    current: async () => (await App.getState()).isActive && !portrait.matches,
+    current: async () => (await App.getState()).isActive && !portrait.matches && !pickingFiles,
     subscribe(callback) {
       let disposed = false, handle, active = true;
-      const changed = () => callback(active && !portrait.matches);
+      const changed = () => callback(active && !portrait.matches && !pickingFiles);
+      presentationUpdates.add(changed);
       portrait.addEventListener('change', changed);
       App.addListener('appStateChange', state => { active = state.isActive; changed(); }).then(value => {
         if (disposed) value.remove(); else handle = value;
       });
-      return () => { disposed = true; handle?.remove(); portrait.removeEventListener('change', changed); };
+      return () => { disposed = true; presentationUpdates.delete(changed); handle?.remove(); portrait.removeEventListener('change', changed); };
     },
   };
   const shell = createMobileShell({ presentation,
-    chooseDemos: async () => (await plugin.chooseDemos()).files,
+    chooseDemos: async () => {
+      if (pickingFiles) return [];
+      pickingFiles = true;
+      for (const update of presentationUpdates) update();
+      try {
+        // Stop the render loop and yield a frame before UIKit presents Files.
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        return (await plugin.chooseDemos()).files;
+      } finally {
+        pickingFiles = false;
+        for (const update of presentationUpdates) update();
+      }
+    },
     releaseFiles: files => plugin.releaseSources({ sourceIds: files.map(file => file.nativeId).filter(Boolean) }),
   });
   const parser = PARSER_ENGINE === 'wasm' ? 'wasm' : createMobileNativeEngine(plugin, cache);

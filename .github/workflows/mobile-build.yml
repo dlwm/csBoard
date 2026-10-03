@@ -120,7 +120,9 @@ jobs:
           sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
           xcodebuild -version
       - name: Install dependencies
-        run: npm ci
+        run: |
+          node scripts/sync-version.js --check
+          npm ci
       - name: Validate version tag
         if: ${{ github.ref_type == 'tag' }}
         env:
@@ -135,3 +137,42 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+
+  draft:
+    needs: [platforms, build]
+    # Only the standard pair built from a version tag belongs in a Release.
+    # Branch/PR runs and optional WASM/single-platform builds remain artifacts.
+    if: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && (inputs.platform == '' || inputs.platform == 'all') && (inputs.parser == '' || inputs.parser == 'native') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: release-upload-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - id: release
+        name: Validate tag, versions and release notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/release-metadata.js
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: csboard-*-development-native-${{ github.run_number }}
+          merge-multiple: true
+          path: build/release
+      - name: Upload mobile packages and checksums to the shared draft release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
+          RELEASE_ASSET_KIND: mobile
+        run: node scripts/publish-release.js

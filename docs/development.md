@@ -94,6 +94,21 @@ npm run desktop:start       # 打开已构建应用，源码变化后需重新 p
 - `.github/workflows/desktop-release.yml` 校验 tag、package、lockfile 与三语 changelog 后构建三个目标，检查实际包内容，全部成功才上传安装包和 SHA-256 至草稿 Release。确认安装后手动发布；上传前校验 macOS 应用与原生程序的签名完整性；ad-hoc 签名不等同于 Developer ID 或 Apple 公证。
 - 先提交版本文件，再创建对应 tag。失败 tag 仍指向原提交，重跑不会带上后续修复；不要移动已公开版本 tag。Changelog 只维护用户变化，第三方许可另按来源更新。
 
+### 统一版本入口
+
+`package.json` 是应用版本的唯一来源。升版使用 npm 的版本命令：
+
+```sh
+npm version 1.19.1 --no-git-tag-version
+```
+
+npm 更新 package 和 lockfile 后，`version` 钩子自动同步 Android 与 iOS 的版本和构建号。构建号按 `major × 1000000 + minor × 1000 + patch` 计算；仅支持正式三段版本，各段小于 1000。该命令只修改文件，由维护者自行提交和创建标签。
+
+- 手动改过 `package.json` 时，运行 `npm run version` 同步派生版本；不要手改原生版本字段。
+- `node scripts/sync-version.js --check` 只检查、不写文件；CI 会提前执行此检查。移动端准备、打开和构建也使用同一个同步模块。
+- 更新日志仍需人工归纳，在三语 Changelog 中维护对应版本章节。提交版本文件与更新日志后，再创建 `v版本号` 标签；Release 正文取根目录英文 Changelog 的对应章节，不取提交信息。
+- 不要用 `npm version from-git` 从错误标签反向覆盖应用版本，也不要通过关闭发布校验解决版本不一致。已有失败标签不随 main 的修改自动更新。
+
 构建通过不能替代运行时验证。按改动选择解析取消与旧缓存、迁移与失败写入、双客户端同步、多楼层放置或备份恢复等场景；使用独立数据目录，避免影响个人存档。运行记录留在本地或 CI 产物，不追加到本页。
 
 ## 尚未实现的设计

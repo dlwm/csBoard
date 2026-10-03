@@ -2,6 +2,13 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.19.1] - 2026-10-03
+
+### Changed
+
+- Adapt the mobile workspace to the on-screen keyboard, keep the 3D view aligned when panels resize, and reduce rendering load on high-density screens.
+- Pause map rendering while selecting Demo files in the mobile app to reduce competition with the system file picker.
+
 ## [1.19.0] - 2026-10-03
 
 ### Added

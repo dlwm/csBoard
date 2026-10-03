@@ -34,6 +34,7 @@ jobs:
           cache: npm
       - name: Prepare native test prerequisites
         run: |
+          node scripts/sync-version.js --check
           npm ci
           npm run native:build
       - name: Run behavioral and native storage tests

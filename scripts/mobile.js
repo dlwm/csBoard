@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { copyMobileNotices } from './lib/mobile-notices.js';
+import { syncAppVersion } from './lib/app-version.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const [action, platform, ...extra] = process.argv.slice(2);
@@ -24,6 +25,7 @@ function run(command, args, cwd = root, overrides = {}) {
   if (result.status !== 0) throw new Error(`${command} failed (${result.status})`);
 }
 try {
+  const pkg = syncAppVersion(root);
   if (action === 'open') {
     run(process.execPath, [cap, 'open', platform]);
   } else {
@@ -58,17 +60,6 @@ try {
     }
     copyMobileNotices(root, env);
     run(process.execPath, [cap, 'sync', platform]);
-    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    const parts = pkg.version.split('.').map(Number);
-    if (parts.length !== 3 || parts.some(part => !Number.isInteger(part) || part < 0 || part >= 1000)) throw new Error('Mobile builds require a numeric major.minor.patch version');
-    const buildNumber = parts[0] * 1_000_000 + parts[1] * 1000 + parts[2];
-    if (platform === 'android') {
-      const gradle = path.join(root, 'native/android/app/build.gradle');
-      fs.writeFileSync(gradle, fs.readFileSync(gradle, 'utf8').replace(/versionName "[^"]+"/, `versionName "${pkg.version}"`).replace(/versionCode \d+/, `versionCode ${buildNumber}`));
-    } else {
-      const project = path.join(root, 'native/ios/App/App.xcodeproj/project.pbxproj');
-      fs.writeFileSync(project, fs.readFileSync(project, 'utf8').replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${pkg.version};`).replace(/CURRENT_PROJECT_VERSION = [^;]+;/g, `CURRENT_PROJECT_VERSION = ${buildNumber};`));
-    }
     if (action === 'build') {
       const artifacts = path.join(output, 'artifacts');
       fs.mkdirSync(artifacts, { recursive: true });

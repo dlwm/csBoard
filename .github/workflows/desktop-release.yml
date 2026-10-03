@@ -113,6 +113,9 @@ jobs:
     needs: [prepare, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    concurrency:
+      group: release-upload-${{ needs.prepare.outputs.tag }}
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:

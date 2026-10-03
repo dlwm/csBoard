@@ -110,6 +110,7 @@
 /* The shell selects mobile features; these controls also work with a mouse. */
 .view-tools-content { display: contents; }
 :root .board-shell[data-mobile-workspace] {
+  height: var(--mobile-viewport-height, 100dvh);
   --mobile-control-size: 44px;
   --mobile-text-size: 12px;
 }
@@ -230,7 +231,7 @@
 
 .mobile-view-dialog {
   width: min(540px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
+  max-height: calc(var(--mobile-viewport-height, 100dvh) - 32px);
   padding: 0;
   border: 1px solid var(--accent-border);
   background: #0c1511;
@@ -284,3 +285,14 @@
 }
 .touch-drawing-toggle[aria-pressed=true] { background: var(--accent-bg); border-color: var(--accent); }
 .mobile-view-tools-toggle small { color: #ffd166; font-size: 11px; }
+
+/* Keep scrolling inside panels; avoid dragging the entire app at an edge. */
+:root[data-landscape-only], :root[data-landscape-only] body {
+  overscroll-behavior: none;
+}
+/* iOS zooms small text fields on focus. Preserve readable input without
+   disabling browser zoom, and keep keyboard/mouse focus feedback intact. */
+.board-shell[data-mobile-workspace] :is(input:not([type=range]):not([type=checkbox]):not([type=radio]), textarea, [contenteditable=true]):focus,
+.mobile-view-dialog :is(input:not([type=range]), textarea):focus {
+  font-size: 16px;
+}

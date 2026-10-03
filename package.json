@@ -4,7 +4,7 @@
   "author": "colvin chen",
   "license": "GPL-3.0-only",
   "private": true,
-  "version": "1.19.0",
+  "version": "1.19.1",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -76,6 +76,7 @@
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   },
   "scripts": {
+    "version": "node scripts/sync-version.js",
     "dev": "npm run build && node server/node.js",
     "dev:workers": "node scripts/dev-workers.js",
     "server": "node server/node.js",
