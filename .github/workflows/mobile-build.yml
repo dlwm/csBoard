@@ -1,0 +1,137 @@
+name: Mobile development builds
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'src/**'
+      - 'shared/**'
+      - 'native/**'
+      - 'config/build/**'
+      - 'scripts/**'
+      - 'package*.json'
+      - 'index.html'
+      - 'capacitor.config.json'
+      - '.github/workflows/mobile-build.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'shared/**'
+      - 'native/**'
+      - 'config/build/**'
+      - 'scripts/**'
+      - 'package*.json'
+      - 'index.html'
+      - 'capacitor.config.json'
+      - '.github/workflows/mobile-build.yml'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Mobile platform
+        type: choice
+        options: [all, android, ios]
+        default: all
+      parser:
+        description: Demo parser engine
+        type: choice
+        options: [native, wasm]
+        default: native
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.event.pull_request.number || github.ref }}-${{ inputs.platform || 'all' }}-${{ inputs.parser || 'native' }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  platforms:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.platforms.outputs.matrix }}
+    steps:
+      - id: platforms
+        name: Select platforms
+        env:
+          MOBILE_PLATFORM: ${{ inputs.platform || 'all' }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const platforms = [
+            { platform: 'android', runner: 'ubuntu-24.04', extension: 'apk' },
+            { platform: 'ios', runner: 'macos-15', extension: 'zip' },
+          ];
+          const selected = process.env.MOBILE_PLATFORM;
+          if (!['all', 'android', 'ios'].includes(selected)) throw new Error('Unknown mobile platform');
+          const include = platforms.filter(item => selected === 'all' || item.platform === selected);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify({ include })}\n`);
+          NODE
+
+  build:
+    needs: platforms
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.platforms.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      CSBOARD_PARSER_ENGINE: ${{ inputs.parser || 'native' }}
+      CSBOARD_AI_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: native/mobile/go.mod
+          cache-dependency-path: |
+            native/mobile/go.sum
+            native/parser/go.sum
+            native/storage/go.sum
+      - uses: actions/setup-java@v4
+        if: ${{ matrix.platform == 'android' }}
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Android SDK tools
+        if: ${{ matrix.platform == 'android' }}
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
+      - name: Prepare Android SDK and NDK
+        if: ${{ matrix.platform == 'android' }}
+        run: |
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.2.12479018'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+      - name: Select Xcode 26.3
+        if: ${{ matrix.platform == 'ios' }}
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate version tag
+        if: ${{ github.ref_type == 'tag' }}
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/release-metadata.js
+      - name: Build mobile app
+        run: npm run mobile -- build ${{ matrix.platform }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: csboard-${{ matrix.platform }}-development-${{ inputs.parser || 'native' }}-${{ github.run_number }}
+          path: build/mobile/artifacts/*.${{ matrix.extension }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

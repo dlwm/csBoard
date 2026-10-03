@@ -6,8 +6,12 @@ import { copyMobileNotices } from './lib/mobile-notices.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const [action, platform, ...extra] = process.argv.slice(2);
-if (!['prepare', 'open', 'build'].includes(action) || !['android', 'ios'].includes(platform) || extra.length) {
-  console.error('npm run mobile -- prepare|open|build android|ios');
+const simulator = extra.includes('--simulator');
+const allowedFlags = platform === 'ios' && action !== 'open' ? ['--device', '--simulator'] : [];
+if (!['prepare', 'open', 'build'].includes(action) || !['android', 'ios'].includes(platform)
+  || extra.some(flag => !allowedFlags.includes(flag)) || new Set(extra).size !== extra.length
+  || extra.includes('--device') && simulator) {
+  console.error('npm run mobile -- prepare|open|build android|ios [--device | --simulator]');
   process.exit(1);
 }
 const env = { ...process.env, GOTOOLCHAIN: 'auto', CGO_ENABLED: '1' };
@@ -40,7 +44,7 @@ try {
     run('go', ['tool', 'gomobile', 'init'], mobileModule);
     if (platform === 'ios') {
       const framework = path.join(output, 'native/CSBoardNative.xcframework');
-      run('go', ['tool', 'gomobile', 'bind', '-target=ios,iossimulator', '-o', framework, '.'], mobileModule);
+      run('go', ['tool', 'gomobile', 'bind', `-target=${simulator ? 'iossimulator' : 'ios/arm64'}`, '-o', framework, '.'], mobileModule);
       fs.mkdirSync(path.join(root, 'native/ios/Frameworks'), { recursive: true });
       fs.rmSync(path.join(root, 'native/ios/Frameworks/CSBoardNative.xcframework'), { recursive: true, force: true });
       fs.cpSync(framework, path.join(root, 'native/ios/Frameworks/CSBoardNative.xcframework'), { recursive: true, force: true });
@@ -66,13 +70,23 @@ try {
       fs.writeFileSync(project, fs.readFileSync(project, 'utf8').replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${pkg.version};`).replace(/CURRENT_PROJECT_VERSION = [^;]+;/g, `CURRENT_PROJECT_VERSION = ${buildNumber};`));
     }
     if (action === 'build') {
+      const artifacts = path.join(output, 'artifacts');
+      fs.mkdirSync(artifacts, { recursive: true });
       if (platform === 'android') {
         if (process.platform === 'win32') run('cmd.exe', ['/d', '/c', 'gradlew.bat', 'assembleDebug'], path.join(root, 'native/android'));
         else run('./gradlew', ['assembleDebug'], path.join(root, 'native/android'));
-        console.log('APK: native/android/app/build/outputs/apk/debug/app-debug.apk (development signature)');
+        const apk = path.join(artifacts, `CSBoard-${pkg.version}-android-development.apk`);
+        fs.copyFileSync(path.join(root, 'native/android/app/build/outputs/apk/debug/app-debug.apk'), apk);
+        console.log(`APK: ${apk} (development signature)`);
       } else {
-        run('xcodebuild', ['-project', 'native/ios/App/App.xcodeproj', '-scheme', 'App', '-configuration', 'Debug', '-sdk', 'iphonesimulator', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', path.join(output, 'ios'), 'CODE_SIGNING_ALLOWED=NO', 'build']);
-        console.log('Built for iOS Simulator. Device installation requires selecting a signing team in Xcode.');
+        const derivedData = path.join(output, simulator ? 'ios-simulator' : 'ios-device');
+        const sdk = simulator ? 'iphonesimulator' : 'iphoneos';
+        run('xcodebuild', ['-project', 'native/ios/App/App.xcodeproj', '-scheme', 'App', '-configuration', 'Debug', '-sdk', sdk, '-destination', simulator ? 'generic/platform=iOS Simulator' : 'generic/platform=iOS', '-derivedDataPath', derivedData, 'CODE_SIGNING_ALLOWED=NO', 'build']);
+        const app = path.join(derivedData, 'Build/Products', `Debug-${sdk}`, 'App.app');
+        if (!fs.existsSync(path.join(app, 'public/index.html'))) throw new Error('iOS package is missing its frontend entry point');
+        const archive = path.join(artifacts, `CSBoard-${pkg.version}-ios-${simulator ? 'simulator' : 'arm64-unsigned'}.zip`);
+        run('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', app, archive]);
+        console.log(`iOS bundle: ${archive}${simulator ? ' (simulator)' : ' (unsigned device build; signing required before installation)'}`);
       }
     }
   }

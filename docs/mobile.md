@@ -62,13 +62,14 @@
 npm run mobile -- prepare ios
 npm run mobile -- open ios
 npm run mobile -- build ios
+npm run mobile -- build ios --simulator
 npm run mobile -- build android
 ```
 
-- `prepare` 构建前台、图标、Go 库和依赖许可，并同步原生工程。
+- `prepare` 构建前台、图标、Go 库和依赖许可，并同步原生工程。iOS 默认只准备 arm64 真机库；需要模拟器时追加 `--simulator`。
 - `open` 打开已有工程。首次使用先 `prepare`。
-- `build ios` 生成模拟器应用，不生成可安装到手机的 IPA。真机安装在 Xcode 中选择开发团队并运行；免费个人团队适合自己的设备开发测试。
-- `build android` 生成 `native/android/app/build/outputs/apk/debug/app-debug.apk`，使用开发签名。正式分发需要配置自己的长期签名密钥；密钥文件已忽略。
+- `build ios` 默认构建未签名的 arm64 真机应用，并生成 `build/mobile/artifacts/CSBoard-版本-ios-arm64-unsigned.zip`，不会编译或启动模拟器。该压缩包不是可直接安装的 IPA；真机安装仍需在 Xcode 中选择开发团队并运行。需要模拟器构建时使用 `--simulator`。
+- `build android` 生成 `build/mobile/artifacts/CSBoard-版本-android-development.apk`，使用开发签名；原始包仍在 `native/android/app/build/outputs/apk/debug/app-debug.apk`。正式分发需要配置自己的长期签名密钥；密钥文件已忽略。
 - 应用版本和构建号由 `package.json` 同步。原生库和复制的前台资源是忽略的构建产物，不提交。
 
 `.env.mobile.local` 是本地移动构建配置，已忽略：
@@ -84,13 +85,17 @@ VITE_OSS_BASE_URL=https://your-model-storage.example.com
 
 ### 自动构建
 
-`.github/workflows/mobile-android.yml` 在推送 `feature/mobile` 时构建 Android 开发 APK，也支持手动选择 native / WASM。产物放在 Actions artifacts，不发布到正式 Release。工作流随移动端支持提供，尚未执行构建。
+`.github/workflows/mobile-build.yml` 监听 `main` 的相关代码更新、面向 `main` 的 PR 和 `v*` 标签；手动运行可选择 Android、iOS 或两者，以及 native / WASM 解析器。标签构建会校验版本号和更新日志。
 
-不同 CI 运行可能使用不同开发密钥，产物不作为长期更新包；正式分发需使用固定签名密钥。
+- Android 使用 JDK 21、SDK 36 和固定 NDK 构建开发 APK。
+- iOS 使用 macOS runner 与 Xcode 26.3，只构建 arm64 真机目标，并打包未签名 `.app`。
+- 产物存放在 Actions artifacts，保留 14 天，文件名包含应用版本；尚不上传到 Release。
+- 无需配置签名 secrets 即可运行这些开发构建。iOS 产物不能直接安装；Android 的不同 CI 运行可能使用不同开发密钥，因此不作为长期更新包。正式分发需另行接入固定签名与发布流程。
+- 本地已完成 iOS 真机目标构建；远程工作流需你推送后执行，Android 云端构建尚待确认。
 
 ## 当前边界
 
-- 已完成 iOS 模拟器构建；尚未做真机触控、大 Demo 内存、后台切换和外接输入设备的运行验证。
+- 已完成 iOS 真机目标构建与启动修复，基础界面已在实体机加载；大 Demo 内存、后台切换和外接输入设备仍需运行验证。
 - Android 工程和桥接代码已加入，本机缺少 JDK/NDK，尚未完成 APK 构建。
 - 原生资源包导入、移动凭据持久化、正式签名、原生导出和正式移动发布尚未接入。
 - 原生解析减少 WASM 的限制，但仍有完整文件读取、采样数据驻留和桥接结果复制的内存成本；不能据此保证所有手机都能解析任意大小的 Demo。

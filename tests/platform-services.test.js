@@ -24,7 +24,7 @@ test('desktop collection saves send changed slots and reset after uncertain writ
   assert.equal(requests.at(-1).args.count, 0);
 });
 
-test('analysis catalogue avoids round reads; queries read only selected demos', async () => {
+test('analysis catalogue avoids round reads; queries read only selected demos and skip rounds without throws', async () => {
   const entry = { id: 'a', data: { cacheSchemaVersion: 30, demo: { map: 'de_nuke', tickRate: 64 }, rounds: [{ round: 1, startTick: 10, endTick: 100 }], events: [] }, analysisRows: [{ tick: 20, players: [{ name: 'P', team: 2 }] }] };
   const reads = [];
   const cache = { getCachedDemo: async id => { reads.push(id); return { ...entry, id }; }, getCachedDemoRound: async (id, round) => { reads.push(`${id}:${round}`); return {}; } };
@@ -34,7 +34,7 @@ test('analysis catalogue avoids round reads; queries read only selected demos', 
   assert.equal(directory[0].analysisRows, undefined);
   reads.length = 0;
   const data = await runAnalysisQuery(cache, 'analysis.query', { ids: ['b'], players: ['P'] });
-  assert.deepEqual(reads, ['b', 'b:1']);
+  assert.deepEqual(reads, ['b']);
   assert.equal(data.rows.length, 1);
 });
 
