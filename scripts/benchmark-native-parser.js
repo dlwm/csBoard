@@ -4,7 +4,7 @@ import os from 'node:os';
 import { createNativeClient } from '../electron/native-client.js';
 import { createDemoParser } from '../src/demo/parserRuntime.js';
 import { createGoParserAdapter } from '../src/demo/goParserAdapter.js';
-import { encodeStoredValue } from '../src/app/storageCodec.js';
+import { encodeStoredValue } from '../shared/storage-codec.js';
 
 const argv = process.argv.slice(2);
 const option = (name, fallback) => argv.includes(name) ? argv[argv.indexOf(name) + 1] : fallback;

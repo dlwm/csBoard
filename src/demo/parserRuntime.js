@@ -1,3 +1,4 @@
+import { matchCompatibility, recordingSegments, NON_STANDARD_DEMO, RECORDING_KIND } from './recordings.js';
 import { appendChangedInfernoFrame } from './infernoFrames.js';
 import { smokeVoxelFramesFromRow } from './smokeVoxels.js';
 
@@ -370,13 +371,25 @@ return async (data) => {
        partOffsets = await findPartOffsets(demoParts);
        demoBytes = demoParts[0];
        const magic = openSources ? 'PBDEMS2\0' : new TextDecoder().decode(demoBytes.subarray(0, 8));
-      const expectedLength = openSources ? demoBytes.byteLength : demoBytes.byteLength >= 12 ? new DataView(demoBytes.buffer, demoBytes.byteOffset, demoBytes.byteLength).getUint32(8, true) + 18 : null;
+      const infoOffset = openSources ? null : demoBytes.byteLength >= 12 ? new DataView(demoBytes.buffer, demoBytes.byteOffset, demoBytes.byteLength).getUint32(8, true) : null;
       if (magic !== 'PBDEMS2\0') throw new Error(`invalid demo magic: ${JSON.stringify(magic)}`);
-       if (expectedLength !== demoBytes.byteLength) throw new Error(`demo length mismatch: expected ${expectedLength}, got ${demoBytes.byteLength}`);
-       postMessage({ type: 'diagnostic', phase: 'input', data: { bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), parts: demoParts.length, magic, expectedLength, partOffsets, memory: memoryDiagnostics() } });
+       if (!openSources && (infoOffset == null || infoOffset < 16 || infoOffset >= demoBytes.byteLength)) throw new Error(`invalid demo FileInfo offset: ${infoOffset}`);
+       postMessage({ type: 'diagnostic', phase: 'input', data: { bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), parts: demoParts.length, magic, infoOffset, partOffsets, memory: memoryDiagnostics() } });
        postMessage({ type: 'status', message: '正在读取 Demo Header…' });
        beginPhase('header');
-       const header = toPlainObject(await parseHeader(demoBytes));
+       const headers = await Promise.all(demoParts.map(async part => toPlainObject(await parseHeader(part))));
+       const header = headers[0];
+       const recording = data.kind === RECORDING_KIND;
+       if (recording) {
+         // Recording parts are independent clips; round overlap heuristics do
+         // not apply. Keep the original tick coordinates within each clip.
+         // 录制分片不依赖回合重叠，保留片段内部 tick 坐标。
+         partOffsets = headers.map((part, index) => index === 0 ? 0 : headers.slice(0, index).reduce((sum, h) => sum + Number(h.last_tick) + 1, 0));
+         partSkips = headers.map(() => -1);
+       }
+       const matchRounds = buildRounds(partEvents.flatMap((events, index) => events.map(event => ({ ...event, tick: event.tick + partOffsets[index] }))));
+       const incompatibility = recording ? null : matchCompatibility(header, matchRounds);
+       if (incompatibility) throw Object.assign(new Error('Non-standard match Demo; open it in Custom recordings.'), { code: NON_STANDARD_DEMO, reason: incompatibility });
        postMessage({ type: 'diagnostic', phase: 'header', data: { elapsedMs: performance.now() - phaseStartedAt, memory: memoryDiagnostics() } });
         postMessage({ type: 'status', message: '正在读取回合事件…' });
         beginPhase('events');
@@ -392,8 +405,8 @@ return async (data) => {
             if (!prepareTicks) activeWeaponNamesByPart = await Promise.all(demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index])));
         const sampleRate = [1, 2, 4, 8, 16, 32].includes(Number(data.sampleRate)) ? Number(data.sampleRate) : 8;
        const sampleStep = 64 / sampleRate;
-       const maxTick = allEvents.at(-1)?.tick || 0;
-       const rounds = buildRounds(allEvents);
+       const maxTick = Math.max(allEvents.at(-1)?.tick || 0, ...headers.map((header, index) => (Number(header.last_tick) || 0) + partOffsets[index]));
+       const rounds = recording ? recordingSegments(headers, partOffsets) : buildRounds(allEvents);
          beginPhase('ticks');
          postMessage({ type: 'status', message: `正在一次性解析 ${rounds.length} 个回合位置…` });
              const throwPlans = demoParts.map((part, index) => {
@@ -409,11 +422,11 @@ return async (data) => {
               if (ticks.at(-1) !== round.endTick) ticks.push(round.endTick);
               return demoParts.map((part, index) => {
                 const offset = partOffsets[index];
-                const localTicks = ticks.filter((tick) => tick >= offset && tick - offset <= 1000000).map((tick) => tick - offset);
+                const localTicks = ticks.filter((tick) => tick >= offset && tick - offset <= (Number(headers[index].last_tick) || 1000000)).map((tick) => tick - offset);
                  return { part, index, offset, localTicks };
               });
             });
-            const analysisGlobalTicks = [...new Set(rounds.flatMap(round => {
+            const analysisGlobalTicks = recording ? [] : [...new Set(rounds.flatMap(round => {
               const ticks = [];
               for (let tick = round.startTick; tick <= round.endTick; tick += 32) ticks.push(tick);
               return ticks;
@@ -426,7 +439,7 @@ return async (data) => {
                   ...roundTickPlans.flatMap(plans => plans[index].localTicks),
                   ...throwPlans[index].localTicks,
                   ...partEvents[index].filter(event => event.event_name === 'weapon_fire').map(event => event.tick),
-                  ...analysisGlobalTicks.filter(tick => tick >= offset && tick - offset <= 1000000).map(tick => tick - offset),
+                  ...analysisGlobalTicks.filter(tick => tick >= offset && tick - offset <= (Number(headers[index].last_tick) || 1000000)).map(tick => tick - offset),
                 ])].sort((left, right) => left - right);
                 await prepareTicks(part, props, ticks);
               }));
@@ -470,10 +483,11 @@ return async (data) => {
                await postMessage({ type: 'round', data: dataForRound });
              }
             reportProgress();
+            if (recording && snapshotCount === 0) throw new Error('Recording contains no readable player samples');
             const playerNames = [...playerNameSet].sort();
-             const analysisRows = (await Promise.all(demoParts.map(async (part, index) => {
+             const analysisRows = recording ? [] : (await Promise.all(demoParts.map(async (part, index) => {
               const offset = partOffsets[index];
-              const localTicks = [...new Set(analysisGlobalTicks)].filter((tick) => tick >= offset && tick - offset <= 1000000).map((tick) => tick - offset);
+              const localTicks = [...new Set(analysisGlobalTicks)].filter((tick) => tick >= offset && tick - offset <= (Number(headers[index].last_tick) || 1000000)).map((tick) => tick - offset);
               if (localTicks.length === 0) return [];
                return (await parseTicksBatched(part, analysisProps, localTicks)).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset }));
             }))).flat();
@@ -489,7 +503,7 @@ return async (data) => {
             allProjectiles = [];
             allSmokeVoxelFrames = [];
             allInfernoFrames = [];
-             const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, warnings, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
+             const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { kind: recording ? RECORDING_KIND : 'match', fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, warnings, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
              await postMessage({ type: 'loaded', data: result, estimatedBytes });
      }
      if (data.type === 'analysis') {
@@ -510,7 +524,7 @@ return async (data) => {
        postMessage({ type: 'status', message: '全场移动数据已就绪' });
      }
   } catch (error) {
-    postMessage({ type: 'error', message: `${currentPhase}: ${error?.message || String(error)}`, diagnostic: { phase: currentPhase, elapsedMs: phaseStartedAt ? performance.now() - phaseStartedAt : null, error: describeError(error), memory: memoryDiagnostics(), bytes: demoBytes?.byteLength || null } });
+    await postMessage({ type: 'error', code: error.code, reason: error.reason, message: `${currentPhase}: ${error?.message || String(error)}`, diagnostic: { phase: currentPhase, elapsedMs: phaseStartedAt ? performance.now() - phaseStartedAt : null, error: describeError(error), memory: memoryDiagnostics(), bytes: demoBytes?.byteLength || null } });
   }
 };
 

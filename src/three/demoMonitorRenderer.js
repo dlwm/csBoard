@@ -101,7 +101,7 @@ export default function createDemoMonitorRenderer({ mount, renderer, scene, prim
         setPlayerCamera(tileCamera, player, tile.width, tile.height);
         renderer.setViewport(tile.x, tile.y, tile.width, tile.height);
         renderer.setScissor(tile.x, tile.y, tile.width, tile.height);
-        const marker = markers.get(player.name);
+        const marker = markers.get(playerId(player));
         const markerVisible = marker?.visible;
         if (marker) marker.visible = false;
         try { renderer.render(scene, tileCamera); }

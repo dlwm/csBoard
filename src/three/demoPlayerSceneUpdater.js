@@ -43,16 +43,17 @@ export default function createDemoPlayerSceneUpdater({
     const snapshot = demoSnapshotRef.current;
     if (!snapshot) { demoPlayers.visible = false; return; }
     demoPlayers.visible = true;
-    const activeNames = new Set();
+    const activeIds = new Set();
     snapshot.players.forEach((player) => {
       // A broken controller→pawn link can leave a valid roster player without coordinates.
       if (!player.name || player.hasPosition === false || ![player.position?.x, player.position?.y, player.position?.z].every(Number.isFinite)) return;
       const displaySide = player.team === 2 ? 'T' : 'CT';
-      activeNames.add(player.name);
-      let marker = demoMarkers.get(player.name);
+      const playerId = String(player.steamid || player.name);
+      activeIds.add(playerId);
+      let marker = demoMarkers.get(playerId);
       if (!marker) {
         const direction = new THREE.Vector3(Math.sin(THREE.MathUtils.degToRad(player.yaw || 0)), 0, Math.cos(THREE.MathUtils.degToRad(player.yaw || 0)));
-        marker = createTacticalPoint(new THREE.Vector3(), direction, `demo-${player.name}`, 5.25, displaySide, 'T');
+        marker = createTacticalPoint(new THREE.Vector3(), direction, `demo-${playerId}`, 5.25, displaySide, 'T');
         marker.scale.setScalar(1.35);
          marker.userData.playerName = player.name;
          marker.userData.demoPitch = player.pitch || 0;
@@ -222,7 +223,7 @@ export default function createDemoPlayerSceneUpdater({
            equipment.add(utilitySmoke, utilityFlash, utilityDecoy, utilityHe, utilityFire, rifle, pistol, sniper, smg, shotgun, machinegun, melee, heldC4, defuseHands, defuseKit);
           marker.add(standingBody, crouchedBody, equipment);
          demoPlayers.add(marker);
-         demoMarkers.set(player.name, marker);
+         demoMarkers.set(playerId, marker);
          const canvas = document.createElement('canvas');
          canvas.width = 512; canvas.height = 96;
          const context = canvas.getContext('2d');
@@ -254,7 +255,8 @@ export default function createDemoPlayerSceneUpdater({
        const duckAmount = THREE.MathUtils.clamp(player.duckAmount || 0, 0, 1);
         const standingBody = marker.children.find((child) => child.userData.demoStandingBody);
         const crouchedBody = marker.children.find((child) => child.userData.demoCrouchedBody);
-         const hiddenInEye = (utilityFirstPersonRef.current?.player || demoInEyePlayerRef.current)?.name === player.name;
+         const inEye = utilityFirstPersonRef.current?.player || demoInEyePlayerRef.current;
+         const hiddenInEye = inEye && String(inEye.steamid || inEye.name) === playerId;
         marker.children.forEach((child) => { if (child.userData.tacticalPoint || child.userData.symbol) child.visible = !hiddenInEye; });
         if (standingBody) standingBody.visible = !hiddenInEye && duckAmount < 0.5;
          if (crouchedBody) crouchedBody.visible = !hiddenInEye && duckAmount >= 0.5;
@@ -323,10 +325,10 @@ export default function createDemoPlayerSceneUpdater({
         marker.userData.muzzleFlash.position.set(0, 0.28, -0.42);
         marker.add(marker.userData.muzzleFlash);
       }
-      const firing = demoFiresRef.current.some((event) => event.user_name === player.name && demoTickRef.current >= event.tick && demoTickRef.current - event.tick < 8);
+      const firing = demoFiresRef.current.some((event) => demoEventPlayerMatches(event, player) && demoTickRef.current >= event.tick && demoTickRef.current - event.tick < 8);
         marker.userData.muzzleFlash.visible = firing && !hiddenInEye;
        marker.userData.muzzleFlash.scale.setScalar(firing ? 1 + Math.sin(performance.now() * 0.04) * 0.35 : 0.01);
-       let movementTrail = demoMovementTrails.get(player.name);
+       let movementTrail = demoMovementTrails.get(playerId);
        if (!movementTrail) {
          const geometry = new THREE.BufferGeometry();
          geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(8 * 3), 3));
@@ -345,12 +347,12 @@ export default function createDemoPlayerSceneUpdater({
          movementTrail.frustumCulled = false;
          movementTrail.renderOrder = 5;
          scene.add(movementTrail);
-         demoMovementTrails.set(player.name, movementTrail);
+         demoMovementTrails.set(playerId, movementTrail);
        }
        const awpScoped = player.scoped && String(player.activeWeapon || '').toLowerCase().includes('awp');
        const showMovementTrail = !hiddenInEye && player.health > 0 && !player.walking && duckAmount < 0.5 && !awpScoped;
        if (showMovementTrail) {
-         const records = runningTrailSamples(demoSnapshotsRef.current, player.name, snapshot.tick);
+         const records = runningTrailSamples(demoSnapshotsRef.current, playerId, snapshot.tick);
          const positions = movementTrail.geometry.attributes.position;
          const sizes = movementTrail.geometry.attributes.puffSize;
          const opacities = movementTrail.geometry.attributes.puffOpacity;
@@ -372,7 +374,7 @@ export default function createDemoPlayerSceneUpdater({
        movementTrail.visible = showMovementTrail && movementTrail.geometry.drawRange.count > 0;
        marker.visible = player.health > 0;
      });
-     demoMarkers.forEach((marker, name) => { if (!activeNames.has(name)) marker.visible = false; });
-     demoMovementTrails.forEach((trail, name) => { if (!activeNames.has(name)) trail.visible = false; });
+     demoMarkers.forEach((marker, name) => { if (!activeIds.has(name)) marker.visible = false; });
+     demoMovementTrails.forEach((trail, name) => { if (!activeIds.has(name)) trail.visible = false; });
   };
 }

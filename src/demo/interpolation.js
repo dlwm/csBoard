@@ -21,19 +21,23 @@ export function interpolateDemoSnapshot(snapshots, tick) {
     }
   }
   const amount = before.tick === after.tick ? 0 : THREE.MathUtils.clamp((tick - before.tick) / (after.tick - before.tick), 0, 1);
-  const afterByName = new Map(after.players.map((player) => [player.name, player]));
+  const identity = player => String(player.steamid || player.name);
+  const afterByName = new Map(after.players.map((player) => [identity(player), player]));
   return {
     tick,
     timeSeconds: tick / 64,
-    players: before.players.map((player) => {
-      const next = afterByName.get(player.name);
+    players: (amount >= 1 ? after.players : before.players).map((player) => {
+      const next = afterByName.get(identity(player));
       if (!next) return player;
       const discrete = amount >= 1 ? next : player;
       const playerHasPosition = player.hasPosition !== false && [player.position?.x, player.position?.y, player.position?.z].every(Number.isFinite);
       const nextHasPosition = next.hasPosition !== false && [next.position?.x, next.position?.y, next.position?.z].every(Number.isFinite);
       const hasPosition = playerHasPosition || nextHasPosition;
       const fromPosition = playerHasPosition ? player.position : next.position;
-      const toPosition = nextHasPosition ? next.position : player.position;
+      // Respawns/teleports in practice recordings are discontinuities, not
+      // movement paths. 人员死亡复活不补间，避免横穿地图的虚假移动。
+      const discontinuity = Boolean(player.health <= 0 && next.health > 0) || Math.hypot((next.position?.x || 0) - (player.position?.x || 0), (next.position?.y || 0) - (player.position?.y || 0), (next.position?.z || 0) - (player.position?.z || 0)) > 12;
+      const toPosition = !discontinuity && nextHasPosition ? next.position : fromPosition;
       const flashPlayer = amount >= 1 ? next : player;
       const flashSnapshot = amount >= 1 ? after : before;
       const currentFlashDuration = Number(flashPlayer.flashDuration) || 0;

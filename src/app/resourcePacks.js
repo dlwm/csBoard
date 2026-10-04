@@ -22,12 +22,12 @@ export function hasMapModel(mapName) {
   return !getPlatform().capabilities.resourceImport || mapName === 'cs_tutorial' || Boolean(resources.models[mapName]);
 }
 
-export function desktopModelBase(mapName) {
+export function importedModelBase(mapName) {
   return hasMapModel(mapName) ? `${location.origin}/resource-pack/models` : null;
 }
 
 export function mapModelSource(mapName, webBases) {
   return getPlatform().capabilities.resourceImport
-    ? { bases: [desktopModelBase(mapName)], file: `${mapName}.glb` }
+    ? { bases: [importedModelBase(mapName)], file: `${mapName}.glb` }
     : { bases: webBases, file: `${mapName}/${mapName}.glb` };
 }

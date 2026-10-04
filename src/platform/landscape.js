@@ -1,3 +1,4 @@
+import { preferences } from './preferences.js';
 import { localize, normalizeLanguage } from '../i18n.js';
 import { installMobileViewport } from './mobileViewport.js';
 
@@ -12,7 +13,7 @@ export function installLandscapeNotice() {
   document.body.appendChild(notice);
   const update = () => {
     let language = 'en';
-    try { language = normalizeLanguage(localStorage.getItem('csboard-language')); } catch { /* Storage may be unavailable. */ }
+    try { language = normalizeLanguage(preferences.getItem('csboard-language')); } catch { /* Storage may be unavailable. */ }
     notice.textContent = localize(language, {
       zh: '请横屏使用 CSBoard', en: 'Rotate your device to use CSBoard', ru: 'Поверните устройство для работы с CSBoard',
     });

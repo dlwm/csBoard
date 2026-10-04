@@ -1,3 +1,4 @@
+import { preferences } from '../platform/preferences.js';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { DEFAULT_WORKSPACE_ARCHIVES, initialLocalRecords } from '../app/defaultRecords.js';
 import { loadWorkspaceArchives, storeWorkspaceArchives } from '../app/persistentStore.js';
@@ -11,7 +12,7 @@ export default function useWorkspaceArchives(onWriteError) {
     initial: initialLocalRecords('csboard-workspace-archives', DEFAULT_WORKSPACE_ARCHIVES, false),
     load: loadWorkspaceArchives,
     write: storeWorkspaceArchives,
-    cleanup: () => localStorage.removeItem('csboard-workspace-archives'),
+    cleanup: () => preferences.removeItem('csboard-workspace-archives'),
     onError: (error, phase) => {
       console.error(`workspace archive ${phase}`, error);
       if (phase === 'write') errorRef.current?.();

@@ -23,17 +23,19 @@ type RawEvent struct {
 // Report retains metadata and normalized events for one source session.
 // Player samples and effect journals are queried separately.
 type Report struct {
-	Protocol       int               `json:"protocol"`
-	Map            string            `json:"map"`
-	Header         map[string]string `json:"header"`
-	FirstTick      int               `json:"firstTick"`
-	LastTick       int               `json:"lastTick"`
-	Frames         int               `json:"frames"`
-	EventCounts    map[string]int    `json:"eventCounts"`
-	Events         []RawEvent        `json:"events"`
-	SemanticEvents []RawEvent        `json:"semanticEvents"`
-	ProductEvents  []map[string]any  `json:"productEvents"`
-	PlayerNames    []string          `json:"playerNames"`
+	Protocol          int               `json:"protocol"`
+	Map               string            `json:"map"`
+	Header            map[string]string `json:"header"`
+	FirstTick         int               `json:"firstTick"`
+	LastTick          int               `json:"lastTick"`
+	IsHLTV            *bool             `json:"isHltv,omitempty"`
+	StandardTeamsSeen bool              `json:"standardTeamsSeen"`
+	Frames            int               `json:"frames"`
+	EventCounts       map[string]int    `json:"eventCounts"`
+	Events            []RawEvent        `json:"events"`
+	SemanticEvents    []RawEvent        `json:"semanticEvents"`
+	ProductEvents     []map[string]any  `json:"productEvents"`
+	PlayerNames       []string          `json:"playerNames"`
 }
 
 var roundReasons = [...]string{
@@ -163,7 +165,7 @@ func parseWithContext(ctx context.Context, data []byte) (Report, error) {
 			return
 		}
 		row[prefix+"_name"] = player.Name
-		row[prefix+"_steamid"] = strconv.FormatUint(player.SteamID64, 10)
+		row[prefix+"_steamid"] = playerIdentity(player)
 		row[prefix+"_team_num"] = int(player.Team)
 		if player.PlayerPawnEntity() == nil {
 			return
@@ -187,6 +189,8 @@ func parseWithContext(ctx context.Context, data []byte) (Report, error) {
 		}
 	})
 	parser.RegisterNetMessageHandler(func(server *msg.CSVCMsg_ServerInfo) {
+		isHLTV := server.GetIsHltv()
+		result.IsHLTV = &isHLTV
 		if result.Map == "" {
 			result.Map = server.GetMapName()
 		}
@@ -302,10 +306,22 @@ func parseWithContext(ctx context.Context, data []byte) (Report, error) {
 		}
 		result.LastTick = tick
 		result.Frames++
+		tCount, ctCount := 0, 0
 		for _, player := range parser.GameState().Participants().All() {
 			if player != nil && player.Name != "" {
 				names[player.Name] = struct{}{}
+				if !result.StandardTeamsSeen {
+					switch player.Team {
+					case common.TeamTerrorists:
+						tCount++
+					case common.TeamCounterTerrorists:
+						ctCount++
+					}
+				}
 			}
+		}
+		if tCount == 5 && ctCount == 5 {
+			result.StandardTeamsSeen = true
 		}
 	})
 	if err := parser.ParseToEnd(); err != nil {

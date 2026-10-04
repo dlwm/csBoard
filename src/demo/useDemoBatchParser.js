@@ -58,7 +58,7 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
       if ((task.attempt || 1) > 1) await deleteCachedDemo(cacheId);
       const cached = await inspectCachedDemo(cacheId);
       if (runIdRef.current !== runId) return;
-      if (cached?.data?.cacheSchemaVersion === cacheSchemaVersion && await countCachedDemoRounds(cacheId) === cached.data.rounds?.length) {
+      if (cached?.data?.rounds?.length > 0 && cached?.data?.cacheSchemaVersion === cacheSchemaVersion && await countCachedDemoRounds(cacheId) === cached.data.rounds?.length) {
         updateTask(batchId, task.id, { status: 'cached', progress: 100, statusText: '', finishedAt: new Date().toISOString(), summary: resultDiagnostic(cached.data, cached.dataBytes || 0, performance.now() - startedAt) });
         void refreshCache();
         return true;
@@ -89,7 +89,7 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
         return true;
       } finally { workersRef.current.delete(taskHandle); }
     } catch (error) {
-      updateTask(batchId, task.id, (current) => ({ status: 'failed', progress: 100, finishedAt: new Date().toISOString(), error: { name: error?.name || 'Error', message: error?.message || String(error), stack: error?.stack || null }, diagnostic: { ...current.diagnostic, elapsedMs: performance.now() - startedAt, failure: error?.diagnostic || current.diagnostic?.failure || null } }));
+      updateTask(batchId, task.id, (current) => ({ status: 'failed', progress: 100, finishedAt: new Date().toISOString(), error: { code: error?.code, reason: error?.reason, name: error?.name || 'Error', message: error?.message || String(error), stack: error?.stack || null }, diagnostic: { ...current.diagnostic, elapsedMs: performance.now() - startedAt, failure: error?.diagnostic || current.diagnostic?.failure || null } }));
     }
   };
 
@@ -159,6 +159,24 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
     } : current);
     await runJob(session, job);
   };
+  const recordingFiles = taskId => {
+    const session = sessionRef.current;
+    const task = batch?.tasks.find(task => task.id === taskId);
+    if (!session || task?.status !== 'failed' || task.error?.code !== 'non_standard_demo' || session.active.has(taskId)) return [];
+    return session.jobs.get(taskId)?.files || [];
+  };
+  // The loader takes ownership before starting asynchronous work. A new batch
+  // or closing this panel must not release native picker copies still in use.
+  // 将失败文件交给录像加载器，避免批次关闭提前删除系统选择器副本。
+  const takeRecordingFiles = taskId => {
+    const files = recordingFiles(taskId);
+    if (files.length) {
+      sessionRef.current.released.add(taskId);
+      sessionRef.current.jobs.delete(taskId);
+      updateTask(sessionRef.current.id, taskId, { recordingTransferred: true });
+    }
+    return files;
+  };
   const clearBatch = () => {
     const session = sessionRef.current;
     if (batch?.running || session?.active.size) return;
@@ -173,5 +191,5 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
     if (terminalStatuses.has(task.status)) result.finished += 1;
     return result;
   }, { completed: 0, failed: 0, finished: 0 }) || { completed: 0, failed: 0, finished: 0 };
-  return { batch, counts, running: Boolean(batch?.running), startBatch, retryTask, clearBatch };
+  return { batch, counts, running: Boolean(batch?.running), startBatch, retryTask, takeRecordingFiles, clearBatch };
 }

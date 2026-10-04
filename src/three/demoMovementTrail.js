@@ -25,7 +25,7 @@ function positionAt(records, tick) {
 export function runningTrailSamples(snapshots, playerName, currentTick) {
   const earliestTick = currentTick - FIRST_PUFF_AGE - (PUFF_COUNT - 1) * PUFF_INTERVAL_TICKS - WINDOW_TICKS;
   const records = snapshots.filter((snapshot) => snapshot.tick >= earliestTick && snapshot.tick <= currentTick)
-    .map((snapshot) => ({ tick: snapshot.tick, player: snapshot.players?.find((candidate) => candidate.name === playerName) }))
+    .map((snapshot) => ({ tick: snapshot.tick, player: snapshot.players?.find((candidate) => String(candidate.steamid || candidate.name) === playerName || candidate.name === playerName) }))
     .filter(({ player }) => validPosition(player))
     .map(({ tick, player }) => ({ tick, position: player.position }));
   if (records.length < 2) return [];

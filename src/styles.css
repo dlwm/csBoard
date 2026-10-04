@@ -566,3 +566,11 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 .tutorial-progress{display:flex}.tutorial-progress i{flex:1}
 .nav-visibility-toggle{height:31px;border:1px solid #354238;background:#0d1512;padding:7px 9px;color:#8c9b8d;font:9px var(--font-mono);white-space:nowrap;cursor:pointer}.nav-visibility-toggle.selected{border-color:var(--accent-border);background:var(--accent-bg);color:var(--accent)}
 .tutorial-offer-backdrop{position:fixed;z-index:120;inset:0;display:grid;place-items:center;padding:20px;background:rgba(3,8,7,.74);backdrop-filter:blur(5px)}.tutorial-offer{width:min(460px,100%);box-sizing:border-box;padding:22px;border:1px solid #668477;background:linear-gradient(145deg,#0b1512,#14221d);box-shadow:0 26px 80px rgba(0,0,0,.65),inset 3px 0 0 var(--accent);color:#aebdb2}.tutorial-offer>span{color:var(--accent);font:8px var(--font-mono);letter-spacing:.18em}.tutorial-offer h2{margin:9px 0 8px;color:#edf5eb;font:600 22px var(--font-ui)}.tutorial-offer p{margin:0;color:#9eaea3;font:10px/1.7 var(--font-mono)}.tutorial-offer footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:14px;border-top:1px solid #304239}.tutorial-offer button{border:1px solid #3b5148;background:#101b17;padding:9px 12px;color:#91a198;font:8px var(--font-mono);letter-spacing:.06em;cursor:pointer}.tutorial-offer button:last-child{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}.tutorial-offer button:hover{filter:brightness(1.18)}
+
+/* Custom recordings share the replay workspace and transport controls. */
+.recording-notice:empty { display: none; }
+.recording-notice { padding: 8px 12px; color: #abb9ba; font-size: 12px; }
+.demo-recording-redirect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; font-size: 12px; }
+.demo-recording-redirect button { border: 1px solid #486557; border-radius: 6px; padding: 6px 10px; background: #172e25; color: #a6efbd; cursor: pointer; }
+.demo-recording-redirect button:disabled { opacity: .55; cursor: default; }
+.recording-segments .demo-round-list > button { display: flex; justify-content: space-between; padding: 8px 12px; }

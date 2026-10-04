@@ -1,3 +1,4 @@
+import { preferences } from '../platform/preferences.js';
 import { useEffect, useId, useState } from 'react';
 import { localize } from '../i18n.js';
 import useRadarOverlay from '../hooks/useRadarOverlay.js';
@@ -50,9 +51,9 @@ export default function ViewTools({ mobile = false, touchDrawingEnabled = false,
     </div>
     {mobile && <button type="button" className="touch-drawing-toggle" aria-pressed={touchDrawingEnabled} onClick={() => { setTouchDrawingEnabled(value => !value); setOpen(false); }}>{touchDrawingEnabled ? text('关闭绘图，旋转视角', 'Stop drawing; rotate view', 'Выключить рисование') : text('开启绘图', 'Enable drawing', 'Включить рисование')}</button>}
     <div className="brush-controls">
-      <div className="brush-swatches">{BRUSH_COLORS.map((color) => <button type="button" key={color} className={`brush-swatch${brushColor.toLowerCase() === color ? ' active' : ''}`} style={{ background: color }} aria-label={color} title={color} onClick={() => { setBrushColor(color); localStorage.setItem('csboard-brush-color', color); }} />)}</div>
+      <div className="brush-swatches">{BRUSH_COLORS.map((color) => <button type="button" key={color} className={`brush-swatch${brushColor.toLowerCase() === color ? ' active' : ''}`} style={{ background: color }} aria-label={color} title={color} onClick={() => { setBrushColor(color); preferences.setItem('csboard-brush-color', color); }} />)}</div>
       <div className="brush-util-row">
-        <div className="brush-widths">{BRUSH_WIDTHS.map((width) => <button type="button" key={width} className={`brush-width${brushWidth === width ? ' active' : ''}`} title={`${width}px`} onClick={() => { setBrushWidth(width); localStorage.setItem('csboard-brush-width', String(width)); }}><i style={{ width: Math.max(2, width), height: Math.max(2, width) }} /></button>)}</div>
+        <div className="brush-widths">{BRUSH_WIDTHS.map((width) => <button type="button" key={width} className={`brush-width${brushWidth === width ? ' active' : ''}`} title={`${width}px`} onClick={() => { setBrushWidth(width); preferences.setItem('csboard-brush-width', String(width)); }}><i style={{ width: Math.max(2, width), height: Math.max(2, width) }} /></button>)}</div>
         <button type="button" className={`brush-eraser${eraserEnabled ? ' active' : ''}`} title={t('eraser')} aria-label={t('eraser')} onClick={() => setEraserEnabled((value) => !value)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M11 3 14 6l-5 5H5l-3-3z" /><path d="M8 6 11 9" /></svg></button>
       </div>
     </div>

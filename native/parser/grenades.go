@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strconv"
 	"strings"
 
 	dem "github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs"
@@ -161,7 +160,7 @@ func parseGrenadesWithContext(ctx context.Context, data []byte) ([]map[string]an
 				}
 				if owner := weaponOwner[id]; owner != nil {
 					row["name"] = owner.Name
-					row["steamid"] = strconv.FormatUint(owner.SteamID64, 10)
+					row["steamid"] = playerIdentity(owner)
 				}
 				rows = append(rows, row)
 				continue
@@ -196,7 +195,7 @@ func parseGrenadesWithContext(ctx context.Context, data []byte) ([]map[string]an
 			row["x"], row["y"], row["z"] = position.X, position.Y, position.Z
 			if projectile := parser.GameState().GrenadeProjectiles()[id]; projectile != nil && projectile.Thrower != nil {
 				row["name"] = projectile.Thrower.Name
-				row["steamid"] = strconv.FormatUint(projectile.Thrower.SteamID64, 10)
+				row["steamid"] = playerIdentity(projectile.Thrower)
 			}
 			row["Grenade.m_vInitialVelocity"] = vectorProperty(entity, "m_vInitialVelocity")
 			if strings.Contains(class, "SmokeGrenadeProjectile") {

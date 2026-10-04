@@ -1,5 +1,5 @@
 import { getPlatform } from './platform/index.js';
-export { demoCacheId } from './demo/browserCache.js';
+export { demoCacheId } from './demo/cacheIdentity.js';
 
 export const getCachedDemo = (...args) => getPlatform().cache.getCachedDemo(...args);
 export const inspectCachedDemo = (...args) => (getPlatform().cache.inspectCachedDemo || getPlatform().cache.getCachedDemo)(...args);

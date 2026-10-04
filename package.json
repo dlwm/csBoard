@@ -4,7 +4,7 @@
   "author": "colvin chen",
   "license": "GPL-3.0-only",
   "private": true,
-  "version": "1.19.3",
+  "version": "1.20.0",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -18,6 +18,7 @@
       "shared/ai-protocol.js",
       "shared/ai-providers.js",
       "shared/record-keys.js",
+      "shared/storage-codec.js",
       "LICENSE",
       "docs/THIRD_PARTY_NOTICES.md",
       "package.json",
@@ -74,23 +75,6 @@
     },
     "beforePack": "scripts/check-native-package.cjs",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
-  },
-  "scripts": {
-    "version": "node scripts/sync-version.js",
-    "dev": "npm run build && node server/node.js",
-    "dev:workers": "node scripts/dev-workers.js",
-    "server": "node server/node.js",
-    "deploy": "node scripts/cloudflare-deployment.js",
-    "build": "node scripts/build-frontend.js",
-    "build:remote": "node scripts/build-frontend.js --remote",
-    "desktop:start": "node scripts/start-desktop.js",
-    "desktop:dev": "node scripts/package-desktop.js dev",
-    "desktop:prepare": "node scripts/package-desktop.js prepare",
-    "desktop:build:mac:arm64": "node scripts/package-desktop.js mac-arm64",
-    "desktop:build:mac:x64": "node scripts/package-desktop.js mac-x64",
-    "desktop:build:win:x64": "node scripts/package-desktop.js win-x64",
-    "native:build": "node scripts/build-native.js",
-    "mobile": "node scripts/mobile.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

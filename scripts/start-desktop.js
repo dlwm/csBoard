@@ -12,7 +12,7 @@ const directory = process.platform === 'darwin' ? `mac${process.arch === 'x64' ?
 const filename = process.platform === 'darwin' ? `${name}.app` : process.platform === 'win32' ? `${name}.exe` : metadata.name.toLowerCase()
 const executable = path.join(root, metadata.build.directories.output, directory, filename)
 try { await fs.access(executable) }
-catch { throw new Error('CSBoard application is not built yet. Run npm run desktop:prepare once, then npm run desktop:start.') }
+catch { throw new Error('CSBoard application is not built yet. Run make desktop-prepare once, then make desktop-start.') }
 const child = process.platform === 'darwin'
   ? spawn('open', ['-W', executable], { stdio: 'inherit' })
   : spawn(executable, [], { stdio: 'inherit' })

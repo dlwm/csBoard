@@ -1,7 +1,7 @@
 import { withAnalysisCache } from './analysis-cache.js';
-import { runSerialization } from '../src/platform/shared/serialization.js';
-import { runAnalysisQuery } from '../src/platform/shared/analysis.js';
-import { decodeStoredValue } from '../src/app/storageCodec.js';
+import { runSerialization } from '../src/app/serialization.js';
+import { runAnalysisQuery } from '../src/analysis/queryService.js';
+import { decodeStoredValue } from '../shared/storage-codec.js';
 import { readCacheFile } from './cache-files.js';
 const pending = new Map();
 let sequence = 0;

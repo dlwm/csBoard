@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { gzip, gunzip } from 'node:zlib';
 import { promisify } from 'node:util';
-import { encodeStoredValue, decodeStoredValue } from '../src/app/storageCodec.js';
+import { encodeStoredValue, decodeStoredValue } from '../shared/storage-codec.js';
 const compress = promisify(gzip), decompress = promisify(gunzip);
 const LIMIT = 512 * 1024 ** 2;
 

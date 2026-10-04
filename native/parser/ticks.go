@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 	"sort"
-	"strconv"
 	"strings"
 
 	dem "github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs"
@@ -285,7 +284,7 @@ func parseTicksWithContext(ctx context.Context, data []byte, ticks []int, props,
 			if team != 2 && team != 3 {
 				continue
 			}
-			steamID := strconv.FormatUint(player.SteamID64, 10)
+			steamID := playerIdentity(player)
 			if len(selected) > 0 {
 				if _, ok := selected[steamID]; !ok {
 					continue

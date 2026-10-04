@@ -6,10 +6,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const versionFile = path.join(projectRoot, '.build-version');
-const packageVersion = process.env.npm_package_version ? `v${process.env.npm_package_version.replace(/^v/, '')}` : '';
-// npm builds use package.json, while Make/Docker may explicitly provide a Git-derived version.
-const buildVersion = String(process.env.VITE_BUILD_VERSION || packageVersion || (fs.existsSync(versionFile) ? fs.readFileSync(versionFile, 'utf8') : '')).trim();
+const packageVersion = `v${JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8')).version}`;
+// Frontend builds default to package.json; Workers/Docker can supply a Git-derived version.
+const buildVersion = String(process.env.VITE_BUILD_VERSION || packageVersion).trim();
 
 export default defineConfig(({ mode }) => {
   const features = buildFeatures(projectRoot, mode);

@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // package.json is authoritative; all platform versions are derived copies.
-export function syncAppVersion(root, { check = false } = {}) {
+export function syncAppVersion(root, { check = false, version: requestedVersion } = {}) {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const originalVersion = pkg.version;
+  pkg.version = requestedVersion ?? originalVersion;
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(pkg.version)) {
     throw new Error('Application version must be numeric major.minor.patch');
   }
@@ -13,6 +15,9 @@ export function syncAppVersion(root, { check = false } = {}) {
     throw new Error('Application version cannot be represented as a mobile build number');
   }
   const changes = [];
+  if (pkg.version !== originalVersion) {
+    changes.push({ file: path.join(root, 'package.json'), text: JSON.stringify(pkg, null, 2) + '\n' });
+  }
   const lockPath = path.join(root, 'package-lock.json');
   const lockText = fs.readFileSync(lockPath, 'utf8');
   const lock = JSON.parse(lockText);
@@ -43,7 +48,7 @@ export function syncAppVersion(root, { check = false } = {}) {
   }
   // Validate every file before modifying any of them.
   if (check && changes.length) {
-    throw new Error(`Version copies differ from package.json (${pkg.version}): ${changes.map(item => path.relative(root, item.file)).join(', ')}. Run npm run version to synchronize.`);
+    throw new Error(`Version copies differ from package.json (${pkg.version}): ${changes.map(item => path.relative(root, item.file)).join(', ')}. Run make version-sync to synchronize.`);
   }
   for (const { file, text } of changes) fs.writeFileSync(file, text);
   return { version: pkg.version, buildNumber };

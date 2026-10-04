@@ -5,22 +5,25 @@ import { pathToFileURL } from 'node:url';
 import { readReleaseMetadata } from './release-metadata.js';
 
 export async function collectReleaseAssets(directory, version, kind = 'desktop') {
-  if (!['desktop', 'mobile'].includes(kind)) throw new Error('Unknown release asset kind');
-  const expected = kind === 'mobile'
-    ? [`CSBoard-${version}-android-development.apk`, `CSBoard-${version}-ios-arm64-unsigned.zip`]
-    : [`CSBoard-${version}-mac-arm64.dmg`, `CSBoard-${version}-mac-x64.dmg`, `CSBoard-${version}-win-x64.exe`];
-  const checksumName = kind === 'mobile' ? 'SHA256SUMS-mobile.txt' : 'SHA256SUMS.txt';
-  const actual = (await fs.readdir(directory)).filter(name => name !== checksumName).sort();
-  if (JSON.stringify(actual) !== JSON.stringify([...expected].sort())) throw new Error(kind === 'mobile' ? 'Expected exactly the Android APK and unsigned iOS device bundle' : 'Expected exactly the three versioned installers');
-  const checksums = [];
+  if (!['desktop', 'mobile', 'all'].includes(kind)) throw new Error('Unknown release asset kind');
+  const groups = [
+    { kind: 'desktop', checksum: 'SHA256SUMS.txt', files: [`CSBoard-${version}-mac-arm64.dmg`, `CSBoard-${version}-mac-x64.dmg`, `CSBoard-${version}-win-x64.exe`] },
+    { kind: 'mobile', checksum: 'SHA256SUMS-mobile.txt', files: [`CSBoard-${version}-android-development.apk`, `CSBoard-${version}-ios-arm64-unsigned.zip`] },
+  ].filter(group => kind === 'all' || group.kind === kind);
+  const expected = groups.flatMap(group => group.files);
+  const checksumNames = groups.map(group => group.checksum);
+  const actual = (await fs.readdir(directory)).filter(name => !checksumNames.includes(name)).sort();
+  if (JSON.stringify(actual) !== JSON.stringify([...expected].sort())) throw new Error(`Expected exactly these release packages: ${expected.join(', ')}`);
+  // Validate the complete package set before creating either checksum file.
+  const checksums = new Map();
   for (const name of expected) {
     const file = path.join(directory, name);
     const stat = await fs.lstat(file);
     if (!stat.isFile() || stat.size === 0) throw new Error(`Invalid installer: ${name}`);
-    checksums.push(`${createHash('sha256').update(await fs.readFile(file)).digest('hex')}  ${name}`);
+    checksums.set(name, `${createHash('sha256').update(await fs.readFile(file)).digest('hex')}  ${name}`);
   }
-  await fs.writeFile(path.join(directory, checksumName), `${checksums.join('\n')}\n`);
-  return [...expected, checksumName];
+  for (const group of groups) await fs.writeFile(path.join(directory, group.checksum), `${group.files.map(name => checksums.get(name)).join('\n')}\n`);
+  return [...expected, ...checksumNames];
 }
 
 export async function publishDraft({ repository, token, tag, commit, notes, directory, assets, fetchImpl = fetch }) {

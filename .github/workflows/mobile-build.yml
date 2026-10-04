@@ -3,7 +3,6 @@ name: Mobile development builds
 on:
   push:
     branches: [main]
-    tags: ['v*']
     paths:
       - 'src/**'
       - 'shared/**'
@@ -11,6 +10,7 @@ on:
       - 'config/build/**'
       - 'scripts/**'
       - 'package*.json'
+      - 'Makefile'
       - 'index.html'
       - 'capacitor.config.json'
       - '.github/workflows/mobile-build.yml'
@@ -23,9 +23,22 @@ on:
       - 'config/build/**'
       - 'scripts/**'
       - 'package*.json'
+      - 'Makefile'
       - 'index.html'
       - 'capacitor.config.json'
       - '.github/workflows/mobile-build.yml'
+  workflow_call:
+    inputs:
+      build_ref:
+        description: Exact commit selected by the release workflow
+        type: string
+        default: ''
+      platform:
+        type: string
+        default: all
+      parser:
+        type: string
+        default: native
   workflow_dispatch:
     inputs:
       platform:
@@ -43,8 +56,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-${{ github.event.pull_request.number || github.ref }}-${{ inputs.platform || 'all' }}-${{ inputs.parser || 'native' }}
-  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+  group: mobile-${{ inputs.build_ref || github.event.pull_request.number || github.ref }}-${{ inputs.platform || 'all' }}-${{ inputs.parser || 'native' }}
+  cancel-in-progress: ${{ inputs.build_ref == '' && github.ref_type != 'tag' }}
 
 jobs:
   platforms:
@@ -86,6 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ inputs.build_ref || github.sha }}
           persist-credentials: false
           fetch-depth: 0
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -121,58 +135,19 @@ jobs:
           xcodebuild -version
       - name: Install dependencies
         run: |
-          node scripts/sync-version.js --check
-          npm ci
+          make version-check
+          make install
       - name: Validate version tag
         if: ${{ github.ref_type == 'tag' }}
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: node scripts/release-metadata.js
       - name: Build mobile app
-        run: npm run mobile -- build ${{ matrix.platform }}
+        run: make mobile-build PLATFORM=${{ matrix.platform }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: csboard-${{ matrix.platform }}-development-${{ inputs.parser || 'native' }}-${{ github.run_number }}
+          name: ${{ inputs.build_ref != '' && format('installer-{0}', matrix.platform) || format('csboard-{0}-development-{1}-{2}', matrix.platform, inputs.parser || 'native', github.run_number) }}
           path: build/mobile/artifacts/*.${{ matrix.extension }}
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
-
-  draft:
-    needs: [platforms, build]
-    # Only the standard pair built from a version tag belongs in a Release.
-    # Branch/PR runs and optional WASM/single-platform builds remain artifacts.
-    if: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && (inputs.platform == '' || inputs.platform == 'all') && (inputs.parser == '' || inputs.parser == 'native') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    concurrency:
-      group: release-upload-${{ github.ref_name }}
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: '24'
-      - id: release
-        name: Validate tag, versions and release notes
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: node scripts/release-metadata.js
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          pattern: csboard-*-development-native-${{ github.run_number }}
-          merge-multiple: true
-          path: build/release
-      - name: Upload mobile packages and checksums to the shared draft release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          RELEASE_COMMIT: ${{ steps.release.outputs.commit }}
-          RELEASE_ASSET_KIND: mobile
-        run: node scripts/publish-release.js

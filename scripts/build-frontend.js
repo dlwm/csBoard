@@ -1,4 +1,5 @@
 import { build } from 'vite';
+import { checkArchitecture } from './check-architecture.js';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,6 +14,7 @@ const modes = args.filter(arg => arg !== '--local-source');
 const mode = modes[0] || '--local';
 if (modes.length > 1 || !['--local', '--remote', '--desktop', '--mobile'].includes(mode)) throw new Error('Expected --local, --remote, --desktop or --mobile');
 process.chdir(root);
+checkArchitecture(root);
 const buildMode = mode === '--desktop' ? 'desktop' : mode === '--mobile' ? 'mobile' : 'production';
 const features = buildFeatures(root, buildMode);
 process.env.CSBOARD_AI_ENABLED = String(features.ai);
@@ -46,7 +48,7 @@ if (mode === '--desktop') {
   if (icons.status !== 0) throw new Error('Icon build failed');
   await build({ configFile: path.join(root, 'config/build/vite.tasks.config.js') });
 } else {
-  // Set build options without POSIX shell assignments so npm also works on Windows.
+  // Set build options without POSIX shell assignments so direct Node commands also work on Windows.
   process.env.VITE_USE_LOCAL_MAPS = mode === '--local' ? 'true' : 'false';
   if (mode === '--local') process.env.VITE_BACKEND_BASE_URL = '/';
 }

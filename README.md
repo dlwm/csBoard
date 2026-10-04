@@ -47,6 +47,10 @@ For image-capable models, enable **Model supports image input** in settings. The
 - Switch to a same-team monitor wall with a selectable main POV; fallen teammates show a blacked-out view.
 - Save a named time interval as a View Broadcast clip.
 
+### Custom recordings
+
+Play CS2 clips recorded with `record <name>` and `stop`, including practice sessions with varying numbers of bots or incomplete rounds. Import them directly from **Custom recordings**, or use the shortcut on a failed non-standard Demo in the parsing list. Playback shares the round viewer's camera, seeking, utility effects and saving tools, without match analysis, scoreboards, team status bars or kill feeds. Recordings have a separate local library and retain their playback position when switching menus.
+
 ### View Broadcast
 
 - Play one saved Demo interval without match-only score, kill-feed, or round controls; retain monitor mode, model settings, and clickable utility saving.
@@ -163,11 +167,12 @@ Requirements:
 
 - Node.js 20 or newer
 - npm
+- GNU Make and Bash (Windows: Git Bash + `choco install make`)
 
 Install dependencies:
 
 ```bash
-npm install
+make install
 cp .env.example .env.local
 ```
 
@@ -176,49 +181,51 @@ Set your own `VITE_OSS_BASE_URL` in `.env.local`, then run `make resources` to d
 Build the frontend and start the APIs and collaboration service with the default Node.js Runtime:
 
 ```bash
-npm run dev
+make dev
 ```
 
-The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `npm run dev:workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` for GLB files under `.local/official/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
+The default development command starts the traditional Node.js HTTP/WebSocket adapter on port `3001`. Run `make dev-workers` when testing the Cloudflare Workers Runtime and Durable Objects integration; this also starts a local map server on port `3002` for GLB files under `.local/official/maps`. Run `make help` for the main setup, resource, frontend, backend, and Workers commands.
 
 The Node.js Runtime adapter listens on `PORT` (default `3001`) and reads `MAP_BASE_URL` from `process.env`. The Cloudflare Workers adapter uses `env.MAP_BASE_URL` and Durable Object Storage; shared route, parsing, and protocol logic lives under `server/core/`.
 
 Build the production bundle:
 
 ```bash
-npm run build
+make build
 make workers-build
 ```
 
-`npm run build` creates the local web frontend in `dist/`; `make workers-build` separately builds both Cloudflare Workers with `--dry-run` into `build/workers/`, including the remote frontend. npm builds use the package version; Workers/Docker Make commands derive the version from Git (interactive dirty/untagged builds request confirmation).
+`make build` creates the local web frontend in `dist/`; `make workers-build` separately builds both Cloudflare Workers with `--dry-run` into `build/workers/`, including the remote frontend. Frontend builds use the package version; Workers/Docker Make commands derive the version from Git (interactive dirty/untagged builds request confirmation).
 
-`npm run build` uses local `/maps` resources and same-origin APIs. `npm run build:remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
+`make build` uses local `/maps` resources and same-origin APIs. `make build-remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
-Electron release builds (`npm run desktop:build:mac:arm64` / `npm run desktop:build:mac:x64` / `npm run desktop:build:win:x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. See [resource-pack instructions](docs/ai/references/resource-packs.en.md).
+Electron release builds (`make desktop-build-mac-arm64` / `make desktop-build-mac-x64` / `make desktop-build-win-x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. See [resource-pack instructions](docs/ai/references/resource-packs.en.md).
 
-Unpackaged development runs may read `.local/official/maps`; `npm run desktop:prepare -- --local-models` creates an explicit local-test package containing these models. Ordinary release packaging never includes `.local/official` or `.local/official/maps`. Web builds retain their existing local/OSS model behavior.
+Unpackaged development runs may read `.local/official/maps`; `make desktop-prepare ARGS=--local-models` creates an explicit local-test package containing these models. Ordinary release packaging never includes `.local/official` or `.local/official/maps`. Web builds retain their existing local/OSS model behavior.
 
-Desktop builds write the renderer to `build/renderer/` and bundled background tasks to `build/tasks/`; Web builds keep `dist/`. `npm run desktop:prepare` builds native components, icons and desktop bundles, then creates a CSBoard application for the host platform. `npm run desktop:start` opens that existing application without rebuilding. Run prepare again after source changes. `npm run desktop:dev` launches the unpackaged Electron runtime with DevTools and optional local models; macOS can display this runtime as Electron.
+Desktop builds write the renderer to `build/renderer/` and bundled background tasks to `build/tasks/`; Web builds keep `dist/`. `make desktop-prepare` builds native components, icons and desktop bundles, then creates a CSBoard application for the host platform. `make desktop-start` opens that existing application without rebuilding. Run prepare again after source changes. `make desktop-dev` launches the unpackaged Electron runtime with DevTools and optional local models; macOS can display this runtime as Electron.
 
 Release packages are limited to these three targets. Run macOS commands on macOS and Windows commands on Windows:
 
 | Target | Command | Output in `build/desktop/` |
 | --- | --- | --- |
-| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.18.0-mac-arm64.dmg` |
-| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.18.0-mac-x64.dmg` |
-| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.18.0-win-x64.exe` |
+| Apple Silicon | `make desktop-build-mac-arm64` | `CSBoard-<version>-mac-arm64.dmg` |
+| Intel Mac | `make desktop-build-mac-x64` | `CSBoard-<version>-mac-x64.dmg` |
+| Windows amd64 | `make desktop-build-win-x64` | `CSBoard-<version>-win-x64.exe` |
 
 Use Git, Node.js and Go to build. Both native components use Go with CGO disabled; one Mac can build both macOS architectures. On Windows, use x64 Node.js. The commands select matching Go, storage and Electron targets and never publish automatically. Signing credentials must be configured separately.
 
 #### GitHub Actions
 
-Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.18.0` tag pointing at the version commit, or run **Actions → Desktop release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
+Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.18.0` tag pointing at the version commit, or run **Actions → Release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
 
-The workflow tests and builds all three targets, checks packaged contents and native storage, then attaches the installers plus `SHA256SUMS.txt` to a **draft Release**. It never publishes the draft or overwrites a published release. Reruns update only a draft for the same commit. Check installation before selecting **Publish release** on GitHub.
+One Release workflow builds the three desktop targets and Android/iOS in parallel, checks packaged contents and native storage, then attaches all five packages plus `SHA256SUMS.txt` and `SHA256SUMS-mobile.txt` to a **draft Release** after every build succeeds. Mobile development builds remain available for branches, pull requests and manual runs; version tags trigger only the unified Release workflow. It never publishes the draft or overwrites a published release. Reruns update only a draft for the same commit. Check installation before selecting **Publish release** on GitHub.
 
 Normally no extra Secrets or personal token are needed: the workflow uses the built-in `GITHUB_TOKEN`, with write access only for the draft job. GitHub Actions must be enabled; repository/organization policies must permit these actions and Release writes. macOS apps and bundled native programs use free ad-hoc signing, and CI verifies their signatures before upload. They are not Developer ID signed or Apple notarized; Windows installers remain unsigned.
 
-`make help` lists the retained commands. Duplicate npm aliases and Make wrappers have been removed; use `npm ci` for dependencies, `npm run deploy` for Workers deployment, and `docker compose -f config/docker/compose.yml down`, `logs -f` or `ps` for container management. Internal icon and background-task builds run automatically. `desktop:prepare -- --local-models` produces a separate test application under `build/desktop-local/`; open that application directly.
+`make help` lists the retained commands. All project commands use Make; use `make install` for dependencies, `make deploy` for Workers deployment, and `docker compose -f config/docker/compose.yml down`, `logs -f` or `ps` for container management. Internal icon and background-task builds run automatically. `make desktop-prepare ARGS=--local-models` produces a separate test application under `build/desktop-local/`; open that application directly.
+
+Version: `make version` offers major, minor, patch and custom input; it synchronizes all platforms without committing or tagging. Mobile: `make mobile-prepare`, `make mobile-open` or `make mobile-build`, with `PLATFORM=ios|android`. Pass extra flags through `ARGS="..."`.
 
 Building the native desktop component requires Git, Node.js and Go (the toolchain follows `native/parser/go.mod` and `native/storage/go.mod`). SQLite uses a pure Go driver, with no Rust/Cargo or C compiler requirement. Installed applications include the executables and need no Go or Python setup. Native data lives under the Electron user-data directory in `native-data/`. Legacy IndexedDB data is copied when needed without deleting the original database; browser preferences remain in browser storage. Back up important archives before upgrading.
 
@@ -309,9 +316,9 @@ For code navigation and validation workflows, see the [development guide (Chines
 Use the project commands from the repository root:
 
 ```sh
-npm run dev:workers                # Local Workers development
-npm run deploy -- --dry-run        # Build without publishing
-npm run deploy                    # Authorize and deploy
+make dev-workers                # Local Workers development
+make deploy ARGS=--dry-run        # Build without publishing
+make deploy                    # Authorize and deploy
 ```
 
 Deployment reuses Wrangler OAuth or opens the browser for authorization. Configure optional frontend/backend domains in the ignored `config/cloudflare/deploy.env`; Cloudflare manages DNS and certificates when the root zone belongs to the selected account. The script deploys both Workers and reports their URLs after health and frontend asset checks.

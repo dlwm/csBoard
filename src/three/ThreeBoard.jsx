@@ -1,6 +1,6 @@
 import { AI_ENABLED } from '../app/config.js';
 import { startRenderLoop } from './renderLoop.js';
-import { getShell } from '../platform/index.js';
+import { getHost, getPlatform } from '../platform/index.js';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -1295,7 +1295,7 @@ export default function ThreeBoard(props) {
     sun.position.set(12, 25, 10);
     scene.add(sun);
     // Bound fill-rate and render-target memory on high-density phones/tablets.
-    const maxPixelRatio = getShell().mobile ? 1.5 : 2;
+    const maxPixelRatio = getHost().mobile ? 1.5 : 2;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
     renderer.domElement.setAttribute('aria-label', 'Dust II 3D tactical map');
     mount.appendChild(renderer.domElement);
@@ -1380,7 +1380,7 @@ export default function ThreeBoard(props) {
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.forEach((material) => enableMaterialFloorFade(material, floorFadeRef.current));
       });
-      if (MAP_ZONE_MODELS_ENABLED && mapName !== TUTORIAL_MAP_ID) {
+      if (MAP_ZONE_MODELS_ENABLED && !getPlatform().capabilities.resourceImport && mapName !== TUTORIAL_MAP_ID) {
         loadMapModel(new GLTFLoader(), MAP_MODEL_BASES, `${mapName}/${mapName}.zones.glb`, (gltf) => {
           if (disposed || !worldModel) return;
           const zones = createZoneModel(gltf.scene, mapName);
@@ -1565,7 +1565,7 @@ export default function ThreeBoard(props) {
         } else demoDirectorCameraActive = true;
         utilityPlaybackCameraActive = Boolean(firstPerson);
         if (firstPerson) utilityProjectileCameraActive = false;
-        const marker = demoMarkers.get(povPlayer.name);
+        const marker = demoMarkers.get(String(povPlayer.steamid || povPlayer.name));
         const equipment = marker?.children.find((child) => child.userData.demoEquipment);
         const weaponKind = firstPerson ? `utility-${grenadeKind(firstPerson.grenadeType)}` : demoEquipmentKind(povPlayer.activeWeapon);
         const equipmentKey = `${firstPerson ? `utility:${firstPerson.replayId}` : `demo:${povPlayer.name}`}:${weaponKind}`;

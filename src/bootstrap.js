@@ -1,7 +1,8 @@
-import { configurePlatform } from './platform/index.js';
+import { configurePlatform, initializePlatform } from './platform/index.js';
 
-// Shell entries only assemble services. All platforms load this same UI.
-export async function startApplication(adapters) {
-  if (adapters) configurePlatform(adapters);
+// Host entries only assemble drivers. All platforms load this same UI.
+export async function startApplication(drivers) {
+  if (drivers) configurePlatform(drivers);
+  await initializePlatform();
   await import('./main.jsx');
 }

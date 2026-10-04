@@ -1,9 +1,9 @@
-import { getShell } from '../platform/index.js';
+import { getHost } from '../platform/index.js';
 
 // Native visibility matters when backgroundThrottling is disabled: Chromium's
 // document visibility alone need not reflect minimization on every platform.
 export function startRenderLoop(render) {
-  const presentation = getShell().presentation;
+  const presentation = getHost().presentation;
   let frame = null, stopped = false, nativeVisible = true, revision = 0;
   const visible = () => !document.hidden && nativeVisible;
   const tick = now => {

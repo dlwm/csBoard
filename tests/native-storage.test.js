@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createNativeClient } from '../electron/native-client.js';
-import { encodeStoredValue, decodeStoredValue } from '../src/app/storageCodec.js';
+import { encodeStoredValue, decodeStoredValue } from '../shared/storage-codec.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const platform = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : process.platform;
@@ -55,7 +55,7 @@ test('native storage survives restart, protects newer saves, and deletes only re
 });
 
 async function requireBinary() {
-  await fs.access(binary).catch(() => { throw new Error('Native storage tests require npm run native:build'); });
+  await fs.access(binary).catch(() => { throw new Error('Native storage tests require make native-build'); });
 }
 async function closeClient(client) {
   const closed = client.child.exitCode !== null || client.child.signalCode !== null ? Promise.resolve() : once(client.child, 'close');

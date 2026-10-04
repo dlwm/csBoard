@@ -14,7 +14,7 @@ func TestSourceLengthValidation(t *testing.T) {
 	if err := ValidateSource(header, 1018); err != nil {
 		t.Fatal(err)
 	}
-	for _, size := range []int64{1017, 1019, 12} {
+	for _, size := range []int64{999, 1000, 12} {
 		if ValidateSource(header, size) == nil {
 			t.Fatalf("accepted size %d", size)
 		}

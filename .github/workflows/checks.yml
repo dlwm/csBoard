@@ -34,16 +34,19 @@ jobs:
           cache: npm
       - name: Prepare native test prerequisites
         run: |
-          node scripts/sync-version.js --check
-          npm ci
-          npm run native:build
+          make version-check
+          make install
+      - name: Check architecture boundaries
+        run: make lint
+      - name: Build native prerequisites
+        run: make native-build
       - name: Run behavioral and native storage tests
         run: node --test tests/*.test.js
       - name: Run Go storage tests
         working-directory: native/storage
         run: go test ./...
       - name: Build web frontend
-        run: npm run build
+        run: make build
       - name: Run Go parser adapter tests
         working-directory: native/parser
         run: go test ./...

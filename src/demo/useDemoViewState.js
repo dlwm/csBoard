@@ -15,8 +15,9 @@ export default function useDemoViewState({ activePanel, demoCameraMode, demoData
   const demoReloads = useMemo(() => buildDemoReloads(demoSnapshots, demoData?.events || [], tickRate), [demoSnapshots, demoData?.events, tickRate]);
   const demoGrenadeSegments = useMemo(() => buildDemoGrenadeSegments(demoProjectiles, demoData?.events || [], demoThrowSnapshots, demoRound, tickRate), [demoProjectiles, demoData?.events, demoThrowSnapshots, demoRound, tickRate]);
   const demoTeams = { T: demoSnapshot?.players.filter((player) => player.team === 2) || [], CT: demoSnapshot?.players.filter((player) => player.team === 3) || [] };
-  const monitorRoster = useMemo(() => buildMonitorRoster(demoSnapshots), [demoSnapshots]);
-  const demoMonitorPlayers = mergeMonitorSnapshot(monitorRoster, demoSnapshot);
+  const recording = demoData?.demo.kind === 'recording';
+  const monitorRoster = useMemo(() => recording ? [] : buildMonitorRoster(demoSnapshots), [demoSnapshots, recording]);
+  const demoMonitorPlayers = recording ? (demoSnapshot?.players || []).map(player => ({ ...player, monitorId: String(player.steamid || player.name) })) : mergeMonitorSnapshot(monitorRoster, demoSnapshot);
   const demoPovPlayer = demoSnapshot?.players.find((player) => String(player.steamid || player.name) === demoPovPlayerId && player.health > 0 && player.hasPosition !== false) || null;
   const demoPovFiring = Boolean(demoPovPlayer && demoData?.events?.some((event) => event.event_name === 'weapon_fire' && demoEventPlayerMatches(event, demoPovPlayer) && event.tick <= demoTick && demoTick - event.tick < 8));
   const demoPovHurt = Boolean(demoPovPlayer && demoData?.events?.some((event) => event.event_name === 'player_hurt' && demoEventPlayerMatches(event, demoPovPlayer) && event.tick <= demoTick && demoTick - event.tick < 10));

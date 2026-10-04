@@ -43,9 +43,12 @@ func ValidateSource(data []byte, size int64) error {
 	if len(data) < 12 || string(data[:8]) != "PBDEMS2\x00" {
 		return fmt.Errorf("invalid Source 2 demo header")
 	}
-	expected := int64(uint32(data[8])|uint32(data[9])<<8|uint32(data[10])<<16|uint32(data[11])<<24) + 18
-	if expected != size {
-		return fmt.Errorf("demo length mismatch: expected %d, got %d", expected, size)
+	// The header points to DEM_FileInfo, not a fixed-size trailer. Command,
+	// tick and protobuf lengths use varints; record/stop clips have shorter tails.
+	// 文件头记录 FileInfo 偏移，尾部并非固定 18 字节；截断由消息解码器继续校验。
+	infoOffset := int64(uint32(data[8]) | uint32(data[9])<<8 | uint32(data[10])<<16 | uint32(data[11])<<24)
+	if size < 16 || infoOffset < 16 || infoOffset >= size {
+		return fmt.Errorf("invalid demo FileInfo offset %d for %d bytes", infoOffset, size)
 	}
 	return nil
 }
@@ -78,7 +81,21 @@ func (s *Session) Request(method string, q Query) (any, error) {
 			part.report = &report
 		}
 		if method == "header" {
-			return part.report.Header, nil
+			header := make(map[string]string, len(part.report.Header)+4)
+			for key, value := range part.report.Header {
+				header[key] = value
+			}
+			if header["map_name"] == "" {
+				header["map_name"] = part.report.Map
+			}
+			header["first_tick"] = fmt.Sprint(part.report.FirstTick)
+			header["last_tick"] = fmt.Sprint(part.report.LastTick)
+			header["frames"] = fmt.Sprint(part.report.Frames)
+			if part.report.IsHLTV != nil {
+				header["is_hltv"] = fmt.Sprint(*part.report.IsHLTV)
+			}
+			header["standard_teams_seen"] = fmt.Sprint(part.report.StandardTeamsSeen)
+			return header, nil
 		}
 		if method == "inspect" {
 			return part.report, nil

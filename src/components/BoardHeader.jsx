@@ -7,7 +7,7 @@ import ResourcePackModal from './ResourcePackModal.jsx';
 import DesktopManager from './DesktopManager.jsx';
 import { getPlatform } from '../platform/index.js';
 
-const PANELS = [['demo', 'rounds'], ['analysis', 'analysis'], ['broadcast', 'broadcast'], ['utility', 'utilityNotes'], ['collab', 'collab']];
+const PANELS = [['demo', 'rounds'], ['recordings', 'customRecordings'], ['analysis', 'analysis'], ['broadcast', 'broadcast'], ['utility', 'utilityNotes'], ['collab', 'collab']];
 
 // Global navigation owns locale cycling and the mini-game launcher, independent of panel content.
 export default function BoardHeader({ activePanel, language, mapName, parseGameState, setLanguage, setMapName, setParseGameManual, setParseGameState, switchPanel, t }) {
@@ -44,7 +44,7 @@ export default function BoardHeader({ activePanel, language, mapName, parseGameS
           </select>
         </span>
       </label>
-      {getPlatform().kind === 'web' && <a className="release-download" href="https://github.com/dlwm/csBoard/releases/latest" target="_blank" rel="noopener noreferrer"
+      {getPlatform().capabilities.releaseDownload && <a className="release-download" href="https://github.com/dlwm/csBoard/releases/latest" target="_blank" rel="noopener noreferrer"
         title={localize(language, { zh: '下载最新版本', en: 'Download latest version', ru: 'Скачать последнюю версию' })}
         aria-label={localize(language, { zh: '下载最新版本', en: 'Download latest version', ru: 'Скачать последнюю версию' })}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" /></svg>

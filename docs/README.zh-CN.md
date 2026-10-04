@@ -47,6 +47,10 @@ AI 可以读取和编辑玩家、示意道具效果、绘制路线、战术帧�
 - 可切换同阵营监视器墙，选择主视角；阵亡队友的画面会变黑。
 - 可将命名时间段保存为视角演播片段。
 
+### 自制录像
+
+支持通过 `record <名称>` / `stop` 录制的跑图和练习片段，不要求完整回合或固定人数。可在“自制录像”直接选择文件，也可从解析列表中非标准对局的失败项跳转。复用回合浏览的镜头、时间轴、道具效果和保存能力，不生成对局分析，也不显示比分、队伍状态栏和击杀栏。录像有独立的本地目录，切换菜单保留各自播放位置。
+
 ### 视角演播
 
 - 播放单个已存时间段，不展示比分、击杀栏与回合控制；保留监视器、模型选项和点击道具保存。
@@ -163,11 +167,12 @@ Training Ground 仅在道具速记和协作面板中提供；切换到回合浏�
 
 - Node.js 20 或更高版本
 - npm
+- GNU Make 与 Bash（Windows 使用 Git Bash，可通过 `choco install make` 安装 Make）
 
 安装依赖：
 
 ```bash
-npm install
+make install
 cp .env.example .env.local
 ```
 
@@ -176,49 +181,51 @@ cp .env.example .env.local
 构建前端，并通过默认 Node.js Runtime 启动 API 与协作服务：
 
 ```bash
-npm run dev
+make dev
 ```
 
-默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `npm run dev:workers`；该命令还会在 `3002` 端口启动本地地图服务，为前端提供 `.local/official/maps` 中的 GLB。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
+默认开发命令会在 `3001` 端口启动传统 Node.js HTTP/WebSocket 适配层。需要测试 Cloudflare Workers Runtime 和 Durable Objects 集成时，使用 `make dev-workers`；该命令还会在 `3002` 端口启动本地地图服务，为前端提供 `.local/official/maps` 中的 GLB。运行 `make help` 可查看安装、资源、前端、后端和 Workers 的主要命令。
 
 Node.js Runtime 适配层监听 `PORT`（默认 `3001`），并从 `process.env` 读取 `MAP_BASE_URL`。Cloudflare Workers 适配层使用 `env.MAP_BASE_URL` 和 Durable Object Storage；共享路由、解析和协议逻辑位于 `server/core/`。
 
 构建生产版本：
 
 ```bash
-npm run build
+make build
 make workers-build
 ```
 
-`npm run build` 将本地 Web 前端构建到 `dist/`；`make workers-build` 单独以 `--dry-run` 构建两个 Cloudflare Workers（含远程前端），输出到 `build/workers/`，不部署。npm 构建使用 package 版本；Workers／Docker 的 Make 命令从 Git 获取版本，dirty 或无 tag 的交互构建会先询问。
+`make build` 将本地 Web 前端构建到 `dist/`；`make workers-build` 单独以 `--dry-run` 构建两个 Cloudflare Workers（含远程前端），输出到 `build/workers/`，不部署。前端构建使用 package 版本；Workers／Docker 的 Make 命令从 Git 获取版本，dirty 或无 tag 的交互构建会先询问。
 
-`npm run build` 使用本地 `/maps` 和同源 API；`npm run build:remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
+`make build` 使用本地 `/maps` 和同源 API；`make build-remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
 
-Electron 正式版使用 `npm run desktop:build:mac:arm64` / `npm run desktop:build:mac:x64` 或 `npm run desktop:build:win:x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。详见[资源包说明](ai/references/resource-packs.zh.md)。
+Electron 正式版使用 `make desktop-build-mac-arm64` / `make desktop-build-mac-x64` 或 `make desktop-build-win-x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。详见[资源包说明](ai/references/resource-packs.zh.md)。
 
-未打包的开发启动可读取 `.local/official/maps`；`npm run desktop:prepare -- --local-models` 专门构建带本地模型的测试包。正式构建不包含 `.local/official` 或 `.local/official/maps`；网页版保留现有本地/OSS 模型逻辑。
+未打包的开发启动可读取 `.local/official/maps`；`make desktop-prepare ARGS=--local-models` 专门构建带本地模型的测试包。正式构建不包含 `.local/official` 或 `.local/official/maps`；网页版保留现有本地/OSS 模型逻辑。
 
-桌面页面输出到 `build/renderer/`，后台任务输出到 `build/tasks/`，Web 保持 `dist/`，两者不会互相覆盖。首次或代码更新后运行 `npm run desktop:prepare` 构建原生组件、页面和应用包；日常使用 `npm run desktop:start` 直接启动，不重复构建。`npm run desktop:dev` 保留未打包调试入口。
+桌面页面输出到 `build/renderer/`，后台任务输出到 `build/tasks/`，Web 保持 `dist/`，两者不会互相覆盖。首次或代码更新后运行 `make desktop-prepare` 构建原生组件、页面和应用包；日常使用 `make desktop-start` 直接启动，不重复构建。`make desktop-dev` 保留未打包调试入口。
 
 发布仅保留以下三个目标。Mac 命令在 macOS 上执行，Windows 命令在 Windows 上执行：
 
 | 目标 | 命令 | `build/desktop/` 中的产物 |
 | --- | --- | --- |
-| Apple Silicon | `npm run desktop:build:mac:arm64` | `CSBoard-1.18.0-mac-arm64.dmg` |
-| Intel Mac | `npm run desktop:build:mac:x64` | `CSBoard-1.18.0-mac-x64.dmg` |
-| Windows amd64 | `npm run desktop:build:win:x64` | `CSBoard-1.18.0-win-x64.exe` |
+| Apple Silicon | `make desktop-build-mac-arm64` | `CSBoard-<version>-mac-arm64.dmg` |
+| Intel Mac | `make desktop-build-mac-x64` | `CSBoard-<version>-mac-x64.dmg` |
+| Windows amd64 | `make desktop-build-win-x64` | `CSBoard-<version>-win-x64.exe` |
 
 源码构建使用 Git、Node.js 和 Go。两个原生组件都使用 Go 并关闭 CGO；同一台 Mac 可构建两种 macOS 架构，Windows 使用 x64 Node.js。命令自动匹配 Go、存储组件与 Electron 架构，不自动上传；签名凭据需另行配置。
 
 #### GitHub Actions 自动化
 
-将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.18.0` tag，或在 **Actions → Desktop release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
+将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.18.0` tag，或在 **Actions → Release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
 
-工作流测试并构建三个目标，检查实际安装包内容和包内原生存储，全部通过后把安装包及 `SHA256SUMS.txt` 上传到 **草稿 Release**。不会自动公开发布，也不会覆盖已发布版本；重跑只更新同一提交的草稿。检查安装运行后，在 GitHub 点击 **Publish release**。
+统一 Release 工作流并行构建三个桌面目标及 Android／iOS，检查安装包内容和包内原生存储，全部通过后把五个包及 `SHA256SUMS.txt`、`SHA256SUMS-mobile.txt` 上传到 **草稿 Release**。移动端仍支持分支、PR 和手动开发构建；版本 tag 只触发统一 Release 工作流。不会自动公开发布，也不会覆盖已发布版本；重跑只更新同一提交的草稿。检查安装运行后，在 GitHub 点击 **Publish release**。
 
 通常无需新增 Secrets 或个人 token：使用 GitHub 自带的 `GITHUB_TOKEN`，只有草稿汇总任务申请写权限。仓库需启用 Actions，仓库／组织策略需允许相关 Actions 和 Release 写入。macOS 应用及内置原生程序使用免费 ad-hoc 签名，上传前检查签名完整性；未进行 Developer ID 签名或 Apple 公证。Windows 安装包仍未签名。
 
-`make help` 列出保留的入口。依赖安装统一用 `npm ci`，Workers 部署用 `npm run deploy`，容器管理直接用 `docker compose -f config/docker/compose.yml down`、`logs -f`、`ps`；重复 npm 别名和 Make 包装已移除，图标及后台任务构建自动执行。带模型的测试包用 `desktop:prepare -- --local-models`，生成到 `build/desktop-local/`，直接打开其中的测试应用。
+`make help` 列出保留的入口。依赖安装统一用 `make install`，Workers 部署用 `make deploy`，容器管理直接用 `docker compose -f config/docker/compose.yml down`、`logs -f`、`ps`；项目命令统一由 Make 执行，图标及后台任务构建自动执行。带模型的测试包用 `make desktop-prepare ARGS=--local-models`，生成到 `build/desktop-local/`，直接打开其中的测试应用。
+
+版本管理使用 `make version`，可选择大版本、次版本、补丁版本加一或自定义输入，自动同步各端，不创建提交或标签。移动端使用 `make mobile-prepare`、`make mobile-open`、`make mobile-build`，通过 `PLATFORM=ios|android` 指定平台，附加参数用 `ARGS="..."`。
 
 桌面原生组件的源码构建需要 Git、Node.js 和 Go（工具链按 `native/parser/go.mod` 与 `native/storage/go.mod` 选择）；SQLite 使用纯 Go 驱动，无需 Rust/Cargo 或 C 编译器。安装后的应用自带可执行文件，无需安装 Go 或 Python。原生数据位于 Electron 用户数据目录的 `native-data/`，旧 IndexedDB 数据按需复制，保留原数据库；浏览器偏好仍留在浏览器存储中。升级前建议备份重要存档。
 
@@ -310,9 +317,9 @@ GLB 存储桶需返回 `Access-Control-Allow-Origin` 头。`src/navParser.js` �
 在项目根目录执行：
 
 ```sh
-npm run dev:workers                # 本地 Workers 开发
-npm run deploy -- --dry-run        # 仅构建，不发布
-npm run deploy                    # 登录并部署
+make dev-workers                # 本地 Workers 开发
+make deploy ARGS=--dry-run        # 仅构建，不发布
+make deploy                    # 登录并部署
 ```
 
 部署复用 Wrangler OAuth，未登录时打开浏览器授权。在被忽略的 `config/cloudflare/deploy.env` 中可选配置前后端域名；根域名托管在所选账户时，Cloudflare 自动管理 DNS 与证书。脚本发布两个 Worker，通过健康与前端资源检查后输出访问地址。

@@ -2,6 +2,22 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.0] - 2026-10-04
+
+### Added
+
+- Add Custom recordings for practice and record/stop clips with varying player counts or incomplete rounds; open non-standard Demos from failed parsing tasks, with an independent library and playback position.
+
+### Changed
+
+- Preview representative smokes using their recorded voxel shapes, show loading while reading them, and report missing data instead of substituting a generic smoke.
+- Reuse loaded utility records for preview and saving, and discard outdated loading results when changing recordings or selections.
+- Improve application preference storage and migration while preserving existing settings.
+
+### Fixed
+
+- Fix recorded clip validation, missing map names and shared bot identities that could merge multiple players.
+
 ## [1.19.3] - 2026-10-03
 
 ### Changed

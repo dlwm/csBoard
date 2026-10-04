@@ -1,3 +1,4 @@
+import { preferences } from '../platform/preferences.js';
 const defaultUtilityNoteModules = import.meta.glob('../../docs/presets/utility-notes/**/*.json', { eager: true, import: 'default' });
 const defaultWorkspaceArchiveModules = import.meta.glob('../../docs/presets/workspace-archives/**/*.json', { eager: true, import: 'default' });
 
@@ -13,13 +14,13 @@ export const DEFAULT_WORKSPACE_ARCHIVES = collectDefaultRecords(defaultWorkspace
 // Seed defaults once, while keeping malformed or unavailable browser storage non-fatal.
 export function initialLocalRecords(storageKey, defaults, persistDefaults = true) {
   let stored = null;
-  try { stored = localStorage.getItem(storageKey); } catch { /* Fall through to bundled defaults. */ }
+  try { stored = preferences.getItem(storageKey); } catch { /* Fall through to bundled defaults. */ }
   if (stored !== null) {
     try { const parsed = JSON.parse(stored); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
   }
   const initial = JSON.parse(JSON.stringify(defaults));
   if (persistDefaults) {
-    try { localStorage.setItem(storageKey, JSON.stringify(initial)); } catch { /* Defaults remain available for this session. */ }
+    try { preferences.setItem(storageKey, JSON.stringify(initial)); } catch { /* Defaults remain available for this session. */ }
   }
   return initial;
 }

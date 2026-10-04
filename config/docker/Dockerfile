@@ -3,20 +3,19 @@ FROM golang:1.27-bookworm AS go-toolchain
 FROM node:24-bookworm-slim AS builder
 COPY --from=go-toolchain /usr/local/go /usr/local/go
 ENV PATH="/usr/local/go/bin:${PATH}"
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates make && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-ARG BUILD_VERSION=v1.18.0
+ARG BUILD_VERSION
 ARG CSBOARD_AI_ENABLED=true
 ENV CSBOARD_AI_ENABLED=$CSBOARD_AI_ENABLED
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json package-lock.json Makefile ./
+RUN make install
 
 COPY . .
 
-RUN printf '%s\n' "$BUILD_VERSION" > .build-version \
-    && VITE_BUILD_VERSION="$BUILD_VERSION" npm run build
+RUN VITE_BUILD_VERSION="$BUILD_VERSION" make build
 
 RUN if [ "$CSBOARD_AI_ENABLED" = "false" ]; then \
       rm server/core/ai.js shared/ai-protocol.js shared/ai-providers.js; \
@@ -34,10 +33,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json Makefile ./
 
-RUN npm ci --omit=dev \
-    && npm cache clean --force
+RUN apk add --no-cache --virtual .install-tools make bash \
+    && make install ARGS='--omit=dev --cache /tmp/npm-cache' \
+    && rm -rf /tmp/npm-cache Makefile \
+    && apk del .install-tools
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server

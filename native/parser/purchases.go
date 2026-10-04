@@ -3,8 +3,6 @@ package goparser
 import (
 	"fmt"
 
-	"strconv"
-
 	dem "github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/events"
 	st "github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/sendtables"
@@ -31,7 +29,7 @@ func trackPurchases(parser dem.Parser, rows *[]map[string]any) func(int) {
 			return
 		}
 		entity := event.Weapon.Entity
-		refunds = append(refunds, refund{strconv.FormatUint(event.Player.SteamID64, 10), uint64(entity.ID()) | uint64(entity.SerialNum())<<14, parser.GameState().IngameTick()})
+		refunds = append(refunds, refund{playerIdentity(event.Player), uint64(entity.ID()) | uint64(entity.SerialNum())<<14, parser.GameState().IngameTick()})
 	})
 	parser.RegisterEventHandler(func(events.DataTablesParsed) {
 		class := parser.ServerClasses().FindByName("CCSPlayerPawn")
@@ -82,7 +80,7 @@ func trackPurchases(parser dem.Parser, rows *[]map[string]any) func(int) {
 		owners := map[int]struct{ name, steamid string }{}
 		for _, player := range parser.GameState().Participants().All() {
 			if player != nil && player.PlayerPawnEntity() != nil {
-				owners[player.PlayerPawnEntity().ID()] = struct{ name, steamid string }{player.Name, strconv.FormatUint(player.SteamID64, 10)}
+				owners[player.PlayerPawnEntity().ID()] = struct{ name, steamid string }{player.Name, playerIdentity(player)}
 			}
 		}
 		for _, k := range order {

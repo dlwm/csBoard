@@ -1,7 +1,7 @@
 import { createNativeClient } from './native-client.js';
 import { createDemoParser } from '../src/demo/parserRuntime.js';
 import { createGoParserAdapter } from '../src/demo/goParserAdapter.js';
-import { encodeStoredValue } from '../src/app/storageCodec.js';
+import { encodeStoredValue } from '../shared/storage-codec.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -75,20 +75,20 @@ process.parentPort.on('message', async ({ data }) => {
           reportMemory();
           const { analysisRows, ...data } = message.data;
           const now = new Date().toISOString();
-          const metadata = { id: job.cacheId, fileName: job.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate, sourceBytes: data.demo.bytes, dataBytes: message.estimatedBytes, analysisBytes: data.analysisBytes, createdAt: now, updatedAt: now, parserRevision: `go-${parserInfo.sourceRevision || 'local'}-adapter-1` };
+          const metadata = { id: job.cacheId, fileName: job.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate, kind: data.demo.kind, sourceBytes: data.demo.bytes, dataBytes: message.estimatedBytes, analysisBytes: data.analysisBytes, createdAt: now, updatedAt: now, parserRevision: `go-${parserInfo.sourceRevision || 'local'}-adapter-1` };
           metadata.analysisIndexVersion = 1;
           metadata.cacheSchemaVersion = data.cacheSchemaVersion;
           metadata.analysisPlayerNames = [...new Set((analysisRows || []).flatMap(row => row.players.map(player => player.name).filter(Boolean)))];
           const { header, ...demoSummary } = data.demo;
           metadata.inspection = { cacheSchemaVersion: data.cacheSchemaVersion, demo: demoSummary, summary: data.summary, warnings: data.warnings, rounds: data.rounds.map(({ round }) => ({ round })) };
           await store('cache.put', { id: job.cacheId, metadata: encodeStoredValue(metadata), value: encodeStoredValue({ ...metadata, data, analysisRows }) });
-          send({ type: 'complete', cacheId: job.cacheId, summary: { ...data.summary, map: data.demo.map, sampleRate: data.demo.sampleRate, warnings: data.warnings, sourceBytes: data.demo.bytes, estimatedOutputBytes: message.estimatedBytes, performance: { nativePeakBytes: nativePeak, workerPeakBytes: workerPeak, timings } } });
+          send({ type: 'complete', cacheId: job.cacheId, summary: { ...data.summary, map: data.demo.map, sampleRate: data.demo.sampleRate, kind: data.demo.kind, warnings: data.warnings, sourceBytes: data.demo.bytes, estimatedOutputBytes: message.estimatedBytes, performance: { nativePeakBytes: nativePeak, workerPeakBytes: workerPeak, timings } } });
           return;
         }
         send(message);
       },
     });
-    await parse({ type: 'load', fileName: job.fileName, sampleRate: job.sampleRate });
+    await parse({ type: 'load', fileName: job.fileName, sampleRate: job.sampleRate, kind: job.kind });
   } catch (error) { send({ type: 'error', message: error.message }); }
   finally { clearInterval(memoryTimer); parser.close(); }
 });

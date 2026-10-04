@@ -43,7 +43,7 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
     try {
       if (storage?.failed) { storage.close(); storage = null; }
       if (!storage) {
-        await fs.access(binary).catch(() => { throw new Error('Native component is missing. Run npm run native:build before starting Electron.'); });
+        await fs.access(binary).catch(() => { throw new Error('Native component is missing. Run make native-build before starting Electron.'); });
         if (!storage) {
           storage = createNativeClient(binary, ['storage', root]);
           const current = storage;
@@ -125,11 +125,12 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
   });
   ipcMain.handle('native:start-demo', (event, input) => {
     authorize(event); assertAvailable();
+    if (input?.kind != null && !['match', 'recording'].includes(input.kind)) throw new Error('Invalid playback kind');
     if (!input || typeof input.id !== 'string' || ![1, 2, 4, 8, 16, 32].includes(input.sampleRate) || !Array.isArray(input.sources) || !input.sources.length) throw new Error('Invalid parse request');
     const selected = input.sources.map(id => sources.get(id));
     if (selected.some(source => !source || source.owner !== event.sender.id)) throw new Error('Select the Demo files again');
     const descriptors = selected.map(source => source.descriptor);
-    const cacheId = `${input.sampleRate}hz|${[...descriptors].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(file => `${file.name}:${file.size}:${file.lastModified}`).join('|')}`;
+    const cacheId = `${input.kind === 'recording' ? 'recording|' : ''}${input.sampleRate}hz|${[...descriptors].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(file => `${file.name}:${file.size}:${file.lastModified}`).join('|')}`;
     if (input.cacheId !== cacheId) throw new Error('Source metadata changed');
     if ([...jobs.values()].some(job => job.cacheId === cacheId)) throw new Error('This Demo is already queued or running');
     const key = `${event.sender.id}:demo:${input.id}`;
@@ -191,17 +192,17 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
           }
           if (message.type === 'progress') scheduler.progress(key, message.percent);
           if (message.type === 'complete') finish(null, message);
-          else if (message.type === 'error') finish(new Error(message.message));
+          else if (message.type === 'error') finish(Object.assign(new Error(message.message), { code: message.code, reason: message.reason }));
           else emit(event.sender, input.id, message);
         });
         worker.on('exit', code => { if (!stopped) finish(new Error(`Demo task exited (${code}); retry to start a new process.`)); });
         if (signal.aborted) { cancel(); return; }
-        worker.postMessage({ type: 'start', binary: parserBinary, staging, allocation, job: { cacheId, fileName: descriptors.map(file => file.name).join(' + '), sampleRate: input.sampleRate, paths: selected.map(source => source.path) } });
+        worker.postMessage({ type: 'start', binary: parserBinary, staging, allocation, job: { cacheId, fileName: descriptors.map(file => file.name).join(' + '), sampleRate: input.sampleRate, kind: input.kind, paths: selected.map(source => source.path) } });
       }); } finally { await fs.rm(staging, { recursive: true, force: true }); }
     } });
     jobs.set(key, job);
     refreshMemory();
-    promise.then(message => emit(event.sender, input.id, message), error => emit(event.sender, input.id, { type: 'error', message: error.message })).finally(() => { jobs.delete(key); refreshMemory(); });
+    promise.then(message => emit(event.sender, input.id, message), error => emit(event.sender, input.id, { type: 'error', message: error.message, code: error.code, reason: error.reason })).finally(() => { jobs.delete(key); refreshMemory(); });
     return { id: input.id };
   });
   ipcMain.handle('native:cancel-demo', (event, id) => { authorize(event); scheduler.cancel(`${event.sender.id}:demo:${id}`, event.sender.id); });

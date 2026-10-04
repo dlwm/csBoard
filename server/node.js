@@ -81,7 +81,7 @@ function staticResponse(pathname) {
   const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
   let filePath = path.resolve(DIST_DIR, relative);
   if (!filePath.startsWith(`${DIST_DIR}${path.sep}`) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) filePath = path.join(DIST_DIR, 'index.html');
-  if (!fs.existsSync(filePath)) return new Response('Frontend build not found. Run npm run build.', { status: 503 });
+  if (!fs.existsSync(filePath)) return new Response('Frontend build not found. Run make build.', { status: 503 });
   return new Response(Readable.toWeb(fs.createReadStream(filePath)), { headers: { 'content-type': mimeTypes[path.extname(filePath)] || 'application/octet-stream' } });
 }
 

@@ -1,3 +1,4 @@
+import { preferences } from '../platform/preferences.js';
 import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_UTILITY_NOTES, initialLocalRecords } from '../app/defaultRecords.js';
 import { loadUtilityNotes, storeUtilityNotes } from '../app/persistentStore.js';
@@ -8,7 +9,7 @@ export default function useUtilityNotes(onWriteError) {
   const errorRef = useRef(onWriteError);
   errorRef.current = onWriteError;
   const [utilityNotes, setUtilityNotes] = useState(() => {
-    const version = Number(localStorage.getItem('csboard-utility-notes-version') || 0);
+    const version = Number(preferences.getItem('csboard-utility-notes-version') || 0);
     const notes = initialLocalRecords('csboard-utility-notes', DEFAULT_UTILITY_NOTES, false);
     return compatibleUtilityNotes(notes, version);
   });
@@ -28,8 +29,8 @@ export default function useUtilityNotes(onWriteError) {
     setUtilityNotes(notes);
     try {
       await queueUtilityNotesWrite(notes);
-      localStorage.removeItem('csboard-utility-notes');
-      localStorage.removeItem('csboard-utility-notes-version');
+      preferences.removeItem('csboard-utility-notes');
+      preferences.removeItem('csboard-utility-notes-version');
       return true;
     } catch (error) {
       console.error('utility notes storage', error);
@@ -52,14 +53,14 @@ export default function useUtilityNotes(onWriteError) {
       } else {
         await queueUtilityNotesWrite(utilityNotesRef.current);
       }
-      // Remove legacy large records only after their IndexedDB copy is durable.
-      localStorage.removeItem('csboard-utility-notes');
-      localStorage.removeItem('csboard-utility-notes-version');
+      // Remove legacy large records only after the selected record store is durable.
+      preferences.removeItem('csboard-utility-notes');
+      preferences.removeItem('csboard-utility-notes-version');
       utilityNotesStatusRef.current = { status: 'ready' };
     }).catch((error) => { if (!cancelled) utilityNotesStatusRef.current = { status: 'error' }; console.error('utility notes migration', error); });
     // Old room snapshots were never read; discard them so they cannot retain quota.
     try {
-      Object.keys(localStorage).filter((key) => key.startsWith('csboard-room-')).forEach((key) => localStorage.removeItem(key));
+      preferences.keys().filter((key) => key.startsWith('csboard-room-')).forEach((key) => preferences.removeItem(key));
     } catch { /* Stale-room cleanup is optional. */ }
     return () => { cancelled = true; };
   }, []);

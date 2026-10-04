@@ -12,7 +12,7 @@ const allowedFlags = platform === 'ios' && action !== 'open' ? ['--device', '--s
 if (!['prepare', 'open', 'build'].includes(action) || !['android', 'ios'].includes(platform)
   || extra.some(flag => !allowedFlags.includes(flag)) || new Set(extra).size !== extra.length
   || extra.includes('--device') && simulator) {
-  console.error('npm run mobile -- prepare|open|build android|ios [--device | --simulator]');
+  console.error('make mobile-prepare|mobile-open|mobile-build PLATFORM=android|ios [ARGS=--device|--simulator]');
   process.exit(1);
 }
 const env = { ...process.env, GOTOOLCHAIN: 'auto', CGO_ENABLED: '1' };

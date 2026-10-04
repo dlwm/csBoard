@@ -100,7 +100,7 @@ export async function verifyDeployment(urls) {
 }
 
 export async function deploy({ root = projectRoot, environment = process.env, args = process.argv.slice(2), run = runCommand, verify = verifyDeployment } = {}) {
-  if (args.includes('--help')) { console.log('npm run deploy [-- --dry-run | --no-login]'); return; }
+  if (args.includes('--help')) { console.log('make deploy [ARGS=--dry-run | ARGS=--no-login]'); return; }
   if (args.some(arg => !['--dry-run', '--no-login'].includes(arg))) throw new Error('Unknown deployment argument; use --help');
   const envFile = path.resolve(root, environment.CF_DEPLOY_CONFIG || 'config/cloudflare/deploy.env');
   let local;
@@ -165,7 +165,7 @@ export async function deploy({ root = projectRoot, environment = process.env, ar
       const identity = async () => {
         const result = await run(process.execPath, [wrangler, 'whoami', '--json'], { ...options, capture: true });
         let user;
-        try { user = JSON.parse(result.stdout); } catch { throw new Error('Cannot check Cloudflare login; run npx wrangler whoami to diagnose the connection'); }
+        try { user = JSON.parse(result.stdout); } catch { throw new Error('Cannot check Cloudflare login; run make wrangler ARGS=whoami to diagnose the connection'); }
         if (typeof user.loggedIn !== 'boolean') throw new Error('Invalid Cloudflare identity response');
         return { result, user };
       };

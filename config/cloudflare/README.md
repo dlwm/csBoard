@@ -9,12 +9,12 @@
 Run commands from the repository root:
 
 ```sh
-npm run dev:workers
+make dev-workers
 make workers-build
-npm run deploy
+make deploy
 ```
 
-`workers-build` validates with `--dry-run`; `npm run deploy` performs deployment.
+`workers-build` validates with `--dry-run`; `make deploy` performs deployment.
 Deployment uses Wrangler OAuth by default: it reuses an existing login or opens
 the browser for authorization. A single account is selected automatically; if
 there are several, choose one once for the current deployment. No API token or
@@ -54,10 +54,10 @@ the verified URLs in ignored `.wrangler/deployment/result.json`. It does not joi
 rooms, send edits or call a real AI provider. This frontend is static-only, so its
 `/health` is not a backend health endpoint; collaboration uses the backend origin.
 
-Run `npm run deploy -- --dry-run` (or set `CF_DEPLOY_DRY_RUN=true`) to bundle both Workers without logging in or uploading.
+Run `make deploy ARGS=--dry-run` (or set `CF_DEPLOY_DRY_RUN=true`) to bundle both Workers without logging in or uploading.
 When no backend URL is supplied, this mode uses an explicit `.invalid` placeholder;
 its frontend artifacts are for validation only, not publication.
-Use `npm run deploy -- --no-login` to require existing credentials without opening an OAuth flow.
+Use `make deploy ARGS=--no-login` to require existing credentials without opening an OAuth flow.
 Authentication is managed by [Wrangler](https://developers.cloudflare.com/workers/wrangler/commands/general/);
 URLs come from its [structured output](https://developers.cloudflare.com/changelog/post/2025-11-03-wrangler-output-file/).
 The developer launcher explicitly keeps local persistence at `.wrangler/state`
@@ -67,7 +67,7 @@ ignored temporary files beside its configuration.
 For direct local CLI use, specify both options:
 
 ```sh
-npx wrangler dev --config config/cloudflare/wrangler.dev.jsonc --persist-to .wrangler/state
+make wrangler ARGS="dev --config config/cloudflare/wrangler.dev.jsonc --persist-to .wrangler/state"
 ```
 
 Entrypoint, asset, schema and watch paths are relative to these configuration
@@ -105,11 +105,11 @@ SVG files at its root. Only names in `electron/resource-catalog.json` are
 included. Missing icons keep the built-in UI; without the config file, the
 whole frontend uses the existing built-in UI. An explicit but invalid path or
 unsafe SVG fails the build. To use a different config file, set
-`CF_RESOURCE_PACK_CONFIG` to its path before running `npm run deploy` or
+`CF_RESOURCE_PACK_CONFIG` to its path before running `make deploy` or
 `make workers-build`.
 
 This pack is UI-only: GLB files are not copied, and the existing `OSS_BASE_URL`
-continues to supply map models. `npm run dev:workers` uses the same optional
+continues to supply map models. `make dev-workers` uses the same optional
 pack as production Worker builds. The local `.local/official/ui` sample is
 ignored by Git and is not bundled into desktop releases. Check the rights for any icons before
 publishing them; the CSBoard license does not grant rights to third-party art.
@@ -120,7 +120,7 @@ The operation assistant is an experimental feature.
 
 Cloudflare deployment and local Workers development exclude AI by default.
 Set `CF_AI_ENABLED=true` in the ignored `config/cloudflare/deploy.env` for deployment,
-or in the shell for `npm run dev:workers`, to include the assistant and proxy.
+or in the shell for `make dev-workers`, to include the assistant and proxy.
 The deploy script applies the same choice to both Workers. Disabled builds omit
 assistant code, styles, tools, prompts and reference content; `/api/ai/chat`
 returns 404 and no provider/origin setup is needed.

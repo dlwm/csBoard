@@ -1,3 +1,4 @@
+import { preferences } from '../platform/preferences.js';
 import { normalizeAiConfig, readChatResponse } from '../../shared/ai-protocol.js';
 
 const KEY = 'csboard-ai-preferences';
@@ -22,7 +23,7 @@ export function createAiTransport(bridge, backendUrl) {
   let apiKey = '';
   return {
     async config() {
-      try { return { ...JSON.parse(localStorage.getItem(KEY) || '{}'), hasKey: Boolean(apiKey) }; }
+      try { return { ...JSON.parse(preferences.getItem(KEY) || '{}'), hasKey: Boolean(apiKey) }; }
       catch { return { hasKey: false }; }
     },
     async save(value) {
@@ -30,7 +31,7 @@ export function createAiTransport(bridge, backendUrl) {
       const previous = await this.config();
       if (value.clearKey || previous.endpoint !== config.endpoint) apiKey = '';
       if (config.apiKey) apiKey = config.apiKey;
-      localStorage.setItem(KEY, JSON.stringify({ endpoint: config.endpoint, model: config.model, imageInput: config.imageInput }));
+      preferences.setItem(KEY, JSON.stringify({ endpoint: config.endpoint, model: config.model, imageInput: config.imageInput }));
       return { endpoint: config.endpoint, model: config.model, imageInput: config.imageInput, hasKey: Boolean(apiKey) };
     },
     async complete(config, payload, { signal, onDelta }) {

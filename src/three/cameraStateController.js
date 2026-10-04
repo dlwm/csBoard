@@ -1,3 +1,4 @@
+import { preferences } from '../platform/preferences.js';
 // Persists camera presets and the last manual view for one map.
 import * as THREE from 'three';
 
@@ -29,14 +30,14 @@ export default function createCameraStateController({
   const slotsStorageKey = `csboard-camera-slots-${mapName}`;
   const currentStorageKey = `csboard-camera-current-${mapName}`;
   let storedSlots = [];
-  try { storedSlots = JSON.parse(localStorage.getItem(slotsStorageKey) || '[]'); } catch { storedSlots = []; }
+  try { storedSlots = JSON.parse(preferences.getItem(slotsStorageKey) || '[]'); } catch { storedSlots = []; }
   const slots = Array.from({ length: 10 }, (_, index) => parseSlot(storedSlots[index]));
   let saveTimer;
   let persistenceReady = false;
 
   const serializeSlots = () => slots.map(serializeSlot);
   const notifySlots = (active = null) => onSlotsChange?.(slots.map(Boolean), active);
-  const persistSlots = () => localStorage.setItem(slotsStorageKey, JSON.stringify(serializeSlots()));
+  const persistSlots = () => preferences.setItem(slotsStorageKey, JSON.stringify(serializeSlots()));
 
   const saveSlot = (slot) => {
     slots[slot] = {
@@ -81,7 +82,7 @@ export default function createCameraStateController({
   const saveCurrent = () => {
     // Never overwrite the user's manual view with a director or first-person camera.
     if (!persistenceReady || isPersistenceBlocked()) return;
-    try { localStorage.setItem(currentStorageKey, JSON.stringify(getCameraState())); } catch { /* Camera persistence is optional. */ }
+    try { preferences.setItem(currentStorageKey, JSON.stringify(getCameraState())); } catch { /* Camera persistence is optional. */ }
   };
 
   const scheduleCurrentSave = () => {
@@ -92,7 +93,7 @@ export default function createCameraStateController({
 
   const restoreCurrent = () => {
     try {
-      const saved = JSON.parse(localStorage.getItem(currentStorageKey) || 'null');
+      const saved = JSON.parse(preferences.getItem(currentStorageKey) || 'null');
       return restoreState(saved);
     } catch {
       return false;

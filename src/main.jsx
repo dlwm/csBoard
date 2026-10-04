@@ -1,5 +1,11 @@
+import ReplayTransportControls from './demo/ReplayTransportControls.jsx';
+import useCustomRecordings from './demo/useCustomRecordings.js';
+import { isRecording } from './demo/recordings.js';
+import { createPlaybackSessions } from './demo/playbackSessions.js';
+import { preferences } from './platform/preferences.js';
 import { DEFAULT_RECOMMENDATION_FORMULAS } from './analysis/recommendationFormulas.js';
-import { analysisUtilityPreviewNote } from './analysis/utilityPreview.js';
+import useRecordedUtilityActions from './analysis/useRecordedUtilityActions.js';
+import useDemoLibrary from './demo/useDemoLibrary.js';
 import useUtilityRecommendations from './analysis/useUtilityRecommendations.js';
 import UtilityRecommendationsPanel from './analysis/UtilityRecommendationsPanel.jsx';
 import useAnalysisDataset from './analysis/useAnalysisDataset.js';
@@ -15,7 +21,6 @@ import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import { getBundledNavData } from './data/navData.js';
 import { tutorialNavData, tutorialWorkspaceArchive, TUTORIAL_MAP_ID } from './three/tutorialMap.js';
-import { countCachedDemoRounds, deleteCachedDemo, getCachedDemo, listCachedDemos } from './demoCache.js';
 import SideGameHub from './SideGameHub.jsx';
 import TutorialGuide, { TutorialOffer } from './TutorialGuide.jsx';
 import AnalysisControls from './analysis/AnalysisControls.jsx';
@@ -85,7 +90,7 @@ const DEMO_CACHE_SCHEMA_VERSION = 31;
 function App() {
   const initialViewPreferences = useRef(loadViewPreferences()).current;
   const boardRef = useRef(null);
-  const [language, setLanguage] = useState(() => normalizeLanguage(localStorage.getItem('csboard-language')));
+  const [language, setLanguage] = useState(() => normalizeLanguage(preferences.getItem('csboard-language')));
   const [collabUtilitySearch, setCollabUtilitySearch] = useState('');
   const [collabUtilityPickerOpen, setCollabUtilityPickerOpen] = useState(false);
   const [collabUtilitySelected, setCollabUtilitySelected] = useState('');
@@ -100,10 +105,10 @@ function App() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialOfferOpen, setTutorialOfferOpen] = useState(() => {
-    const firstVisit = !localStorage.getItem('csboard-tutorial-prompted') && !localStorage.getItem('csboard-tutorial-complete');
+    const firstVisit = !preferences.getItem('csboard-tutorial-prompted') && !preferences.getItem('csboard-tutorial-complete');
     if (IS_DEVELOPMENT_RUNTIME) {
-      const visits = Number(localStorage.getItem('csboard-localhost-visits') || 0) + 1;
-      try { localStorage.setItem('csboard-localhost-visits', String(visits)); } catch { /* The current visit can still be evaluated. */ }
+      const visits = Number(preferences.getItem('csboard-localhost-visits') || 0) + 1;
+      try { preferences.setItem('csboard-localhost-visits', String(visits)); } catch { /* The current visit can still be evaluated. */ }
       return firstVisit || visits % 3 === 0;
     }
     return firstVisit;
@@ -135,8 +140,7 @@ function App() {
   const [broadcastPage, setBroadcastPage] = useState(false);
   const broadcastPageRef = useRef(false);
   broadcastPageRef.current = broadcastPage;
-  const browsePlaybackRef = useRef(null);
-  const broadcastPlaybackRef = useRef(null);
+  const playbackSessions = useRef(createPlaybackSessions()).current;
   const pendingPlaybackRestoreRef = useRef(null);
   const pendingCameraRestoreRef = useRef(null);
   const boardReadyMapRef = useRef('');
@@ -149,11 +153,11 @@ function App() {
   const [analysisRows, setAnalysisRows] = useState([]);
   const [analysisSide, setAnalysisSide] = useState('ALL');
   const [brushColor, setBrushColor] = useState(() => {
-    const saved = localStorage.getItem('csboard-brush-color');
+    const saved = preferences.getItem('csboard-brush-color');
     return ['#a5e0ff', '#ff6b6b', '#7cf29c', '#ffd166', '#ffffff', '#c084fc'].includes(saved) ? saved : '#a5e0ff';
   });
   const [brushWidth, setBrushWidth] = useState(() => {
-    const saved = Number(localStorage.getItem('csboard-brush-width'));
+    const saved = Number(preferences.getItem('csboard-brush-width'));
     return [2, 3, 5, 8].includes(saved) ? saved : 3;
   });
   const [eraserEnabled, setEraserEnabled] = useState(false);
@@ -172,11 +176,16 @@ function App() {
     },
   });
   const [demoSourceReady, setDemoSourceReady] = useState(false);
-  const [cachedDemos, setCachedDemos] = useState([]);
-  const [cachedDemosLoading, setCachedDemosLoading] = useState(true);
+  const { entries: demoLibraryEntries, loading: cachedDemosLoading, refresh: refreshCachedDemos,
+    open: readLibraryDemo, remove: removeCachedDemo } = useDemoLibrary({ cache: platform.cache,
+    schema: DEMO_CACHE_SCHEMA_VERSION, enabled: platform.capabilities.demoParsing,
+    onError: () => setDemoStatus(t('cacheFailed')),
+  });
+  const cachedDemos = useMemo(() => demoLibraryEntries.filter(entry => !isRecording(entry)), [demoLibraryEntries]);
+  const recordingLibrary = useMemo(() => demoLibraryEntries.filter(isRecording), [demoLibraryEntries]);
   const [demoCacheOpen, setDemoCacheOpen] = useState(false);
   const [demoSampleRate, setDemoSampleRate] = useState(() => {
-    const saved = Number(localStorage.getItem('csboard-demo-sample-rate'));
+    const saved = Number(preferences.getItem('csboard-demo-sample-rate'));
     return DEMO_SAMPLE_RATES.includes(saved) ? saved : 8;
   });
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
@@ -191,6 +200,8 @@ function App() {
   const [modelFloor, setModelFloor] = useState(() => ['all', 'main', 'lower'].includes(initialViewPreferences.modelFloor) ? initialViewPreferences.modelFloor : 'all');
   const [activeCameraSlot, setActiveCameraSlot] = useState(null);
   const [activePanel, setActivePanel] = useState(() => mobileH5 ? 'utility' : 'demo');
+  const activePanelRef = useRef(activePanel);
+  activePanelRef.current = activePanel;
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(() => !window.matchMedia?.('(orientation: landscape) and (max-height: 600px)').matches);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
   const {
@@ -233,7 +244,7 @@ function App() {
   useResponsiveWorkspace({ activePanel, leftSidebarOpen, mapName, navData });
   useEffect(() => setModelLoadState({ mapName, status: 'loading', loaded: 0, total: 0 }), [mapName]);
   useEffect(() => {
-    if (!mobileH5 || !['demo', 'analysis', 'broadcast'].includes(activePanel)) return;
+    if (!mobileH5 || !['demo', 'recordings', 'analysis', 'broadcast'].includes(activePanel)) return;
     setDemoPlaying(false);
     setAnalysisPlaying(false);
     setActivePanel('utility');
@@ -289,8 +300,6 @@ function App() {
   const utilityHoverTimerRef = useRef(null);
   const [selectedDemoGrenade, setSelectedDemoGrenade] = useState(null);
   const [selectedDemoGrenadeScreen, setSelectedDemoGrenadeScreen] = useState(null);
-  const [analysisUtilitySave, setAnalysisUtilitySave] = useState({ loading: false, error: '' });
-  const analysisUtilitySaveRequestRef = useRef(null);
   const [selectedAnalysisUtility, setSelectedAnalysisUtility] = useState(null);
   const [selectedAnalysisUtilityScreen, setSelectedAnalysisUtilityScreen] = useState(null);
   const [analysisUtilityHover, setAnalysisUtilityHover] = useState(null);
@@ -332,7 +341,7 @@ function App() {
   const roomProviderRef = useRef(null);
   const roomDocRef = useRef(null);
   const roomOwnerRef = useRef(roomOwner);
-  const clientName = useRef((() => { const stored = localStorage.getItem('csboard-client-name'); const value = generatedClientNames.has(stored) ? stored : generateClientName(); if (value !== stored) localStorage.setItem('csboard-client-name', value); return value; })());
+  const clientName = useRef((() => { const stored = preferences.getItem('csboard-client-name'); const value = generatedClientNames.has(stored) ? stored : generateClientName(); if (value !== stored) preferences.setItem('csboard-client-name', value); return value; })());
   const roomSeedRef = useRef(null);
   const setPointUpdate = (update) => {
     if (activePanel === 'collab' && update?.team && boardRef.current?.renamePlayerPoint?.setTeam) {
@@ -349,17 +358,17 @@ function App() {
     boardRef.current?.setCollabEditingEnabled?.(activePanel === 'collab' && hasActiveFrameContext);
   }, [activePanel, hasActiveFrameContext]);
   useEffect(() => {
-    localStorage.setItem('csboard-language', language);
+    preferences.setItem('csboard-language', language);
     document.documentElement.lang = localeForLanguage(language);
   }, [language]);
   useScrollEdgeIndicators();
   useEffect(() => {
     try {
-      localStorage.setItem(VIEW_PREFERENCES_KEY, JSON.stringify({ mapName, showGrid, showNav, showModel, modelOpacity, modelViewMode, modelViewRange, trackpadDetection, map2dLayer, modelFloor }));
+      preferences.setItem(VIEW_PREFERENCES_KEY, JSON.stringify({ mapName, showGrid, showNav, showModel, modelOpacity, modelViewMode, modelViewRange, trackpadDetection, map2dLayer, modelFloor }));
     } catch { /* View preferences remain available for this session. */ }
     window.dispatchEvent(new CustomEvent(MODEL_VIEW_RANGE_EVENT, { detail: modelViewRange }));
   }, [mapName, showGrid, showNav, showModel, modelOpacity, modelViewMode, modelViewRange, trackpadDetection, map2dLayer, modelFloor]);
-  useEffect(() => { localStorage.setItem('csboard-demo-sample-rate', String(demoSampleRate)); }, [demoSampleRate]);
+  useEffect(() => { preferences.setItem('csboard-demo-sample-rate', String(demoSampleRate)); }, [demoSampleRate]);
   useEffect(() => {
     const timer = window.setInterval(() => {
       const progress = demoParseProgressRef.current;
@@ -377,18 +386,8 @@ function App() {
     }, 500);
     return () => window.clearInterval(timer);
   }, []);
-  const cacheCatalogueRevisionRef = useRef(0);
-  const refreshCachedDemos = () => {
-    if (!platform.capabilities.demoParsing) { setCachedDemosLoading(false); return Promise.resolve(); }
-    setCachedDemosLoading(true);
-    const revision = ++cacheCatalogueRevisionRef.current;
-    return listCachedDemos().then((entries) => {
-      if (revision !== cacheCatalogueRevisionRef.current) return;
-      setCachedDemos(entries.map((entry) => { const sampleRate = entry.sampleRate || Number(String(entry.id).match(/^(\d+)hz\|/)?.[1]) || 8; return { ...entry, sampleRate, rawMap: entry.map, map: `${entry.map} · ${sampleRate} Hz` }; }));
-    }).catch(() => { if (revision === cacheCatalogueRevisionRef.current) setDemoStatus(t('cacheFailed')); }).finally(() => { if (revision === cacheCatalogueRevisionRef.current) setCachedDemosLoading(false); });
-  };
   // Batch imports write each Demo to the existing cache without changing the currently viewed match.
-  const { batch: demoBatch, counts: demoBatchCounts, running: demoBatchRunning, startBatch: startDemoBatch, retryTask: retryDemoTask, clearBatch: clearDemoBatch } = useDemoBatchParser({
+  const { batch: demoBatch, counts: demoBatchCounts, running: demoBatchRunning, startBatch: startDemoBatch, retryTask: retryDemoTask, clearBatch: clearDemoBatch, takeRecordingFiles } = useDemoBatchParser({
     language,
     sampleRate: demoSampleRate,
     cacheSchemaVersion: DEMO_CACHE_SCHEMA_VERSION,
@@ -403,10 +402,8 @@ function App() {
       return 'closing';
     });
   }, [demoBatch, demoBatchRunning, parseGameManual]);
-  useEffect(() => { refreshCachedDemos(); }, []);
   const { data: combinedAnalysis, loading: analysisQueryLoading, error: analysisQueryError } = useAnalysisDataset(selectedAnalysisDemos, analysisSelectedPlayers, activePanel === 'analysis', demoViewFlags.analysisMetric === 'utility');
   const [recommendationFormulas, setRecommendationFormulas] = useState(DEFAULT_RECOMMENDATION_FORMULAS);
-  const recommendationPreviewRef = useRef({ id: '', timer: null, controller: null, cache: new Map() });
   const utilityRecommendations = useUtilityRecommendations({ data: combinedAnalysis, flags: demoViewFlags, side: analysisSide,
     active: activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility', datasetLoading: analysisQueryLoading, formulas: IS_DEVELOPMENT_RUNTIME ? recommendationFormulas : undefined });
   const [focusedAnalysisGroupId, setFocusedAnalysisGroupId] = useState('');
@@ -495,11 +492,11 @@ function App() {
   const applyDemoData = (data, cacheId, _analysisRowsFromCache = [], hasSource = false, inlineRoundData = null, broadcastId = '') => {
     if (broadcastPageRef.current && !broadcastId) {
       const round = data.rounds?.[0] || null;
-      browsePlaybackRef.current = {
-        ...browsePlaybackRef.current, data, round, tick: round?.startTick || 0,
+      playbackSessions.set('demo', {
+        data, round, tick: round?.startTick || 0,
         cacheId: cacheId || '', inlineRoundData: null, povPlayerId: '', cameraMode: 'manual',
-        sourceReady: hasSource, mapName: data.demo.map || browsePlaybackRef.current?.mapName || mapName,
-      };
+        sourceReady: hasSource, mapName: data.demo.map || mapName,
+      });
       return;
     }
     activeDemoCacheIdRef.current = cacheId || '';
@@ -516,8 +513,7 @@ function App() {
   };
   const playBroadcastArchive = (archive) => {
     if (!archive?.demoData || !archive?.roundData) return;
-    setBroadcastPage(true);
-    setActivePanel('demo');
+    switchMainPanel('broadcast');
     setDemoCameraMode('manual');
     applyDemoData(archive.demoData, '', [], false, archive.roundData, archive.id);
     setMapName(archive.mapName || archive.demoData.demo.map || mapName);
@@ -585,17 +581,14 @@ function App() {
     setBroadcastClipDraft(null);
   };
   const openCachedDemo = async (id) => {
-    const entry = await getCachedDemo(id);
-    if (!entry?.data || entry.data.cacheSchemaVersion !== DEMO_CACHE_SCHEMA_VERSION || await countCachedDemoRounds(id) !== entry.data.rounds?.length) { if (entry) await deleteCachedDemo(id); await refreshCachedDemos(); return; }
+    if (activePanelRef.current === 'recordings') customRecordings.cancel();
+    const entry = await readLibraryDemo(id);
+    if (!entry) return;
     applyDemoData(entry.data, id, entry.analysisRows || [], false);
     setDemoSampleRate(entry.data.demo.sampleRate || 8);
     setMapName(entry.data.demo.map || mapName);
     setDemoStatus(t('cacheReady'));
     setDemoCacheOpen(false);
-  };
-  const removeCachedDemo = async (id) => {
-    await deleteCachedDemo(id);
-    await refreshCachedDemos();
   };
   const onReady = (value) => {
     restoreReadyBoard(value);
@@ -858,26 +851,18 @@ function App() {
     if (panel !== 'collab' && roomCode) { const wasOwner = roomOwner; leaveRoom(); window.alert(wasOwner ? t('roomDestroyed') : t('roomExited')); }
     if (panel !== 'utility') { setUtilityModalOpen(false); setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); setUtilityError(''); }
     if (mapName === TUTORIAL_MAP_ID && panel !== 'utility' && panel !== 'collab') setMapName('de_dust2');
+    activePanelRef.current = panel;
     setActivePanel(panel);
   };
   const switchMainPanel = (panel) => {
     if (mobileH5 && !['utility', 'collab'].includes(panel)) return;
-    if (panel === 'broadcast') {
-      if (broadcastPage) return;
-      browsePlaybackRef.current = capturePlayback();
-      switchPanel('demo');
-      restorePlayback(broadcastPlaybackRef.current);
-      broadcastPageRef.current = true;
-      setBroadcastPage(true);
-      return;
-    }
-    if (broadcastPage) {
-      broadcastPlaybackRef.current = capturePlayback();
-      broadcastRoom.leave();
-      broadcastPageRef.current = false;
-      setBroadcastPage(false);
-      restorePlayback(browsePlaybackRef.current, mapName, panel === 'demo');
-    }
+    const context = panel === 'broadcast' ? 'broadcast' : panel === 'recordings' ? 'recordings' : panel === 'demo' || panel === 'analysis' ? 'demo' : playbackSessions.active === 'broadcast' ? 'demo' : playbackSessions.active;
+    const next = playbackSessions.switchTo(context, capturePlayback());
+    if (broadcastPage && context !== 'broadcast') broadcastRoom.leave();
+    broadcastPageRef.current = context === 'broadcast';
+    setBroadcastPage(context === 'broadcast');
+    if (next.changed) restorePlayback(next.session, mapName, ['demo', 'recordings', 'broadcast'].includes(panel));
+    if (panel === 'broadcast') { switchPanel('demo'); return; }
     switchPanel(panel);
   };
   const addUtilityNote = async (event) => {
@@ -935,7 +920,7 @@ function App() {
   };
   const rememberTutorialOffer = () => {
     setTutorialOfferOpen(false);
-    try { localStorage.setItem('csboard-tutorial-prompted', '1'); } catch { /* Keep the dismissal state for this session. */ }
+    try { preferences.setItem('csboard-tutorial-prompted', '1'); } catch { /* Keep the dismissal state for this session. */ }
   };
   const beginTutorial = () => {
     rememberTutorialOffer();
@@ -945,13 +930,15 @@ function App() {
   };
   const finishTutorial = () => {
     setTutorialOpen(false);
-    try { localStorage.setItem('csboard-tutorial-prompted', '1'); localStorage.setItem('csboard-tutorial-complete', '1'); } catch { /* Keep the completion state for this session. */ }
+    try { preferences.setItem('csboard-tutorial-prompted', '1'); preferences.setItem('csboard-tutorial-complete', '1'); } catch { /* Keep the completion state for this session. */ }
   };
   const selectedMode = showModel ? modelViewMode : -1;
+  const recordingPage = activePanel === 'recordings';
+  const replayPanel = activePanel === 'demo' || recordingPage;
   const displayPanel = broadcastPage ? 'broadcast' : activePanel;
   const hasLeftSidebar = activePanel === 'utility' || (activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility') || (activePanel === 'collab' && hasActiveFrameContext);
   const hasRightSidebar = broadcastPage || ['analysis', 'utility', 'collab'].includes(activePanel);
-  const modelControlsTarget = broadcastPage ? '.broadcast-model-options' : activePanel === 'demo' ? '.demo-options' : activePanel === 'collab' && hasActiveFrameContext ? '.collab-frame-strip' : '.workspace-bottom-bar';
+  const modelControlsTarget = broadcastPage ? '.broadcast-model-options' : replayPanel ? '.demo-options' : activePanel === 'collab' && hasActiveFrameContext ? '.collab-frame-strip' : '.workspace-bottom-bar';
   const currentUtilityNotes = utilityNotes.filter((note) => note.mapName === mapName);
   const collabUtilityOptions = [...currentUtilityNotes]
     .sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0)
@@ -1012,75 +999,31 @@ function App() {
     setSelectedAnalysisUtilityScreen(null);
   };
   const saveDemoGrenade = () => saveGrenadeSegment(selectedDemoGrenade, { fileName: demoData?.demo.fileName, round: demoRound?.round, tickRate: demoData?.demo.tickRate || 64, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames });
-  useEffect(() => {
-    setAnalysisUtilitySave({ loading: false, error: '' });
-    return () => analysisUtilitySaveRequestRef.current?.abort();
-  }, [selectedAnalysisUtility]);
-  const prepareAnalysisUtility = async (utility, quickSave = false) => {
-    if (!utility || analysisUtilitySave.loading || (quickSave && savedAnalysisUtilityIds.has(utility.id))) return;
-    analysisUtilitySaveRequestRef.current?.abort();
-    const controller = new AbortController();
-    analysisUtilitySaveRequestRef.current = controller;
-    setAnalysisUtilitySave({ loading: true, error: '', utilityId: utility.id });
-    try {
-      const note = await getPlatform().compute('analysis.utility', {
-        ids: [utility.source.demoId], players: [utility.segment.throwEvent.user_name],
-        round: utility.source.round, segmentId: utility.segment.id,
-      }, { signal: controller.signal });
-      if (controller.signal.aborted) return;
-      if (quickSave) {
-        if (!await persistUtilityNotes([...utilityNotesRef.current, note])) throw new Error(localize(language, { zh: '道具保存失败', en: 'Unable to save utility', ru: 'Не удалось сохранить гранату' }));
-        await utilityFolders.assign(note.id, ROOT_FOLDER_ID, utilityNotesRef.current);
-      } else {
-        setUtilitySaveFolderId(ROOT_FOLDER_ID);
-        setPendingUtilityNote(note);
-      }
-      setAnalysisUtilitySave({ loading: false, error: '' });
-    } catch (error) {
-      if (!controller.signal.aborted) setAnalysisUtilitySave({ loading: false, error: error.message });
-    }
-  };
   const savedAnalysisUtilityIds = useMemo(() => {
     const saved = new Set(utilityNotes.filter(note => note.mapName === mapName && note.demoSource).map(note => JSON.stringify([note.demoSource.fileName, note.demoSource.round, note.demoSource.tick])));
     return new Set(combinedAnalysis.utilities.filter(utility => saved.has(JSON.stringify([utility.source.fileName, utility.source.round, utility.segment.throwTick]))).map(utility => utility.id));
   }, [utilityNotes, mapName, combinedAnalysis.utilities]);
+  const { prepare: prepareAnalysisUtility, preview: previewAnalysisRecommendation,
+    saveState: analysisUtilitySave, previewState: recommendationPreviewState } = useRecordedUtilityActions({
+    utilities: combinedAnalysis.utilities, compute: platform.compute, contextKey: mapName,
+    active: activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility',
+    previewRevision: utilityRecommendations.groups, selectedId: selectedAnalysisUtility?.id,
+    savedIds: savedAnalysisUtilityIds, language,
+    ports: {
+      scene: () => boardRef.current,
+      save: async note => {
+        if (!await persistUtilityNotes([...utilityNotesRef.current, note])) throw new Error(localize(language, { zh: '道具保存失败', en: 'Unable to save utility', ru: 'Не удалось сохранить гранату' }));
+        await utilityFolders.assign(note.id, ROOT_FOLDER_ID, utilityNotesRef.current);
+      },
+      draft: note => { setUtilitySaveFolderId(ROOT_FOLDER_ID); setPendingUtilityNote(note); },
+      onPreview: id => {
+        window.clearTimeout(analysisUtilityHoverTimerRef.current);
+        analysisUtilityHoverInsideRef.current = Boolean(id);
+        setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId('');
+      },
+    },
+  });
   const saveAnalysisUtility = () => prepareAnalysisUtility(selectedAnalysisUtility);
-  const previewAnalysisRecommendation = id => {
-    const preview = recommendationPreviewRef.current;
-    if (preview.id === id) return;
-    window.clearTimeout(preview.timer);
-    preview.controller?.abort();
-    preview.id = id;
-    window.clearTimeout(analysisUtilityHoverTimerRef.current);
-    analysisUtilityHoverInsideRef.current = Boolean(id);
-    setAnalysisUtilityHover(null);
-    setAnalysisHighlightedUtilityId('');
-    if (!id) { boardRef.current?.clearCollabUtilityPreview?.(); return; }
-    const utility = combinedAnalysis.utilities.find(utility => utility.id === id);
-    if (!utility) return;
-    const recorded = preview.cache.get(id);
-    boardRef.current?.focusUtilityNote?.(recorded || analysisUtilityPreviewNote(utility));
-    if (recorded) return;
-    preview.timer = window.setTimeout(async () => {
-      const controller = new AbortController();
-      preview.controller = controller;
-      try {
-        const note = await getPlatform().compute('analysis.utility', { ids: [utility.source.demoId],
-          players: [utility.segment.throwEvent.user_name], round: utility.source.round, segmentId: utility.segment.id }, { signal: controller.signal });
-        if (controller.signal.aborted || preview.id !== id) return;
-        preview.cache.set(id, note);
-        if (preview.cache.size > 8) preview.cache.delete(preview.cache.keys().next().value);
-        boardRef.current?.focusUtilityNote?.(note);
-      } catch (error) { if (!controller.signal.aborted) console.warn('Recorded utility preview unavailable:', error.message); }
-    }, 180);
-  };
-  useEffect(() => () => {
-    const preview = recommendationPreviewRef.current;
-    window.clearTimeout(preview.timer);
-    preview.controller?.abort(); preview.id = ''; preview.cache.clear();
-    analysisUtilityHoverInsideRef.current = false;
-    boardRef.current?.clearCollabUtilityPreview?.();
-  }, [activePanel, demoViewFlags.analysisMetric, combinedAnalysis.utilities, utilityRecommendations.groups]);
   const playUtilityReplay = (note, firstPerson = false) => {
     if (!note.replay) return;
     // Older smoke notes stopped before their expansion reached the standard size.
@@ -1126,6 +1069,22 @@ function App() {
     setUtilityEditDraft(null);
   };
   const { firstPerson: utilityFirstPerson, projectileFollow: utilityProjectileFollow, segments: utilityReplaySegments, snapshot: utilityReplaySnapshot } = useUtilityReplayPlayback(utilityReplay, setUtilityReplay);
+  const customRecordings = useCustomRecordings({ platform, schema: DEMO_CACHE_SCHEMA_VERSION, sampleRate: demoSampleRate,
+    onChanged: refreshCachedDemos,
+    onLoaded: entry => {
+      const session = { data: entry.data, round: entry.data.rounds[0], tick: entry.data.rounds[0].startTick,
+        cacheId: entry.id, sampleRate: entry.data.demo.sampleRate, mapName: entry.data.demo.map || mapName, cameraMode: 'manual', povPlayerId: '' };
+      playbackSessions.set('recordings', session);
+      if (activePanelRef.current === 'recordings') { restorePlayback(session); playbackSessions.acknowledge('recordings'); }
+    },
+  });
+  const chooseRecording = event => { setDemoPlaying(false); return customRecordings.choose(event); };
+  const openFailedRecording = taskId => {
+    const files = takeRecordingFiles(taskId);
+    if (!files.length) return;
+    switchMainPanel('recordings');
+    void customRecordings.load(files);
+  };
   const loadDemo = async (event) => {
     if (platform.capabilities.nativeFilePicker) event.preventDefault();
     if (demoBatchRunning) return;
@@ -1173,7 +1132,7 @@ function App() {
           if (activePanel === 'analysis' && analysisSelectedPlayers.length && analysisRows.length) {
            setAnalysisPlaying(false);
            setAnalysisTime((time) => THREE.MathUtils.clamp(time + direction * 16, 0, analysisDuration));
-         } else if (activePanel === 'demo' && demoData && demoRound && !demoRoundLoading) {
+         } else if (replayPanel && demoData && demoRound && !demoRoundLoading) {
            setDemoPlaying(false);
            setDemoTick((tick) => THREE.MathUtils.clamp(tick + direction * 16, demoRound.startTick, demoRound.endTick));
          } else if (activePanel === 'collab' && hasActiveFrameContext && frames.length) {
@@ -1242,24 +1201,24 @@ function App() {
       {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && <UtilityRecommendationsPanel language={language}
         groups={utilityRecommendations.groups} utilities={combinedAnalysis.utilities} loading={utilityRecommendations.loading} error={utilityRecommendations.error}
         selectedPlayers={analysisSelectedPlayers} focusedId={focusedAnalysisGroupId} onFocus={setFocusedAnalysisGroupId}
-        onPreview={previewAnalysisRecommendation} onSave={utility => prepareAnalysisUtility(utility, true)} saveState={analysisUtilitySave} savedIds={savedAnalysisUtilityIds} development={IS_DEVELOPMENT_RUNTIME} formulas={recommendationFormulas} onFormulasChange={setRecommendationFormulas} />}
+        onPreview={previewAnalysisRecommendation} previewState={recommendationPreviewState} onSave={utility => prepareAnalysisUtility(utility, true)} saveState={analysisUtilitySave} savedIds={savedAnalysisUtilityIds} development={IS_DEVELOPMENT_RUNTIME} formulas={recommendationFormulas} onFormulasChange={setRecommendationFormulas} />}
       {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && utilityRecommendations.loading && <div className="recommendation-loading" role="status"><i className="analysis-loading-spinner" aria-hidden="true" />{localize(language, { zh: '正在准备道具推荐…', en: 'Preparing utility recommendations…', ru: 'Подготовка рекомендаций гранат…' })}</div>}
          {broadcastPage && <BroadcastPanel archives={broadcastArchives} activeId={activeBroadcastId} folders={broadcastFolders.state} language={language} room={broadcastRoom.session} onCreateFolder={(name, parentId) => broadcastFolders.create(name, parentId, broadcastArchivesRef.current)} onDeleteFolder={(id) => broadcastFolders.remove(id, broadcastArchivesRef.current)} onMove={(source, target, position) => broadcastFolders.move(broadcastArchivesRef.current, source, target, position)} onDelete={async (id) => { if (!await removeBroadcastArchive(id)) return; await broadcastFolders.unassign(id); if (id === activeBroadcastId) setActiveBroadcastId(''); }} onJoin={broadcastRoom.join} onLeave={broadcastRoom.leave} onSelect={hostBroadcastArchive} />}
-         {!broadcastPage && activePanel === 'demo' && demoData && demoRound && <DemoPlaybackActionsPortal><button type="button" className="demo-save-clip" disabled={demoRoundLoading} onClick={openBroadcastClipModal}>{localize(language, { zh: '保存时间段', en: 'Save Interval', ru: 'Сохранить отрезок' })}</button></DemoPlaybackActionsPortal>}
+         {!broadcastPage && replayPanel && demoData && demoRound && <DemoPlaybackActionsPortal><button type="button" className="demo-save-clip" disabled={demoRoundLoading} onClick={openBroadcastClipModal}>{localize(language, { zh: '保存时间段', en: 'Save Interval', ru: 'Сохранить отрезок' })}</button></DemoPlaybackActionsPortal>}
          {broadcastClipDraft && <BroadcastClipModal draft={broadcastClipDraft} folders={broadcastFolders.state} language={language} round={demoRound} tickRate={demoData?.demo?.tickRate || 64} onChange={setBroadcastClipDraft} onClose={() => setBroadcastClipDraft(null)} onSave={saveBroadcastClip} />}
          <BroadcastDownloadOverlay download={broadcastRoom.download} language={language} onCancel={broadcastRoom.leave} />
-         <DemoBatchPanel batch={demoBatch} counts={demoBatchCounts} development={IS_DEVELOPMENT_RUNTIME} language={language} onClose={clearDemoBatch} onRetry={retryDemoTask} />
+         {!recordingPage && <DemoBatchPanel batch={demoBatch} counts={demoBatchCounts} development={IS_DEVELOPMENT_RUNTIME} language={language} onClose={clearDemoBatch} onRetry={retryDemoTask} onOpenRecording={openFailedRecording} />}
          {mapName === TUTORIAL_MAP_ID && <TutorialGuide language={language} open={tutorialOpen} step={tutorialStep} onOpen={() => { setTutorialStep(0); setTutorialOpen(true); }} onStep={moveTutorial} onFinish={finishTutorial} onExit={() => { finishTutorial(); setMapName('de_dust2'); }} />}
          {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><SideGameHub language={language} stopped={!parseGameManual && parseGameState === 'stopped'} manual={parseGameManual} onClose={() => { setParseGameDismissed(true); setParseGameManual(false); setParseGameState('hidden'); }} /></div>}
-        <ThreeBoard language={language} key={mapName} mapName={mapName} navData={navData} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={activePanel === 'demo' ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={activePanel === 'demo' ? demoSnapshots : []} demoTick={activePanel === 'demo' ? demoTick : utilityReplay?.tick || 0} demoFires={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={activePanel === 'demo' ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={activePanel === 'demo' ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={activePanel === 'demo' ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoInfernoFrames={activePanel === 'demo' ? demoInfernoFrames : utilityReplay?.note.replay.infernoFrames || []} demoGrenadeSegments={activePanel === 'demo' ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={activePanel === 'demo' ? onDemoGrenadeSelect : null} demoDeaths={activePanel === 'demo' ? demoDeaths : []} demoC4Events={activePanel === 'demo' ? demoC4Events : []} demoHltvEvents={activePanel === 'demo' ? demoHltvEvents : []} demoCameraMode={activePanel === 'demo' ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={visibleAnalysisUtilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} touchDrawingEnabled={!mobileWorkspace || touchDrawingEnabled} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
+        <ThreeBoard language={language} key={mapName} mapName={mapName} navData={navData} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={replayPanel ? demoSnapshot : utilityReplaySnapshot} demoSnapshots={replayPanel ? demoSnapshots : []} demoTick={replayPanel ? demoTick : utilityReplay?.tick || 0} demoFires={replayPanel ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={replayPanel ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={replayPanel ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={replayPanel ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={replayPanel ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoInfernoFrames={replayPanel ? demoInfernoFrames : utilityReplay?.note.replay.infernoFrames || []} demoGrenadeSegments={replayPanel ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={replayPanel ? onDemoGrenadeSelect : null} demoDeaths={replayPanel ? demoDeaths : []} demoC4Events={replayPanel ? demoC4Events : []} demoHltvEvents={replayPanel ? demoHltvEvents : []} demoCameraMode={replayPanel ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={visibleAnalysisUtilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} touchDrawingEnabled={!mobileWorkspace || touchDrawingEnabled} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
          {AI_ENABLED && <AiPanel language={language} ports={aiPorts} transport={platform.ai} enabled={activePanel === 'collab' && hasActiveFrameContext} visible={activePanel === 'collab'} />}
          {activePanel === 'analysis' && analysisQueryLoading && <div className="analysis-loading-overlay" role="status" aria-live="polite"><i className="analysis-loading-spinner" aria-hidden="true" />{localize(language, demoViewFlags.analysisMetric === 'utility'
            ? { zh: '正在加载道具点位与轨迹…', en: 'Loading utility positions and trajectories…', ru: 'Загрузка позиций и траекторий гранат…' }
            : { zh: '正在更新分析…', en: 'Updating analysis…', ru: 'Обновление анализа…' })}</div>}
          <div className="stage-vignette" />
-          {activePanel === 'demo' && (!broadcastPage || activeBroadcastId) && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} minimal={broadcastPage} />}
-          {activePanel === 'demo' && (!broadcastPage || activeBroadcastId) && demoSnapshot && <div className="demo-monitor-controls"><button type="button" className={`demo-monitor-toggle${demoCameraMode === 'monitor' ? ' selected' : ''}`} onClick={() => { if (demoCameraMode === 'monitor') { setDemoCameraMode('manual'); setDemoPovPlayerId(''); } else selectMonitorMode(); }}>{t('cameraMonitor')}</button>{demoCameraMode === 'monitor' && <DemoMonitorTeamSwitch players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} />}</div>}
-          {activePanel === 'demo' && (!broadcastPage || activeBroadcastId) && demoCameraMode === 'monitor' && demoSnapshot && <DemoMonitorWall players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} translate={t} />}
+          {replayPanel && (!broadcastPage || activeBroadcastId) && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} minimal={broadcastPage || recordingPage} />}
+          {replayPanel && (!broadcastPage || activeBroadcastId) && demoSnapshot && <div className="demo-monitor-controls"><button type="button" className={`demo-monitor-toggle${demoCameraMode === 'monitor' ? ' selected' : ''}`} onClick={() => { if (demoCameraMode === 'monitor') { setDemoCameraMode('manual'); setDemoPovPlayerId(''); } else selectMonitorMode(); }}>{t('cameraMonitor')}</button>{demoCameraMode === 'monitor' && <DemoMonitorTeamSwitch players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} />}</div>}
+          {replayPanel && (!broadcastPage || activeBroadcastId) && demoCameraMode === 'monitor' && demoSnapshot && <DemoMonitorWall players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} translate={t} />}
           {activePanel === 'demo' && !broadcastPage && demoSnapshot && <div className="demo-combat-hud"><div className={`demo-score${roundWinner ? ` winner-${roundWinner.toLowerCase()}` : ''}`}><span><SideLogo side="T" /></span><strong>{demoScore.T}</strong><i>ROUND {demoRound?.round || '-'}{roundResult ? <b className="round-result">{roundResult}</b> : c4Countdown != null ? <b className={c4Terminal?.event_name === 'bomb_defused' && demoTick >= c4Terminal.tick ? 'c4-paused' : ''}>C4 {c4Countdown.toFixed(4)}s</b> : <b className="round-clock">{roundClock}</b>}{defuseProgress != null && <span className={`score-defuse${currentDefuser.hasDefuser ? ' has-kit' : ''}`} style={{ '--defuse-progress': `${defuseProgress * 360}deg` }}><i>{currentDefuser.hasDefuser ? 'KIT' : '10s'}</i></span>}</i><strong>{demoScore.CT}</strong><span><SideLogo side="CT" /></span></div>{demoKills.length > 0 && <DemoKillFeed kills={demoKills} round={demoRound} translate={t} collapsed={demoKillsCollapsed} onToggle={() => setDemoKillsCollapsed((collapsed) => !collapsed)} />}</div>}
       {demoData?.demo.map && demoData.demo.map !== mapName && <ModelControlsPortal selector=".demo-source-controls"><button type="button" className="demo-map-mismatch" onClick={() => setMapName(demoData.demo.map)}><span>{localize(language, { zh: '地图不匹配', en: 'MAP MISMATCH', ru: 'КАРТА НЕ СОВПАДАЕТ' })}</span><b>{mapName.toUpperCase()} → {demoData.demo.map.toUpperCase()}</b></button></ModelControlsPortal>}
        {grenadeWheel.open && <div className="grenade-wheel"><div className={`wheel-item wheel-smoke ${grenadeWheel.type === 'smoke' ? 'active' : ''}`}>{t('smoke')}</div><div className={`wheel-item wheel-fire ${grenadeWheel.type === 'fire' ? 'active' : ''}`}>{t('fire')}</div><div className={`wheel-item wheel-flash ${grenadeWheel.type === 'flash' ? 'active' : ''}`}>{t('flash')}</div><div className={`wheel-item wheel-explosion ${grenadeWheel.type === 'explosion' ? 'active' : ''}`}>{t('grenade')}</div><span className="wheel-key">Q</span></div>}
@@ -1267,11 +1226,11 @@ function App() {
       <UtilityFolderModal note={pendingUtilityNote} folderState={utilityFolders.state} folderId={utilitySaveFolderId} language={language} onClose={() => setPendingUtilityNote(null)} onFolderChange={setUtilitySaveFolderId} onSave={confirmUtilityNote} t={t} />
       {renameModal && <RenamePointModal draft={renameDraft} onClose={() => setRenameModal(null)} onConfirm={confirmRename} onDraftChange={setRenameDraft} t={t} />}
             <ViewTools mobile={mobileWorkspace} touchDrawingEnabled={touchDrawingEnabled} setTouchDrawingEnabled={setTouchDrawingEnabled} activePanel={activePanel} mapName={mapName} navData={navData} activeCameraSlot={activeCameraSlot} boardRef={boardRef} brushColor={brushColor} brushWidth={brushWidth} cameraSlotState={cameraSlotState} currentLayerUrl={currentLayerUrl} currentMapLayers={currentMapLayers} cycleMapFloor={cycleMapFloor} eraserEnabled={eraserEnabled} floorOptions={floorOptions} language={language} map2dLayer={map2dLayer} modelFloor={modelFloor} selectMapFloor={selectMapFloor} setBrushColor={setBrushColor} setBrushWidth={setBrushWidth} setEraserEnabled={setEraserEnabled} t={t} />
-           <div className="key-hints">{activePanel === 'demo' || activePanel === 'analysis' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatPlayback')}</b><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : activePanel === 'utility' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : <><div className="key-group"><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintMovePlayer')}</span><span><kbd>CTRL+LMB</kbd>{t('hintYaw')}</span><span><kbd>SHIFT+LMB</kbd>{t('hintPitch')}</span><span><kbd>DBL</kbd>{t('hintCrouch')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></>}</div>
+           <div className="key-hints">{replayPanel || activePanel === 'analysis' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatPlayback')}</b><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : activePanel === 'utility' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : <><div className="key-group"><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintMovePlayer')}</span><span><kbd>CTRL+LMB</kbd>{t('hintYaw')}</span><span><kbd>SHIFT+LMB</kbd>{t('hintPitch')}</span><span><kbd>DBL</kbd>{t('hintCrouch')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></>}</div>
           <div className="aspect-frame" aria-hidden="true"><i /></div>
           {activePanel === 'demo' && !broadcastPage && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} /></>}
           {selectedPoint && selectedPointScreen && <div className="point-actions" style={{ left: selectedPointScreen.x, top: selectedPointScreen.y }}><span>{activePanel === 'collab' ? t('collabPlayer') : t('tacticalPoint')}</span><div className="point-choice"><b>{t('team')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div>{activePanel === 'collab' ? null : <div className="point-choice"><b>{t('type')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div>}<button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); setSelectedPointScreen(null); }}>{t('delete')}</button></div>}
-          {activePanel === 'demo' && selectedDemoGrenade && selectedDemoGrenadeScreen && <div className="demo-grenade-actions" style={{ left: selectedDemoGrenadeScreen.x, top: selectedDemoGrenadeScreen.y }}><div><strong>{selectedDemoGrenade.kind.toUpperCase()}</strong><span>{selectedDemoGrenade.throwEvent.user_name || t('unknown')} · T{selectedDemoGrenade.throwTick}</span></div><button type="button" onClick={saveDemoGrenade}>{t('saveUtility')}</button><button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedDemoGrenade(null); setSelectedDemoGrenadeScreen(null); }}>×</button></div>}
+          {replayPanel && selectedDemoGrenade && selectedDemoGrenadeScreen && <div className="demo-grenade-actions" style={{ left: selectedDemoGrenadeScreen.x, top: selectedDemoGrenadeScreen.y }}><div><strong>{selectedDemoGrenade.kind.toUpperCase()}</strong><span>{selectedDemoGrenade.throwEvent.user_name || t('unknown')} · T{selectedDemoGrenade.throwTick}</span></div><button type="button" onClick={saveDemoGrenade}>{t('saveUtility')}</button><button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedDemoGrenade(null); setSelectedDemoGrenadeScreen(null); }}>×</button></div>}
           {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && demoViewFlags.heatStyle === 'points' && analysisUtilityHover && !selectedAnalysisUtility && <div className="utility-hover-card analysis-utility-hover-card" style={{ left: analysisUtilityHover.x, top: analysisUtilityHover.y }} onPointerEnter={() => { analysisUtilityHoverInsideRef.current = true; window.clearTimeout(analysisUtilityHoverTimerRef.current); }} onPointerLeave={() => { analysisUtilityHoverInsideRef.current = false; window.clearTimeout(analysisUtilityHoverTimerRef.current); setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId(''); }}><header><strong>{localize(language, { zh: '附近道具', en: 'NEARBY UTILITIES', ru: 'ГРАНАТЫ РЯДОМ' })}</strong><span>{analysisUtilityHover.utilities.length}</span></header><div className="utility-hover-list">{analysisUtilityHover.utilities.map((utility) => <button type="button" key={utility.id} className="replayable" onPointerEnter={() => setAnalysisHighlightedUtilityId(utility.id)} onPointerLeave={() => setAnalysisHighlightedUtilityId('')} onFocus={() => setAnalysisHighlightedUtilityId(utility.id)} onBlur={() => setAnalysisHighlightedUtilityId('')} onClick={() => { setSelectedAnalysisUtility(utility); setSelectedAnalysisUtilityScreen({ x: analysisUtilityHover.x, y: analysisUtilityHover.y }); setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId(''); setAnalysisPlaying(false); }}><strong><RawIcon name={ANALYSIS_UTILITY_ICONS[utility.kind]} />{utility.kind.toUpperCase()}</strong><span>{utility.segment.throwEvent.user_name || t('unknown')} · R{utility.source.round} · T{utility.segment.throwTick}</span><p>{utility.source.fileName}</p></button>)}</div></div>}
           {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && demoViewFlags.heatStyle === 'points' && selectedAnalysisUtility && selectedAnalysisUtilityScreen && <div className="demo-grenade-actions analysis-grenade-actions" style={{ left: selectedAnalysisUtilityScreen.x, top: selectedAnalysisUtilityScreen.y }}><div><strong>{selectedAnalysisUtility.kind.toUpperCase()}</strong><span>{selectedAnalysisUtility.segment.throwEvent.user_name || t('unknown')} · {selectedAnalysisUtility.source.fileName} · R{selectedAnalysisUtility.source.round}</span></div><button type="button" disabled={analysisUtilitySave.loading} onClick={saveAnalysisUtility}>{analysisUtilitySave.loading ? localize(language, { zh: '正在读取回放…', en: 'Loading replay…', ru: 'Загрузка повтора…' }) : t('saveUtility')}</button>{analysisUtilitySave.error && <p role="alert">{analysisUtilitySave.error}</p>}<button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedAnalysisUtility(null); setSelectedAnalysisUtilityScreen(null); }}>×</button></div>}
         <div className="board-tools"><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> {t('grid')}</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> {t('trackpad')} {trackpadDetection ? t('on') : t('off')}</button>{hasMapModel(mapName) && <div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)} className={showModel ? 'selected' : ''}><i /> {modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) setShowModel(false); else { setShowModel(true); setModelViewMode(option.value); } setModeMenuOpen(false); }} /> <span>{option.label}</span></label>)}</div>}</div>}</div>
@@ -1281,13 +1240,19 @@ function App() {
           {activePanel === 'utility' && utilityReplay && <div className="utility-replay-bar"><strong>{utilityReplay.note.name}</strong><span>{(utilityReplay.tick / utilityReplay.note.replay.tickRate).toFixed(1)}s / {(utilityReplay.note.replay.endTick / utilityReplay.note.replay.tickRate).toFixed(1)}s</span><button type="button" onClick={() => setUtilityReplay((current) => ({ ...current, tick: current.playing ? current.tick : current.tick >= current.note.replay.endTick ? 0 : current.tick, playing: !current.playing }))}>{utilityReplay.playing ? t('pause') : t('play')}</button><button type="button" onClick={() => setUtilityReplay(null)}>×</button></div>}
          {utilityModalOpen && <UtilityNoteModal draft={utilityDraft} error={utilityError} folderState={utilityFolders.state} folderId={utilitySaveFolderId} language={language} onClose={() => setUtilityModalOpen(false)} onDraftChange={setUtilityDraft} onFolderChange={setUtilitySaveFolderId} onSubmit={addUtilityNote} t={t} />}
          {anonymousUtilitySave && <SaveAnonymousUtilityModal draft={anonymousUtilityDraft} error={anonymousUtilityError} folderState={utilityFolders.state} folderId={utilitySaveFolderId} kind={anonymousUtilitySave.kind} language={language} onClose={() => setAnonymousUtilitySave(null)} onDraftChange={setAnonymousUtilityDraft} onFolderChange={setUtilitySaveFolderId} onSubmit={saveAnonymousUtility} t={t} />}
-          <div className={`demo-panel ${activePanel === 'demo' ? '' : 'panel-hidden'}${demoData ? ' has-demo' : ''}${broadcastPage && !activeBroadcastId ? ' broadcast-idle' : ''}`}>
+          <div className={`demo-panel ${replayPanel ? '' : 'panel-hidden'}${demoData ? ' has-demo' : ''}${broadcastPage && !activeBroadcastId ? ' broadcast-idle' : ''}`}>
            {broadcastPage && <div className="broadcast-model-controls"><button type="button" className="broadcast-model-trigger">{t('model')}</button><div className="broadcast-model-options" /></div>}
            {activePanel === 'demo' && !broadcastPage && <DemoDataWarning warnings={demoData?.warnings} translate={t} />}
-           <div className="demo-toolbar"><div className="demo-source-controls"><label className={`demo-upload${demoBatchRunning ? ' disabled' : ''}`} onClick={platform.capabilities.nativeFilePicker ? loadDemo : undefined}><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple disabled={demoBatchRunning} onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{t('parsedDemos')} · {cachedDemos.length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{t('parsedDemos')}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{cachedDemos.length === 0 ? <div className="demo-cache-empty">{t('noCachedDemos')}</div> : cachedDemos.map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}</strong><span>{entry.map} · {entry.rounds} {t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(localeForLanguage(language))}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}</div><div className="demo-playback-controls">{demoData && <div className={`demo-round-picker${demoRoundMenuOpen ? ' open' : ''}`}><button type="button" onClick={() => setDemoRoundMenuOpen((open) => !open)}>{demoRound ? `${t('round')} ${demoRound.round} · ${demoRoundEconomies.get(demoRound.round)?.T.label}/${demoRoundEconomies.get(demoRound.round)?.CT.label}` : t('selectRound')}</button>{demoRoundMenuOpen && <div className="demo-round-list">{demoData.rounds.map((round) => { const economy = demoRoundEconomies.get(round.round); return <button type="button" key={round.round} className={demoRound?.round === round.round ? 'active' : ''} style={{ '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => { setDemoRound(round); setDemoRoundMenuOpen(false); }}><span className="economy-t">T {economy?.T.label}</span><strong>R{round.round}</strong><span className="economy-ct">CT {economy?.CT.label}</span><i /></button>; })}</div>}</div>}{demoData && demoRound && <div className="demo-scrub"><span className="demo-time">{((demoTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span><div className="timeline-track"><input className="demo-timeline" disabled={demoRoundLoading} style={{ '--timeline-progress': `${demoRound.endTick > demoRound.startTick ? ((demoTick - demoRound.startTick) / (demoRound.endTick - demoRound.startTick)) * 100 : 0}%` }} type="range" min={demoRound.startTick} max={demoRound.endTick} step="1" value={demoTick} onPointerUp={(event) => event.currentTarget.blur()} onChange={(event) => { setDemoPlaying(false); setDemoTick(Number(event.target.value)); }} />{timelineEvents.map((event, index) => <button type="button" className={`timeline-event event-${event.event_name}`} title={event.title} aria-label={event.title} style={{ left: `${((event.tick - demoRound.startTick) / Math.max(1, demoRound.endTick - demoRound.startTick)) * 100}%` }} key={`${event.event_name}-${event.tick}-${index}`} onClick={() => { setDemoPlaying(false); setDemoTick(event.tick); }}>{event.label}</button>)}</div><span className="demo-duration">/ {((demoRound.endTick - demoRound.startTick) / demoData.demo.tickRate).toFixed(1)}s</span></div>}{demoRound && <button type="button" className="demo-play" disabled={demoRoundLoading} onClick={() => setDemoPlaying((playing) => !playing)}>{demoRoundLoading ? t('loading') : demoPlaying ? t('pause') : t('play')}</button>}{(!mobileWorkspace || demoData) && <button type="button" className="demo-save-frame" onClick={() => openSaveArchiveModal(true)}>{t('saveFrame')}</button>}</div></div>
-              {!mobileWorkspace && <DemoParseSettings value={demoSampleRate} onChange={setDemoSampleRate} language={language} />}
-             {demoStatus && !demoData && <div className="demo-loading-wrap"><div className="demo-loading" role="progressbar" aria-label="Demo parsing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div>{!platform.capabilities.backgroundParsing && <p className="demo-parsing-hint">{t('demoForegroundParsingHint')}</p>}</div>}
-            <div className="demo-controls-row">{activePanel === 'demo' && demoData && <div className="demo-view-options"><span>{t('view')}</span><button type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t('showNames')}</button>{[['manual','cameraManual'],['follow','cameraFollow'],['fixed','cameraFixed'],['chase','cameraChase']].map(([mode,key]) => <button type="button" key={mode} className={demoCameraMode === mode ? 'selected' : ''} onClick={() => setDemoCameraMode(mode)}>{t(key)}</button>)}</div>}{!mobileWorkspace && <div className="demo-options"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}>GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}>TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button>{hasMapModel(mapName) && <><label className="model-opacity"><span>MODEL</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="demo-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET</button></div>}</div>
+           {recordingPage && <div className="recording-notice" role="status">{customRecordings.loading && <i className="analysis-loading-spinner" aria-hidden="true" />}{customRecordings.loading
+             ? localize(language, { zh: `正在加载 ${customRecordings.fileName}… ${customRecordings.progress > 0 ? `${Math.floor(customRecordings.progress)}%` : ''}`, en: `Loading ${customRecordings.fileName}… ${customRecordings.progress > 0 ? `${Math.floor(customRecordings.progress)}%` : ''}`, ru: `Загрузка ${customRecordings.fileName}… ${customRecordings.progress > 0 ? `${Math.floor(customRecordings.progress)}%` : ''}` })
+             : customRecordings.error || (!demoData ? localize(language, { zh: '播放 record/stop 录制的跑图、练习及其他非标准录像；无需完整回合或固定人数。', en: 'Play practice and other record/stop clips without complete rounds or fixed team sizes.', ru: 'Просмотр record/stop записей без полных раундов и фиксированного числа игроков.' }) : '')}</div>}
+           <div className="demo-toolbar"><div className="demo-source-controls"><label className={`demo-upload${(recordingPage ? customRecordings.loading : demoBatchRunning) ? ' disabled' : ''}`} onClick={platform.capabilities.nativeFilePicker ? (recordingPage ? chooseRecording : loadDemo) : undefined}><span>{recordingPage ? t('customRecordings') : t('multiDemo')}</span><input type="file" accept=".dem" multiple disabled={recordingPage ? customRecordings.loading : demoBatchRunning} onChange={recordingPage ? chooseRecording : loadDemo} /><b>{t('chooseDemo')}</b></label>{!recordingPage && demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{(recordingPage ? t('customRecordings') : t('parsedDemos'))} · {(recordingPage ? recordingLibrary : cachedDemos).length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{(recordingPage ? t('customRecordings') : t('parsedDemos'))}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{(recordingPage ? recordingLibrary : cachedDemos).length === 0 ? <div className="demo-cache-empty">{recordingPage ? localize(language, { zh: '尚未添加自制录像', en: 'No custom recordings yet', ru: 'Записей пока нет' }) : t('noCachedDemos')}</div> : (recordingPage ? recordingLibrary : cachedDemos).map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}</strong><span>{entry.map} · {entry.rounds} {recordingPage ? localize(language, { zh: '片段', en: 'clips', ru: 'фрагментов' }) : t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(localeForLanguage(language))}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}</div><ReplayTransportControls data={demoData} segment={demoRound} tick={demoTick} playing={demoPlaying} loading={demoRoundLoading || (recordingPage && customRecordings.loading)} recording={recordingPage}
+             economies={demoRoundEconomies} events={timelineEvents} menuOpen={demoRoundMenuOpen} onMenu={() => setDemoRoundMenuOpen(open => !open)}
+             onSegment={segment => { setDemoPlaying(false); setDemoRound(segment); setDemoRoundMenuOpen(false); }} onSeek={tick => { setDemoPlaying(false); setDemoTick(tick); }}
+             onToggle={() => setDemoPlaying(playing => !playing)} onSaveFrame={() => openSaveArchiveModal(true)} showSaveFrame={!mobileWorkspace || Boolean(demoData)} language={language} t={t} /></div>
+              {!recordingPage && !mobileWorkspace && <DemoParseSettings value={demoSampleRate} onChange={setDemoSampleRate} language={language} />}
+             {!recordingPage && demoStatus && !demoData && <div className="demo-loading-wrap"><div className="demo-loading" role="progressbar" aria-label="Demo parsing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div>{!platform.capabilities.backgroundParsing && <p className="demo-parsing-hint">{t('demoForegroundParsingHint')}</p>}</div>}
+            <div className="demo-controls-row">{replayPanel && demoData && <div className="demo-view-options"><span>{t('view')}</span><button type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t('showNames')}</button>{[['manual','cameraManual'],['follow','cameraFollow'],['fixed','cameraFixed'],['chase','cameraChase']].map(([mode,key]) => <button type="button" key={mode} className={demoCameraMode === mode ? 'selected' : ''} onClick={() => setDemoCameraMode(mode)}>{t(key)}</button>)}</div>}{!mobileWorkspace && <div className="demo-options"><label className="map-select"><span>MAP</span><select value={mapName} onChange={(event) => setMapName(event.target.value)}>{MAPS.map((map) => <option key={map.id} value={map.id}>{map.label}</option>)}</select></label><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}>GRID</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}>TRACKPAD {trackpadDetection ? 'ON' : 'OFF'}</button>{hasMapModel(mapName) && <><label className="model-opacity"><span>MODEL</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="demo-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></>}<button type="button" onClick={() => boardRef.current?.reset()}>RESET</button></div>}</div>
           </div>
           {activePanel === 'analysis' && <AnalysisPanel language={language} translate={t} mapName={mapName} status={analysisQueryError || analysisStatus} players={analysisPlayers} playersLoading={analysisPlayersLoading} queryLoading={analysisQueryLoading} queryError={analysisQueryError} analysisData={combinedAnalysis} flags={demoViewFlags} selectedPlayers={analysisSelectedPlayers} playerQuery={analysisPlayerQuery} onPlayerQueryChange={setAnalysisPlayerQuery} onPlayerToggle={toggleAnalysisPlayer} onPlayersClear={clearAnalysisPlayers} demos={analysisDemosForPlayers} selectedDemoIds={analysisSelectedDemoIds} onToggleDemo={(id) => setAnalysisSelectedDemoIds((selected) => selected.includes(id) ? selected.filter((selectedId) => selectedId !== id) : [...selected, id])} side={analysisSide} onSideChange={(value) => { setAnalysisSide(value); setAnalysisTime(0); setAnalysisPlaying(false); }} rowsAvailable={analysisRows.length > 0} playing={analysisPlaying} onTogglePlay={() => setAnalysisPlaying((playing) => !playing)} time={analysisTime} duration={analysisDuration} onTimeChange={(value) => { setAnalysisPlaying(false); setAnalysisTime(value); }} />}
           {activePanel === 'collab' && <aside className="collab-panel"><div className="collab-heading"><div><span>COLLABORATION</span><h2>{t('collab')}</h2></div><div className="collab-actions"><button type="button" onClick={() => openSaveArchiveModal()}>{t('saveFrame')}</button>{roomCode ? <button type="button" onClick={leaveRoom}>{t('leaveRoom')}</button> : <button type="button" onClick={() => { const code = window.prompt(t('roomPrompt'), roomJoinCode); if (code != null) { setRoomJoinCode(code); joinRoom(code); } }}>{t('joinRoom')}</button>}<button type="button" disabled={Boolean(roomCode)} onClick={openRoom}>{t('openRoom')}</button></div></div><p className="collab-note">{t('currentMap')}: {mapName} · {t('name')}: {clientName.current}<br />{t('collabHint')}</p>{roomStatus && <div className="analysis-status">{roomStatus}</div>}{roomCode && <div className="room-open"><strong>{t('room')} {roomCode}</strong><span>{roomOwner ? t('owner') : t('member')}</span></div>}<WorkspaceArchiveTree archives={archives} folders={workspaceFolders.state} language={language} roomCode={roomCode} roomOwner={roomOwner} onCreateFolder={(name, parentId) => workspaceFolders.create(name, parentId, archivesRef.current)} onDeleteFolder={(id) => workspaceFolders.remove(id, archivesRef.current)} onMove={(source, target, position) => workspaceFolders.move(archivesRef.current, source, target, position)} onDeleteArchive={deleteWorkspaceArchive} onNewArchive={openNewArchiveModal} onOverwrite={openOverwriteArchiveModal} onRestore={restoreWorkspaceArchive} t={t} /></aside>}
@@ -1303,7 +1268,7 @@ function App() {
         </div>
         {!mobileWorkspace && navData && hasMapModel(mapName) && <ModelControlsPortal selector={modelControlsTarget}><div className="model-visual-controls nav-visual-controls"><button type="button" className={`nav-visibility-toggle${showNav ? ' selected' : ''}`} aria-pressed={showNav} onClick={() => setShowNav((visible) => !visible)}>{t('navGround')} {showNav ? t('on') : t('off')}</button></div></ModelControlsPortal>}
         {!mobileWorkspace && hasMapModel(mapName) && <ModelControlsPortal selector={modelControlsTarget}><div className="model-visual-controls"><ModelLoadIndicator state={modelLoadState} language={language} /><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><label className="model-opacity"><span>{t('viewRange')}</span><input type="range" min="0" max="1" step="0.01" value={modelViewRange} onChange={(event) => setModelViewRange(Number(event.target.value))} /><b>{Math.round(modelViewRange * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="workspace-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div></ModelControlsPortal>}
-        {mobileWorkspace && <MobileViewSettings selector={broadcastPage ? '.demo-playback-controls' : activePanel === 'demo' ? '.demo-toolbar' : activePanel === 'collab' && hasActiveFrameContext ? '.collab-frame-actions' : '.workspace-bottom-bar'} language={language} t={t} showGrid={showGrid} setShowGrid={setShowGrid} trackpadDetection={trackpadDetection} setTrackpadDetection={setTrackpadDetection} showNav={showNav} setShowNav={setShowNav} hasNav={Boolean(navData)} hasModel={hasMapModel(mapName)} modelOpacity={modelOpacity} onModelOpacity={value => { setModelOpacity(value); setShowModel(value > 0); }} modelViewRange={modelViewRange} setModelViewRange={setModelViewRange} selectedMode={selectedMode} modeOptions={modeOptions} onModelMode={value => { if (value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity(current => current || 0.34); setModelViewMode(value); } }} modelLoadState={modelLoadState} sampleRate={demoSampleRate} setSampleRate={setDemoSampleRate} canParse={platform.capabilities.demoParsing && activePanel === 'demo' && !broadcastPage} onReset={() => boardRef.current?.reset?.()} />}
+        {mobileWorkspace && <MobileViewSettings selector={broadcastPage ? '.demo-playback-controls' : replayPanel ? '.demo-toolbar' : activePanel === 'collab' && hasActiveFrameContext ? '.collab-frame-actions' : '.workspace-bottom-bar'} language={language} t={t} showGrid={showGrid} setShowGrid={setShowGrid} trackpadDetection={trackpadDetection} setTrackpadDetection={setTrackpadDetection} showNav={showNav} setShowNav={setShowNav} hasNav={Boolean(navData)} hasModel={hasMapModel(mapName)} modelOpacity={modelOpacity} onModelOpacity={value => { setModelOpacity(value); setShowModel(value > 0); }} modelViewRange={modelViewRange} setModelViewRange={setModelViewRange} selectedMode={selectedMode} modeOptions={modeOptions} onModelMode={value => { if (value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity(current => current || 0.34); setModelViewMode(value); } }} modelLoadState={modelLoadState} sampleRate={demoSampleRate} setSampleRate={setDemoSampleRate} canParse={platform.capabilities.demoParsing && activePanel === 'demo' && !broadcastPage} onReset={() => boardRef.current?.reset?.()} />}
         {hasLeftSidebar && <button type="button" className="sidebar-toggle sidebar-toggle-left" aria-label={leftSidebarOpen ? localize(language, { zh: '收起左栏', en: 'Collapse left sidebar', ru: 'Свернуть левую панель' }) : localize(language, { zh: '展开左栏', en: 'Expand left sidebar', ru: 'Развернуть левую панель' })} onClick={() => setLeftSidebarOpen((open) => !open)}>{leftSidebarOpen ? '‹' : '›'}</button>}
         {hasRightSidebar && <button type="button" className="sidebar-toggle sidebar-toggle-right" aria-label={rightSidebarOpen ? localize(language, { zh: '收起右栏', en: 'Collapse right sidebar', ru: 'Свернуть правую панель' }) : localize(language, { zh: '展开右栏', en: 'Expand right sidebar', ru: 'Развернуть правую панель' })} onClick={() => setRightSidebarOpen((open) => !open)}>{rightSidebarOpen ? '›' : '‹'}</button>}
      </section>
