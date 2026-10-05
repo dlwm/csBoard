@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { squareRadarBounds } from '../data/radarBounds.js';
 
 // Poll the imperative scene API and project its camera/player markers into radar percentages.
-export default function useRadarOverlay({ activePanel, boardRef, mapName, navData }) {
+export default function useRadarOverlay({ activePanel, radarSource, boardRef, mapName, navData }) {
   const [radarScene, setRadarScene] = useState(null);
 
   useEffect(() => {
@@ -25,12 +25,12 @@ export default function useRadarOverlay({ activePanel, boardRef, mapName, navDat
     const camera = project(radarScene.position);
     const cameraTarget = project(radarScene.target, false);
     const cameraAngle = Math.atan2(cameraTarget.y - camera.y, cameraTarget.x - camera.x) * 180 / Math.PI;
-    const source = activePanel === 'collab' ? 'collab' : 'demo';
+    const source = radarSource === undefined ? activePanel === 'collab' ? 'collab' : activePanel === 'demo' || activePanel === 'broadcast' ? 'demo' : null : radarSource;
     const players = (radarScene.players || []).filter((player) => player.source === source).map((player) => {
       const position = project(player.position);
       const target = project(player.target, false);
       return { ...player, ...position, angle: Math.atan2(target.y - position.y, target.x - position.x) * 180 / Math.PI };
     });
     return { camera: { ...camera, angle: cameraAngle }, players };
-  }, [activePanel, radarScene]);
+  }, [activePanel, radarSource, radarScene]);
 }

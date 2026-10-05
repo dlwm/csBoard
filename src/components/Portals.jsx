@@ -1,17 +1,10 @@
-// Small portal-based UI surfaces mounted outside the main panel hierarchy.
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+// Semantic workspace slots replace selector-based DOM lookup.
+import { WorkspaceContribution } from './workspace/WorkspaceSlots.jsx';
 
-function SelectorPortal({ selector, children }) {
-  const [target, setTarget] = useState(null);
-  useEffect(() => setTarget(selector ? document.querySelector(selector) : null), [selector]);
-  return target ? createPortal(children, target) : null;
-}
-
-export const CollabUtilityPortal = ({ children }) => <SelectorPortal selector=".collab-objects .collab-utility">{children}</SelectorPortal>;
-export const UtilityNotesActionsPortal = ({ children }) => <SelectorPortal selector=".utility-notes-heading">{children}</SelectorPortal>;
-export const AnalysisOptionsPortal = ({ children }) => <SelectorPortal selector=".analysis-panel">{children}</SelectorPortal>;
-export const RoomPresencePortal = ({ children }) => <SelectorPortal selector=".room-open">{children}</SelectorPortal>;
-export const CameraHintsPortal = ({ children }) => <SelectorPortal selector=".key-hints .key-group:last-child">{children}</SelectorPortal>;
-export const ModelControlsPortal = ({ selector, children }) => <SelectorPortal selector={selector}>{children}</SelectorPortal>;
-export const DemoPlaybackActionsPortal = ({ children }) => <SelectorPortal selector=".demo-playback-controls">{children}</SelectorPortal>;
+export const CollabUtilityPortal = ({ children }) => <WorkspaceContribution slot="collab-utilities">{children}</WorkspaceContribution>;
+export const UtilityNotesActionsPortal = ({ children }) => <WorkspaceContribution slot="utility-actions">{children}</WorkspaceContribution>;
+export const AnalysisOptionsPortal = ({ children }) => <WorkspaceContribution slot="analysis-options">{children}</WorkspaceContribution>;
+export const RoomPresencePortal = ({ children }) => <WorkspaceContribution slot="room-presence">{children}</WorkspaceContribution>;
+export const CameraHintsPortal = ({ children }) => <WorkspaceContribution slot="camera-hints">{children}</WorkspaceContribution>;
+export const ModelControlsPortal = ({ slot, children }) => <WorkspaceContribution slot={slot}>{children}</WorkspaceContribution>;
+export const DemoPlaybackActionsPortal = ({ children }) => <WorkspaceContribution slot="playback-actions">{children}</WorkspaceContribution>;

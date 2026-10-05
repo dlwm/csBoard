@@ -1,3 +1,4 @@
+import { WorkspacePanel } from '../components/workspace/WorkspaceSlots.jsx';
 import { useState } from 'react';
 import { localize, localeForLanguage } from '../i18n.js';
 import ArchiveFolderTree, { FolderSelect } from '../components/ArchiveFolderTree.jsx';
@@ -14,7 +15,7 @@ export function BroadcastPanel({ archives, activeId, folders, language, room, on
     failed: { zh: '传输失败', en: 'Transfer failed', ru: 'Ошибка передачи' },
     closed: { zh: '房间已关闭', en: 'Room closed', ru: 'Комната закрыта' },
   };
-  return <aside className="broadcast-panel">
+  return <WorkspacePanel className="broadcast-panel">
     <header><div><span>VIEW BROADCAST</span><h2>{text(language, { zh: '视角演播', en: 'View Broadcast', ru: 'Трансляция ракурсов' })}</h2></div></header>
     <p>{text(language, { zh: '选择一个时间段存档后会自动开放房间。加入者下载完成后，存档会保存在其本地。', en: 'Selecting an interval opens a room. Joined archives are saved locally after download.', ru: 'Выбор отрезка открывает комнату. После загрузки архив сохраняется локально.' })}</p>
     <div className="broadcast-join"><input value={joinCode} maxLength={6} placeholder={text(language, { zh: '6 位房间号', en: '6-digit room code', ru: 'Код из 6 символов' })} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} /><button type="button" onClick={() => onJoin(joinCode)}>{text(language, { zh: '进入房间', en: 'Join', ru: 'Войти' })}</button></div>
@@ -24,7 +25,7 @@ export function BroadcastPanel({ archives, activeId, folders, language, room, on
       <button type="button" className="broadcast-open" onClick={() => onSelect(archive)}><strong>{archive.name}</strong><span>{archive.mapName} · R{archive.demoData?.rounds?.[0]?.round || '-'}</span><small>{((archive.endTick - archive.startTick) / (archive.demoData?.demo?.tickRate || 64)).toFixed(1)}s · {new Date(archive.savedAt).toLocaleString(localeForLanguage(language))}</small></button>
       <button type="button" className="broadcast-delete" onClick={() => onDelete(archive.id)}>×</button>
     </article>} />
-  </aside>;
+  </WorkspacePanel>;
 }
 
 export function BroadcastClipModal({ draft, folders, language, round, tickRate, onChange, onClose, onSave }) {

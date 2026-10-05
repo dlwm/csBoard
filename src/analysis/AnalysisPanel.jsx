@@ -1,3 +1,4 @@
+import { WorkspacePanel, WorkspaceTarget } from '../components/workspace/WorkspaceSlots.jsx';
 // Composes the Analysis sidebar without owning data loading or scene rendering.
 import AnalysisQueryStatus from './AnalysisQueryStatus.jsx';
 import AnalysisPlayerPicker from './AnalysisPlayerPicker.jsx';
@@ -33,7 +34,7 @@ export default function AnalysisPanel({
 }) {
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const hasPlayers = selectedPlayers.length > 0;
-  return <aside className="analysis-panel" aria-busy={queryLoading}>
+  return <WorkspacePanel className="analysis-panel" aria-busy={queryLoading}>
     <div className="collab-heading">
       <div><span>DEMO ANALYSIS</span><h2>{translate('analysis')}</h2></div>
       <button type="button" disabled={queryLoading || !hasPlayers || !rowsAvailable} onClick={onTogglePlay}>{playing ? translate('pause') : translate('play')}</button>
@@ -54,5 +55,6 @@ export default function AnalysisPanel({
       <select value={side} onChange={(event) => onSideChange(event.target.value)}><option value="ALL">{translate('allRounds')}</option><option value="T">{translate('tRounds')}</option><option value="CT">{translate('ctRounds')}</option></select>
     </label>}
     {hasPlayers && rowsAvailable && <div className="analysis-timeline"><span>{(time / 64).toFixed(1)}s</span><input type="range" min="0" max={duration} value={time} onChange={(event) => onTimeChange(Number(event.target.value))} /><span>{(duration / 64).toFixed(1)}s</span></div>}
-  </aside>;
+    <WorkspaceTarget slot="analysis-options" />
+  </WorkspacePanel>;
 }

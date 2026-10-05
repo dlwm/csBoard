@@ -9,10 +9,10 @@ export function WorkspaceArchiveTree({ archives, folders, language, roomCode, ro
   </div>} /><button type="button" className="archive-new-save" onClick={onNewArchive}>＋ {t('saveNewArchive')}</button></div>;
 }
 
-export function UtilityArchiveTree({ notes, folders, language, onCreateFolder, onDeleteFolder, onMove, onFocus, onClearFocus, onOpen, t }) {
+export function UtilityArchiveTree({ notes, folders, language, onCreateFolder, onDeleteFolder, onMove, onFocus, onClearFocus, onOpen, t, toolbarActions }) {
   const clearOutsideEntries = (event) => {
     // Moving directly to another entry keeps the original camera restore point.
     if (!event.relatedTarget?.closest?.('.utility-folder-entry')) onClearFocus();
   };
-  return <ArchiveFolderTree state={folders} items={notes} language={language} onCreate={onCreateFolder} onDelete={onDeleteFolder} onMove={onMove} emptyLabel={t('utilityEmpty')} renderItem={(note) => <button type="button" className={`utility-folder-entry${note.replay ? ' replayable' : ''}`} onPointerEnter={() => onFocus(note)} onPointerLeave={clearOutsideEntries} onFocus={() => onFocus(note)} onBlur={clearOutsideEntries} onClick={() => onOpen(note)}><b>{note.name}</b></button>} />;
+  return <ArchiveFolderTree state={folders} items={notes} language={language} onCreate={onCreateFolder} onDelete={onDeleteFolder} onMove={onMove} emptyLabel={t('utilityEmpty')} toolbarActions={toolbarActions} renderItem={(note) => <button type="button" className={`utility-folder-entry${note.replay ? ' replayable' : ''}`} onPointerEnter={() => onFocus(note)} onPointerLeave={clearOutsideEntries} onFocus={() => onFocus(note)} onBlur={clearOutsideEntries} onClick={() => onOpen(note)}><b>{note.name}</b></button>} />;
 }

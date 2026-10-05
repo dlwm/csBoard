@@ -80,31 +80,14 @@
 :root[data-compact-landscape] .topbar-panels { min-width: 0; overflow-x: auto; }
 :root[data-compact-landscape] .topbar-panels button { flex-shrink: 0; }
 :root[data-compact-landscape] .github-link { display: none; }
-:root[data-compact-landscape] .board-shell:not(.is-mobile) .board-stage {
-  --left-column: clamp(150px, 20vw, 210px);
-  --right-column: 0px;
-}
-:root[data-compact-landscape] .board-shell:is([data-panel=analysis],
-  [data-panel=utility], [data-panel=collab], [data-panel=broadcast]):not(.is-mobile) .board-stage {
-  --right-column: clamp(180px, 24vw, 240px);
-}
-:root[data-compact-landscape] .board-shell.left-sidebar-collapsed:not(.is-mobile) .board-stage { --left-column: 0px; }
-:root[data-compact-landscape] .board-shell.right-sidebar-collapsed:not(.is-mobile) .board-stage { --right-column: 0px; }
-:root[data-compact-landscape] .board-shell:not(.is-mobile) :is(.analysis-panel,
-  .utility-notes-panel, .collab-panel, .collab-objects, .utility-location-panel,
-  .broadcast-panel, .view-tools) { min-height: 0; overflow-y: auto; padding: 8px; }
 :root[data-compact-landscape] .board-footer { min-height: 24px; }
 :root[data-compact-landscape] .key-hints { display: none; }
-:root[data-compact-landscape] .demo-toolbar { gap: 6px; }
+:root[data-compact-landscape] .demo-toolbar { gap: 6px}
 :root[data-compact-landscape] .changelog-dialog { max-height: 90dvh; }
 
 /* H5 shares landscape columns but keeps a reduced feature set. */
 .board-shell.is-mobile-h5 .analysis-view-options { display: none; }
 @media (orientation: landscape) {
-  .board-shell.is-mobile-h5 .board-stage { --left-column: clamp(150px, 20vw, 210px); }
-  .board-shell.is-mobile-h5:is([data-panel=utility], [data-panel=collab]) .board-stage { --right-column: clamp(180px, 24vw, 280px); }
-  .board-shell.is-mobile-h5.left-sidebar-collapsed .board-stage { --left-column: 0px; }
-  .board-shell.is-mobile-h5.right-sidebar-collapsed .board-stage { --right-column: 0px; }
 }
 
 /* The shell selects mobile features; these controls also work with a mouse. */
@@ -139,7 +122,7 @@
 :root .board-shell[data-mobile-workspace] .github-link { display: none; }
 :root .board-shell[data-mobile-workspace] .game-switch { min-width: 44px; min-height: 44px; }
 :root .board-shell[data-mobile-workspace] .language-switch { min-width: 44px; min-height: 44px; font-size: 12px; }
-:root .board-shell[data-mobile-workspace] .header-map-select { max-width: 135px; padding: 4px 6px; }
+:root .board-shell[data-mobile-workspace] .header-map-select { display: flex; max-width: 135px; padding: 4px 6px; }
 :root .board-shell[data-mobile-workspace] .header-map-select>span:first-child { display: none; }
 :root .board-shell[data-mobile-workspace] .header-map-select .header-map-value { min-width: 80px; }
 :root .board-shell[data-mobile-workspace] .header-map-label { font-size: 12px; }
@@ -211,20 +194,16 @@
 :root .board-shell[data-mobile-workspace] .brush-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
 :root .board-shell[data-mobile-workspace] .brush-swatch { flex: none; width: 44px; height: 44px; border-radius: 50%; }
 :root .board-shell[data-mobile-workspace] .brush-widths button { width: 44px; }
-:root .board-shell[data-mobile-workspace] .demo-panel { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; }
-:root .board-shell[data-mobile-workspace] .demo-toolbar { display: flex; flex-flow: row wrap; gap: 8px; }
-:root .board-shell[data-mobile-workspace] .demo-source-controls { position: relative; flex: 1 1 180px; padding-right: 0; min-width: 0; gap: 8px; }
+:root .board-shell[data-mobile-workspace] .demo-panel { gap: 6px}
+:root .board-shell[data-mobile-workspace] .demo-toolbar { gap: 8px}
+:root .board-shell[data-mobile-workspace] .demo-source-controls { gap: 8px}
 :root .board-shell[data-mobile-workspace] .demo-upload { margin: 0; min-width: 0; }
 :root .board-shell[data-mobile-workspace] .demo-upload>span { display: none; }
 :root .board-shell[data-mobile-workspace] .demo-upload>b { display: grid; place-items: center; min-height: 44px; font-size: 12px; padding: 8px 12px; }
-:root .board-shell[data-mobile-workspace] .demo-playback-controls { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; min-width: 0; }
-:root .board-shell[data-mobile-workspace] .demo-panel:not(.has-demo) .demo-playback-controls { display: none; }
-:root .board-shell[data-mobile-workspace] .demo-controls-row:empty { display: none; }
-:root .board-shell[data-mobile-workspace] .demo-controls-row { padding: 0; border: 0; }
+:root .board-shell[data-mobile-workspace] .demo-playback-controls { align-items: center; gap: 8px}
 :root .board-shell[data-mobile-workspace] .demo-view-options { overflow-x: auto; min-width: 0; }
 :root .board-shell[data-mobile-workspace] .mobile-view-settings-toggle { flex: none; margin-left: auto; }
-:root .board-shell[data-mobile-workspace] .workspace-bottom-bar { min-height: 52px; padding: 4px 8px; }
-:root .board-shell[data-mobile-workspace] .collab-frame-strip { gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
+:root .board-shell[data-mobile-workspace] .collab-frame-strip { gap: 6px}
 :root .board-shell[data-mobile-workspace] .collab-frame-actions { flex: none; }
 :root .board-shell[data-mobile-workspace] .demo-cache-list,
 :root .board-shell[data-mobile-workspace] .demo-round-list { max-height: min(300px, calc(100dvh - 110px)); }
@@ -317,7 +296,7 @@
 .demo-detail-display p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .demo-detail-display h4 { margin: 10px 0 4px; font-size: inherit; }
 
-.utility-recommendations { grid-column: 1; grid-row: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 16px 12px; background: #090f0ef0; border-right: 1px solid var(--accent-border); overflow: hidden; z-index: 6; }
+.utility-recommendations { gap: 10px}
 .utility-recommendations > header { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 .utility-recommendations h2 { margin: 0; color: var(--accent); font: 600 13px var(--font-ui); }
 .utility-recommendations p { margin: 0; color: #8c9b8d; font: 10px/1.5 var(--font-ui); }
@@ -335,8 +314,6 @@
 .utility-recommendations button:disabled { opacity: .5; cursor: wait; }
 .recommendation-loading { position: absolute; left: calc(var(--left-column, 0px) + 12px); bottom: 70px; display: flex; align-items: center; gap: 7px; z-index: 25; padding: 7px 9px; border-radius: 4px; background: #090f0ed9; color: #8c9b8d; font: 9px var(--font-ui); pointer-events: none; }
 .recommendation-loading .analysis-loading-spinner { width: 12px; height: 12px; flex-basis: 12px; }
-.board-shell.left-sidebar-collapsed .utility-recommendations { display: none; }
-:root[data-compact-landscape] .board-shell[data-panel=analysis][data-analysis-metric=utility]:not(.left-sidebar-collapsed) .board-stage { --left-column: clamp(160px, 22vw, 240px); }
 
 .demo-batch-panel > header > div { flex: 1; }
 .demo-batch-panel > header .demo-batch-collapse { width: auto; min-width: 48px; padding: 0 7px; font: 9px var(--font-ui); }
@@ -348,9 +325,6 @@
 .release-download svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 :root[data-compact-landscape] .release-download, .board-shell[data-mobile-workspace] .release-download { min-width: 32px; min-height: 32px; box-sizing: border-box; padding: 7px; }
 :root[data-compact-landscape] .release-download span, .board-shell[data-mobile-workspace] .release-download span { display: none; }
-
-/* Match Utility Notes / Collaboration: reserve the map section above the list. */
-.board-shell:not(.is-mobile) .utility-recommendations { grid-row: 1 / 3; margin-top: calc(var(--map-bar-height, 230px) + 10px); }
 .recommendation-score { color: var(--accent); font: 10px var(--font-ui); }
 .recommendation-formula-editor { flex: none; max-height: 45%; overflow: auto; color: #8c9b8d; font: 9px var(--font-ui); }
 .recommendation-formula-editor summary { cursor: pointer; }

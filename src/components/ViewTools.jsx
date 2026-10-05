@@ -4,8 +4,8 @@ import { localize } from '../i18n.js';
 import useRadarOverlay from '../hooks/useRadarOverlay.js';
 
 // Keep radar polling local: camera motion must not rerender the entire application.
-function RadarOverlay({ activePanel, boardRef, mapName, navData }) {
-  const radarOverlay = useRadarOverlay({ activePanel, boardRef, mapName, navData });
+function RadarOverlay({ activePanel, radarSource, boardRef, mapName, navData }) {
+  const radarOverlay = useRadarOverlay({ activePanel, radarSource, boardRef, mapName, navData });
   if (!radarOverlay) return null;
   return <svg className="map-radar-overlay" viewBox="0 0 100 100" aria-hidden="true">
     {radarOverlay.players.map((player) => <g className={`map-player-base side-${player.team.toLowerCase()}`} key={`${player.source}-${player.id}`} transform={`translate(${player.x} ${player.y}) rotate(${player.angle})`}><circle r="3.1" /><path d="M2.2 0 5.2-1.6 5.2 1.6Z" /></g>)}
@@ -17,7 +17,7 @@ const BRUSH_COLORS = ['#a5e0ff', '#ff6b6b', '#7cf29c', '#ffd166', '#ffffff', '#c
 const BRUSH_WIDTHS = [2, 3, 5, 8];
 
 // Shared camera, radar-floor and drawing controls; mobile collapses the surface.
-export default function ViewTools({ mobile = false, touchDrawingEnabled = false, setTouchDrawingEnabled, activePanel, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
+export default function ViewTools({ mobile = false, touchDrawingEnabled = false, setTouchDrawingEnabled, activePanel, radarSource, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
   const [open, setOpen] = useState(false);
   const [savingCamera, setSavingCamera] = useState(false);
   const contentId = useId();
@@ -35,18 +35,18 @@ export default function ViewTools({ mobile = false, touchDrawingEnabled = false,
     <div className="view-tools-top">
       {currentMapLayers.length ? <button type="button" className="map-preview-slot" aria-label={localize(language, { zh: '切换地图层级', en: 'Switch map floor', ru: 'Переключить этаж карты' })} onClick={cycleMapFloor}>
         <img src={currentLayerUrl} alt="" />
-        <RadarOverlay activePanel={activePanel} boardRef={boardRef} mapName={mapName} navData={navData} />
+        <RadarOverlay radarSource={radarSource} activePanel={activePanel} boardRef={boardRef} mapName={mapName} navData={navData} />
         {currentMapLayers.length > 1 && <span>{currentMapLayers[map2dLayer]?.id === 'lower' ? t('lowerFloor') : t('upperFloor')}</span>}
       </button> : <div className="map-preview-slot map-preview-empty" aria-hidden="true" />}
       <div className="camera-slots">
         <span>{t('cameraPositions')}</span>
         {cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved && !(mobile && savingCamera)} className={activeCameraSlot === index ? 'active' : ''} aria-label={text(`${savingCamera ? '保存' : '恢复'}机位 ${index + 1}`, `${savingCamera ? 'Save' : 'Restore'} camera ${index + 1}`, `${savingCamera ? 'Сохранить' : 'Восстановить'} камеру ${index + 1}`)} onClick={() => {
-          if (mobile && savingCamera) { boardRef.current?.saveCameraSlot?.(index); setSavingCamera(false); }
-          else boardRef.current?.restoreCameraSlot?.(index);
+          if (mobile && savingCamera) { boardRef.current?.commands?.execute('camera.save', { slot: index }); setSavingCamera(false); }
+          else boardRef.current?.commands?.execute('camera.restore', { slot: index });
         }}>{index === 9 ? 0 : index + 1}</button>)}
         <div className="floor-controls">{floorOptions.map(([floor, label]) => <button type="button" key={floor} className={modelFloor === floor ? 'active' : ''} onClick={() => selectMapFloor(floor)}>{label}</button>)}</div>
         {mobile && <button type="button" className="camera-save-toggle" aria-pressed={savingCamera} onClick={() => setSavingCamera(value => !value)}>{savingCamera ? text('选择保存位置', 'Choose a slot', 'Выберите слот') : text('保存机位', 'Save camera', 'Сохранить камеру')}</button>}
-        <button type="button" className="camera-reset" onClick={() => boardRef.current?.reset()}>{t('resetView')}</button>
+        <button type="button" className="camera-reset" onClick={() => boardRef.current?.commands?.execute('camera.reset')}>{t('resetView')}</button>
       </div>
     </div>
     {mobile && <button type="button" className="touch-drawing-toggle" aria-pressed={touchDrawingEnabled} onClick={() => { setTouchDrawingEnabled(value => !value); setOpen(false); }}>{touchDrawingEnabled ? text('关闭绘图，旋转视角', 'Stop drawing; rotate view', 'Выключить рисование') : text('开启绘图', 'Enable drawing', 'Включить рисование')}</button>}

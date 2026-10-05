@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 
 const SCROLL_EDGE_SELECTOR = [
+  '.workspace-sidebar', '.workspace-left-content',
   '.analysis-panel', '.utility-notes-panel', '.collab-panel', '.utility-location-groups', '.utility-hover-list',
   '.demo-cache-list', '.demo-round-list', '.demo-batch-tasks', '.collab-imported-list', '.analysis-player-list', '.analysis-demo-picker>div',
   '.analysis-player-results', '.analysis-player-chips', '.board-shell.is-mobile .demo-kills', '.board-shell.is-mobile .demo-panel',

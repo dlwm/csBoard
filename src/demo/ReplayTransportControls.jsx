@@ -1,3 +1,4 @@
+import { WorkspaceTarget } from '../components/workspace/WorkspaceSlots.jsx';
 import { localize } from '../i18n.js';
 
 // Match rounds and recording clips use one transport control. Only segment
@@ -24,6 +25,7 @@ export default function ReplayTransportControls({ data, segment, tick, playing, 
       </div><span className="demo-duration">/ {((segment.endTick - segment.startTick) / data.demo.tickRate).toFixed(1)}s</span>
     </div>}
     {segment && <button type="button" className="demo-play" disabled={loading} onClick={onToggle}>{loading ? t('loading') : playing ? t('pause') : t('play')}</button>}
+    <WorkspaceTarget slot="playback-actions" />
     {showSaveFrame && <button type="button" className="demo-save-frame" disabled={loading} onClick={onSaveFrame}>{t('saveFrame')}</button>}
   </div>;
 }

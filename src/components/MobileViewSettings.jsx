@@ -5,7 +5,7 @@ import ModelLoadIndicator from './ModelLoadIndicator.jsx';
 import { DEMO_SAMPLE_RATES } from '../demo/DemoParseSettings.jsx';
 
 // A modal keeps touch settings out of the timeline while preserving keyboard focus.
-export default function MobileViewSettings({ selector, language, t, showGrid, setShowGrid,
+export default function MobileViewSettings({ slot, language, t, showGrid, setShowGrid,
   trackpadDetection, setTrackpadDetection, showNav, setShowNav, hasNav, hasModel,
   modelOpacity, onModelOpacity, modelViewRange, setModelViewRange, selectedMode,
   modeOptions, onModelMode, modelLoadState, sampleRate, setSampleRate, canParse, onReset }) {
@@ -14,7 +14,7 @@ export default function MobileViewSettings({ selector, language, t, showGrid, se
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const title = text('视图设置', 'View settings', 'Настройки вида');
   return <>
-    <ModelControlsPortal selector={selector}><button type="button" className="mobile-view-settings-toggle" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>{title}</button></ModelControlsPortal>
+    <ModelControlsPortal slot={slot}><button type="button" className="mobile-view-settings-toggle" aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>{title}</button></ModelControlsPortal>
     <dialog ref={dialog} className="mobile-view-dialog" aria-labelledby={titleId}>
       <header><h2 id={titleId}>{title}</h2><button type="button" autoFocus onClick={() => dialog.current?.close()}>{text('关闭', 'Close', 'Закрыть')}</button></header>
       <div className="mobile-view-settings-body">

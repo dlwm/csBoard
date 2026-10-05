@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSync } from 'vite';
+import { checkWorkspaceNode, checkWorkspaceStyles } from './check-workspace.js';
 
 // Enforce dependencies on parsed code, not text matches (comments and examples
 // must not become false violations). 依赖边界通过 AST 检查，忽略注释和示例字符串。
@@ -10,6 +11,7 @@ const domainRoots = [
   'src/demo/recordings.js', 'src/demo/playbackSessions.js', 'src/demo/library.js', 'src/demo/parserRuntime.js', 'src/demo/grenades.js',
   'src/analysis/buildAnalysisDataset.js', 'src/analysis/utilityRecommendations.js',
   'src/utility/savedThrow.js', 'src/utility/recordedThrowRepository.js',
+  'src/utility/recoverRecordedReplay.js', 'src/app/commandRegistry.js', 'src/collaboration/boardCommands.js',
   'src/collaboration/archiveStore.js', 'src/collaboration/frameSession.js',
 ];
 const compositions = new Set(['src/entry.js', 'src/bootstrap.js']);
@@ -38,6 +40,7 @@ export function checkArchitecture(root) {
         const dependencies = [];
         const report = (node, message) => errors.push(`${file}:${source.slice(0, node.start).split('\n').length}: ${message}`);
         walk(ast.program, node => {
+          checkWorkspaceNode(file, node, report);
           let specifier;
           if (['ImportDeclaration', 'ExportNamedDeclaration', 'ExportAllDeclaration', 'ImportExpression'].includes(node.type)) specifier = node.source?.value;
           if (node.type === 'NewExpression' && node.callee?.name === 'URL') specifier = node.arguments[0]?.value;
@@ -74,6 +77,7 @@ export function checkArchitecture(root) {
     }
     follow(entry, []);
   }
+  errors.push(...checkWorkspaceStyles(root));
   if (errors.length) throw new Error(`Architecture violations:\n${[...new Set(errors)].join('\n')}`);
   console.log(`Architecture checked: ${modules.size} modules, ${domainRoots.length} business core entries`);
 }

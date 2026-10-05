@@ -7,7 +7,7 @@ import ResourcePackModal from './ResourcePackModal.jsx';
 import DesktopManager from './DesktopManager.jsx';
 import { getPlatform } from '../platform/index.js';
 
-const PANELS = [['demo', 'rounds'], ['analysis', 'analysis'], ['broadcast', 'broadcast'], ['utility', 'utilityNotes'], ['collab', 'collab']];
+import { availableWorkspaceMenus } from './workspace/menuRegistry.js';
 
 // Global navigation owns locale cycling and the mini-game launcher, independent of panel content.
 export default function BoardHeader({ activePanel, language, mapName, parseGameState, setLanguage, setMapName, setParseGameManual, setParseGameState, switchPanel, t }) {
@@ -29,10 +29,10 @@ export default function BoardHeader({ activePanel, language, mapName, parseGameS
   };
   return <header className="board-header">
     <div className="brand"><span className="brand-mark"><i /><i /><i /></span><span>CS<span>BOARD</span></span>{BUILD_VERSION && <button type="button" className="build-version" title={localize(language, { zh: '查看更新日志', en: 'View changelog', ru: 'Открыть список изменений' })} onClick={() => setChangelogOpen(true)}>{BUILD_VERSION}</button>}</div>
-    <nav ref={navRef} className="topbar-panels">{PANELS.filter(([panel]) => getPlatform().capabilities.demoParsing || ['utility', 'collab'].includes(panel)).map(([panel, label]) => <button type="button" key={panel} aria-current={activePanel === panel ? 'page' : undefined} className={activePanel === panel ? 'active' : ''} onClick={() => switchPanel(panel)}>{t(label)}</button>)}</nav>
+    <nav ref={navRef} className="topbar-panels">{availableWorkspaceMenus(getPlatform().capabilities).map(({ id: panel, label }) => <button type="button" key={panel} aria-current={activePanel === panel ? 'page' : undefined} className={activePanel === panel ? 'active' : ''} onClick={() => switchPanel(panel)}>{t(label)}</button>)}</nav>
     <div className="header-right">
-      {getPlatform().maintenance && <button type="button" className="desktop-manager-button" onClick={() => setDesktopOpen(true)}>{localize(language, { zh: '桌面管理', en: 'Desktop', ru: 'Приложение' })}</button>}
-      {getPlatform().capabilities.resourceImport && <button type="button" className="resource-pack-button" onClick={() => setResourcesOpen(true)}>{localize(language, { zh: '资源包', en: 'Resources', ru: 'Ресурсы' })}</button>}
+      {getPlatform().maintenance && <button type="button" className="desktop-manager-button" onClick={() => setDesktopOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>{localize(language, { zh: '桌面管理', en: 'Desktop', ru: 'Приложение' })}</button>}
+      {getPlatform().capabilities.resourceImport && <button type="button" className="resource-pack-button" onClick={() => setResourcesOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5v8l-9 5-9-5V8ZM3 8l9 5 9-5M12 13v8M8 5l9 5"/></svg>{localize(language, { zh: '资源包', en: 'Resources', ru: 'Ресурсы' })}</button>}
       <label className="map-select header-map-select" style={mapLabelStyle(mapName)}>
         <span>MAP</span>
         <span className="header-map-value">

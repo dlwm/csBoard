@@ -11,7 +11,7 @@ export function FolderSelect({ state, value, onChange, language }) {
   </select>;
 }
 
-export default function ArchiveFolderTree({ state, items, language, onCreate, onDelete, onMove, renderItem, emptyLabel }) {
+export default function ArchiveFolderTree({ state, items, language, onCreate, onDelete, onMove, renderItem, emptyLabel, toolbarActions }) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState(ROOT_FOLDER_ID);
@@ -74,7 +74,7 @@ export default function ArchiveFolderTree({ state, items, language, onCreate, on
   });
 
   return <div className="folder-tree">
-    <div className="folder-tree-heading"><strong>{label(language, '目录', 'Folders', 'Папки')}</strong><button type="button" onClick={() => setCreating(true)}>＋ {label(language, '新建文件夹', 'New folder', 'Новая папка')}</button></div>
+    <div className="folder-tree-heading"><strong>{label(language, '目录', 'Folders', 'Папки')}</strong><div className="folder-tree-actions">{toolbarActions}<button type="button" onClick={() => setCreating(true)}>＋ {label(language, '新建文件夹', 'New folder', 'Новая папка')}</button></div></div>
     <div className="folder-tree-scroll">
       <div className={`folder-tree-row root${dropTarget === `folder:${ROOT_FOLDER_ID}` ? ' drop-target' : ''}`} onDragOver={(event) => allowDrop(event, 'folder', ROOT_FOLDER_ID)} onDragLeave={() => setDropTarget('')} onDrop={(event) => drop(event, 'folder', ROOT_FOLDER_ID)}><span className="folder-tree-name">▣ Root</span><small>{items.length}</small></div>
       {items.length || state.folders.length ? children(ROOT_FOLDER_ID, 0) : <div className="archive-empty">{emptyLabel}</div>}

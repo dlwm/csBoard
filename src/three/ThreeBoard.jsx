@@ -38,6 +38,7 @@ import useThreeBoardRuntimeRefs from './useThreeBoardRuntimeRefs.js';
 import { createBrushLine, disposeBrushLine, serializeBrushLine, updateBrushLine } from './brushStroke.js';
 import { ANALYSIS_HEAT_DATA_EVENT, loadViewPreferences, MAP_MODEL_BASES, MAP_ZONE_MODELS_ENABLED, MODEL_VIEW_RANGE_EVENT, NAV_TOP_CAMERA_TARGET_MAPS } from '../app/config.js';
 import { mapModelSource, hasMapModel } from '../app/resourcePacks.js';
+import { createBoardCommands } from '../collaboration/boardCommands.js';
 import { buildSavedThrowNote } from '../utility/savedThrow.js';
 import { loadMapModel } from './mapModelLoader.js';
 
@@ -864,13 +865,13 @@ export default function ThreeBoard(props) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && (!pointPlacementEnabledRef.current || collabEditingEnabledRef.current)) {
         event.preventDefault();
         if (pointPlacementEnabledRef.current) {
-          if (event.shiftKey) redoCollab(); else undoCollab();
+          if (event.shiftKey) boardCommands.execute('board.redo'); else boardCommands.execute('board.undo');
         } else if (event.shiftKey) redoBrush(); else undoBrush();
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y' && (!pointPlacementEnabledRef.current || collabEditingEnabledRef.current)) {
         event.preventDefault();
-        if (pointPlacementEnabledRef.current) redoCollab(); else redoBrush();
+        if (pointPlacementEnabledRef.current) boardCommands.execute('board.redo'); else redoBrush();
         return;
       }
       const pressedNumber = Number.parseInt(event.key, 10);
@@ -1342,6 +1343,15 @@ export default function ThreeBoard(props) {
       camera.up.set(0, 1, 0);
       normalReset();
     };
+    const initialReset = () => { camera.position.set(17, 23, 25); controls.target.set(0, 0, 0); controls.update(); };
+    let defaultCameraReset = initialReset;
+    const boardCommands = createBoardCommands({
+      isEditable: () => collabEditingEnabledRef.current,
+      apply: applyTacticalSnapshot, clear: () => applyTacticalSnapshot({ points: [], grenades: [], brushStrokes: [], collabUtilities: [] }), undo: undoCollab, redo: redoCollab,
+      rename: renamePlayerPoint, setTeam: (id, team) => renamePlayerPoint.setTeam(id, team), addUtility: addCollabUtility, removeUtility: removeCollabUtility,
+      saveCamera: saveCameraSlot, restoreCamera: restoreCameraSlot, focusPlayer: focusCollabPlayer, focusPlacedUtility: focusCollabUtility,
+      focusUtility: focusUtilityNote, endPreview: clearCollabUtilityPreview, resetCamera: () => resetToDefault(defaultCameraReset),
+    });
     modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: 0, total: 0 });
     const loadWorldModel = (loadedModel) => {
       if (disposed) return;
@@ -1405,7 +1415,8 @@ export default function ThreeBoard(props) {
       resetCamera();
       cameraState.restoreCurrent();
       cameraState.enablePersistence();
-      onReady({ ready: true, reset: () => resetToDefault(resetCamera), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+      defaultCameraReset = resetCamera;
+      onReady({ commands: boardCommands, ready: true, reset: () => resetToDefault(resetCamera), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
       modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
     };
     if (mapName === TUTORIAL_MAP_ID) loadWorldModel(createTutorialMap());
@@ -1418,7 +1429,7 @@ export default function ThreeBoard(props) {
     }, (loadError) => {
       if (disposed) return;
       modelLoadStateRef.current?.({ mapName, status: hasMapModel(mapName) ? 'error' : 'absent', loaded: 0, total: 0 });
-      if (hasMapModel(mapName)) console.info(`${mapName} visual model unavailable.`, loadError.message);
+    if (hasMapModel(mapName)) console.info(`${mapName} visual model unavailable.`, loadError.message);
       if (nav) {
         modelCenter.copy(nav.center);
         nav.group.position.copy(modelCenter).multiplyScalar(-1);
@@ -1436,15 +1447,15 @@ export default function ThreeBoard(props) {
         cameraState.restoreCurrent();
         cameraState.enablePersistence();
          const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
-         onReady({ ready: true, reset: () => resetToDefault(normalReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+         defaultCameraReset = normalReset;
+         onReady({ commands: boardCommands, ready: true, reset: () => resetToDefault(normalReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
       }
     }, ({ failedUrl, nextBase }) => {
       console.info(`${mapName} packaged model unavailable at ${failedUrl}; trying ${nextBase}.`);
     });
     controls.target.set(0, 0, 0);
     controls.update();
-     const initialReset = () => { camera.position.set(17, 23, 25); controls.target.set(0, 0, 0); controls.update(); };
-     onReady({ ready: false, reset: () => resetToDefault(initialReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+     onReady({ commands: boardCommands, ready: false, reset: () => resetToDefault(initialReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
     const demoMonitorRenderer = createDemoMonitorRenderer({
       mount,
       renderer,

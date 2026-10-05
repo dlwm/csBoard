@@ -246,7 +246,7 @@ export function createTacticalTools(getPorts) {
       if (next.points.length > 64 || next.grenades.length > 128 || next.brushStrokes.length > 128) throw new Error('Tactical frame object limit reached');
       const names = next.points.map(p => p.name.trim().toLowerCase());
       if (new Set(names).size !== names.length || names.some(n => !n)) throw new Error('Player names must be nonempty and unique');
-      s.ports.edit(() => { s.board.applyTacticalSnapshot(next); s.ports.flush(); });
+      s.ports.edit(() => { s.ports.commands.execute('board.apply', { snapshot: next }); s.ports.flush(); });
       return { created, revision: state().revision, illustrativeEffects: input.changes.some(change => ['add_effect', 'update_effect'].includes(change.kind)), illustrativeEffectCount: input.changes.filter(change => ['add_effect', 'update_effect'].includes(change.kind)).length, effectSemantics: 'Only manually added/updated effects are schematic placeholders, not recorded throws or verified coverage.' };
     }
     if (name === 'search_utilities') {
@@ -291,7 +291,7 @@ export function createTacticalTools(getPorts) {
       if (input.frameId !== s.context.frameId) throw new Error('Switch to the target frame and reread its revision before importing');
       const note = s.ports.notes().find(note => note.id === input.noteId && note.mapName === s.context.mapName);
       if (!note) throw new Error('Saved throw not found on this map');
-      s.ports.edit(() => { s.board.addCollabUtility(note); s.ports.flush(); });
+      s.ports.edit(() => { s.ports.commands.execute('utility.add', { note }); s.ports.flush(); });
       return { frameId: s.context.frameId, revision: state().revision, utilities: summary(state()).utilities };
     }
     if (name === 'manage_frames') {
@@ -304,13 +304,13 @@ export function createTacticalTools(getPorts) {
       if (input.action.startsWith('focus_')) {
         const collection = input.action === 'focus_player' ? s.workspace.points : s.workspace.collabUtilities;
         if (!collection.some(item => item.id === input.id)) throw new Error('Unknown focus target');
-        (input.action === 'focus_player' ? s.board.focusCollabPlayer : s.board.focusCollabUtility)(input.id);
-      } else if (input.action === 'end_preview') s.board.clearCollabUtilityPreview();
+        s.ports.commands.execute(input.action === 'focus_player' ? 'camera.focusPlayer' : 'camera.focusPlacedUtility', { id: input.id });
+      } else if (input.action === 'end_preview') s.ports.commands.execute('camera.endPreview');
       else { if (input.slot == null) throw new Error('Camera slot required'); if (input.action === 'restore_slot' && !s.workspace.cameraSlots?.[input.slot]) throw new Error('Camera slot is empty'); s.ports.cameraActions[input.action](input.slot); }
       return { ok: true };
     }
-    if (name === 'edit_history') { if (!(input.action === 'undo' ? s.board.canUndoCollab?.() : s.board.canRedoCollab?.())) throw new Error('No edit available for this history action'); s.ports.edit(() => { (input.action === 'undo' ? s.board.undoCollab : s.board.redoCollab)(); s.ports.flush(); }); return { revision: state().revision }; }
-    if (name === 'clear_board') { s.ports.edit(() => { s.board.applyTacticalSnapshot({ points: [], grenades: [], brushStrokes: [], collabUtilities: [] }); s.ports.flush(); }); return { revision: state().revision }; }
+    if (name === 'edit_history') { if (!(input.action === 'undo' ? s.board.canUndoCollab?.() : s.board.canRedoCollab?.())) throw new Error('No edit available for this history action'); s.ports.edit(() => { s.ports.commands.execute(`board.${input.action}`); s.ports.flush(); }); return { revision: state().revision }; }
+    if (name === 'clear_board') { s.ports.edit(() => { s.ports.commands.execute('board.clear'); s.ports.flush(); }); return { revision: state().revision }; }
     if (name === 'list_archives') return { archives: s.ports.archives().map(({ id, name, mapName }) => ({ id, name, mapName })) };
     if (name === 'manage_archive_folders') {
       const folders = s.ports.folders();
