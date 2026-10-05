@@ -23,12 +23,11 @@ Desktop keys use system encryption. Web keys stay in memory until refresh and re
 For image-capable models, enable **Model supports image input** in settings. The assistant can inspect numbered current, top and focused board views and resolve image pixels into NAV candidates. Leave this off for text-only models: local polygon geometry, heights, connections and relative positions remain available. Screenshots cover only the board, use a temporary camera and are not retained in model history across turns. Image recognition and imported geometry do not validate CS2 cover, line of sight or utility coverage.
 
 
-## Version 1.18.0
+## Version 1.20.3
 
-- Introduce the experimental operation assistant with editing tools, undo and collaboration support.
-- Keep separate sessions, editable memory and application context; import/export conversations and arrange workflows with per-step tool permissions.
-- Add configurable context compression, ground-focused views for multimodal models and spatial queries for text-only models.
-- Improve provider setup, tool labels, chat interaction and error reporting; reduce repeated tool loops.
+- Switch imported maps between simple models and original materials.
+- Play recorded Demo voices with speaking indicators; voice starts muted and has a separate volume control.
+- Adjust desktop text size and inspect freeze time before each round without changing the default playback start.
 - See the [release notes](CHANGELOG.md) for details.
 
 ## Highlights
@@ -40,7 +39,8 @@ For image-capable models, enable **Model supports image input** in settings. The
 - Import one Demo or select multiple Demo parts and merge them into one match.
 - Parse playable rounds once and switch rounds from cache: The Go parser builds replay and analysis data; rounds are cached in IndexedDB or SQLite plus compressed files.
 - Omit empty placeholder rounds and discard incompatible cached parses automatically.
-- Replay from freeze end with player movement, kills, deaths, weapons, health, utility, C4 state, and event markers.
+- Replay from freeze end with player movement, kills, deaths, weapons, health, utility, C4 state, and event markers; seek backward to review freeze time.
+- Play recorded voice with speaker indicators. Voice starts muted; use the header button to unmute and its vertical slider to adjust voice volume. Demos without recorded voice cannot supply audio; older caches need reparsing.
 - Display simplified standing and crouching player models with yaw, pitch, dynamic eye height, and BVH-accelerated line-of-sight collision.
 - Track C4 carriers, drops, plants, explosions, defuses, approximate drop trajectories, and the bomb timer.
 - Save the current frame and convert live players and active utility into editable tactical-board objects.
@@ -199,7 +199,7 @@ make workers-build
 
 `make build` uses local `/maps` resources and same-origin APIs. `make build-remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
-Electron release builds (`make desktop-build-mac-arm64` / `make desktop-build-mac-x64` / `make desktop-build-win-x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. See [resource-pack instructions](docs/ai/references/resource-packs.en.md).
+Electron release builds (`make desktop-build-mac-arm64` / `make desktop-build-mac-x64` / `make desktop-build-win-x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. Game imports include converted textures; use **Simple model / Original materials** in the model controls. Reimport older game packs to obtain textures. See [resource-pack instructions](docs/ai/references/resource-packs.en.md).
 
 Unpackaged development runs may read `.local/official/maps`; `make desktop-prepare ARGS=--local-models` creates an explicit local-test package containing these models. Ordinary release packaging never includes `.local/official` or `.local/official/maps`. Web builds retain their existing local/OSS model behavior.
 
@@ -230,6 +230,8 @@ Version: `make version` offers major, minor, patch and custom input; it synchron
 Building the native desktop component requires Git, Node.js and Go (the toolchain follows `native/parser/go.mod` and `native/storage/go.mod`). SQLite uses a pure Go driver, with no Rust/Cargo or C compiler requirement. Installed applications include the executables and need no Go or Python setup. Native data lives under the Electron user-data directory in `native-data/`. Legacy IndexedDB data is copied when needed without deleting the original database; browser preferences remain in browser storage. Back up important archives before upgrading.
 
 Desktop → Parser performance offers Balanced (default), Fast and Custom modes. Fast allows the full logical-core budget; concurrent Demos share it and wait when memory is insufficient. Custom controls concurrent Demos, threads per Demo and the memory admission budget. Safe tick sampling uses native threads; events, button state and smoke/fire journals remain sequential. The budget does not impose a hard process memory limit.
+
+Desktop → Appearance adjusts interface text size from 80% to 150%, saves it automatically and offers a default reset.
 
 Desktop → Storage & backups shows database, cache and resource usage, supports manual least-recently-used cache cleanup, and creates verified backup folders. Restore replaces native data and imported resources on restart while retaining the previous directories. Original Demo files, browser preferences and unsaved work are not included. Background tasks are bounded and cancellable; automatic sleep prevention is optional for the current session.
 

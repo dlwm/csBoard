@@ -2,6 +2,26 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.3] - 2026-10-05
+
+### Added
+
+- Switch imported maps between a simple model and original materials, while keeping visibility and transparency controls.
+- Play recorded Demo voices, with speaker indicators, mute enabled by default and a separate voice volume control.
+- Adjust desktop interface text size from 80% to 150%, with automatic saving and a default reset.
+- Replay freeze time before a round; start at freeze end by default and seek backward to inspect preparation and purchases.
+
+### Changed
+
+- Compact the top toolbar with a GitHub icon, a single-character Chinese language button and a vertical voice volume slider.
+- Reduce held weapon thickness for clearer player models.
+- Recommend restarting after resource imports to apply new models and icons.
+
+### Fixed
+
+- Recognize additional weapon, grenade and team-logo names when importing game resources.
+- Keep replay state when switching maps and stop previous-round utility effects from appearing during freeze time.
+
 ## [1.20.2] - 2026-10-05
 
 ### Added
