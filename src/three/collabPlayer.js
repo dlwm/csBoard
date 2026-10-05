@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createPlayerPawn } from './playerPawn.js';
+import { createWeaponModel } from './weaponModel.js';
 
 export function randomPlayerName() {
   return Array.from({ length: 3 }, () => Math.floor(Math.random() * 16).toString(16).toUpperCase()).join('');
@@ -43,19 +44,7 @@ export function createCollabPlayer({ position, id, name, team = 'T', crouched = 
   const equipment = new THREE.Group();
   equipment.userData.collabEquipment = true;
   equipment.position.set(0, crouched ? 0.44 : 0.72, -0.4);
-  const equipmentMaterial = new THREE.MeshStandardMaterial({ color: '#38423d', roughness: 0.82, metalness: 0.24 });
-  const rifle = new THREE.Group();
-  rifle.userData.collabWeapon = weapon;
-  const rifleBody = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.17, 0.62), equipmentMaterial);
-  rifleBody.position.z = -0.19;
-  const rifleStock = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.19, 0.2), equipmentMaterial);
-  rifleStock.position.set(0, 0, 0.2);
-  const rifleBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.42), equipmentMaterial);
-  rifleBarrel.position.z = -0.7;
-  const rifleMagazine = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.25, 0.13), equipmentMaterial);
-  rifleMagazine.position.set(0, -0.17, -0.18);
-  rifle.add(rifleBody, rifleStock, rifleBarrel, rifleMagazine);
-  equipment.add(rifle);
+  equipment.add(createWeaponModel(weapon, { side: team }));
 
   const aimRay = new THREE.Line(
     new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, -1], 3)),
