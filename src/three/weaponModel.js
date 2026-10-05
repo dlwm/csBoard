@@ -8,7 +8,7 @@ export const isFirearm = weapon => FIREARMS.has(demoWeaponKind(weapon));
 // Scene units: silhouette length follows weapon class, with a small real depth.
 // 场景单位：枪型决定长度，厚度独立于 SVG 像素尺寸；修改这些值可调整表现。
 const LENGTHS = { rifle: 1.15, pistol: .65, sniper: 1.5, smg: .95, shotgun: 1.2, machinegun: 1.25 };
-const DEPTH = .07;
+const DEPTH = .035;
 const RESOLUTION = 512;
 // Subpixel contour tolerance removes raster stair steps without losing cutouts.
 // 亚像素轮廓简化：消除栅格台阶，保留枪械小镂空；单位为采样像素。
