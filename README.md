@@ -33,9 +33,9 @@ For image-capable models, enable **Model supports image input** in settings. The
 
 ## Highlights
 
-### Round Replay
+### Match Replay
 
-![Round replay](docs/img/round-replay.png)
+![Match replay](docs/img/round-replay.png)
 
 - Import one Demo or select multiple Demo parts and merge them into one match.
 - Parse playable rounds once and switch rounds from cache: The Go parser builds replay and analysis data; rounds are cached in IndexedDB or SQLite plus compressed files.
@@ -47,15 +47,15 @@ For image-capable models, enable **Model supports image input** in settings. The
 - Switch to a same-team monitor wall with a selectable main POV; fallen teammates show a blacked-out view.
 - Save a named time interval as a View Broadcast clip.
 
-### Custom recordings
+#### Custom DEMO
 
-Play CS2 clips recorded with `record <name>` and `stop`, including practice sessions with varying numbers of bots or incomplete rounds. Import them directly from **Custom recordings**, or use the shortcut on a failed non-standard Demo in the parsing list. Playback shares the round viewer's camera, seeking, utility effects and saving tools, without match analysis, scoreboards, team status bars or kill feeds. Recordings have a separate local library and retain their playback position when switching menus.
+Play CS2 clips recorded with `record <name>` and `stop`, including practice sessions with varying numbers of bots or incomplete rounds. Import them through **Match Replay**; for non-standard Demos, select **Continue parsing** in the parsing list. Standard matches and custom recordings share the local library and playback tools. Custom recordings show a **Custom DEMO** label at the lower left, without match analysis, scoreboards, team status bars or kill feeds.
 
 ### View Broadcast
 
 - Play one saved Demo interval without match-only score, kill-feed, or round controls; retain monitor mode, model settings, and clickable utility saving.
 - Selecting a clip opens a six-character room. Guests see full-screen transfer progress and receive a local archive before playback starts.
-- Keep Broadcast and Round Replay playback positions, cameras, and selected POVs separate when switching pages.
+- Keep Broadcast and Match Replay playback positions, cameras, and selected POVs separate when switching pages.
 
 ### Tactical Editing
 
@@ -134,7 +134,7 @@ Play CS2 clips recorded with `record <name>` and `stop`, including practice sess
 ![Mobile collaboration](docs/img/mobile.jpeg)
 
 - Native apps and mobile H5 use landscape layouts with collapsible sidebars and larger touch controls; mouse and keyboard remain supported.
-- Native apps retain the full workspace. Mobile H5 offers Utility Notes and Collaboration, with Demo import, Round Replay, Analysis and Broadcast disabled.
+- Native apps retain the full workspace. Mobile H5 offers Utility Notes and Collaboration, with Demo import, Match Replay, Analysis and Broadcast disabled.
 - Portrait mode prompts you to rotate the device and pauses map rendering.
 - Rotate with one finger; use two fingers to zoom and pan. Move, aim and pitch controls support touch editing.
 - Android/iOS development builds use native Go parsing and SQLite, with optional WASM parsing. See the [mobile development guide](docs/mobile.md) for build commands and current limitations.
@@ -157,7 +157,7 @@ The repository includes files for:
 
 Parsed NAV data for every supported map is committed and bundled into the frontend for offline use. GLB map models are intentionally not committed; run `make resources` when local source `.nav` and `.glb` files are needed under `.local/official/maps/<map>/`. Remote web builds load GLB from cloud storage; desktop releases use user-imported model resources.
 
-Training Ground is available only in Utility Notes and Collaboration. Switching to Round Replay or Analysis automatically returns to Dust II.
+Training Ground is available only in Utility Notes and Collaboration. Switching to Match Replay or Analysis automatically returns to Dust II.
 
 First-time visitors are asked whether to open the tutorial, which starts directly in the Training Ground Collaboration practice frame. For local testing, Vite DEV or `localhost`, `127.0.0.1`, and `::1` environments repeat the prompt every third visit and show that trigger condition in small text inside the dialog. The tutorial map includes synchronized upper and lower NAV top views.
 
@@ -336,7 +336,7 @@ Copyright (C) 2026 Colvin Chen. Original CSBoard source code and documentation a
 - The parser does not expose per-Tick C4 entity coordinates, so dropped-C4 motion is approximated between events.
 - Remote web builds use cloud storage for GLB models; local/Docker builds use local models. Electron releases require user-imported models; only local-test builds include local models. Bundled NAV geometry and 2D radar remain available offline.
 - Large Demo files can require significant memory because all round snapshots are cached after the initial parse.
-- Round Replay and Demo Analysis are available in desktop browsers and native applications; mobile H5 exposes Utility Notes and Collaboration.
+- Match Replay and Demo Analysis are available in desktop browsers and native applications; mobile H5 exposes Utility Notes and Collaboration.
 
 ## Roadmap
 

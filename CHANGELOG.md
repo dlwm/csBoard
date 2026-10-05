@@ -2,6 +2,29 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.1] - 2026-10-05
+
+### Added
+
+- Show recorded utility inputs, or clearly label action-based reconstruction when input data is unavailable; allow older notes to update from their source Demo.
+- Hide location descriptions in the Utility Notes list while retaining starting-area details.
+- Integrate utility playback and seeking into the bottom toolbar, with toggles for a map-wide overview of all saved trajectories and recorded utility effects.
+- Show realistic direction keys, a Space key for jumping, and mouse buttons during utility playback, including complete run-up and jump-throw preparations from the last stationary aiming position.
+- Rename Round Replay to Match Replay and merge custom recordings into its library; continue parsing non-standard Demos as custom recordings and show a Custom DEMO label.
+
+### Changed
+
+- Unify sidebar appearance and spacing across menus, including Camera Broadcast, with consistent collapse controls and workspace sizing.
+- Move Utility Notes actions beside the folder controls, freeing the former right sidebar for the 3D view; separate playback and display settings into two bottom rows.
+
+### Fixed
+
+- Keep the operation assistant and viewport status controls anchored correctly when sidebars or bottom controls change.
+- Fix non-standard Demo continuation progress and completion counts, anchor the Custom DEMO label to the viewport bottom-left, keep collapsed drawing controls on one row, and distinguish workspace tabs from settings buttons.
+- Keep utility actions only until release, reveal flight trajectories progressively, and show brief forward-jump motion with direction arrows instead of WASD.
+- Fix map/list overlap, toolbar alignment and popup offsets; hide weapon and inventory displays for dead players.
+- Fix overlapping broadcast playback controls, missing map-control padding, replay players appearing in other menus, duplicate players when seeking, and utility trajectories incorrectly covered by the ground.
+
 ## [1.20.0] - 2026-10-04
 
 ### Added
