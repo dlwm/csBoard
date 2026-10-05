@@ -47,6 +47,17 @@ export default function ResourcePackModal({ language, onClose }) {
     } catch (error) { if (mounted.current) setError(error.message); }
     finally { if (mounted.current) setBusy(false); }
   };
+  const removeResource = async key => {
+    if (!window.confirm(text(`移除 ${key}？重新加载后将使用默认图标或 NAV 地图。`, `Remove ${key}? Reload to use the default icon or NAV map.`, `Удалить ${key}? После перезагрузки будет использован стандартный значок или NAV.`))) return;
+    setBusy(true); setError('');
+    try {
+      const result = await resources.remove(kind, key);
+      if (!mounted.current) return;
+      setStatus(result.status);
+      markResourcesChanged(); setChanged(true);
+    } catch (error) { if (mounted.current) setError(error.message); }
+    finally { if (mounted.current) setBusy(false); }
+  };
   const keys = catalog[kind === 'icons' ? 'icons' : 'maps'];
   const entries = useMemo(() => keys.filter(key => {
     const installed = Boolean(status?.[kind]?.[key]);
@@ -77,7 +88,7 @@ export default function ResourcePackModal({ language, onClose }) {
           ? text('未导入的地图仍可使用 NAV。模型需保留原地图坐标并内置数据；训练场已内置。', 'Maps without models use NAV. GLBs need original map coordinates and embedded data. Training Ground is built in.', 'Без моделей используется NAV. GLB должны сохранять координаты карты и содержать данные. Учебная карта встроена.')
           : text('未导入的图标使用默认样式。导入文件名需与下方名称对应。', 'Missing icons use the default style. Match filenames to the names below.', 'Для отсутствующих значков используется стандартный стиль. Имена файлов указаны ниже.')}</p>
         {changed && <div className="resource-pack-apply-notice" role="status">
-          <div><strong>{text('资源已保存，尚未应用', 'Resources saved; not yet applied', 'Ресурсы сохранены, но ещё не применены')}</strong><p>{text('建议重启应用，也可重新加载立即应用。请先保存未保存的协作内容。', 'Restart the app, or reload to apply now. Save unsaved collaboration work first.', 'Перезапустите приложение или перезагрузите для применения сейчас. Сначала сохраните совместную работу.')}</p></div>
+          <div><strong>{text('资源已更改，尚未应用', 'Resources changed; not yet applied', 'Ресурсы изменены, но ещё не применены')}</strong><p>{text('建议重启应用，也可重新加载立即应用。请先保存未保存的协作内容。', 'Restart the app, or reload to apply now. Save unsaved collaboration work first.', 'Перезапустите приложение или перезагрузите для применения сейчас. Сначала сохраните совместную работу.')}</p></div>
           <button type="button" disabled={busy} onClick={reload}>{text('重新加载并应用', 'Reload and apply', 'Применить')}</button>
         </div>}
         {gameOpen && <GameResourceImport api={resources.game} language={language} onBusy={setBusy} onImported={result => {
@@ -98,6 +109,7 @@ export default function ResourcePackModal({ language, onClose }) {
               <span className="resource-pack-mark" aria-hidden="true">{kind === 'icons' && status.icons[key] ? <img src={`/resource-pack/icons/${key}.svg`} alt="" /> : kind === 'models' ? '◇' : '◈'}</span>
               <div><strong>{key}</strong><small>{key}.{kind === 'icons' ? 'svg' : 'glb'}</small></div>
               <span className="resource-pack-badge">{status[kind]?.[key] === 'local' ? text('本地测试', 'Local test', 'Локальный') : status[kind]?.[key] ? text('已就绪', 'Ready', 'Готово') : text('未导入', 'Missing', 'Нет')}</span>
+              {resources.remove && status[kind]?.[key] && status[kind][key] !== 'local' && <button className="resource-pack-remove" type="button" disabled={busy || checking} aria-label={text(`移除 ${key}`, `Remove ${key}`, `Удалить ${key}`)} onClick={() => removeResource(key)}>{text('移除', 'Remove', 'Удалить')}</button>}
             </li>)}
           </ul>}
           {status && !entries.length && <p className="resource-pack-empty">{text('没有匹配的资源', 'No matching resources', 'Ресурсы не найдены')}</p>}
@@ -109,7 +121,7 @@ export default function ResourcePackModal({ language, onClose }) {
       </section>
     </div>
     <footer className="resource-pack-footer">
-      <p role="status">{changed ? text('资源已保存，重新加载后生效。', 'Resources saved. Reload to apply.', 'Ресурсы сохранены. Перезагрузите для применения.') : text('同名文件验证通过后覆盖。支持多选 SVG / GLB。', 'Validated files replace matching names. Select multiple SVG / GLB files.', 'Проверенные файлы заменяют одноимённые. Можно выбрать несколько SVG / GLB.')}</p>
+      <p role="status">{changed ? text('资源已更改，重新加载后生效。', 'Resources changed. Reload to apply.', 'Ресурсы изменены. Перезагрузите для применения.') : text('同名文件验证通过后覆盖。支持多选 SVG / GLB。', 'Validated files replace matching names. Select multiple SVG / GLB files.', 'Проверенные файлы заменяют одноимённые. Можно выбрать несколько SVG / GLB.')}</p>
       <div>{changed && <button type="button" disabled={busy} onClick={reload}>{text('重新加载并应用', 'Reload and apply', 'Применить')}</button>}{resources.game && <button type="button" disabled={busy || checking} aria-expanded={gameOpen} onClick={() => setGameOpen(value => !value)}>{text('导入游戏资源包', 'Import game resources', 'Импорт ресурсов игры')}</button>}<button className="resource-pack-primary" type="button" disabled={busy || checking} onClick={importFiles}>{busy ? text('正在导入…', 'Importing…', 'Импорт…') : text('＋ 导入资源', '＋ Import resources', '＋ Импорт')}</button></div>
     </footer>
   </dialog>, document.body);

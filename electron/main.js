@@ -112,6 +112,14 @@ app.whenReady().then(async () => {
     end: () => { importing = false },
   })
   ipcMain.handle('desktop:presentation', event => { authorize(event); return mainWindow.isVisible() && !mainWindow.isMinimized() })
+  ipcMain.handle('resources:remove', async (event, kind, key) => {
+    authorize(event)
+    nativeServices.assertAvailable()
+    if (importing) throw new Error('Wait for resource imports to finish')
+    importing = true
+    try { return await resourceStore.remove(kind, key) }
+    finally { importing = false }
+  })
   ipcMain.handle('resources:import', async event => {
     authorize(event)
     nativeServices.assertAvailable()

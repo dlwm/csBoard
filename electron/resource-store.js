@@ -111,6 +111,15 @@ export function createResourceStore(root, localModelsRoot = null) {
     }
     return { results, status: await status() };
   }
+  async function remove(kind, key) {
+    const names = kind === 'icons' ? catalog.icons : kind === 'models' ? catalog.maps : [];
+    if (typeof key !== 'string' || !names.includes(key)) throw new Error('Unknown resource');
+    // Only imported catalogue entries can be removed. Never accept caller paths
+    // or delete the development fallback / original game installation.
+    // 仅删除导入目录中固定名称的资源，不删除开发素材或游戏原文件。
+    await fs.rm(location({ kind, name: `${key}.${kind === 'icons' ? 'svg' : 'glb'}` }), { force: true });
+    return { status: await status() };
+  }
   async function resolve(kind, key) {
     const names = kind === 'icons' ? catalog.icons : kind === 'models' ? catalog.maps : [];
     if (!names.includes(key)) return null;
@@ -123,5 +132,5 @@ export function createResourceStore(root, localModelsRoot = null) {
     }
     return null;
   }
-  return { status, importFiles, resolve };
+  return { status, importFiles, remove, resolve };
 }

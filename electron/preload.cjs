@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('csboardDesktop', {
   resources: {
     status: () => ipcRenderer.invoke('resources:status'),
     importFiles: () => ipcRenderer.invoke('resources:import'),
+    remove: (kind, key) => ipcRenderer.invoke('resources:remove', kind, key),
     ...(['win32', 'darwin'].includes(process.platform) ? { game: {
       detect: () => ipcRenderer.invoke('resources:game-detect'),
       choose: () => ipcRenderer.invoke('resources:game-choose'),
