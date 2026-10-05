@@ -5,9 +5,9 @@ import { groupDemoFiles } from './batch.js';
 import { conciseDemoError } from './diagnostics.js';
 import { RECORDING_KIND } from './recordings.js';
 
-// A recording load is a playback operation, not a match-analysis batch. Sources
+// Custom-category parsing shares match playback but skips match analysis. Sources
 // are owned by this hook until loading finishes, including transferred failures.
-// 录像加载管理自己的来源与生命周期；不进入对局批量解析/分析流程。
+// 自制类别解析管理自己的来源与生命周期，不生成对局分析数据。
 export default function useCustomRecordings({ platform, schema, sampleRate, onLoaded, onChanged }) {
   const [state, setState] = useState({ loading: false, progress: 0, fileName: '', error: '' });
   const task = useRef(null), generation = useRef(0), loading = useRef(false);
@@ -52,19 +52,10 @@ export default function useCustomRecordings({ platform, schema, sampleRate, onLo
       if (revision === generation.current) { task.current = null; loading.current = false; }
     }
   };
-  const choose = async event => {
-    if (platform.capabilities.nativeFilePicker) event.preventDefault();
-    if (loading.current) return;
-    try {
-      const files = await platform.demos.chooseFiles(event);
-      if (!platform.capabilities.nativeFilePicker) event.target.value = '';
-      await load(files);
-    } catch (error) { setState(state => ({ ...state, error: conciseDemoError(error.message) })); }
-  };
   const cancel = () => {
     generation.current++; task.current?.terminate(); task.current = null;
     loading.current = false;
     setState(state => ({ ...state, loading: false, error: '' }));
   };
-  return { ...state, load, choose, cancel };
+  return { ...state, load, cancel };
 }

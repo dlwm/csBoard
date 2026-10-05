@@ -570,7 +570,10 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 /* Custom recordings share the replay workspace and transport controls. */
 .recording-notice:empty { display: none; }
 .recording-notice { padding: 8px 12px; color: #abb9ba; font-size: 12px; }
-.demo-recording-redirect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; font-size: 12px; }
-.demo-recording-redirect button { border: 1px solid #486557; border-radius: 6px; padding: 6px 10px; background: #172e25; color: #a6efbd; cursor: pointer; }
-.demo-recording-redirect button:disabled { opacity: .55; cursor: default; }
+.demo-recording-continue { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; font-size: 12px; }
+.demo-recording-continue button { border: 1px solid #486557; border-radius: 6px; padding: 6px 10px; background: #172e25; color: #a6efbd; cursor: pointer; }
+.demo-recording-continue button:disabled { opacity: .55; cursor: default; }
 .recording-segments .demo-round-list > button { display: flex; justify-content: space-between; padding: 8px 12px; }
+
+.demo-recording-label { position:absolute; left:18px; bottom:112px; z-index:8; padding: 5px 9px; border: 1px solid #476457; border-radius: 5px; background: rgba(14, 28, 21, .88); color: #b0dfc2; font: 10px var(--font-mono); pointer-events: none; }
+.demo-recording-kind { margin-left: 8px; color: #a7c9b5; font-size: 10px; }

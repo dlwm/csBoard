@@ -2,7 +2,7 @@
 // 自制录像策略：不依赖宿主，不用人数或回合编号切分录制片段。
 export const RECORDING_KIND = 'recording';
 export const NON_STANDARD_DEMO = 'non_standard_demo';
-export const isRecording = entry => entry?.kind === RECORDING_KIND || entry?.data?.demo?.kind === RECORDING_KIND || String(entry?.id || '').startsWith('recording|');
+export const isRecording = entry => entry?.kind === RECORDING_KIND || entry?.demo?.kind === RECORDING_KIND || entry?.data?.demo?.kind === RECORDING_KIND || String(entry?.id || '').startsWith('recording|');
 export function matchCompatibility(header, rounds) {
   if (header.is_hltv === 'false') return 'client_recording';
   if (!rounds.length) return 'no_complete_rounds';

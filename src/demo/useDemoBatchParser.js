@@ -4,6 +4,7 @@ import { translateDemoWorkerStatus } from '../i18n.js';
 import { batchTaskLabel, groupDemoFiles } from './batch.js';
 import { getPlatform } from '../platform/index.js';
 import { resultDiagnostic } from './diagnostics.js';
+import { RECORDING_KIND } from './recordings.js';
 
 const terminalStatuses = new Set(['success', 'cached', 'failed']);
 
@@ -48,10 +49,10 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
 
   const parseTask = async (batchId, task, concurrency, runId, taskSampleRate) => {
     const startedAt = performance.now();
-    const cacheId = demoCacheId(task.files, taskSampleRate);
+    const cacheId = demoCacheId(task.files, taskSampleRate, task.kind);
     const sourceBytes = task.files.reduce((sum, file) => sum + file.size, 0);
     const source = task.files.map((file) => ({ name: file.name, size: file.size, lastModified: file.lastModified }));
-    const baseDiagnostic = { taskId: task.id, attempt: task.attempt || 1, cacheId, source, sampleRate: taskSampleRate, cacheSchemaVersion, concurrency };
+    const baseDiagnostic = { taskId: task.id, attempt: task.attempt || 1, cacheId, source, sampleRate: taskSampleRate, kind: task.kind || 'match', cacheSchemaVersion, concurrency };
     updateTask(batchId, task.id, { status: 'reading', startedAt: new Date().toISOString(), diagnostic: { input: baseDiagnostic, phases: [] } });
     try {
       // Retry starts from a clean cache, including rounds written before failure.
@@ -65,7 +66,7 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
       }
       if (cached) await deleteCachedDemo(cacheId).catch(() => {});
       if (runIdRef.current !== runId) return;
-      const taskHandle = getPlatform().demos.start({ id: `${batchId}:${task.id}:attempt-${task.attempt || 1}`, cacheId, files: task.files, sampleRate: taskSampleRate, batchSize: concurrency, baseDiagnostic, onMessage: message => {
+      const taskHandle = getPlatform().demos.start({ id: `${batchId}:${task.id}:attempt-${task.attempt || 1}`, cacheId, files: task.files, kind: task.kind, sampleRate: taskSampleRate, batchSize: concurrency, baseDiagnostic, onMessage: message => {
         if (message.type === 'error' && message.diagnostic) updateTask(batchId, task.id, current => ({ diagnostic: { ...current.diagnostic, failure: message.diagnostic } }));
         if (message.type === 'queued') updateTask(batchId, task.id, { status: 'queued', statusText: '', waitReason: message.reason });
         if (message.type === 'started') updateTask(batchId, task.id, { status: 'parsing', parseStartedAt: performance.now(), allocation: message.allocation, waitReason: null });
@@ -89,7 +90,7 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
         return true;
       } finally { workersRef.current.delete(taskHandle); }
     } catch (error) {
-      updateTask(batchId, task.id, (current) => ({ status: 'failed', progress: 100, finishedAt: new Date().toISOString(), error: { code: error?.code, reason: error?.reason, name: error?.name || 'Error', message: error?.message || String(error), stack: error?.stack || null }, diagnostic: { ...current.diagnostic, elapsedMs: performance.now() - startedAt, failure: error?.diagnostic || current.diagnostic?.failure || null } }));
+      updateTask(batchId, task.id, (current) => ({ status: 'failed', progress: 100, statusText: '', waitReason: null, finishedAt: new Date().toISOString(), error: { code: error?.code, reason: error?.reason, name: error?.name || 'Error', message: error?.message || String(error), stack: error?.stack || null }, diagnostic: { ...current.diagnostic, elapsedMs: performance.now() - startedAt, failure: error?.diagnostic || current.diagnostic?.failure || null } }));
     }
   };
 
@@ -119,6 +120,7 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
       session.active.delete(job.id);
       await finishSession(session);
     }
+    return completed;
   };
   const startBatch = async (files) => {
     if (!getPlatform().capabilities.demoParsing) throw new Error('Demo parsing is unavailable in mobile H5');
@@ -145,19 +147,21 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
     session.initialComplete = true;
     await finishSession(session);
   };
-  const retryTask = async taskId => {
+  const retryTask = async (taskId, kind) => {
     const session = sessionRef.current;
     const task = batch?.tasks.find(task => task.id === taskId);
     const job = session?.jobs.get(taskId);
     if (!session || !job || batch?.id !== session.id || task?.status !== 'failed' || session.active.has(taskId)) return;
+    if (kind) job.kind = kind;
     job.attempt = (job.attempt || 1) + 1;
     setBatch(current => current?.id === session.id ? { ...current, running: true, finishedAt: null,
       tasks: current.tasks.map(task => task.id === taskId ? { ...task, status: 'queued', progress: 0, statusText: '',
-        attempt: (task.attempt || 1) + 1, parseStartedAt: null, progressReceivedAt: null, hasTickProgress: false,
+        kind: job.kind, attempt: (task.attempt || 1) + 1, parseStartedAt: null, progressReceivedAt: null, hasTickProgress: false,
         progressTotal: null, cachedRounds: 0, allocation: null, waitReason: null, startedAt: null, finishedAt: null,
         diagnostic: null, summary: null, error: null } : task),
     } : current);
-    await runJob(session, job);
+    const completed = await runJob(session, job);
+    return completed ? demoCacheId(job.files, session.sampleRate, job.kind) : undefined;
   };
   const recordingFiles = taskId => {
     const session = sessionRef.current;
@@ -165,17 +169,12 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
     if (!session || task?.status !== 'failed' || task.error?.code !== 'non_standard_demo' || session.active.has(taskId)) return [];
     return session.jobs.get(taskId)?.files || [];
   };
-  // The loader takes ownership before starting asynchronous work. A new batch
-  // or closing this panel must not release native picker copies still in use.
-  // 将失败文件交给录像加载器，避免批次关闭提前删除系统选择器副本。
-  const takeRecordingFiles = taskId => {
-    const files = recordingFiles(taskId);
-    if (files.length) {
-      sessionRef.current.released.add(taskId);
-      sessionRef.current.jobs.delete(taskId);
-      updateTask(sessionRef.current.id, taskId, { recordingTransferred: true });
-    }
-    return files;
+  // Continuation is a new attempt of the same batch task. Keep source ownership,
+  // progress, completion counts and failures in one lifecycle, including retries.
+  // 非常规对局继续解析仍属于原任务：进度归零，成功后统一统计并释放来源。
+  const continueRecordingTask = taskId => {
+    if (!recordingFiles(taskId).length) return Promise.resolve(undefined);
+    return retryTask(taskId, RECORDING_KIND);
   };
   const clearBatch = () => {
     const session = sessionRef.current;
@@ -191,5 +190,5 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
     if (terminalStatuses.has(task.status)) result.finished += 1;
     return result;
   }, { completed: 0, failed: 0, finished: 0 }) || { completed: 0, failed: 0, finished: 0 };
-  return { batch, counts, running: Boolean(batch?.running), startBatch, retryTask, takeRecordingFiles, clearBatch };
+  return { batch, counts, running: Boolean(batch?.running), startBatch, retryTask, continueRecordingTask, clearBatch };
 }
