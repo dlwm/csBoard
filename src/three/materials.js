@@ -4,8 +4,8 @@ const MAP_SCALE = 0.0254;
 const MODEL_FADE_START = 50 * MAP_SCALE;
 const MODEL_FADE_END = 70 * MAP_SCALE;
 
-export function createGhostMaterial(focusScreen, viewportSize, viewMode, viewRange) {
-  const material = new THREE.MeshStandardMaterial({
+export function createGhostMaterial(focusScreen, viewportSize, viewMode, viewRange, source = null) {
+  const material = source ? source.clone() : new THREE.MeshStandardMaterial({
     color: new THREE.Color('#3b4858'),
     transparent: false,
     alphaToCoverage: true,
@@ -19,6 +19,12 @@ export function createGhostMaterial(focusScreen, viewportSize, viewMode, viewRan
     emissive: new THREE.Color('#101923'),
     emissiveIntensity: 0.32,
   });
+  // Original materials share textures, while each display material owns its
+  // fade uniforms. Both styles retain identical visibility controls.
+  // 原始材质复用贴图，但淡化参数独立；两种样式共用可见性规则。
+  material.alphaToCoverage = true;
+  delete material.userData.csboardMapSquareFade;
+  delete material.userData.csboardFloorFade;
   material.onBeforeCompile = (shader) => {
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
@@ -32,7 +38,7 @@ export function createGhostMaterial(focusScreen, viewportSize, viewMode, viewRan
     shader.uniforms.modelViewMode = viewMode;
     shader.uniforms.modelViewRange = viewRange;
   };
-  material.customProgramCacheKey = () => 'model-screen-focus-alpha-to-coverage-v3';
+  material.customProgramCacheKey = () => `model-screen-focus-alpha-to-coverage-v3-${source ? 'original' : 'simple'}`;
   return material;
 }
 

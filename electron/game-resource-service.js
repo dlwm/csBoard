@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { detectGameInstallations, inspectGameDirectory, estimateImportSpace } from './game-installation.js';
 import { identifyResource, validateResource } from './resource-store.js';
+import { embedGlbImages } from './glb-images.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const activePhases = new Set(['preparing', 'extracting', 'converting', 'importing', 'cleaning']);
@@ -106,7 +107,9 @@ export function registerGameResourceService({ app, authorize, getWindow, store, 
     await fs.access(source).catch(() => { throw coded('conversion', 'The map has no supported world scene'); });
     emit({ phase: 'converting', filesCompleted: 0, filesTotal: 0 });
     const output = path.join(directory, 'world.glb');
-    await runCli(['-i', source, '-o', output, '-d', '--gltf_export_format', 'glb', '--threads', '1'], signal);
+    await runCli(['-i', source, '-o', output, '-d', '--gltf_export_format', 'glb', '--gltf_export_materials', '--gltf_textures_adapt', '--threads', '1'], signal);
+    if (signal.aborted) throw coded('cancelled', 'Import cancelled');
+    await embedGlbImages(output);
     await validateResource(output, { kind: 'models' });
     const named = path.join(directory, `${key}.glb`);
     await fs.copyFile(output, named);
