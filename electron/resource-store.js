@@ -5,11 +5,19 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import catalog from '../src/resources/catalog.json' with { type: 'json' };
 
-const aliases = { glock: 'glock18', hegrenade: 'grenade', usp_silencer: 'usp', m4a1_silencer: 'm4a1' };
+// Game filenames use internal weapon IDs; keep aliases shared by manual and
+// game imports so both resolve to the same resource catalogue.
+// 游戏资源使用内部武器名；手动导入与游戏提取共用同一套名称映射。
+const aliases = {
+  glock: 'glock18', hegrenade: 'grenade', usp_silencer: 'usp', m4a1_silencer: 'm4a1',
+  cz75a: 'cz75', sg556: 'sg553', knife: 'knife_ct',
+  flashbang: 'flash', smokegrenade: 'smoke',
+};
 export function identifyResource(filename) {
   const name = path.basename(filename).toLowerCase();
   if (name.endsWith('.svg')) {
-    const key = aliases[name.slice(0, -4)] || name.slice(0, -4);
+    const stem = name.slice(0, -4).replace(/^weapon_/, '');
+    const key = aliases[stem] || stem;
     if (catalog.icons.includes(key)) return { kind: 'icons', key, name: `${key}.svg` };
   }
   if (name.endsWith('.glb')) {

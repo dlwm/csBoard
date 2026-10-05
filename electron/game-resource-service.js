@@ -119,7 +119,9 @@ export function registerGameResourceService({ app, authorize, getWindow, store, 
   async function convertIcons(installation, directory, signal) {
     await fs.mkdir(directory, { recursive: true });
     emit({ phase: 'extracting' });
-    await runCli(['-i', path.join(installation.directory, 'pak01_dir.vpk'), '-o', directory, '-d', '--vpk_extensions', 'svg,vsvg_c,vtex_c', '--vpk_filepath', 'panorama/images/icons/equipment/,panorama/images/icons/ui/,panorama/images/hud/', '--threads', '2'], signal);
+    // Team emblems live directly under icons/, outside equipment/ and ui/.
+    // 阵营标志位于 icons 根目录，单独纳入提取范围，避免遗漏。
+    await runCli(['-i', path.join(installation.directory, 'pak01_dir.vpk'), '-o', directory, '-d', '--vpk_extensions', 'svg,vsvg_c,vtex_c', '--vpk_filepath', 'panorama/images/icons/equipment/,panorama/images/icons/ui/,panorama/images/icons/t_logo.,panorama/images/icons/ct_logo.,panorama/images/hud/', '--threads', '2'], signal);
     const exported = (await walk(directory)).filter(file => file.toLowerCase().endsWith('.svg'));
     const usesInternalM4Names = exported.some(file => /^m4a1_silencer\.svg$/i.test(path.basename(file)));
     const namedDirectory = path.join(directory, 'named');
