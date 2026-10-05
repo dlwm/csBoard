@@ -6,12 +6,12 @@ export default function useDemoVoicePlayback({ frames = EMPTY, tick, tickRate = 
   const { muted, volume } = useVoiceSettings();
   const [decoded, setDecoded] = useState(null);
   const [status, setStatus] = useState('');
-  const runtime = useRef({ sources: new Set(), scheduled: new Set(), anchor: null, gain: null, index: 0 });
+  const runtime = useRef({ sources: new Set(), anchor: null, gain: null, index: 0 });
   const audible = enabled && !muted && volume > 0;
   const stop = () => {
     const state = runtime.current;
     for (const source of state.sources) { source.onended = null; try { source.stop(); } catch { /* already ended */ } source.disconnect(); }
-    state.sources.clear(); state.scheduled.clear(); state.anchor = null;
+    state.sources.clear(); state.anchor = null;
   };
   useEffect(() => {
     setDecoded(null); setStatus(''); stop();
@@ -31,39 +31,63 @@ export default function useDemoVoicePlayback({ frames = EMPTY, tick, tickRate = 
     worker.postMessage({ frames, tickRate });
     return () => { cancelled = true; worker.terminate(); };
   }, [frames, tickRate, audible, summary]);
+  const currentTick = useRef(tick);
+  currentTick.current = tick;
   useEffect(() => {
     const context = voiceAudioContext();
     const state = runtime.current;
-    if (!context || !audible || !playing || decoded?.frames !== frames) { stop(); return; }
+    if (!context || !audible || !playing || decoded?.frames !== frames) { stop(); return undefined; }
     if (!state.gain) { state.gain = context.createGain(); state.gain.connect(context.destination); }
-    state.gain.gain.setValueAtTime(volume, context.currentTime);
-    const anchor = state.anchor;
-    const expected = anchor ? anchor.tick + (context.currentTime - anchor.time) * tickRate : NaN;
-    if (!anchor || Math.abs(expected - tick) > tickRate * 0.15) {
+    const seek = () => {
       stop();
-      state.anchor = { tick, time: context.currentTime };
-      const next = decoded.clips.findIndex(clip => clip.tick + clip.samples.length / clip.sampleRate * tickRate > tick);
+      // One clock for the entire playback, with a small startup buffer. Never
+      // calculate each packet's start against a newly rendered UI frame.
+      // 整段播放共用音频时钟，预留 40ms 启动缓冲，避免界面帧抖动造成包间断续。
+      state.anchor = { tick: currentTick.current, time: context.currentTime + 0.04 };
+      const next = decoded.clips.findIndex(clip => clip.tick + clip.samples.length / clip.sampleRate * tickRate > currentTick.current);
       state.index = next < 0 ? decoded.clips.length : next;
+    };
+    seek();
+    const schedule = () => {
+      const anchor = state.anchor;
+      if (!anchor) return;
+      while (state.index < decoded.clips.length) {
+        const clip = decoded.clips[state.index];
+        const start = anchor.time + (clip.tick - anchor.tick) / tickRate;
+        if (start > context.currentTime + 0.8) break;
+        state.index++;
+        const offset = Math.max(0, context.currentTime - start);
+        if (offset >= clip.samples.length / clip.sampleRate) continue;
+        const buffer = context.createBuffer(1, clip.samples.length, clip.sampleRate);
+        buffer.copyToChannel(clip.samples, 0);
+        const source = context.createBufferSource(); source.buffer = buffer; source.connect(state.gain);
+        state.sources.add(source);
+        source.onended = () => { state.sources.delete(source); source.disconnect(); };
+        source.start(Math.max(context.currentTime, start), offset);
+      }
+    };
+    schedule();
+    // Independent of React/3D paints; Web Audio owns all queued start times.
+    // 调度不依赖 React/3D 刷新，暂停和跳转仍立即取消已排队声音。
+    const timer = setInterval(schedule, 25);
+    state.seek = seek;
+    return () => { clearInterval(timer); state.seek = null; stop(); };
+  }, [decoded, frames, tickRate, playing, audible]);
+  useEffect(() => {
+    const context = voiceAudioContext();
+    const state = runtime.current;
+    if (context && state.anchor) {
+      const expected = state.anchor.tick + Math.max(0, context.currentTime - state.anchor.time) * tickRate;
+      // Normal paint delays must not restart audio. Only a real timeline jump
+      // or prolonged clock drift requires resynchronization.
+      // 普通刷新延迟不重启声音；明显跳转或长期漂移才重新同步。
+      if (Math.abs(expected - tick) > tickRate * 0.25) state.seek?.();
     }
-    // Schedule a short horizon. Pause, seeking and map changes stop every queued source.
-    // 提前调度 0.4 秒，暂停、跳转和地图切换时取消所有已排队声音。
-    while (state.index < decoded.clips.length) {
-      const index = state.index;
-      const clip = decoded.clips[index];
-      if (clip.tick > tick + tickRate * 0.4) break;
-      state.index++;
-      const duration = clip.samples.length / clip.sampleRate;
-      const delay = (clip.tick - tick) / tickRate;
-      if (delay + duration <= 0 || state.scheduled.has(index)) continue;
-      state.scheduled.add(index);
-      const buffer = context.createBuffer(1, clip.samples.length, clip.sampleRate);
-      buffer.copyToChannel(clip.samples, 0);
-      const source = context.createBufferSource(); source.buffer = buffer; source.connect(state.gain);
-      state.sources.add(source);
-      source.onended = () => { state.sources.delete(source); state.scheduled.delete(index); source.disconnect(); };
-      source.start(context.currentTime + Math.max(0, delay), Math.max(0, -delay));
-    }
-  }, [decoded, frames, tick, tickRate, playing, audible, volume]);
+  }, [tick, tickRate]);
+  useEffect(() => {
+    const context = voiceAudioContext();
+    if (context && runtime.current.gain) runtime.current.gain.gain.setTargetAtTime(volume, context.currentTime, 0.01);
+  }, [volume, decoded, audible]);
   useEffect(() => () => { stop(); runtime.current.gain?.disconnect(); }, []);
   const speakingIds = useMemo(() => {
     const ids = new Set();
