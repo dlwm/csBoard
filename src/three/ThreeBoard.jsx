@@ -43,7 +43,7 @@ import { isFirearm } from './weaponModel.js';
 import { replaySceneInputs } from '../demo/replaySceneInputs.js';
 import { buildSavedThrowNote } from '../utility/savedThrow.js';
 import { disposeMapModel } from './disposeMapModel.js';
-import { loadMapModel } from './mapModelLoader.js';
+import { loadMapModel, removeImportedMapLights } from './mapModelLoader.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -1365,6 +1365,7 @@ export default function ThreeBoard(inputProps) {
     const loadWorldModel = (loadedModel) => {
       if (disposed) { disposeMapModel(loadedModel); return; }
       worldModel = loadedModel;
+      removeImportedMapLights(worldModel);
       const modelBounds = new THREE.Box3().setFromObject(worldModel);
       modelCenter = modelBounds.getCenter(new THREE.Vector3());
       modelCenterYRef.current = modelCenter.y;
