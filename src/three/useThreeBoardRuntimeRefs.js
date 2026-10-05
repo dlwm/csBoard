@@ -47,7 +47,7 @@ export default function useThreeBoardRuntimeRefs(props) {
     demoCameraModeRef: useRef(demoCameraMode || 'manual'),
     demoMonitorPlayersRef: useRef(demoMonitorPlayers || demoRosterRuntime.monitorPlayers || []),
     demoCameraInterruptRef: useRef(demoPovRuntime.interrupt || onDemoCameraInterrupt),
-    demoInEyePlayerRef: useRef(demoInEyePlayer || demoPovRuntime.player),
+    demoInEyePlayerRef: useRef(demoInEyePlayer !== undefined ? demoInEyePlayer : demoPovRuntime.player),
     heatDeathsRef: useRef(heatDeaths || []),
     analysisHeatDeathsRef: useRef([]),
     demoViewFlagsRef: useRef(demoViewFlags || {}),
@@ -106,7 +106,9 @@ export default function useThreeBoardRuntimeRefs(props) {
   refs.demoCameraModeRef.current = demoCameraMode || 'manual';
   refs.demoMonitorPlayersRef.current = demoMonitorPlayers || demoRosterRuntime.monitorPlayers || [];
   refs.demoCameraInterruptRef.current = demoPovRuntime.interrupt || onDemoCameraInterrupt;
-  refs.demoInEyePlayerRef.current = demoInEyePlayer || demoPovRuntime.player;
+  // Explicit null disables POV; do not resurrect a camera from another map.
+  // 显式 null 表示禁用第一视角，不能再回退到其他地图的全局相机。
+  refs.demoInEyePlayerRef.current = demoInEyePlayer !== undefined ? demoInEyePlayer : demoPovRuntime.player;
   refs.heatDeathsRef.current = heatDeaths || [];
   refs.demoViewFlagsRef.current = demoViewFlags || {};
   refs.showDemoNamesRef.current = showDemoNames;

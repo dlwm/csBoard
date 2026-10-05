@@ -40,6 +40,7 @@ import { ANALYSIS_HEAT_DATA_EVENT, loadViewPreferences, MAP_MODEL_BASES, MAP_ZON
 import { mapModelSource, hasMapModel } from '../app/resourcePacks.js';
 import { createBoardCommands } from '../collaboration/boardCommands.js';
 import { isFirearm } from './weaponModel.js';
+import { replaySceneInputs } from '../demo/replaySceneInputs.js';
 import { buildSavedThrowNote } from '../utility/savedThrow.js';
 import { loadMapModel } from './mapModelLoader.js';
 
@@ -48,7 +49,8 @@ THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 // Owns the imperative Three.js scene and exposes its workspace API to the React shell.
-export default function ThreeBoard(props) {
+export default function ThreeBoard(inputProps) {
+  const props = replaySceneInputs(inputProps);
   const [touchEditMode, setTouchEditMode] = useState('move');
   const touchEditModeRef = useRef(touchEditMode);
   touchEditModeRef.current = touchEditMode;
