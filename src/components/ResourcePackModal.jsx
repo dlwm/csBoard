@@ -5,6 +5,7 @@ import { getPlatform } from '../platform/index.js';
 import { markResourcesChanged, resourceReloadPending } from '../app/resourcePacks.js';
 import { localize } from '../i18n.js';
 import './resourcePack.css';
+import GameResourceImport from './GameResourceImport.jsx';
 
 export default function ResourcePackModal({ language, onClose }) {
   const ref = useRef(null);
@@ -18,6 +19,7 @@ export default function ResourcePackModal({ language, onClose }) {
   const [results, setResults] = useState([]);
   const [error, setError] = useState('');
   const [changed, setChanged] = useState(resourceReloadPending);
+  const [gameOpen, setGameOpen] = useState(false);
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const resources = getPlatform().resources;
   const inspect = async () => {
@@ -74,6 +76,10 @@ export default function ResourcePackModal({ language, onClose }) {
         <p className="resource-pack-hint">{kind === 'models'
           ? text('未导入的地图仍可使用 NAV。模型需保留原地图坐标并内置数据；训练场已内置。', 'Maps without models use NAV. GLBs need original map coordinates and embedded data. Training Ground is built in.', 'Без моделей используется NAV. GLB должны сохранять координаты карты и содержать данные. Учебная карта встроена.')
           : text('未导入的图标使用默认样式。导入文件名需与下方名称对应。', 'Missing icons use the default style. Match filenames to the names below.', 'Для отсутствующих значков используется стандартный стиль. Имена файлов указаны ниже.')}</p>
+        {gameOpen && <GameResourceImport api={resources.game} language={language} onBusy={setBusy} onImported={result => {
+          setStatus(result.status); setResults(result.results);
+          if (result.results.some(item => item.ok)) { markResourcesChanged(); setChanged(true); }
+        }} />}
         <div className="resource-pack-toolbar">
           <input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={text('搜索文件名…', 'Search filenames…', 'Поиск файлов…')} aria-label={text('搜索资源', 'Search resources', 'Поиск ресурсов')} />
           <select value={filter} onChange={event => setFilter(event.target.value)} aria-label={text('导入状态', 'Import status', 'Статус импорта')}>
@@ -100,7 +106,7 @@ export default function ResourcePackModal({ language, onClose }) {
     </div>
     <footer className="resource-pack-footer">
       <p role="status">{changed ? text('资源已保存，重新加载后生效。', 'Resources saved. Reload to apply.', 'Ресурсы сохранены. Перезагрузите для применения.') : text('同名文件验证通过后覆盖。支持多选 SVG / GLB。', 'Validated files replace matching names. Select multiple SVG / GLB files.', 'Проверенные файлы заменяют одноимённые. Можно выбрать несколько SVG / GLB.')}</p>
-      <div>{changed && <button type="button" disabled={busy} onClick={reload}>{text('重新加载并应用', 'Reload and apply', 'Применить')}</button>}<button className="resource-pack-primary" type="button" disabled={busy || checking} onClick={importFiles}>{busy ? text('正在导入…', 'Importing…', 'Импорт…') : text('＋ 导入资源', '＋ Import resources', '＋ Импорт')}</button></div>
+      <div>{changed && <button type="button" disabled={busy} onClick={reload}>{text('重新加载并应用', 'Reload and apply', 'Применить')}</button>}{resources.game && <button type="button" disabled={busy || checking} aria-expanded={gameOpen} onClick={() => setGameOpen(value => !value)}>{text('导入游戏资源包', 'Import game resources', 'Импорт ресурсов игры')}</button>}<button className="resource-pack-primary" type="button" disabled={busy || checking} onClick={importFiles}>{busy ? text('正在导入…', 'Importing…', 'Импорт…') : text('＋ 导入资源', '＋ Import resources', '＋ Импорт')}</button></div>
     </footer>
   </dialog>, document.body);
 }

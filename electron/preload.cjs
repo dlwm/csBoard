@@ -55,6 +55,19 @@ contextBridge.exposeInMainWorld('csboardDesktop', {
   resources: {
     status: () => ipcRenderer.invoke('resources:status'),
     importFiles: () => ipcRenderer.invoke('resources:import'),
+    ...(['win32', 'darwin'].includes(process.platform) ? { game: {
+      detect: () => ipcRenderer.invoke('resources:game-detect'),
+      choose: () => ipcRenderer.invoke('resources:game-choose'),
+      estimate: selection => ipcRenderer.invoke('resources:game-estimate', selection),
+      start: selection => ipcRenderer.invoke('resources:game-start', selection),
+      cancel: () => ipcRenderer.invoke('resources:game-cancel'),
+      status: () => ipcRenderer.invoke('resources:game-status'),
+      subscribe: callback => {
+        const listener = (_event, progress) => callback(progress);
+        ipcRenderer.on('resources:game-progress', listener);
+        return () => ipcRenderer.removeListener('resources:game-progress', listener);
+      },
+    } } : {}),
   },
   native: {
     readCache: (id, round) => ipcRenderer.invoke('native:cache-read', id, round),

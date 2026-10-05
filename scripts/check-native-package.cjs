@@ -19,4 +19,11 @@ module.exports = async context => {
   const pin = JSON.parse(fs.readFileSync(path.join(context.packager.projectDir, 'native/parser/source.json'), 'utf8'));
   if (!context.packager.config.extraMetadata?.csboardLocalParser && (goInfo.dirty || goInfo.revision !== pin.revision)) throw new Error('Release packages require the pinned, clean Go parser build');
   if (goInfo.target !== `${platform}-${arch}` || goInfo.protocol !== 1) throw new Error(`Wrong Go parser for ${platform}-${arch}`);
+  const toolRoot = path.join(context.packager.projectDir, 'build/resource-tool', `${platform}-${arch}`);
+  const toolPin = JSON.parse(fs.readFileSync(path.join(context.packager.projectDir, 'config/resources/source2viewer.json'), 'utf8'));
+  const toolInfo = JSON.parse(fs.readFileSync(path.join(toolRoot, 'build-info.json'), 'utf8'));
+  if (toolInfo.target !== `${platform}-${arch}` || toolInfo.sha256 !== toolPin.targets[`${platform}-${arch}`].sha256) throw new Error('Wrong game resource converter target');
+  for (const name of [platform === 'win32' ? 'Source2Viewer-CLI.exe' : 'Source2Viewer-CLI', 'LICENSE-Source2Viewer.txt', 'NOTICE.txt']) {
+    if (!fs.existsSync(path.join(toolRoot, name))) throw new Error(`Missing bundled resource converter file: ${name}`);
+  }
 };

@@ -18,7 +18,7 @@ const archive = path.join(resources, 'app.asar');
 if (target.startsWith('mac-')) {
   const appBundle = path.resolve(resources, '../..');
   execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', appBundle], { stdio: 'inherit' });
-  for (const file of ['native/csboard-native', 'go-parser/csboard-go-parser']) {
+  for (const file of ['native/csboard-native', 'go-parser/csboard-go-parser', 'resource-tool/Source2Viewer-CLI']) {
     execFileSync('/usr/bin/codesign', ['--verify', '--strict', '--verbose=2', path.join(resources, file)], { stdio: 'inherit' });
   }
 }
@@ -43,6 +43,12 @@ async function inspect(directory) {
   }
 }
 await inspect(resources);
+const resourceToolInfo = JSON.parse(await fs.readFile(path.join(resources, 'resource-tool/build-info.json'), 'utf8'));
+const resourceToolPin = JSON.parse(await fs.readFile('config/resources/source2viewer.json', 'utf8'));
+const toolTarget = { 'mac-arm64': 'darwin-arm64', 'mac-x64': 'darwin-x64', 'win-x64': 'win32-x64' }[target];
+if (resourceToolInfo.target !== toolTarget || resourceToolInfo.sha256 !== resourceToolPin.targets[toolTarget].sha256) throw new Error('Packaged resource converter does not match its target');
+await fs.access(path.join(resources, 'resource-tool', resourceToolPin.targets[toolTarget].executable));
+await fs.access(path.join(resources, 'resource-tool/LICENSE-Source2Viewer.txt'));
 const info = JSON.parse(await fs.readFile(path.join(resources, 'native/build-info.json'), 'utf8'));
 const triples = { 'mac-arm64': 'darwin-arm64', 'mac-x64': 'darwin-x64', 'win-x64': 'win32-x64' };
 if (info.target !== triples[target] || info.component !== 'storage' || info.language !== 'go') throw new Error('Wrong packaged native target');

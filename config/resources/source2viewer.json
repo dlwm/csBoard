@@ -1,0 +1,9 @@
+{
+  "version": "19.2",
+  "repository": "ValveResourceFormat/ValveResourceFormat",
+  "targets": {
+    "win32-x64": { "asset": "cli-windows-x64.zip", "sha256": "53e7e8dac1ddd876078346de709c8dbe613a967e94cd0c969aa34c61ec07680d", "executable": "Source2Viewer-CLI.exe" },
+    "darwin-arm64": { "asset": "cli-macos-arm64.zip", "sha256": "b5aacbd95dca84c40fc869d6fe412be14043188498e3aa1b7cf5c3eb122cb9f9", "executable": "Source2Viewer-CLI" },
+    "darwin-x64": { "asset": "cli-macos-x64.zip", "sha256": "7a036412c25f36fa41d248e2dd8c3b6e92062748863224b3ddb688c988866d6f", "executable": "Source2Viewer-CLI" }
+  }
+}

@@ -32,21 +32,33 @@ function run(script, args = [], env = process.env) {
 // Build both Go components for the architecture selected for Electron.
 run('scripts/build-native.js', [], { ...process.env, CSBOARD_NATIVE_TARGET: `${target.platform}-${target.arch}` });
 run('scripts/build-frontend.js', ['--desktop', ...(localSource ? ['--local-source'] : [])], { ...process.env, CSBOARD_GO_TARGET: `${target.platform}-${target.arch}` });
+const resourceTool = await (await import('./build-resource-tool.js')).buildResourceTool(`${target.platform}-${target.arch}`);
 if (command === 'dev') {
   run('node_modules/electron/cli.js', ['.']);
 } else {
   const { build, Platform, Arch } = await import('electron-builder');
   const platform = target.platform === 'darwin' ? Platform.MAC : Platform.WINDOWS;
   const localConfiguration = localModels ? (await import('../config/electron/local.cjs')).default : {};
+  const baseConfiguration = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).build;
   const config = {
+    ...baseConfiguration,
     ...localConfiguration,
+    extends: null,
+    extraResources: [...(localConfiguration.extraResources || baseConfiguration.extraResources), { from: resourceTool, to: 'resource-tool' }],
+    ...(target.platform === 'darwin' ? { mac: { ...(localConfiguration.mac || baseConfiguration.mac), binaries: [...((localConfiguration.mac || baseConfiguration.mac).binaries || []), 'Contents/Resources/resource-tool/Source2Viewer-CLI'] } } : {}),
     extraMetadata: { ...localConfiguration.extraMetadata, csboardAiEnabled: features.ai, ...(localSource ? { csboardLocalParser: true } : {}) },
     ...(!features.ai ? { files: [...(localConfiguration.files || JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).build.files), '!electron/ai-service.js', '!shared/ai-protocol.js', '!shared/ai-providers.js'] } : {}),
   };
+  // An explicit file avoids electron-builder concatenating these fully resolved
+  // resource arrays with package.json again (and copying read-only files twice).
+  // 完整配置写入构建目录，防止再次合并 package.json 数组导致资源重复复制。
+  const configFile = path.join(root, 'build/desktop-config', `${target.platform}-${target.arch}.json`);
+  fs.mkdirSync(path.dirname(configFile), { recursive: true });
+  fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
   await build({
     projectDir: root,
     targets: platform.createTarget(command === 'prepare' ? 'dir' : target.format, Arch[target.arch]),
-    config,
+    config: configFile,
     publish: 'never',
   });
 }
