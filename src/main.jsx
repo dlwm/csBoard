@@ -37,6 +37,7 @@ import { roundWinnerSide } from './demo/rounds.js';
 import DemoParseSettings, { DEMO_SAMPLE_RATES } from './demo/DemoParseSettings.jsx';
 import DemoBatchPanel from './demo/DemoBatchPanel.jsx';
 import useDemoBatchParser from './demo/useDemoBatchParser.js';
+import { useDesktopFontScale } from './components/useDesktopFontScale.js';
 import useDemoViewState from './demo/useDemoViewState.js';
 import { AnalysisOptionsPortal, CameraHintsPortal, CollabUtilityPortal, DemoPlaybackActionsPortal, ModelControlsPortal, RoomPresencePortal, UtilityNotesActionsPortal } from './components/Portals.jsx';
 import { parseGetpos, utilityPositionClusters } from './utility/notes.js';
@@ -98,6 +99,7 @@ const mobileH5 = platform.capabilities.mobile && !platform.capabilities.demoPars
 
 
 function App() {
+  useDesktopFontScale(getPlatform().kind === 'desktop');
   const initialViewPreferences = useRef(loadViewPreferences()).current;
   const boardRef = useRef(null);
   const [language, setLanguage] = useState(() => normalizeLanguage(preferences.getItem('csboard-language')));

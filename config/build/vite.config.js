@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { buildFeatures } from './features.js';
+import { fontScalePlugin } from './fontScale.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +19,7 @@ export default defineConfig(({ mode }) => {
     root: projectRoot,
     build: { outDir: outputDirectory },
     base: './',
+    css: { postcss: { plugins: [fontScalePlugin()] } },
     resolve: {
       alias: features.ai ? [] : [
         { find: /^.*\/ai\/AiPanel\.jsx$/, replacement: disabledAi },

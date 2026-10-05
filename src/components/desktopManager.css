@@ -14,3 +14,5 @@
 .desktop-updates .desktop-manager-actions{margin-top:16px}.desktop-update-progress{display:grid;gap:6px;margin:16px 0}.desktop-update-progress progress{width:100%;height:8px;accent-color:var(--accent)}.desktop-update-progress span{color:var(--resource-muted);font:11px var(--font-mono)}
 .desktop-update-notes{margin-top:20px;border-top:1px solid var(--resource-line);padding-top:14px}.desktop-update-notes summary{cursor:pointer;color:var(--accent)}.desktop-update-notes>div{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;margin-top:12px;font:12px/1.7 var(--font-ui)}
 .desktop-update-badge{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--accent);color:#0b1710;font:700 11px/1 var(--font-ui)}
+
+.desktop-appearance>label{display:flex;align-items:center;flex-wrap:wrap;gap:12px}.desktop-appearance input[type=range]{flex:1;min-width:150px;accent-color:var(--accent)}.desktop-appearance output{color:var(--accent);min-width:4em}

@@ -567,3 +567,5 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 .utility-input-key.key-space > span { font-size: 10px; letter-spacing: .04em; }
 
 .model-material-style{display:flex;gap:4px}
+
+:root{font-size:calc(16px * var(--ui-font-scale,1))}
