@@ -2,6 +2,17 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.5] - 2026-10-06
+
+### Added
+
+- Browse imported map objects in a searchable tree grouped by name; show or hide individual objects or whole branches, with changes applied immediately and saved.
+
+### Fixed
+
+- Prevent imported game lights from making map models excessively bright.
+- Restore foliage and awning colors while preserving their original textures and material tints.
+
 ## [1.20.4] - 2026-10-05
 
 ### Added
