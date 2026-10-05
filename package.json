@@ -19,6 +19,7 @@
       "shared/ai-providers.js",
       "shared/record-keys.js",
       "shared/storage-codec.js",
+      "shared/map-model-objects.js",
       "LICENSE",
       "docs/THIRD_PARTY_NOTICES.md",
       "package.json",

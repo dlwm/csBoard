@@ -6,6 +6,7 @@ import { markResourcesChanged, resourceReloadPending } from '../app/resourcePack
 import { localize } from '../i18n.js';
 import './resourcePack.css';
 import GameResourceImport from './GameResourceImport.jsx';
+import ModelObjectTree from './ModelObjectTree.jsx';
 
 export default function ResourcePackModal({ language, onClose }) {
   const ref = useRef(null);
@@ -20,12 +21,13 @@ export default function ResourcePackModal({ language, onClose }) {
   const [error, setError] = useState('');
   const [changed, setChanged] = useState(resourceReloadPending);
   const [gameOpen, setGameOpen] = useState(false);
+  const [revision, setRevision] = useState(0);
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const resources = getPlatform().resources;
   const inspect = async () => {
     setChecking(true);
     setError('');
-    try { const value = await resources.status(); if (mounted.current) setStatus(value); }
+    try { const value = await resources.status(); if (mounted.current) { setStatus(value); setRevision(value => value + 1); } }
     catch (error) { if (mounted.current) setError(error.message); }
     finally { if (mounted.current) setChecking(false); }
   };
@@ -41,7 +43,7 @@ export default function ResourcePackModal({ language, onClose }) {
     try {
       const result = await resources.importFiles();
       if (!mounted.current) return;
-      setStatus(result.status);
+      setStatus(result.status); setRevision(value => value + 1);
       setResults(result.results);
       if (result.results.some(item => item.ok)) { markResourcesChanged(); setChanged(true); }
     } catch (error) { if (mounted.current) setError(error.message); }
@@ -53,7 +55,7 @@ export default function ResourcePackModal({ language, onClose }) {
     try {
       const result = await resources.remove(kind, key);
       if (!mounted.current) return;
-      setStatus(result.status);
+      setStatus(result.status); setRevision(value => value + 1);
       markResourcesChanged(); setChanged(true);
     } catch (error) { if (mounted.current) setError(error.message); }
     finally { if (mounted.current) setBusy(false); }
@@ -92,7 +94,7 @@ export default function ResourcePackModal({ language, onClose }) {
           <button type="button" disabled={busy} onClick={reload}>{text('重新加载并应用', 'Reload and apply', 'Применить')}</button>
         </div>}
         {gameOpen && <GameResourceImport api={resources.game} language={language} onBusy={setBusy} onImported={result => {
-          setStatus(result.status); setResults(result.results);
+          setStatus(result.status); setRevision(value => value + 1); setResults(result.results);
           if (result.results.some(item => item.ok)) { markResourcesChanged(); setChanged(true); }
         }} />}
         <div className="resource-pack-toolbar">
@@ -105,11 +107,13 @@ export default function ResourcePackModal({ language, onClose }) {
         {error && <p className="resource-pack-error" role="alert">{error}</p>}
         <div className="resource-pack-scroll">
           {!status ? <p className="resource-pack-empty">{checking ? text('正在读取资源…', 'Loading resources…', 'Загрузка ресурсов…') : text('无法读取资源，请重试。', 'Unable to load resources. Try again.', 'Не удалось загрузить ресурсы. Повторите попытку.')}</p> : <ul className={`resource-pack-list resource-pack-${kind}`}>
-            {entries.map(key => <li key={key} data-installed={Boolean(status[kind]?.[key])}>
-              <span className="resource-pack-mark" aria-hidden="true">{kind === 'icons' && status.icons[key] ? <img src={`/resource-pack/icons/${key}.svg`} alt="" /> : kind === 'models' ? '◇' : '◈'}</span>
+            {entries.map(key => <li className="resource-pack-entry" key={key} data-installed={Boolean(status[kind]?.[key])}>
+              <div className="resource-pack-entry-heading"><span className="resource-pack-mark" aria-hidden="true">{kind === 'icons' && status.icons[key] ? <img src={`/resource-pack/icons/${key}.svg`} alt="" /> : kind === 'models' ? '◇' : '◈'}</span>
               <div><strong>{key}</strong><small>{key}.{kind === 'icons' ? 'svg' : 'glb'}</small></div>
               <span className="resource-pack-badge">{status[kind]?.[key] === 'local' ? text('本地测试', 'Local test', 'Локальный') : status[kind]?.[key] ? text('已就绪', 'Ready', 'Готово') : text('未导入', 'Missing', 'Нет')}</span>
               {resources.remove && status[kind]?.[key] && status[kind][key] !== 'local' && <button className="resource-pack-remove" type="button" disabled={busy || checking} aria-label={text(`移除 ${key}`, `Remove ${key}`, `Удалить ${key}`)} onClick={() => removeResource(key)}>{text('移除', 'Remove', 'Удалить')}</button>}
+              </div>
+              {kind === 'models' && status.models[key] && resources.modelObjects && <ModelObjectTree key={`${key}:${revision}`} mapName={key} api={resources} language={language} disabled={busy || checking} />}
             </li>)}
           </ul>}
           {status && !entries.length && <p className="resource-pack-empty">{text('没有匹配的资源', 'No matching resources', 'Ресурсы не найдены')}</p>}

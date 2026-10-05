@@ -100,6 +100,7 @@ app.whenReady().then(async () => {
   }
   const aiService = aiEnabled ? (await import('./ai-service.js')).registerAiService({ app, authorize }) : null
   ipcMain.handle('resources:status', event => { authorize(event); return resourceStore.status() })
+  ipcMain.handle('resources:model-objects', (event, key) => { authorize(event); return resourceStore.modelObjects(key) })
   let importing = false
   nativeServices = registerNativeServices({ app, authorize, getWindow: () => mainWindow, resourceBusy: () => importing })
   registerUpdateService({ app, authorize, getWindow: () => mainWindow, isBusy: () => nativeServices.busy || importing })

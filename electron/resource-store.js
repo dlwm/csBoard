@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { inspectModelObjects } from './model-objects.js';
 import catalog from '../src/resources/catalog.json' with { type: 'json' };
 
 // Game filenames use internal weapon IDs; keep aliases shared by manual and
@@ -132,5 +133,10 @@ export function createResourceStore(root, localModelsRoot = null) {
     }
     return null;
   }
-  return { status, importFiles, remove, resolve };
+  async function modelObjects(key) {
+    const file = await resolve('models', key);
+    if (!file) throw new Error('Map model is not installed');
+    return inspectModelObjects(file);
+  }
+  return { status, importFiles, remove, resolve, modelObjects };
 }

@@ -43,6 +43,8 @@ import { isFirearm } from './weaponModel.js';
 import { replaySceneInputs } from '../demo/replaySceneInputs.js';
 import { buildSavedThrowNote } from '../utility/savedThrow.js';
 import { disposeMapModel } from './disposeMapModel.js';
+import { bindMapObjectVisibility } from './mapObjectVisibility.js';
+import { modelVisibility, observeModelVisibility } from '../resources/modelVisibility.js';
 import { loadMapModel, removeImportedMapLights } from './mapModelLoader.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -118,11 +120,14 @@ export default function ThreeBoard(inputProps) {
     const demoMovementTrails = new Map();
     let frameTween = null;
     const collisionMeshes = [];
+    let worldModel;
     const isInteractiveFloorPoint = (point) => floorVisibilityAtY(point.y, floorFadeRef.current) > 0.05;
     const firstInteractiveFloorHit = (hits) => hits.find((hit) => isInteractiveFloorPoint(hit.point));
     const aimRaycaster = new THREE.Raycaster();
     aimRaycaster.firstHitOnly = true;
     let collisionVersion = 0;
+    const applyObjectVisibility = () => { worldModel?.userData.applyObjectVisibility?.(modelVisibility(mapName)); };
+    const unsubscribeObjectVisibility = observeModelVisibility(applyObjectVisibility);
     scene.add(demoPlayers);
     demoPlayersRef.current = demoPlayers;
     let modelCenter = new THREE.Vector3();
@@ -1344,7 +1349,6 @@ export default function ThreeBoard(inputProps) {
       camera.far = Math.max(nav.size * 4, 200);
       camera.updateProjectionMatrix();
     }
-    let worldModel;
     let disposed = false;
     let lastModelProgressAt = 0;
     const resetToDefault = (normalReset) => {
@@ -1366,6 +1370,7 @@ export default function ThreeBoard(inputProps) {
       if (disposed) { disposeMapModel(loadedModel); return; }
       worldModel = loadedModel;
       removeImportedMapLights(worldModel);
+      applyObjectVisibility();
       const modelBounds = new THREE.Box3().setFromObject(worldModel);
       modelCenter = modelBounds.getCenter(new THREE.Vector3());
       modelCenterYRef.current = modelCenter.y;
@@ -1450,7 +1455,7 @@ export default function ThreeBoard(inputProps) {
       modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
     };
     if (mapName === TUTORIAL_MAP_ID) loadWorldModel(createTutorialMap());
-    else loadMapModel(new GLTFLoader(), mapModelSource(mapName, MAP_MODEL_BASES).bases, mapModelSource(mapName, MAP_MODEL_BASES).file, (gltf) => loadWorldModel(gltf.scene), (event) => {
+    else loadMapModel(new GLTFLoader(), mapModelSource(mapName, MAP_MODEL_BASES).bases, mapModelSource(mapName, MAP_MODEL_BASES).file, (gltf) => { bindMapObjectVisibility(gltf); loadWorldModel(gltf.scene); }, (event) => {
       if (disposed) return;
       const now = performance.now();
       if (now - lastModelProgressAt < 80 && (!event.total || event.loaded < event.total)) return;
@@ -1787,7 +1792,7 @@ export default function ThreeBoard(inputProps) {
       if (!demoMonitorRenderer.render(now)) renderer.render(scene, camera);
     };
     const stopRenderLoop = startRenderLoop(animate);
-     return () => { disposed = true; stopRenderLoop(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { scene.remove(worldModel); disposeMapModel(worldModel); } renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; unsubscribeObjectVisibility(); stopRenderLoop(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { scene.remove(worldModel); disposeMapModel(worldModel); } renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {
