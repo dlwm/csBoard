@@ -2,7 +2,9 @@
 // silhouettes through masks; compact interface symbols stay code-built.
 // SVG cutout masks keep grip/stock openings transparent where body parts overlap.
 import { importedIconUrl } from '../app/resourcePacks.js';
-const weaponModules = import.meta.glob('./icons/Equip/*.svg', {
+// Vite resolves SVG assets at build time; direct Node imports have no asset loader.
+// Vite 在构建时解析 SVG；直接由 Node 加载时不访问浏览器资源。
+const weaponModules = typeof import.meta.env === 'undefined' ? {} : import.meta.glob('./icons/Equip/*.svg', {
   eager: true,
   query: '?url',
   import: 'default',

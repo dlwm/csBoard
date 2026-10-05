@@ -16,6 +16,7 @@ terms and is outside the GPL grant unless explicitly licensed otherwise.
 | React / React DOM, Three.js / three-mesh-bvh | MIT |
 | Yjs / y-websocket / y-protocols / lib0, ws | MIT |
 | Electron | MIT and bundled component licenses |
+| [Source 2 Viewer / ValveResourceFormat](https://github.com/ValveResourceFormat/ValveResourceFormat) | MIT; desktop converter includes its license and attribution |
 | Capacitor / App / Screen Orientation | MIT |
 | dlwm/demoinfocs (based on markus-wa/demoinfocs-golang) | MIT |
 | modernc.org/sqlite | BSD-3-Clause and bundled component licenses; SQLite is public domain |

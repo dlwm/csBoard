@@ -2,6 +2,23 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.2] - 2026-10-05
+
+### Added
+
+- Show weapon silhouettes with depth on player models, including first-person replay views.
+- Check for desktop updates and download verified installers with progress and cancellation; launch installation on Windows or open the update disk image on macOS.
+- Import map models and supported interface icons from local CS2 game resources on Windows and macOS, with automatic Steam library detection, directory selection, space estimates and cancellable progress.
+
+### Changed
+
+- Let Windows users choose the installation directory and whether to install for themselves or all users.
+- Rename the download shortcut to “Download desktop app”.
+
+### Fixed
+
+- Keep expanded round selection menus inside the workspace.
+
 ## [1.20.1] - 2026-10-05
 
 ### Added

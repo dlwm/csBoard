@@ -4,7 +4,7 @@ let resources = { icons: {}, models: {} };
 let pendingReload = false;
 export const resourceReloadPending = () => pendingReload;
 export const markResourcesChanged = () => { pendingReload = true; };
-const workerIcons = new Set(JSON.parse(import.meta.env.VITE_WORKER_RESOURCE_ICONS || '[]'));
+const workerIcons = new Set(JSON.parse(import.meta.env?.VITE_WORKER_RESOURCE_ICONS || '[]'));
 
 // Load once before React mounts. Applying a new pack is an explicit page reload,
 // so active 3D scenes never retain textures or geometry from a half-updated pack.
