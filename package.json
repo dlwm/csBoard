@@ -4,7 +4,7 @@
   "author": "colvin chen",
   "license": "GPL-3.0-only",
   "private": true,
-  "version": "1.20.3",
+  "version": "1.20.4",
   "type": "module",
   "main": "electron/main.js",
   "build": {

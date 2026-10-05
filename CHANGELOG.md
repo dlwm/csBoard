@@ -2,6 +2,18 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.4] - 2026-10-05
+
+### Added
+
+- Show the current Demo filename at the bottom centre of the 3D view, clear of player status panels.
+- Remove individual imported map models and interface icons from the resource library, with a reload reminder.
+
+### Fixed
+
+- Improve Demo voice playback continuity and reduce gaps between voice segments.
+- Reduce overly bright world models while preserving material detail.
+
 ## [1.20.3] - 2026-10-05
 
 ### Added

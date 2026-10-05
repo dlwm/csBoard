@@ -23,11 +23,11 @@ Desktop keys use system encryption. Web keys stay in memory until refresh and re
 For image-capable models, enable **Model supports image input** in settings. The assistant can inspect numbered current, top and focused board views and resolve image pixels into NAV candidates. Leave this off for text-only models: local polygon geometry, heights, connections and relative positions remain available. Screenshots cover only the board, use a temporary camera and are not retained in model history across turns. Image recognition and imported geometry do not validate CS2 cover, line of sight or utility coverage.
 
 
-## Version 1.20.3
+## Version 1.20.4
 
-- Switch imported maps between simple models and original materials.
-- Play recorded Demo voices with speaking indicators; voice starts muted and has a separate volume control.
-- Adjust desktop text size and inspect freeze time before each round without changing the default playback start.
+- See the current Demo filename in the 3D view.
+- Remove imported map models and interface icons individually.
+- Improve voice playback continuity and reduce overly bright world models.
 - See the [release notes](CHANGELOG.md) for details.
 
 ## Highlights
