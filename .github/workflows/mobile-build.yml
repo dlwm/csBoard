@@ -1,32 +1,6 @@
-name: Mobile development builds
+name: Mobile builds
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'shared/**'
-      - 'native/**'
-      - 'config/build/**'
-      - 'scripts/**'
-      - 'package*.json'
-      - 'Makefile'
-      - 'index.html'
-      - 'capacitor.config.json'
-      - '.github/workflows/mobile-build.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'shared/**'
-      - 'native/**'
-      - 'config/build/**'
-      - 'scripts/**'
-      - 'package*.json'
-      - 'Makefile'
-      - 'index.html'
-      - 'capacitor.config.json'
-      - '.github/workflows/mobile-build.yml'
   workflow_call:
     inputs:
       build_ref:
@@ -56,7 +30,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-${{ inputs.build_ref || github.event.pull_request.number || github.ref }}-${{ inputs.platform || 'all' }}-${{ inputs.parser || 'native' }}
+  group: mobile-${{ inputs.build_ref || github.ref }}-${{ inputs.platform || 'all' }}-${{ inputs.parser || 'native' }}
   cancel-in-progress: ${{ inputs.build_ref == '' && github.ref_type != 'tag' }}
 
 jobs:
