@@ -99,7 +99,7 @@ export function buildDemoGrenadeSegments(projectiles = [], events = [], snapshot
     usedThrows.add(throwEvent);
     if (landing) usedLandings.add(landing);
     const effectTick = landing?.tick ?? last.tick;
-    segments.push({ id: `grenade-${groupKey}`, groupKey, entityId: first.entity_id, kind, throwEvent, landing, throwTick: throwEvent.tick, effectTick, startTick: Math.max(round.startTick, throwEvent.tick - tickRate * 2), endTick: Math.min(round.endTick, effectTick + 20), projectiles: records, snapshots });
+    segments.push({ id: `grenade-${groupKey}`, groupKey, entityId: first.entity_id, kind, throwEvent, landing, throwTick: throwEvent.tick, effectTick, startTick: Math.max(round.startTick, throwEvent.tick - tickRate * 2), endTick: Math.min(round.endTick, effectTick + 20), projectiles: records, snapshots, contextStartTick: round.contextStartTick ?? round.startTick });
   });
   // Some parsers omit projectile samples; pair throw/landing events as a fallback.
   throws.forEach((throwEvent) => {
@@ -109,55 +109,50 @@ export function buildDemoGrenadeSegments(projectiles = [], events = [], snapshot
     const landing = landings.find((event) => !usedLandings.has(event) && event.event_name === landingName && event.tick > throwEvent.tick && event.tick - throwEvent.tick < tickRate * 10 && (event.user_steamid == null || throwEvent.user_steamid == null || event.user_steamid === throwEvent.user_steamid));
     if (!landing) return;
     usedLandings.add(landing);
-    segments.push({ id: `grenade-fallback-${throwEvent.tick}-${throwEvent.user_steamid || 'unknown'}`, groupKey: null, entityId: landing.entityid, kind, throwEvent, landing, throwTick: throwEvent.tick, effectTick: landing.tick, startTick: Math.max(round.startTick, throwEvent.tick - tickRate * 2), endTick: Math.min(round.endTick, landing.tick + 20), projectiles: [], snapshots });
+    segments.push({ id: `grenade-fallback-${throwEvent.tick}-${throwEvent.user_steamid || 'unknown'}`, groupKey: null, entityId: landing.entityid, kind, throwEvent, landing, throwTick: throwEvent.tick, effectTick: landing.tick, startTick: Math.max(round.startTick, throwEvent.tick - tickRate * 2), endTick: Math.min(round.endTick, landing.tick + 20), projectiles: [], snapshots, contextStartTick: round.contextStartTick ?? round.startTick });
   });
   return segments;
 }
 
-export function utilityReplayStart(segment, throwerId, throwerName, tickRate) {
-  const rows = segment.snapshots.map((snapshot) => {
-    const player = snapshot.players.find((item) => String(item.steamid || '') === throwerId || item.name === throwerName);
-    return player ? { tick: snapshot.tick, player } : null;
-  }).filter(Boolean).sort((left, right) => left.tick - right.tick);
-  const preparation = rows.filter((row) => row.tick <= segment.throwTick && row.tick >= segment.throwTick - tickRate * 2);
-  const motion = preparation.map((row, index) => {
-    const previous = preparation[index - 1];
-    if (!previous || row.tick <= previous.tick || !row.player.raw || !previous.player.raw) return { ...row, horizontalSpeed: null };
+// A throw starts at its last grounded rest, including a short aiming lead-in.
+// Source units/s: rest <=5 horizontally and vertically, run-up >=20 with >=4
+// units travelled. A sample gap >125ms or a >128-unit jump breaks continuity.
+// 投掷从最近的地面静止描点开始，保留 250ms 描点；跳投检查垂直运动。
+// 以上阈值只判定片段起点，不用于伪造按键；连续动作没有固定两秒上限。
+export function utilityReplayStart(segment, throwerId, throwerName, tickRate = 64) {
+  const rawValid = player => player?.hasPosition !== false && player?.raw && [player.raw.x, player.raw.y, player.raw.z].every(Number.isFinite);
+  const rows = (segment.snapshots || []).map(snapshot => {
+    const player = snapshot.players.find(item => throwerId ? String(item.steamid || '') === throwerId : item.name === throwerName);
+    return rawValid(player) && snapshot.tick <= segment.throwTick && snapshot.tick >= (segment.contextStartTick ?? 0) ? { tick: snapshot.tick, player } : null;
+  }).filter(Boolean).sort((a, b) => a.tick - b.tick);
+  if (!rows.length) return { startTick: segment.throwTick, hasRunup: false, peakSpeed: 0, distance: 0, complete: false };
+  let first = rows.length - 1;
+  for (; first > 0; first--) {
+    const current = rows[first], previous = rows[first - 1];
+    const distance = Math.hypot(current.player.raw.x - previous.player.raw.x, current.player.raw.y - previous.player.raw.y, current.player.raw.z - previous.player.raw.z);
+    if (current.tick - previous.tick > tickRate * .125 || distance > 128) break;
+  }
+  const motion = rows.slice(first).map((row, index, source) => {
+    const previous = source[index - 1];
+    if (!previous || row.tick <= previous.tick) return { ...row, speed: null, verticalSpeed: null, distance: 0 };
+    const distance = Math.hypot(row.player.raw.x - previous.player.raw.x, row.player.raw.y - previous.player.raw.y);
     const elapsed = (row.tick - previous.tick) / tickRate;
-    return { ...row, horizontalSpeed: Math.hypot(row.player.raw.x - previous.player.raw.x, row.player.raw.y - previous.player.raw.y) / elapsed };
+    return { ...row, speed: distance / elapsed, verticalSpeed: Math.abs(row.player.raw.z - previous.player.raw.z) / elapsed, distance };
   });
-  let zeroIndex = -1;
-  for (let index = motion.length - 1; index >= 0; index -= 1) {
-    if (motion[index].horizontalSpeed != null && motion[index].horizontalSpeed <= 5) {
-      zeroIndex = index;
-      break;
-    }
+  const resting = row => row.speed != null && row.speed <= 5 && row.verticalSpeed <= 5 && !row.player.isAirborne;
+  const restIndex = motion.findLastIndex(resting);
+  const anchorTick = motion[Math.max(0, restIndex)]?.tick ?? segment.throwTick;
+  const startTick = Math.max(motion[0].tick, anchorTick - Math.round(tickRate * .25));
+  const action = motion.slice(Math.max(0, restIndex + 1));
+  const peakSpeed = action.reduce((peak, row) => Math.max(peak, row.speed || 0), 0);
+  const distance = action.reduce((sum, row) => sum + row.distance, 0);
+  // Stationary throws also retain the beginning of the last recorded pin pull.
+  let attackIndex = motion.findLastIndex(row => row.player.fire || row.player.secondaryFire || row.player.grenadePinPulled);
+  let attackStart = anchorTick;
+  if (attackIndex >= 0) {
+    while (attackIndex > 0 && motion[attackIndex - 1].tick >= motion[attackIndex].tick - 1 && (motion[attackIndex - 1].player.fire || motion[attackIndex - 1].player.secondaryFire || motion[attackIndex - 1].player.grenadePinPulled)) attackIndex--;
+    attackStart = motion[attackIndex].tick;
   }
-  const movementRows = motion.slice(zeroIndex >= 0 ? zeroIndex + 1 : 0);
-  const speeds = movementRows.map((row) => row.horizontalSpeed).filter(Number.isFinite);
-  const peakSpeed = speeds.length ? Math.max(...speeds) : 0;
-  const distance = movementRows.reduce((sum, row, index) => {
-    const previous = movementRows[index - 1];
-    return previous?.player.raw && row.player.raw ? sum + Math.hypot(row.player.raw.x - previous.player.raw.x, row.player.raw.y - previous.player.raw.y) : sum;
-  }, 0);
-  const hasRunup = peakSpeed >= 20 && distance >= 4;
-  if (hasRunup) return { startTick: motion[Math.max(0, zeroIndex)]?.tick ?? segment.startTick, hasRunup, peakSpeed, distance };
-
-  const actionRows = preparation.filter((row) => row.tick >= segment.throwTick - Math.round(tickRate * 0.5));
-  let actionStartTick = segment.throwTick;
-  const nearestAttackIndex = actionRows.findLastIndex((row) => row.player.fire || row.player.secondaryFire);
-  if (nearestAttackIndex >= 0) {
-    let attackStartIndex = nearestAttackIndex;
-    while (attackStartIndex > 0 && actionRows[attackStartIndex - 1].tick >= actionRows[attackStartIndex].tick - 1 && (actionRows[attackStartIndex - 1].player.fire || actionRows[attackStartIndex - 1].player.secondaryFire)) attackStartIndex -= 1;
-    actionStartTick = Math.min(actionStartTick, actionRows[attackStartIndex].tick);
-  }
-  for (let index = 0; index < actionRows.length; index += 1) {
-    const current = actionRows[index].player;
-    const previous = actionRows[index - 1]?.player;
-    const startedJump = current.isAirborne && !previous?.isAirborne;
-    const startedMovement = (current.movement || []).some((key) => !(previous?.movement || []).includes(key));
-    const startedCrouch = Number(current.duckAmount) >= 0.15 && Number(previous?.duckAmount || 0) < 0.15;
-    if (startedJump || startedMovement || startedCrouch) actionStartTick = Math.min(actionStartTick, actionRows[index].tick);
-  }
-  return { startTick: actionStartTick, hasRunup: false, peakSpeed, distance };
+  const moving = action.some(row => row.speed > 5 || row.verticalSpeed > 5 || row.player.isAirborne);
+  return { startTick: moving ? startTick : Math.min(startTick, attackStart), hasRunup: peakSpeed >= 20 && distance >= 4, peakSpeed, distance, complete: restIndex >= 0 };
 }

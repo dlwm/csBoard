@@ -1,5 +1,6 @@
 // Owns Demo utility trajectories, landing effects, playback progress, and cleanup.
 import * as THREE from 'three';
+import { createUtilityTrajectory, utilityTrajectoryPoint, revealUtilityTrajectory } from './utilityTrajectory.js';
 import { effectEndTick, isEffectStartEvent } from '../demo/effectLifetime.js';
 import { createGrenadeEffect, disposeGrenadeEffect } from './grenadeEffects.js';
 import { enableObjectFloorFade } from './floorFade.js';
@@ -59,6 +60,7 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       if (frame.tick <= tick) latestInfernoFrames.set(frame.entityId, frame);
     });
     latestSmokeFrames.forEach((frame, entityId) => {
+      if (refs.display?.current?.effects === false) return;
       const detonation = grenadeEvents.findLast((event) => {
         if (event.event_name !== 'smokegrenade_detonate' || event.tick > frame.tick) return false;
         if (event.entityid != null && Number(event.entityid) === Number(entityId)) return true;
@@ -85,6 +87,7 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       updateSmokeBlasts(smoke);
     });
     latestInfernoFrames.forEach((frame, entityId) => {
+      if (refs.display?.current?.effects === false) return;
       const start = grenadeEvents.findLast((event) => event.event_name === 'inferno_startburn'
         && event.tick <= tick && Number(event.entityid) === Number(entityId));
       const endTick = start ? effectEndTick(start, grenadeEvents) : frame.tick + Math.max(1, frame.lifetime || 7) * 64;
@@ -105,6 +108,7 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       updateInfernoEffect(fire, tick);
     });
     refs.projectileGroups.current.forEach((records, groupKey) => {
+      if (refs.display?.current?.trajectories === false) return;
       const entityId = records[0].entity_id;
       const first = records[0];
       const last = records[records.length - 1];
@@ -115,12 +119,17 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       const key = `projectile-${groupKey}`;
       active.add(key);
       let trajectory = objects.get(key);
-      const pathRecords = records.filter((record) => record.tick <= fadeStartTick);
-      const points = pathRecords.map((record) => new THREE.Vector3(record.y * 0.0254 - modelCenter.x, record.z * 0.0254 - modelCenter.y, record.x * 0.0254 - modelCenter.z));
+      if (trajectory && trajectory.userData.demoTrajectory.sourceRecords !== records) {
+        scene.remove(trajectory); trajectory.geometry.dispose(); trajectory.material.dispose();
+        objects.delete(key); trajectory = null;
+      }
       if (!trajectory) {
+        const pathRecords = records.filter((record) => record.tick <= fadeStartTick && [record.x, record.y, record.z].every(Number.isFinite));
+        if (!pathRecords.length) return;
+        const points = pathRecords.map(record => utilityTrajectoryPoint(record, modelCenter, { source: true })).filter(Boolean);
         const color = first.grenade_type?.includes('Smoke') ? '#b9c7d6' : first.grenade_type?.includes('Flash') ? '#fff3a6' : first.grenade_type?.includes('Molotov') ? '#ff7a45' : first.grenade_type?.includes('Decoy') ? '#c8d0d4' : '#ffb36b';
-        trajectory = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points.length > 1 ? points : [points[0], points[0]]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
-        trajectory.userData.demoTrajectory = { firstTick: first.tick, lastTick: fadeStartTick, fadeTicks, pointCount: points.length };
+        trajectory = createUtilityTrajectory(points, { color, opacity: .9, floorFade: floorFadeRef.current });
+        trajectory.userData.demoTrajectory = { firstTick: first.tick, lastTick: fadeStartTick, fadeTicks, pointCount: points.length, pathRecords, sourceRecords: records };
         trajectory.userData.demoGrenadeSegmentId = segments.find((segment) => segment.groupKey === groupKey)?.id;
         enableObjectFloorFade(trajectory, floorFadeRef.current);
         scene.add(trajectory);
@@ -128,10 +137,10 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       }
       const trajectoryData = trajectory.userData.demoTrajectory;
       if (tick <= trajectoryData.lastTick) {
-        const progress = THREE.MathUtils.clamp((tick - trajectoryData.firstTick) / Math.max(1, trajectoryData.lastTick - trajectoryData.firstTick), 0, 1);
-        trajectory.geometry.setDrawRange(0, Math.max(2, Math.ceil(progress * trajectoryData.pointCount)));
+        revealUtilityTrajectory(trajectory, trajectoryData.pathRecords, tick);
         trajectory.material.opacity = 0.9;
       } else {
+        revealUtilityTrajectory(trajectory, trajectoryData.pathRecords, trajectoryData.lastTick);
         const fade = THREE.MathUtils.clamp((tick - trajectoryData.lastTick) / trajectoryData.fadeTicks, 0, 1);
         const start = Math.floor(fade * trajectoryData.pointCount * 0.85);
         trajectory.geometry.setDrawRange(start, Math.max(0, trajectoryData.pointCount - start));
@@ -139,6 +148,7 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       }
     });
     segments.filter((segment) => !segment.groupKey).forEach((segment) => {
+      if (refs.display?.current?.trajectories === false) return;
       const event = segment.throwEvent;
       const landing = segment.landing;
       if (!landing || tick < event.tick || tick > landing.tick) return;
@@ -152,7 +162,7 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
         control.y += Math.max(0.8, start.distanceTo(end) * 0.22);
         const curve = new THREE.QuadraticBezierCurve3(start, control, end);
         const color = event.weapon?.includes('smoke') ? '#b9c7d6' : event.weapon?.includes('flash') ? '#fff3a6' : event.weapon?.includes('molotov') || event.weapon?.includes('inc') ? '#ff7a45' : '#ffb36b';
-        trajectory = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(2)), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+        trajectory = createUtilityTrajectory(curve.getPoints(2), { color, opacity: .9, floorFade: floorFadeRef.current });
         trajectory.userData.demoTrajectory = { curve, landingTick: landing.tick, throwTick: event.tick };
         trajectory.userData.demoGrenadeSegmentId = segment.id;
         enableObjectFloorFade(trajectory, floorFadeRef.current);
@@ -163,9 +173,12 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       const progress = THREE.MathUtils.clamp((tick - trajectoryData.throwTick) / (trajectoryData.landingTick - trajectoryData.throwTick), 0, 1);
       // setFromPoints cannot grow an existing attribute buffer; rebuild to avoid truncation.
       trajectory.geometry.dispose();
-      trajectory.geometry = new THREE.BufferGeometry().setFromPoints(trajectoryData.curve.getPoints(Math.max(2, Math.ceil(progress * 20))));
+      const count = Math.max(2, Math.ceil(progress * 20));
+      const points = Array.from({ length: count + 1 }, (_, index) => trajectoryData.curve.getPoint(progress * index / count));
+      trajectory.geometry = new THREE.BufferGeometry().setFromPoints(points);
     });
     grenadeEvents.filter(isEffectStartEvent).forEach((event) => {
+      if (refs.display?.current?.effects === false) return;
       if (tick < event.tick || tick > effectEndTick(event, grenadeEvents) || event.x == null) return;
       // Once the authoritative voxel seed arrives, it replaces the generic smoke sphere.
       if (event.event_name === 'smokegrenade_detonate' && [...latestSmokeFrames.entries()].some(([entityId, frame]) => (

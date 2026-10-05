@@ -7,11 +7,12 @@ import (
 )
 
 type Query struct {
-	Part    int      `json:"part"`
-	Ticks   []int    `json:"ticks"`
-	Props   []string `json:"props"`
-	Players []string `json:"players"`
-	Events  []string `json:"events"`
+	Part    int                `json:"part"`
+	Ticks   []int              `json:"ticks"`
+	Props   []string           `json:"props"`
+	Players []string           `json:"players"`
+	Events  []string           `json:"events"`
+	Throws  []ThrowPreparation `json:"throws"`
 }
 
 type Source struct {
@@ -125,7 +126,7 @@ func (s *Session) Request(method string, q Query) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		rows, err := parseTicksWithContext(s.ctx, data, q.Ticks, q.Props, nil)
+		rows, throwTicks, err := parseTicksWithPreparation(s.ctx, data, q.Ticks, q.Props, nil, q.Throws)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +143,7 @@ func (s *Session) Request(method string, q Query) (any, error) {
 			properties[prop] = struct{}{}
 		}
 		part.ticks, part.props = prepared, properties
-		return map[string]any{"ticks": len(prepared), "rows": len(rows)}, nil
+		return map[string]any{"ticks": len(prepared), "rows": len(rows), "throwTicks": throwTicks}, nil
 	case "releaseTicks":
 		part.ticks, part.props = nil, nil
 		return true, nil

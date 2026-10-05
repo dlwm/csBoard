@@ -9,14 +9,15 @@ export function registerDataService({ app, authorize, storage, scheduler, root, 
   void prepareAnalysisCache(path.join(app.getPath('userData'), 'analysis-cache'), app.getVersion()).catch(error => console.warn('Analysis cache cleanup failed:', error.message));
   ipcMain.handle('data:run', (event, id, method, args) => {
     authorize(event); assertAvailable();
-    const analysis = ['analysis.catalog', 'analysis.query', 'analysis.utility', 'analysis.recommendations'].includes(method);
+    const analysis = ['analysis.catalog', 'analysis.query', 'analysis.utility', 'analysis.utilityReplay', 'analysis.recommendations'].includes(method);
     if ((!analysis && !['json.encode', 'json.decode', 'broadcast.encode', 'broadcast.decode'].includes(method)) || typeof id !== 'string' || !args
       || (analysis && (!Array.isArray(args.ids) || !args.ids.every(value => typeof value === 'string')))
       || (['analysis.query', 'analysis.utility'].includes(method) && (!Array.isArray(args.players) || !args.players.every(value => typeof value === 'string')))
       || (method === 'analysis.recommendations' && (!Array.isArray(args.utilities) || args.utilities.length > 50000))
+      || (method === 'analysis.utilityReplay' && (args.ids.length > 1 || !['map', 'fileName', 'kind', 'thrower', 'throwerId'].every(key => typeof args[key] === 'string' && args[key].length <= 1024) || !Number.isInteger(args.round) || !Number.isInteger(args.tick)))
       || (method === 'analysis.utility' && (args.ids.length !== 1 || !Number.isInteger(args.round) || typeof args.segmentId !== 'string'))) throw new Error('Invalid data operation');
     const key = `${event.sender.id}:${id}`;
-    return scheduler.submit({ id: key, owner: event.sender.id, kind: 'compute', label: method, priority: ['analysis.query', 'analysis.utility'].includes(method) ? 10 : 0,
+    return scheduler.submit({ id: key, owner: event.sender.id, kind: 'compute', label: method, priority: ['analysis.query', 'analysis.utility', 'analysis.utilityReplay'].includes(method) ? 10 : 0,
       run: signal => new Promise((resolve, reject) => {
         const worker = utilityProcess.fork(taskPath, [], { serviceName: 'CSBoard Data', stdio: 'pipe' });
         let stopped = false;

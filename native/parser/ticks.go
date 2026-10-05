@@ -13,7 +13,7 @@ import (
 )
 
 var buttonMasks = map[string]common.ButtonBitMask{
-	"FIRE": common.ButtonAttack, "RIGHTCLICK": common.ButtonAttack2,
+	"FIRE": common.ButtonAttack, "RIGHTCLICK": common.ButtonAttack2, "JUMP": common.ButtonJump,
 	"FORWARD": common.ButtonForward, "BACK": common.ButtonBack,
 	"LEFT": common.ButtonMoveLeft, "RIGHT": common.ButtonMoveRight,
 	// Keep the Demo property convention; the library's ButtonSpeed is bit 16.
@@ -137,6 +137,17 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 			return player.TeamState.Score()
 		}
 		return nil
+	case "grenade_pin_pulled", "grenade_throw_strength":
+		if pawn == nil {
+			return nil
+		}
+		if weapon := player.ActiveWeapon(); weapon != nil {
+			if name == "grenade_pin_pulled" {
+				return entityValue(weapon.Entity, "m_bPinPulled")
+			}
+			return entityValue(weapon.Entity, "m_flThrowStrength")
+		}
+		return nil
 	case "active_weapon_name":
 		if pawn == nil {
 			return nil
@@ -222,7 +233,13 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 		return player.IsAirborne()
 	case "last_place_name":
 		return player.LastPlaceName()
-	case "FIRE", "RIGHTCLICK", "FORWARD", "BACK", "LEFT", "RIGHT", "WALK":
+	case "FIRE", "RIGHTCLICK", "FORWARD", "BACK", "LEFT", "RIGHT", "JUMP", "WALK":
+		// The fork restores checkpoint commands directly onto the Player, without
+		// dispatching UserCmd events. Read that authoritative state first.
+		// 检查点按键不派发 UserCmd 事件，须读取库恢复到 Player 的状态。
+		if player.ButtonsStateAvailable {
+			return player.ButtonsPressedState&uint64(buttonMasks[name]) != 0
+		}
 		mask, available := entityValue(pawn, "m_pMovementServices.m_nButtonDownMaskPrev").(uint64)
 		if !available && player.Entity != nil {
 			mask, available = commandButtons[player.Entity.ID()-1]
@@ -247,6 +264,11 @@ func ParseTicks(data []byte, ticks []int, props, players []string) ([]map[string
 }
 
 func parseTicksWithContext(ctx context.Context, data []byte, ticks []int, props, players []string) ([]map[string]any, error) {
+	rows, _, err := parseTicksWithPreparation(ctx, data, ticks, props, players, nil)
+	return rows, err
+}
+
+func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, props, players []string, throws []ThrowPreparation) ([]map[string]any, []int, error) {
 	wanted := make(map[int]struct{}, len(ticks))
 	for _, tick := range ticks {
 		wanted[tick] = struct{}{}
@@ -256,6 +278,22 @@ func parseTicksWithContext(ctx context.Context, data []byte, ticks []int, props,
 		selected[player] = struct{}{}
 	}
 	rows := []map[string]any{}
+	histories := map[string]*preparationHistory{}
+	plans := map[string][]ThrowPreparation{}
+	cursors := map[string]int{}
+	for _, target := range throws {
+		key := target.SteamID
+		if key == "" {
+			key = "name:" + target.Name
+		}
+		plans[key] = append(plans[key], target)
+	}
+	for key := range plans {
+		sort.SliceStable(plans[key], func(i, j int) bool { return plans[key][i].Tick < plans[key][j].Tick })
+	}
+	preparationProps := []string{"X", "Y", "Z", "health", "team_num", "pitch", "yaw", "duck_amount", "is_airborne", "is_walking", "FIRE", "RIGHTCLICK", "FORWARD", "BACK", "LEFT", "RIGHT", "JUMP", "WALK", "active_weapon_name", "has_defuser", "last_place_name", "grenade_pin_pulled", "grenade_throw_strength"}
+	preparationTicks := map[int]bool{}
+	extraRows := map[int]map[string]bool{}
 	parser := newParserWithContext(ctx, data, dem.UserCmdParsingFull)
 	commandButtons := map[int]uint64{}
 	parser.RegisterEventHandler(func(event events.UserCmd) {
@@ -267,7 +305,8 @@ func parseTicksWithContext(ctx context.Context, data []byte, ticks []int, props,
 	defer parser.Close()
 	parser.RegisterEventHandler(func(events.FrameDone) {
 		tick := parser.GameState().IngameTick()
-		if _, ok := wanted[tick]; !ok {
+		_, requested := wanted[tick]
+		if !requested && len(throws) == 0 {
 			return
 		}
 		for _, player := range parser.GameState().Participants().All() {
@@ -290,15 +329,63 @@ func parseTicksWithContext(ctx context.Context, data []byte, ticks []int, props,
 					continue
 				}
 			}
+			planKey := steamID
+			if len(plans[planKey]) == 0 {
+				planKey = "name:" + player.Name
+			}
+			plan := plans[planKey]
+			cursor := cursors[planKey]
+			for cursor < len(plan) && tick > plan[cursor].Tick {
+				cursor++
+			}
+			cursors[planKey] = cursor
+			preparing := cursor < len(plan) && tick >= plan[cursor].StartTick
+			if !requested && !preparing {
+				continue
+			}
 			row := map[string]any{"tick": tick, "steamid": steamID, "name": player.Name}
-			for _, prop := range props {
+			rowProps := props
+			if !requested {
+				rowProps = preparationProps
+			}
+			for _, prop := range rowProps {
 				row[prop] = playerValue(player, prop, commandButtons)
 			}
-			rows = append(rows, row)
+			if requested {
+				rows = append(rows, row)
+			}
+			if preparing {
+				history := histories[steamID]
+				if history == nil {
+					history = &preparationHistory{}
+					histories[steamID] = history
+				}
+				history.append(row)
+				target := plan[cursor]
+				if target.Tick == tick {
+					for _, sample := range history.rows {
+						sampleTick := sample["tick"].(int)
+						if sampleTick < target.StartTick {
+							continue
+						}
+						preparationTicks[sampleTick] = true
+						if _, recorded := wanted[sampleTick]; recorded {
+							continue
+						}
+						if extraRows[sampleTick] == nil {
+							extraRows[sampleTick] = map[string]bool{}
+						}
+						if !extraRows[sampleTick][steamID] {
+							rows = append(rows, sample)
+							extraRows[sampleTick][steamID] = true
+						}
+					}
+				}
+			}
 		}
 	})
 	if err := parser.ParseToEnd(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		left, right := rows[i], rows[j]
@@ -307,5 +394,10 @@ func parseTicksWithContext(ctx context.Context, data []byte, ticks []int, props,
 		}
 		return left["steamid"].(string) < right["steamid"].(string)
 	})
-	return rows, nil
+	preparation := make([]int, 0, len(preparationTicks))
+	for tick := range preparationTicks {
+		preparation = append(preparation, tick)
+	}
+	sort.Ints(preparation)
+	return rows, preparation, nil
 }

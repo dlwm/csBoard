@@ -15,7 +15,7 @@ export default function useUtilityReplayPlayback(utilityReplay, setUtilityReplay
     }), { delayMs: (utilityReplay.delayUntil || 0) - Date.now() });
   }, [setUtilityReplay, utilityReplay?.playing, utilityReplay?.note, utilityReplay?.delayUntil]);
 
-  const snapshot = utilityReplay && utilityReplay.tick <= utilityReplay.note.replay.throwTick + (utilityReplay.note.replay.tickRate || 64)
+  const snapshot = utilityReplay && utilityReplay.tick <= utilityReplay.note.replay.throwTick
     ? interpolateDemoSnapshot(utilityReplay.note.replay.snapshots, utilityReplay.tick)
     : null;
   const firstPerson = useMemo(() => {

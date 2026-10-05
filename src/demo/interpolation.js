@@ -26,7 +26,9 @@ export function interpolateDemoSnapshot(snapshots, tick) {
   return {
     tick,
     timeSeconds: tick / 64,
-    players: (amount >= 1 ? after.players : before.players).map((player) => {
+    // Older caches may contain multiple FrameDone rows for the same player/tick.
+    // Seeking replaces state; duplicate samples must not grow the roster.
+    players: [...new Map((amount >= 1 ? after.players : before.players).map(player => [identity(player), player])).values()].map((player) => {
       const next = afterByName.get(identity(player));
       if (!next) return player;
       const discrete = amount >= 1 ? next : player;

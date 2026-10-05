@@ -1,3 +1,4 @@
+import { DEMO_CACHE_SCHEMA_VERSION } from './cacheSchema.js';
 import { matchCompatibility, recordingSegments, NON_STANDARD_DEMO, RECORDING_KIND } from './recordings.js';
 import { appendChangedInfernoFrame } from './infernoFrames.js';
 import { smokeVoxelFramesFromRow } from './smokeVoxels.js';
@@ -19,7 +20,7 @@ let activeWeaponNamesByPart = [];
 let equippedWeaponsByPlayer = new Map();
 let currentPhase = 'idle';
 let phaseStartedAt = 0;
-const CACHE_SCHEMA_VERSION = 31;
+const CACHE_SCHEMA_VERSION = DEMO_CACHE_SCHEMA_VERSION;
 const ACTIVE_WEAPON_HANDLE_PROP = 'CCSPlayerPawn.CCSPlayer_WeaponServices.m_hActiveWeapon';
 // Some GOTV demos retain the player controller but lose its pawn association.
 // These controller fields keep the roster/state truthful even when coordinates cannot be recovered.
@@ -32,7 +33,7 @@ const GRENADE_ENTITY_PROPS = ['Grenade.m_flThrowStrength', 'Grenade.m_bJumpThrow
 const eventNames = ['round_start', 'round_freeze_end', 'round_end', 'player_death', 'player_hurt', 'player_blind', 'weapon_fire', 'weapon_reload', 'fire_bullets', 'item_equip', 'item_pickup', 'item_purchase', 'hltv_fixed', 'hltv_chase', 'grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate', 'bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused'];
 const replayProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'user_id', 'team_rounds_total', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'inventory', 'armor_value', 'has_helmet', 'has_defuser', 'flash_duration', 'flash_max_alpha', 'is_scoped', 'is_walking', 'active_weapon_ammo', 'is_alive', 'is_defusing', 'balance', 'cash_spent_this_round', 'round_start_equip_value', 'current_equip_value', ...controllerFallbackProps];
 const analysisProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'is_alive', ...controllerFallbackProps];
-const throwProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'is_airborne', 'is_walking', 'FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'WALK', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'has_defuser', 'last_place_name', ...controllerFallbackProps];
+const throwProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'is_airborne', 'is_walking', 'FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'JUMP', 'WALK', 'grenade_pin_pulled', 'grenade_throw_strength', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'has_defuser', 'last_place_name', ...controllerFallbackProps];
 const PARSE_TICK_BATCH_SIZE = 32768;
 const parseProgressStages = [
   { percent: 0, zh: '正在展开 Demo 时间轴并校准起始 tick…', en: 'Expanding the demo timeline and calibrating its first tick...' },
@@ -60,7 +61,7 @@ const parseProgressStages = [
   { percent: 66, zh: '正在拼接烟雾生效与消散区间…', en: 'Joining smoke activation and expiration intervals...' },
   { percent: 69, zh: '正在整理燃烧区域与爆炸事件…', en: 'Organizing fire zones and explosion events...' },
   { percent: 72, zh: '正在关联道具投掷者与实体轨迹…', en: 'Associating utility throwers with projectile entities...' },
-  { percent: 75, zh: '正在补齐投掷前两秒的逐 tick 动作…', en: 'Filling two seconds of per-tick pre-throw actions...' },
+  { percent: 75, zh: '正在回溯投掷前静止描点并记录完整动作…', en: 'Restoring complete throw actions from the last stationary aim...' },
   { percent: 78, zh: '正在识别跳投、跑投与静止投掷…', en: 'Classifying jump throws, running throws, and standing throws...' },
   { percent: 81, zh: '正在重建道具飞行、反弹与落点…', en: 'Reconstructing utility flight, bounces, and landing points...' },
   { percent: 84, zh: '正在校准下包、拆包与爆炸计时…', en: 'Calibrating plant, defuse, and explosion timings...' },
@@ -315,7 +316,7 @@ function normalizeRows(rows, round) {
   const snapshots = new Map();
   rows.forEach((row) => {
     row = toPlainObject(row);
-    if (!snapshots.has(row.tick)) snapshots.set(row.tick, []);
+    if (!snapshots.has(row.tick)) snapshots.set(row.tick, new Map());
     const inventory = Array.isArray(row.inventory) ? row.inventory.map((item) => String(typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item)).filter(Boolean) : [];
     const parsedTeam = Number(row.team_num ?? row[CONTROLLER_TEAM_PROP] ?? row[CONTROLLER_PENDING_TEAM_PROP]);
     const team = Number.isFinite(parsedTeam) ? parsedTeam : null;
@@ -328,12 +329,13 @@ function normalizeRows(rows, round) {
     const alive = hasPosition
       ? row.is_alive ?? row[CONTROLLER_ALIVE_PROP] ?? (health != null && health > 0)
       : row[CONTROLLER_ALIVE_PROP] ?? row.is_alive ?? (health != null && health > 0);
-    snapshots.get(row.tick).push({
+    snapshots.get(row.tick).set(String(row.steamid || row.name), {
       name: row.name, steamid: row.steamid, userId: row.user_id ?? null,
       team, side: team === 2 ? 'T' : team === 3 ? 'CT' : '', health, armor: row.armor_value ?? 0,
       hasHelmet: Boolean(row.has_helmet), hasDefuser: Boolean(row.has_defuser), pitch: row.pitch ?? 0, yaw: row.yaw ?? 0,
       duckAmount: row.duck_amount ?? 0, isAirborne: Boolean(row.is_airborne), movement: ['FORWARD', 'BACK', 'LEFT', 'RIGHT'].filter((key) => Boolean(row[key])),
-      walking: Boolean(row.WALK || row.is_walking), fire: Boolean(row.FIRE), secondaryFire: Boolean(row.RIGHTCLICK),
+      grenadePinPulled: typeof row.grenade_pin_pulled === 'boolean' ? row.grenade_pin_pulled : null, grenadeThrowStrength: Number.isFinite(row.grenade_throw_strength) ? row.grenade_throw_strength : null,
+      jump: typeof row.JUMP === 'boolean' ? row.JUMP : null, walking: Boolean(row.WALK || row.is_walking), inputAvailable: ['FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'JUMP'].some(key => typeof row[key] === 'boolean'), fire: Boolean(row.FIRE), secondaryFire: Boolean(row.RIGHTCLICK),
       flashDuration: row.flash_duration ?? 0, flashMaxAlpha: row.flash_max_alpha ?? 0, scoped: Boolean(row.is_scoped),
       placeName: row.last_place_name || '', activeWeaponAmmo: row.active_weapon_ammo ?? null, alive: Boolean(alive),
       defusing: Boolean(row.is_defusing), balance: row.balance ?? null,
@@ -347,7 +349,7 @@ function normalizeRows(rows, round) {
       position: { x: hasPosition ? numericPosition[1] * 0.0254 : 0, y: hasPosition ? numericPosition[2] * 0.0254 : 0, z: hasPosition ? numericPosition[0] * 0.0254 : 0 },
     });
   });
-  return restoreEquippedWeapons([...snapshots.entries()].map(([tick, players]) => ({ tick, timeSeconds: tick / 64, players })));
+  return restoreEquippedWeapons([...snapshots.entries()].map(([tick, players]) => ({ tick, timeSeconds: tick / 64, players: [...players.values()] })));
 }
 
 return async (data) => {
@@ -389,7 +391,7 @@ return async (data) => {
        }
        const matchRounds = buildRounds(partEvents.flatMap((events, index) => events.map(event => ({ ...event, tick: event.tick + partOffsets[index] }))));
        const incompatibility = recording ? null : matchCompatibility(header, matchRounds);
-       if (incompatibility) throw Object.assign(new Error('Non-standard match Demo; open it in Custom recordings.'), { code: NON_STANDARD_DEMO, reason: incompatibility });
+       if (incompatibility) throw Object.assign(new Error('Non-standard match Demo; continue parsing as a custom DEMO.'), { code: NON_STANDARD_DEMO, reason: incompatibility });
        postMessage({ type: 'diagnostic', phase: 'header', data: { elapsedMs: performance.now() - phaseStartedAt, memory: memoryDiagnostics() } });
         postMessage({ type: 'status', message: '正在读取回合事件…' });
         beginPhase('events');
@@ -414,7 +416,10 @@ return async (data) => {
               const localThrows = partEvents[index].filter((event) => event.event_name === 'grenade_thrown' && includesPartTick(event.tick, index));
              const localTicks = [...new Set(localThrows.flatMap((event) => Array.from({ length: 129 }, (_, tickIndex) => Math.max(0, event.tick - 128 + tickIndex))))].sort((left, right) => left - right);
              const throwers = [...new Set(localThrows.map((event) => String(event.user_steamid)).filter(Boolean))];
-              return { part, index, offset, localTicks, throwers };
+              const throws = localThrows.map(event => ({ tick: event.tick, steamid: String(event.user_steamid || ''), name: event.user_name || '',
+                startTick: Math.max(0, (rounds.find(round => event.tick + offset >= round.startTick && event.tick + offset <= round.endTick)?.startTick ?? offset) - offset),
+              }));
+              return { part, index, offset, localTicks, throwers, throws };
            });
             const roundTickPlans = rounds.map((round) => {
               const ticks = [];
@@ -441,7 +446,8 @@ return async (data) => {
                   ...partEvents[index].filter(event => event.event_name === 'weapon_fire').map(event => event.tick),
                   ...analysisGlobalTicks.filter(tick => tick >= offset && tick - offset <= (Number(headers[index].last_tick) || 1000000)).map(tick => tick - offset),
                 ])].sort((left, right) => left - right);
-                await prepareTicks(part, props, ticks);
+                const prepared = await prepareTicks(part, props, ticks, throwPlans[index].throws);
+                throwPlans[index].localTicks = [...new Set([...throwPlans[index].localTicks, ...(prepared?.throwTicks || [])])].sort((a, b) => a - b);
               }));
               activeWeaponNamesByPart = await Promise.all(demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index])));
             }

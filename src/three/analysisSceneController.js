@@ -4,6 +4,7 @@ import { utilityMatchesFilters } from '../analysis/utilityFilters.js';
 import { ANALYSIS_UTILITY_COLORS } from '../analysis/constants.js';
 import { buildAnalysisTracks } from '../analysis/buildAnalysisTracks.js';
 import { createCollabPlayer, setCollabPlayerCrouch, setCollabPlayerPitch } from './collabPlayer.js';
+import { createUtilityTrajectory, utilityTrajectoryPoint } from './utilityTrajectory.js';
 import { lerpAngleDegrees } from '../demo/interpolation.js';
 
 const disposeLine = (line) => {
@@ -21,7 +22,7 @@ const disposeTrack = ({ line, marker }) => {
   marker.removeFromParent();
 };
 
-export default function createAnalysisSceneController({ scene, refs, getModelCenter }) {
+export default function createAnalysisSceneController({ scene, refs, getModelCenter, floorFadeRef }) {
   const pathGroup = new THREE.Group();
   const utilityGroup = new THREE.Group();
   const paths = new Map();
@@ -55,8 +56,8 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
       // Fall back to a straight throw-to-landing line when projectile samples are absent.
       const sourcePoints = utility.projectiles?.length >= 2 ? utility.projectiles : [utility.throwPosition, utility.landing].filter(Boolean);
       if (sourcePoints.length < 2) return;
-      const points = sourcePoints.map((point) => new THREE.Vector3(point.x - modelCenter.x, point.y - modelCenter.y + 0.08, point.z - modelCenter.z));
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: ANALYSIS_UTILITY_COLORS[utility.kind] || '#c9f76b', transparent: true, opacity: 0.82, depthTest: true, depthWrite: false }));
+      const points = sourcePoints.map(point => utilityTrajectoryPoint(point, modelCenter)).filter(Boolean);
+      const line = createUtilityTrajectory(points, { color: ANALYSIS_UTILITY_COLORS[utility.kind] || '#c9f76b', floorFade: floorFadeRef?.current });
       line.userData.utilityKind = utility.kind;
       line.renderOrder = 5;
       utilityGroup.add(line);
@@ -73,7 +74,7 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
       const baseColor = ANALYSIS_UTILITY_COLORS[line.userData.utilityKind] || '#c9f76b';
       line.material.color.set(highlighted ? '#f4ffd1' : baseColor);
       line.material.opacity = highlighted ? 1 : highlightedId ? 0.16 : 0.82;
-      line.material.depthTest = !highlighted;
+      line.material.depthTest = true;
       line.renderOrder = highlighted ? 20 : 5;
     });
   };

@@ -54,6 +54,10 @@ export default function ThreeBoard(props) {
   touchDrawingEnabledRef.current = props.touchDrawingEnabled !== false;
   const { mapName, navData, showGrid, showModel, modelOpacity, modelViewMode, demoProjectiles, analysisRounds, deletePointId, pointUpdate, onCameraSlots, onReady } = props;
   const mountRef = useRef(null);
+  const utilityPlayingNoteIdRef = useRef(props.utilityPlayingNoteId);
+  utilityPlayingNoteIdRef.current = props.utilityPlayingNoteId;
+  const utilityReplayDisplayRef = useRef(props.utilityReplayDisplay);
+  utilityReplayDisplayRef.current = props.utilityReplayDisplay;
   const {
     modelModeRef, modelRangeRef, navFocusRef, navGroupRef, gridRef, modelRef,
     modelBasePositionRef, modelCenterYRef, floorFadeRef, mapFloorRef, demoSnapshotRef,
@@ -113,6 +117,7 @@ export default function ThreeBoard(props) {
     demoPlayersRef.current = demoPlayers;
     let modelCenter = new THREE.Vector3();
     const analysisScene = createAnalysisSceneController({
+      floorFadeRef,
       scene,
       refs: {
         rows: analysisRowsRef,
@@ -149,6 +154,7 @@ export default function ThreeBoard(props) {
       scene,
       navData,
       refs: {
+        display: utilityReplayDisplayRef,
         projectileGroups: demoProjectileGroupsRef,
         smokeVoxelFrames: demoSmokeVoxelFramesRef,
         infernoFrames: demoInfernoFramesRef,
@@ -164,8 +170,9 @@ export default function ThreeBoard(props) {
       getCollisionVersion: () => collisionVersion,
     });
     const utilityNotesScene = createUtilityNotesSceneController({
-      scene,
-      refs: { notes: utilityNotesRef, enabled: utilityNotesEnabledRef },
+      scene, navData, getNav: () => nav,
+      refs: { notes: utilityNotesRef, enabled: utilityNotesEnabledRef, display: utilityReplayDisplayRef, playingNoteId: utilityPlayingNoteIdRef },
+      floorFadeRef,
       getModelCenter: () => modelCenter,
       getCollisionVersion: () => collisionVersion,
     });

@@ -1,3 +1,4 @@
+import { recoverRecordedReplay } from '../utility/recoverRecordedReplay.js';
 import { isRecording } from '../demo/recordings.js';
 import { buildUtilityRecommendations } from './utilityRecommendations.js';
 import { buildAnalysisDataset } from './buildAnalysisDataset.js';
@@ -8,6 +9,7 @@ import { roundEconomy } from '../demo/economy.js';
 // The same query runs beside IndexedDB in a Worker or beside SQLite in a
 // desktop utility process. Only catalogue rows and selected results reach React.
 export async function runAnalysisQuery(cache, method, args) {
+  if (method === 'analysis.utilityReplay') return recoverRecordedReplay(cache, args);
   if (method === 'analysis.recommendations') return buildUtilityRecommendations(args);
   if (method === 'analysis.catalog') {
     const result = [];
@@ -38,7 +40,7 @@ export async function runAnalysisQuery(cache, method, args) {
       .find(segment => segment.id === args.segmentId && args.players.includes(segment.throwEvent?.user_name));
     if (!segment) throw new Error('This utility is no longer available; reload the analysis.');
     const note = buildSavedThrowNote({ mapName: entry.data.demo.map, segment, source: {
-      fileName: entry.data.demo.fileName, round: args.round, tickRate: entry.data.demo.tickRate || 64,
+      demoId: args.ids[0], fileName: entry.data.demo.fileName, round: args.round, tickRate: entry.data.demo.tickRate || 64,
       smokeVoxelFrames: data.smokeVoxelFrames, infernoFrames: data.infernoFrames,
     } });
     if (!note) throw new Error('Utility throw position is missing; reparse this Demo.');

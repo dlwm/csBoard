@@ -1,5 +1,6 @@
 // Owns imported collaboration utility effects, trajectories, serialization, and cleanup.
 import * as THREE from 'three';
+import { createUtilityTrajectory, utilityTrajectoryPoint } from './utilityTrajectory.js';
 import { grenadeKind } from '../demo/grenades.js';
 import { createGrenadeEffect } from './grenadeEffects.js';
 import { enableObjectFloorFade } from './floorFade.js';
@@ -69,8 +70,8 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     utility.add(effect);
     if (projectiles.length >= 2) {
       // Trajectory points are stored relative to the group so imported utilities remain movable.
-      const points = projectiles.map((record) => new THREE.Vector3(record.y * 0.0254 - modelCenter.x, record.z * 0.0254 - modelCenter.y, record.x * 0.0254 - modelCenter.z).sub(originPosition));
-      const trajectory = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: '#c58cff', transparent: true, opacity: 0.9 }));
+      const points = projectiles.map(record => utilityTrajectoryPoint(record, modelCenter, { source: true, origin: originPosition })).filter(Boolean);
+      const trajectory = createUtilityTrajectory(points, { opacity: .9, floorFade: floorFadeRef.current });
       trajectory.userData.collabUtilityTrajectory = true;
       trajectory.userData.collabUtilityTrajectoryPoints = points;
       enableObjectFloorFade(trajectory, floorFadeRef.current);

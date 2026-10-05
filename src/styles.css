@@ -577,3 +577,47 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 
 .demo-recording-label { position:absolute; left:18px; bottom:112px; z-index:8; padding: 5px 9px; border: 1px solid #476457; border-radius: 5px; background: rgba(14, 28, 21, .88); color: #b0dfc2; font: 10px var(--font-mono); pointer-events: none; }
 .demo-recording-kind { margin-left: 8px; color: #a7c9b5; font-size: 10px; }
+
+
+/* Replay-only input display; follows the actual viewport when sidebars resize. */
+.utility-input-overlay { display: grid; justify-items: center; gap: 6px; pointer-events: none; user-select: none; color: #bda9cb; }
+.utility-input-devices { display: flex; align-items: flex-end; gap: 15px; filter: drop-shadow(0 4px 7px rgba(0,0,0,.5)); }
+.utility-input-keyboard { display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(2, 34px) 26px; gap: 5px; padding-bottom: 5px; }
+.utility-input-key { display: flex; align-items: center; justify-content: center; gap: 3px; border: 1px solid #675773; border-bottom: 4px solid #332639; border-radius: 6px; background: linear-gradient(145deg, #403446, #211b27); box-shadow: inset 0 1px 0 #6a5974, 0 2px 0 #100c14; transition: background .06s, border-color .06s, box-shadow .06s, transform .06s; }
+.utility-input-key.key-forward { grid-column: 2; }
+.utility-input-key.key-left { grid-column: 1; grid-row: 2; }
+.utility-input-key.key-back { grid-column: 2; grid-row: 2; }
+.utility-input-key.key-right { grid-column: 3; grid-row: 2; }
+.utility-input-key > span { font: 600 20px sans-serif; }
+.utility-input-key i { font: 9px sans-serif; font-style: normal; opacity: .6; }
+.utility-input-key.pressed { transform: translateY(2px); border-color: #cf9eea; border-bottom-color: #795294; background: linear-gradient(145deg, #9764ad, #563766); color: #fff1ff; box-shadow: inset 0 1px 0 #dfb2f6, 0 0 12px #b67adb55; }
+.utility-input-mouse { width: 62px; height: 88px; overflow: visible; }
+.utility-input-mouse .mouse-body { fill: #211b27; stroke: #75617f; stroke-width: 1.5; }
+.utility-input-mouse .mouse-button { fill: #423348; stroke: #665271; stroke-width: .8; transition: fill .06s; }
+.utility-input-mouse .mouse-button.pressed { fill: #ad75c5; stroke: #efd1ff; }
+.utility-input-mouse .mouse-seam, .utility-input-mouse .mouse-cable { fill: none; stroke: #796583; stroke-width: 1.5; }
+.utility-input-mouse .mouse-wheel { fill: #110e17; stroke: #84718f; }
+.utility-input-mouse text { fill: #e7d8ee; font: 10px var(--font-mono); text-anchor: middle; }
+.utility-input-caption { font: 9px var(--font-mono); color: #bda9cb; text-shadow: 0 1px 3px #000; }
+
+.utility-bottom-controls { align-items: center; gap: 10px 16px}
+.utility-display-options { gap: 14px; color: #c6b2d4; font: 10px var(--font-mono)}
+.utility-display-options label { display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; }
+.utility-display-options input { accent-color: #c58cff; }
+.utility-bottom-playback { align-items: center; gap: 8px; color: #c6b2d4; font: 10px var(--font-mono)}
+.utility-bottom-playback strong { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f0e5f6; }
+.utility-bottom-playback span { white-space: nowrap; }
+.utility-bottom-playback button { flex: none; padding: 6px 8px; border: 1px solid #72538a; border-radius: 4px; background: #24172d; color: #dfb8ff; font: inherit; cursor: pointer; }
+.utility-bottom-playback button:hover { background: #412650; }
+.utility-playback-timeline { flex: 1; min-width: 50px; accent-color: #c58cff; cursor: pointer; }
+
+
+.utility-input-key.triggered { border-color: #bd87d9; box-shadow: 0 0 10px #b67adb77; }
+.utility-input-mouse .mouse-button.triggered { stroke: #dfb8ff; stroke-width: 2; filter: drop-shadow(0 0 3px #c58cff); }
+
+.utility-input-key.key-space { grid-column: 1 / -1; grid-row: 3; }
+.utility-input-key.key-space > span { font-size: 10px; letter-spacing: .04em; }
+
+.utility-input-overlay {position:absolute;right:calc(var(--right-column,0px) + 18px);bottom:96px;z-index:7;}
+.utility-display-options,.utility-bottom-playback{display:flex;align-items:center;gap:8px;}
+.utility-bottom-playback{flex:1;min-width:0;}
