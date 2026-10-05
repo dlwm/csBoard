@@ -28,6 +28,12 @@ export function createGhostMaterial(focusScreen, viewportSize, viewMode, viewRan
   // Original materials share textures, while each display material owns its
   // fade uniforms. Both styles retain identical visibility controls.
   // 原始材质复用贴图，但淡化参数独立；两种样式共用可见性规则。
+  // Source 2 foliage shaders use COLOR_0 for sway data, not albedo tint. glTF's
+  // colour multiplication turns green leaves red (VRF issue #1180).
+  // 风摆模式 1 为植被、2 为遮阳棚布料；只关闭这些参数数据的颜色混乘，
+  // 保留原贴图和材质 tint，以及其他材质真正的顶点颜色。
+  if (source?.userData?.vmat?.ShaderName === 'csgo_foliage.vfx'
+    && Number(source.userData.vmat.IntParams?.F_VERTEX_ANIMATION) > 0) material.vertexColors = false;
   material.alphaToCoverage = true;
   delete material.userData.csboardMapSquareFade;
   delete material.userData.csboardFloorFade;
