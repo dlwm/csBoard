@@ -22,7 +22,7 @@ export function WorkspaceMapBar() {
 // Corners are relative to the 3D viewport, not the window or sidebar widths.
 // 四角槽位统一处理边距、堆叠与点击穿透；业务组件只注册内容，不计算坐标。
 export function WorkspaceCorners() {
-  return <div className="workspace-corners">{['top-left', 'top-right', 'bottom-left', 'bottom-right'].map(corner =>
+  return <div className="workspace-corners">{['top-left', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'].map(corner =>
     <WorkspaceTarget key={corner} slot={`viewport-${corner}`} className={`workspace-corner workspace-corner-${corner}`} />
   )}</div>;
 }

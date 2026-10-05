@@ -159,3 +159,5 @@
 .workspace-frame.is-mobile .workspace-corner .utility-input-overlay { zoom: .85; }
 
 .workspace-frame .workspace-corner .recommendation-loading { position: static; margin: 0; pointer-events: none; }
+
+.workspace-corner-bottom-center.workspace-slot{bottom:var(--workspace-corner-gap);left:50%;transform:translateX(-50%);align-items:center;max-width:45%}
