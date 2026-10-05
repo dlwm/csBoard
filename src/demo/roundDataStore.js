@@ -1,4 +1,4 @@
-const empty = () => ({ snapshots: [], throwSnapshots: [], projectiles: [], smokeVoxelFrames: [], infernoFrames: [], loading: false });
+const empty = () => ({ voiceFrames: [], snapshots: [], throwSnapshots: [], projectiles: [], smokeVoxelFrames: [], infernoFrames: [], loading: false });
 
 // A request owns a generation: completion from an older Demo/round cannot publish.
 export function createRoundDataStore(readRound) {

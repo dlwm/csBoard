@@ -1,0 +1,10 @@
+.voice-control{position:relative;align-self:center;flex:none}
+.voice-toggle{display:grid;place-items:center;width:30px;height:30px;padding:5px;border:1px solid #354238;background:#101815;color:#8c9b8d;cursor:pointer}
+.voice-toggle svg{width:18px;height:18px}.voice-toggle:hover,.voice-toggle.active{color:var(--accent);border-color:var(--accent)}
+.voice-volume{position:absolute;top:100%;left:50%;transform:translateX(-50%);z-index:150;display:none;align-items:center;flex-direction:column;gap:8px;min-width:50px;padding:10px 8px;background:#101815;border:1px solid #354238;box-shadow:0 8px 20px #0008;color:#a7b7a9;font:10px var(--font-mono)}
+.voice-control:hover .voice-volume,.voice-control:focus-within .voice-volume{display:flex}
+.voice-volume input{writing-mode:vertical-lr;direction:rtl;width:22px;height:100px;accent-color:var(--accent);cursor:pointer;touch-action:none}.voice-volume small{width:100px;color:#f4a69f}
+.roster-speaking{display:inline-flex;flex:none;margin-left:4px;color:var(--accent);vertical-align:middle}.roster-speaking svg{width:14px;height:14px}
+.voice-playback-status{font:10px var(--font-mono);color:#bdcaad;pointer-events:none}
+
+.roster-player strong{display:flex;align-items:center;min-width:0}.roster-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.roster-player.dead.speaking{opacity:.65;filter:none}

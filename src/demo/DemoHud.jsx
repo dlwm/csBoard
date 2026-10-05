@@ -1,5 +1,6 @@
 // Demo playback HUD: kill feed, team rosters, and first-person status.
 import * as THREE from 'three';
+import SpeakerIcon from '../components/SpeakerIcon.jsx';
 import { useLayoutEffect, useRef } from 'react';
 import { KillIcon, RawIcon, RosterIcon, RosterWeaponIcon, grenadeIconKey } from '../components/CsIcons.jsx';
 import { demoPovRuntime, demoRosterRuntime } from '../three/runtime.js';
@@ -40,7 +41,7 @@ export function DemoDataWarning({ warnings, translate }) {
   </div>;
 }
 
-export function DemoRoster({ side, players, events, tick, round, tickRate, povPlayerId, onPlayerPov, noGrenadesLabel }) {
+export function DemoRoster({ side, players, events, tick, round, tickRate, povPlayerId, onPlayerPov, noGrenadesLabel, speakingIds, speakingLabel }) {
   const snapshots = demoRosterRuntime.snapshots;
   const selectedPovId = povPlayerId ?? demoPovRuntime.playerId;
   const selectPov = onPlayerPov || demoPovRuntime.toggle;
@@ -63,9 +64,10 @@ export function DemoRoster({ side, players, events, tick, round, tickRate, povPl
     const reload = demoPlayerReload(demoRosterRuntime.reloads, player, tick);
     const playerId = String(player.steamid || player.name);
     const canSelectPov = health > 0 && player.hasPosition !== false;
-    return <div className={`roster-player${health > 0 ? '' : ' dead'}${selectedPovId === playerId ? ' pov-selected' : ''}`} key={playerId} role="button" tabIndex={canSelectPov ? 0 : -1} onClick={(event) => { event.currentTarget.blur(); if (canSelectPov) selectPov?.(player); }} onKeyDown={(event) => { if (canSelectPov && event.key === 'Enter') { event.preventDefault(); selectPov?.(player); } }}>
+    const speaking = speakingIds?.has(playerId) || speakingIds?.has(player.name);
+    return <div className={`roster-player${health > 0 ? '' : ' dead'}${speaking ? ' speaking' : ''}${selectedPovId === playerId ? ' pov-selected' : ''}`} key={playerId} role="button" tabIndex={canSelectPov ? 0 : -1} onClick={(event) => { event.currentTarget.blur(); if (canSelectPov) selectPov?.(player); }} onKeyDown={(event) => { if (canSelectPov && event.key === 'Enter') { event.preventDefault(); selectPov?.(player); } }}>
       <div className="roster-health-track"><i style={{ width: `${delayedHealth}%` }} /><span style={{ width: `${health}%` }} /></div>
-      <strong>{player.name}</strong><b>{health} HP</b>
+      <strong><span className="roster-name">{player.name}</span>{speaking && <span className="roster-speaking" role="img" aria-label={speakingLabel} title={speakingLabel}><SpeakerIcon /></span>}</strong><b>{health} HP</b>
       {health > 0 && <div className="roster-equipment"><span className="roster-armor">{player.armor > 0 && <><RosterIcon type={player.hasHelmet ? 'armorHelmet' : 'armor'} /><i>{player.armor}</i></>}</span>{player.hasDefuser && <RosterIcon type="defuser" />}</div>}
       <div className="roster-money"><span>${Math.max(0, Number(player.balance) || 0)}</span>{moneyDelta !== 0 && <i key={moneyKey} className={moneyDelta > 0 ? 'gain' : 'spend'}>{moneyDelta > 0 ? '+' : ''}{moneyDelta}$</i>}</div>
       {health > 0 && <><small>{playerGrenadeIcons(player.inventory, noGrenadesLabel, player.hasC4)}</small><em><RosterWeaponIcon weapon={player.activeWeapon} side={player.side} />{player.activeWeaponAmmo != null && <span className="roster-ammo">{player.activeWeaponAmmo}</span>}</em></>}

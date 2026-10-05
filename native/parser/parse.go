@@ -23,6 +23,8 @@ type RawEvent struct {
 // Report retains metadata and normalized events for one source session.
 // Player samples and effect journals are queried separately.
 type Report struct {
+	VoiceFrames       []VoiceFrame      `json:"voiceFrames"`
+	VoiceSummary      VoiceSummary      `json:"voiceSummary"`
 	Protocol          int               `json:"protocol"`
 	Map               string            `json:"map"`
 	Header            map[string]string `json:"header"`
@@ -128,6 +130,7 @@ func parseWithContext(ctx context.Context, data []byte) (Report, error) {
 	}
 	parser := newParserWithContext(ctx, data, dem.UserCmdParsingDisabled)
 	defer parser.Close()
+	trackVoice(parser, &result)
 	names := make(map[string]struct{})
 	seenFrame := false
 	round := 0

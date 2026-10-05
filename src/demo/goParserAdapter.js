@@ -10,6 +10,7 @@ export function createGoParserAdapter({ init, openSources, request }) {
   return {
     init, openSources,
     parseHeader: part => call('header', part),
+    parseVoice: part => call('voice', part),
     parseEvents: (part, events, props) => call('events', part, { events, props }),
     parseGrenades: (part, props) => call('grenades', part, { props }),
     prepareTicks: (part, props, ticks, throws = []) => call('prepareTicks', part, { props, ticks: Array.from(ticks), throws }),

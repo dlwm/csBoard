@@ -76,6 +76,7 @@ export function buildBroadcastArchive({ id, name, demoData, round, roundData, st
     throwSnapshots: replayThrowSnapshots,
     projectiles: [...new Set([...sliceTicks(roundData.projectiles, start, end), ...contextProjectiles])].sort((left, right) => tickOf(left) - tickOf(right)),
     smokeVoxelFrames: sliceStateFrames(roundData.smokeVoxelFrames, start, end),
+    voiceFrames: sliceTicks(roundData.voiceFrames, start, end),
     infernoFrames: sliceStateFrames(roundData.infernoFrames, start, end),
   };
   const archiveId = id || `broadcast-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;

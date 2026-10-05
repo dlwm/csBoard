@@ -69,7 +69,7 @@ func (s *Session) Request(method string, q Query) (any, error) {
 	}
 	part := &s.parts[q.Part]
 	switch method {
-	case "header", "events", "inspect":
+	case "header", "events", "inspect", "voice":
 		if part.report == nil {
 			data, err := s.read(q.Part)
 			if err != nil {
@@ -100,6 +100,9 @@ func (s *Session) Request(method string, q Query) (any, error) {
 		}
 		if method == "inspect" {
 			return part.report, nil
+		}
+		if method == "voice" {
+			return map[string]any{"frames": part.report.VoiceFrames, "summary": part.report.VoiceSummary}, nil
 		}
 		selected := map[string]struct{}{}
 		for _, name := range q.Events {

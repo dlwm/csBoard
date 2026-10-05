@@ -4,7 +4,7 @@ import { appendChangedInfernoFrame } from './infernoFrames.js';
 import { smokeVoxelFramesFromRow } from './smokeVoxels.js';
 
 // Each task owns its parser state; both Web Workers and desktop jobs use this contract.
-export function createDemoParser({ init, parseEvents, parseGrenades, parseHeader, parseTicks, prepareTicks, releaseTicks, openSources, postMessage }) {
+export function createDemoParser({ init, parseEvents, parseGrenades, parseHeader, parseVoice, parseTicks, prepareTicks, releaseTicks, openSources, postMessage }) {
 let parserReady;
 let wasmInstance;
 let demoBytes;
@@ -16,6 +16,7 @@ let allEvents = [];
 let allProjectiles = [];
 let allSmokeVoxelFrames = [];
 let allInfernoFrames = [];
+let allVoiceFrames = [];
 let activeWeaponNamesByPart = [];
 let equippedWeaponsByPlayer = new Map();
 let currentPhase = 'idle';
@@ -409,6 +410,9 @@ return async (data) => {
        const sampleStep = 64 / sampleRate;
        const maxTick = Math.max(allEvents.at(-1)?.tick || 0, ...headers.map((header, index) => (Number(header.last_tick) || 0) + partOffsets[index]));
        const rounds = recording ? recordingSegments(headers, partOffsets) : buildRounds(allEvents);
+       const voiceParts = parseVoice ? await Promise.all(demoParts.map(part => parseVoice(part))) : [];
+       allVoiceFrames = voiceParts.flatMap((voice, index) => (voice?.frames || []).filter(frame => includesPartTick(frame.tick, index)).map(frame => ({ ...frame, tick: frame.tick + partOffsets[index] }))).sort((a, b) => a.tick - b.tick);
+       const voiceSummary = { frames: allVoiceFrames.length, skipped: voiceParts.reduce((sum, voice) => sum + (voice?.summary?.skipped || 0), 0), limited: voiceParts.some(voice => voice?.summary?.limited) };
          beginPhase('ticks');
          postMessage({ type: 'status', message: `正在一次性解析 ${rounds.length} 个回合位置…` });
              const throwPlans = demoParts.map((part, index) => {
@@ -468,7 +472,7 @@ return async (data) => {
             const playerPositionCoverage = new Map();
             const roundData = [];
             let snapshotCount = 0;
-            let estimatedBytes = throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128 + estimateDataBytes(allSmokeVoxelFrames) + estimateDataBytes(allInfernoFrames);
+            let estimatedBytes = throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128 + estimateDataBytes(allSmokeVoxelFrames) + estimateDataBytes(allInfernoFrames) + estimateDataBytes(allVoiceFrames);
              for (const [roundIndex, round] of rounds.entries()) {
                 const rows = (await Promise.all(roundTickPlans[roundIndex].map(async ({ part, index, offset, localTicks }) => localTicks.length ? (await parseTicksBatched(part, replayProps, localTicks, null, reportProgress)).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset })) : []))).flat();
               const snapshots = normalizeRows(rows, 0);
@@ -483,7 +487,7 @@ return async (data) => {
               }));
               snapshotCount += snapshots.length;
               estimatedBytes += estimateDataBytes(snapshots);
-              const dataForRound = { round: round.round, snapshots, throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick), smokeVoxelFrames: allSmokeVoxelFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick), infernoFrames: allInfernoFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick) };
+              const dataForRound = { round: round.round, voiceFrames: allVoiceFrames.filter(frame => frame.tick < round.endTick && frame.tick + frame.duration * 64 >= (round.freezeStartTick ?? round.startTick)), snapshots, throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick), smokeVoxelFrames: allSmokeVoxelFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick), infernoFrames: allInfernoFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick) };
               const representative = snapshots.find((snapshot) => snapshot.players.filter((player) => player.team === 2 || player.team === 3).length >= 8) || snapshots[0];
                roundData.push({ round: round.round, snapshots: representative ? [representative] : [] });
                await postMessage({ type: 'round', data: dataForRound });
@@ -509,7 +513,8 @@ return async (data) => {
             allProjectiles = [];
             allSmokeVoxelFrames = [];
             allInfernoFrames = [];
-             const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { kind: recording ? RECORDING_KIND : 'match', fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, warnings, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
+            allVoiceFrames = [];
+             const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { kind: recording ? RECORDING_KIND : 'match', fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', voice: voiceSummary, serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, warnings, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
              await postMessage({ type: 'loaded', data: result, estimatedBytes });
      }
      if (data.type === 'analysis') {

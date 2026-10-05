@@ -177,7 +177,7 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 .board-shell.is-mobile .topbar-panels{margin-left:auto;margin-right:6px;overflow-x:auto;white-space:nowrap}
 .board-shell.is-mobile .topbar-panels button{padding:5px 7px;font-size:8px}
 .board-shell.is-mobile .header-right{gap:6px}
-.board-shell.is-mobile .github-link{display:grid;place-items:center;width:27px;height:27px;overflow:hidden;padding:0;font-size:0}.board-shell.is-mobile .github-link::before{content:'GH';font:7px var(--font-mono);letter-spacing:.04em}
+.board-shell.is-mobile .github-link{display:grid;place-items:center;width:27px;height:27px;overflow:hidden;padding:0;font-size:0}
 .board-shell.is-mobile .header-map-select select{max-width:96px;font-size:9px;padding:4px 6px}
 .board-shell.is-mobile .language-switch{padding:5px 7px;margin-right:0}
 .board-shell.is-mobile .game-switch{width:27px;height:27px}.board-shell.is-mobile .game-switch svg{width:15px;height:15px}
@@ -565,6 +565,13 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 
 .utility-input-key.key-space { grid-column: 1 / -1; grid-row: 3; }
 .utility-input-key.key-space > span { font-size: 10px; letter-spacing: .04em; }
+
+.github-link{display:grid;place-items:center;width:30px;height:30px;padding:5px;flex:none;box-sizing:border-box}.github-link svg{width:18px;height:18px}
+
+
+.board-header .topbar-panels{min-width:0;flex:0 1 auto;overflow-x:auto;scrollbar-width:none}.board-header .header-right{flex:none;gap:12px}
+
+@media(max-width:1200px){.board-header .desktop-manager-button,.board-header .resource-pack-button{width:30px;padding:4px;justify-content:center;gap:0;font-size:0}.board-header .desktop-update-badge{font-size:8px}.board-header .header-right{gap:8px}.board-header .topbar-panels{margin-right:12px}}
 
 .model-material-style{display:flex;gap:4px}
 
