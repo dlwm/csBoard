@@ -568,6 +568,7 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 
 .github-link{display:grid;place-items:center;width:30px;height:30px;padding:5px;flex:none;box-sizing:border-box}.github-link svg{width:18px;height:18px}
 
+.timeline-freeze{position:absolute;left:0;top:50%;height:5px;transform:translateY(-50%);background:#91c4e355;border-right:1px solid #91c4e3;pointer-events:none;z-index:1}
 
 .board-header .topbar-panels{min-width:0;flex:0 1 auto;overflow-x:auto;scrollbar-width:none}.board-header .header-right{flex:none;gap:12px}
 

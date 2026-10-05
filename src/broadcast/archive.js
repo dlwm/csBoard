@@ -50,7 +50,7 @@ function sliceEvents(events, startTick, endTick, tickRate) {
 // A broadcast archive is deliberately one immutable Demo interval, never a frame collection.
 export function buildBroadcastArchive({ id, name, demoData, round, roundData, startTick, endTick, now = new Date().toISOString() }) {
   if (!demoData?.demo || !round || !roundData || !name?.trim()) return null;
-  const start = Math.max(Number(round.startTick), Math.min(Number(startTick), Number(endTick)));
+  const start = Math.max(Number(round.freezeStartTick ?? round.startTick), Math.min(Number(startTick), Number(endTick)));
   const end = Math.min(Number(round.endTick), Math.max(Number(startTick), Number(endTick)));
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
   const tickRate = demoData.demo.tickRate || 64;

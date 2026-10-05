@@ -1,3 +1,4 @@
+import { localize } from '../i18n.js';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { roundEconomy, roundSideSignature, sidesSwitched } from './economy.js';
@@ -11,7 +12,7 @@ import { demoPovRuntime, demoRosterRuntime } from '../three/runtime.js';
 // Derive all read-only replay presentation data from the current Demo tick.
 export default function useDemoViewState({ activePanel, demoCameraMode, demoData, demoPovPlayerId, demoProjectiles, demoRound, demoSnapshots, demoThrowSnapshots, demoTick, language, setDemoCameraMode, setDemoPovPlayerId, t }) {
   const tickRate = demoData?.demo.tickRate || 64;
-  const demoSnapshot = demoRound && (demoTick < demoRound.startTick || demoTick > demoRound.endTick) ? null : interpolateDemoSnapshot(demoSnapshots, demoTick);
+  const demoSnapshot = demoRound && (demoTick < (demoRound.freezeStartTick ?? demoRound.startTick) || demoTick > demoRound.endTick) ? null : interpolateDemoSnapshot(demoSnapshots, demoTick);
   const demoReloads = useMemo(() => buildDemoReloads(demoSnapshots, demoData?.events || [], tickRate), [demoSnapshots, demoData?.events, tickRate]);
   const demoGrenadeSegments = useMemo(() => buildDemoGrenadeSegments(demoProjectiles, demoData?.events || [], demoThrowSnapshots, demoRound, tickRate), [demoProjectiles, demoData?.events, demoThrowSnapshots, demoRound, tickRate]);
   const demoTeams = { T: demoSnapshot?.players.filter((player) => player.team === 2) || [], CT: demoSnapshot?.players.filter((player) => player.team === 3) || [] };
@@ -52,7 +53,7 @@ export default function useDemoViewState({ activePanel, demoCameraMode, demoData
   const demoKillLifetime = tickRate * 5;
   const demoKills = activePanel === 'demo' ? demoData?.events?.filter((event) => event.event_name === 'player_death' && demoRound && event.tick >= Math.max(demoRound.startTick, demoTick - demoKillLifetime) && event.tick <= demoTick).reverse() || [] : [];
   const demoDeaths = demoData?.events?.filter((event) => event.event_name === 'player_death' && demoRound && event.tick >= demoRound.startTick && event.tick <= demoTick) || [];
-  const demoC4Events = demoData?.events?.filter((event) => demoRound && ['bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused', 'round_end'].includes(event.event_name) && event.tick >= demoRound.startTick && event.tick <= demoRound.endTick) || [];
+  const demoC4Events = demoData?.events?.filter((event) => demoRound && ['bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused', 'round_end'].includes(event.event_name) && event.tick >= (demoRound.freezeStartTick ?? demoRound.startTick) && event.tick <= demoRound.endTick) || [];
   const demoHltvEvents = demoData?.events?.filter((event) => demoRound && ['hltv_fixed', 'hltv_chase'].includes(event.event_name) && event.tick >= (demoRound.freezeStartTick ?? demoRound.startTick) && event.tick <= demoRound.endTick) || [];
   const timelineEvents = demoData?.events?.filter((event) => demoRound && ['player_death', 'bomb_planted', 'bomb_exploded', 'round_end'].includes(event.event_name) && event.tick >= demoRound.startTick && event.tick <= demoRound.endTick).map((event) => ({ ...event, label: event.event_name === 'player_death' ? '×' : event.event_name === 'bomb_planted' ? '↓' : event.event_name === 'bomb_exploded' ? '💥' : '□', title: event.event_name === 'player_death' ? `${event.attacker_name || t('world')} ${t('killed')} ${event.user_name || t('unknown')}` : event.event_name === 'bomb_planted' ? t('c4Planted') : event.event_name === 'bomb_exploded' ? t('c4Exploded') : t('roundEnd') })) || [];
   const c4TimerTicks = useMemo(() => {
@@ -70,8 +71,9 @@ export default function useDemoViewState({ activePanel, demoCameraMode, demoData
   const c4EndTick = c4Terminal?.event_name === 'bomb_exploded' ? c4Terminal.tick : c4Plant ? c4Plant.tick + c4TimerTicks : null;
   const c4Countdown = c4Plant && (!c4Terminal || c4Terminal.event_name === 'bomb_defused' || demoTick <= c4Terminal.tick) ? Math.max(0, (c4EndTick - c4DisplayTick) / tickRate) : null;
   const roundEndEvent = demoC4Events.find((event) => event.event_name === 'round_end' && event.tick <= demoTick);
-  const roundCountdownSeconds = Math.ceil(demoRound ? Math.max(0, 115 - (demoTick - demoRound.startTick) / tickRate) : 0);
-  const roundClock = `${Math.floor(roundCountdownSeconds / 60)}:${String(roundCountdownSeconds % 60).padStart(2, '0')}`;
+  const frozen = demoRound && demoTick < demoRound.startTick;
+  const roundCountdownSeconds = Math.ceil(demoRound ? Math.max(0, frozen ? (demoRound.startTick - demoTick) / tickRate : 115 - (demoTick - demoRound.startTick) / tickRate) : 0);
+  const roundClock = `${frozen ? localize(language, { zh: '冻结', en: 'Freeze', ru: 'Заморозка' }) + ' ' : ''}${Math.floor(roundCountdownSeconds / 60)}:${String(roundCountdownSeconds % 60).padStart(2, '0')}`;
   const roundWinner = roundEndEvent ? roundWinnerSide(roundEndEvent.winner ?? demoRound?.winner) : null;
   const roundResult = roundEndEvent ? `${roundWinner || '-'} · ${roundReasonLabel(roundEndEvent.reason || demoRound?.reason, language)}` : '';
   const currentDefuser = demoSnapshot?.players.find((player) => player.defusing);

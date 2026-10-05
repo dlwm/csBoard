@@ -427,8 +427,10 @@ return async (data) => {
            });
             const roundTickPlans = rounds.map((round) => {
               const ticks = [];
-              for (let tick = round.startTick; tick <= round.endTick; tick += sampleStep) ticks.push(tick);
+              for (let tick = round.freezeStartTick ?? round.startTick; tick <= round.endTick; tick += sampleStep) ticks.push(tick);
+              if (!ticks.includes(round.startTick)) ticks.push(round.startTick);
               if (ticks.at(-1) !== round.endTick) ticks.push(round.endTick);
+              ticks.sort((a, b) => a - b);
               return demoParts.map((part, index) => {
                 const offset = partOffsets[index];
                 const localTicks = ticks.filter((tick) => tick >= offset && tick - offset <= (Number(headers[index].last_tick) || 1000000)).map((tick) => tick - offset);
@@ -478,7 +480,7 @@ return async (data) => {
               const snapshots = normalizeRows(rows, 0);
               snapshots.forEach((snapshot) => snapshot.players.forEach((player) => {
                 if (player.name) playerNameSet.add(player.name);
-                if (!player.name || ![2, 3].includes(player.team)) return;
+                if (snapshot.tick < round.startTick || !player.name || ![2, 3].includes(player.team)) return;
                 const key = String(player.steamid || player.name);
                 const coverage = playerPositionCoverage.get(key) || { name: player.name, steamid: player.steamid || '', samples: 0, positionedSamples: 0 };
                 coverage.samples += 1;
@@ -487,8 +489,8 @@ return async (data) => {
               }));
               snapshotCount += snapshots.length;
               estimatedBytes += estimateDataBytes(snapshots);
-              const dataForRound = { round: round.round, voiceFrames: allVoiceFrames.filter(frame => frame.tick < round.endTick && frame.tick + frame.duration * 64 >= (round.freezeStartTick ?? round.startTick)), snapshots, throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= round.startTick && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= round.startTick && projectile.tick <= round.endTick), smokeVoxelFrames: allSmokeVoxelFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick), infernoFrames: allInfernoFrames.filter((frame) => frame.tick >= round.startTick && frame.tick <= round.endTick) };
-              const representative = snapshots.find((snapshot) => snapshot.players.filter((player) => player.team === 2 || player.team === 3).length >= 8) || snapshots[0];
+              const dataForRound = { round: round.round, voiceFrames: allVoiceFrames.filter(frame => frame.tick < round.endTick && frame.tick + frame.duration * 64 >= (round.freezeStartTick ?? round.startTick)), snapshots, throwSnapshots: throwSnapshots.filter((snapshot) => snapshot.tick >= (round.freezeStartTick ?? round.startTick) && snapshot.tick <= round.endTick), projectiles: allProjectiles.filter((projectile) => projectile.tick >= (round.freezeStartTick ?? round.startTick) && projectile.tick <= round.endTick), smokeVoxelFrames: allSmokeVoxelFrames.filter((frame) => frame.tick >= (round.freezeStartTick ?? round.startTick) && frame.tick <= round.endTick), infernoFrames: allInfernoFrames.filter((frame) => frame.tick >= (round.freezeStartTick ?? round.startTick) && frame.tick <= round.endTick) };
+              const representative = snapshots.find((snapshot) => snapshot.tick >= round.startTick && snapshot.players.filter((player) => player.team === 2 || player.team === 3).length >= 8) || snapshots.find(snapshot => snapshot.tick >= round.startTick) || snapshots[0];
                roundData.push({ round: round.round, snapshots: representative ? [representative] : [] });
                await postMessage({ type: 'round', data: dataForRound });
              }
