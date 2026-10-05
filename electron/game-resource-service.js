@@ -94,27 +94,23 @@ export function registerGameResourceService({ app, authorize, getWindow, store, 
   async function convertMap(installation, key, directory, signal) {
     await fs.mkdir(directory, { recursive: true });
     emit({ phase: 'extracting' });
-    // The pinned CLI cannot resolve model dependencies from a relative archive
-    // entry. Extract the model family first, then use absolute paths and a local
-    // search-path file. The game remains read-only and exports stay in staging.
-    // 固定版本 CLI 的归档条目缺少绝对定位；先提取物理模型及依赖，再转换。
-    await runCli(['-i', path.join(installation.directory, 'maps', `${key}.vpk`), '-o', directory, '--vpk_filepath', `maps/${key}/world_physics`], signal);
+    // Extract the complete map archive so world nodes, entities and prop models
+    // can resolve their dependencies. Convert only the visual world scene;
+    // physics exports required manual Blender editing and are not substitutes.
+    // 完整提取地图归档以解析场景节点与实体依赖，仅使用 world.glb。
+    // 旧 physics 产物需手动经 Blender 修整，不能作为自动导入的回退模型。
+    await runCli(['-i', path.join(installation.directory, 'maps', `${key}.vpk`), '-o', directory], signal);
     const quote = value => `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
     await fs.writeFile(path.join(directory, 'gameinfo.gi'), `"GameInfo" { "game" "CSBoard conversion" "FileSystem" { "SearchPaths" { "Game" ${quote(directory)} "Game" ${quote(installation.directory)} } } }`);
-    const source = path.join(directory, 'maps', key, 'world_physics.vmdl_c');
-    await fs.access(source).catch(() => { throw coded('conversion', 'The map has no supported world physics model'); });
+    const source = path.join(directory, 'maps', key, 'world.vwrld_c');
+    await fs.access(source).catch(() => { throw coded('conversion', 'The map has no supported world scene'); });
     emit({ phase: 'converting', filesCompleted: 0, filesTotal: 0 });
-    await runCli(['-i', source, '-o', path.join(directory, `${key}.glb`), '-d', '--gltf_export_format', 'glb', '--threads', '1'], signal);
-    const outputs = [path.join(directory, `${key}_physics.glb`), path.join(directory, `${key}.glb`)];
-    for (const output of outputs) {
-      try {
-        await validateResource(output, { kind: 'models' });
-        const named = path.join(directory, `${key}.glb`);
-        if (output !== named) await fs.copyFile(output, named);
-        return await importOutput([named], signal);
-      } catch (error) { if (output === outputs.at(-1)) throw error; }
-    }
-    throw coded('conversion', 'No usable map geometry was exported');
+    const output = path.join(directory, 'world.glb');
+    await runCli(['-i', source, '-o', output, '-d', '--gltf_export_format', 'glb', '--threads', '1'], signal);
+    await validateResource(output, { kind: 'models' });
+    const named = path.join(directory, `${key}.glb`);
+    await fs.copyFile(output, named);
+    return await importOutput([named], signal);
   }
   async function convertIcons(installation, directory, signal) {
     await fs.mkdir(directory, { recursive: true });
