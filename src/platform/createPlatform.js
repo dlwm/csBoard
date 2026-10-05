@@ -45,6 +45,6 @@ export function createPlatform({ host, parser, storage, compute, ai = null }) {
       chooseFiles: event => host.chooseFiles(event, parser.input),
       releaseFiles: files => host.releaseFiles?.(files) || Promise.resolve(),
     }),
-    resources: host.resources, maintenance: host.maintenance, presentation: host.presentation,
+    resources: host.resources, maintenance: host.maintenance, presentation: host.presentation, updates: host.updates,
   });
 }

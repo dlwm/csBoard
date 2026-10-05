@@ -5,6 +5,7 @@ import { localize } from '../i18n.js';
 import './resourcePack.css';
 import './desktopManager.css';
 import ParserPerformance from './ParserPerformance.jsx';
+import DesktopUpdates from './DesktopUpdates.jsx';
 
 const bytes = value => {
   const size = value || 0;
@@ -12,12 +13,12 @@ const bytes = value => {
   const divisor = { GB: 1024 ** 3, MB: 1024 ** 2, KB: 1024, B: 1 }[unit];
   return `${(size / divisor).toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unit}`;
 };
-export default function DesktopManager({ language, onClose }) {
+export default function DesktopManager({ language, onClose, initialTab = 'storage' }) {
   const api = getPlatform().maintenance;
   const dialog = useRef(null), mounted = useRef(false);
   const [status, setStatus] = useState(null), [tasks, setTasks] = useState([]);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
-  const [limit, setLimit] = useState('10'), [tab, setTab] = useState('storage');
+  const [limit, setLimit] = useState('10'), [tab, setTab] = useState(initialTab);
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const refresh = async () => { const value = await api.status(); if (mounted.current) setStatus(value); };
   const run = async action => {
@@ -52,7 +53,7 @@ export default function DesktopManager({ language, onClose }) {
   };
   return createPortal(<dialog ref={dialog} className="resource-pack-dialog desktop-manager" onClose={onClose} onCancel={event => { if (busy) event.preventDefault(); }} onKeyDown={event => event.stopPropagation()} aria-labelledby="desktop-manager-title">
     <header className="resource-pack-header"><div><small>CSBOARD / DESKTOP</small><h2 id="desktop-manager-title">{text('桌面管理', 'Desktop manager', 'Управление приложением')}</h2></div><button className="resource-pack-close" disabled={busy} onClick={onClose} aria-label={text('关闭', 'Close', 'Закрыть')}>×</button></header>
-    <div className="desktop-manager-tabs">{['storage', 'tasks', 'performance'].map(value => <button key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>{value === 'storage' ? text('存储与备份', 'Storage & backups', 'Хранилище и копии') : value === 'tasks' ? text('后台任务', 'Background tasks', 'Фоновые задачи') : text('解析性能', 'Performance', 'Производительность')}</button>)}</div>
+    <div className="desktop-manager-tabs">{['storage', 'tasks', 'performance', ...(getPlatform().updates ? ['updates'] : [])].map(value => <button key={value} aria-pressed={tab === value} onClick={() => setTab(value)}>{value === 'storage' ? text('存储与备份', 'Storage & backups', 'Хранилище и копии') : value === 'tasks' ? text('后台任务', 'Background tasks', 'Фоновые задачи') : value === 'updates' ? text('应用更新', 'Updates', 'Обновления') : text('解析性能', 'Performance', 'Производительность')}</button>)}</div>
     <div className="desktop-manager-content" aria-busy={busy}>
       {error && <p className="resource-pack-error" role="alert">{error}</p>}{message && <p className="desktop-manager-message" role="status">{message}</p>}
       {tab === 'storage' ? <>
@@ -65,13 +66,13 @@ export default function DesktopManager({ language, onClose }) {
         <section><h3>{text('备份与恢复', 'Backup & restore', 'Копирование и восстановление')}</h3><p>{text('备份包含原生存档、Demo 缓存及导入资源，不包含原始 .dem 文件、未保存内容和浏览器偏好。恢复会重启应用；恢复前的数据保留在数据目录的 restores 文件夹。', 'Backups include native saved work, Demo caches and imported resources. Original .dem files, unsaved edits and browser preferences are excluded. Restore restarts the app and keeps previous data in the restores folder.', 'Копия включает нативные архивы, кэш Demo и ресурсы. Исходные .dem, несохранённые изменения и настройки браузера не входят. Восстановление перезапускает приложение; прежние данные остаются в restores.')}</p>
           <div className="desktop-manager-actions"><button disabled={busy || working} onClick={() => run(async () => { const result = await api.backup(); if (result && mounted.current) setMessage(text(`备份已保存：${result.path}`, `Backup saved: ${result.path}`, `Копия сохранена: ${result.path}`)); })}>{text('创建备份', 'Create backup', 'Создать копию')}</button><button disabled={busy || working} onClick={() => run(() => api.restore())}>{text('从备份恢复…', 'Restore backup…', 'Восстановить…')}</button><button disabled={busy} onClick={() => run(() => api.openFolder())}>{text('打开数据目录', 'Open data folder', 'Открыть папку данных')}</button></div>
         </section>
-      </> : tab === 'performance' ? <ParserPerformance api={api} language={language} working={working} /> : <>
+      </> : tab === 'performance' ? <ParserPerformance api={api} language={language} working={working} /> : tab === 'updates' ? <DesktopUpdates language={language} working={working} /> : <>
         <label className="desktop-awake"><input type="checkbox" checked={status?.keepAwake || false} disabled={busy || !status} onChange={event => { const checked = event.target.checked; run(async () => { const value = await api.keepAwake(checked); setStatus(current => ({ ...current, keepAwake: value })); }); }} />{text('本次运行期间，有后台任务时防止自动休眠', 'Prevent automatic sleep during tasks for this session', 'Запретить автоматический сон во время задач в этом сеансе')}</label>
         <p>{text('解析和计算分别限流；最小化后继续处理。失败任务可从原入口重试。', 'Parsing and computation use bounded queues and continue when minimized. Retry failed work from its original entry point.', 'Очереди разбора и вычислений ограничены; работа продолжается при сворачивании. Повторите ошибочную задачу из исходного интерфейса.')}</p>
         <ul className="desktop-task-list">{[...tasks].reverse().map(task => <li key={task.id}><div><strong>{taskLabel(task)}</strong><small>{taskState(task.state)}{task.progress != null && task.state === 'running' ? ` · ${Math.round(task.progress)}%` : ''}{task.finishedAt && task.startedAt ? ` · ${((task.finishedAt - task.startedAt) / 1000).toFixed(1)}s` : ''}</small>{task.allocation?.threads && <small className="desktop-task-budget"> · {task.allocation.threads} {text('线程', 'threads', 'потоков')}{task.metrics?.peakBytes ? ` · ${bytes(task.metrics.peakBytes)}` : ''}</small>}{task.waitReason === 'memory' && <p>{text('等待可用内存', 'Waiting for available memory', 'Ожидание свободной памяти')}</p>}{task.error && <p className="resource-pack-error">{task.error}</p>}</div>{['queued', 'running'].includes(task.state) && <button onClick={() => run(() => api.cancelTask(task.id))} disabled={busy}>{text('取消', 'Cancel', 'Отменить')}</button>}</li>)}</ul>
         {!tasks.length && <p>{text('当前没有后台任务。', 'No background tasks yet.', 'Фоновых задач пока нет.')}</p>}
       </>}
     </div>
-    <footer className="resource-pack-footer"><p>{busy ? text('正在处理，请稍候…', 'Working…', 'Обработка…') : working ? text('任务运行期间暂不进行存储维护。', 'Storage maintenance waits for background tasks.', 'Обслуживание хранилища доступно после завершения задач.') : text('存档与可重建缓存分别管理。', 'Saved work is kept separate from rebuildable caches.', 'Архивы и восстанавливаемый кэш разделены.')}</p><button disabled={busy} onClick={() => run(refresh)}>{text('刷新占用', 'Refresh usage', 'Обновить размер')}</button></footer>
+    {tab !== 'updates' && <footer className="resource-pack-footer"><p>{busy ? text('正在处理，请稍候…', 'Working…', 'Обработка…') : working ? text('任务运行期间暂不进行存储维护。', 'Storage maintenance waits for background tasks.', 'Обслуживание хранилища доступно после завершения задач.') : text('存档与可重建缓存分别管理。', 'Saved work is kept separate from rebuildable caches.', 'Архивы и восстанавливаемый кэш разделены.')}</p><button disabled={busy} onClick={() => run(refresh)}>{text('刷新占用', 'Refresh usage', 'Обновить размер')}</button></footer>}
   </dialog>, document.body);
 }

@@ -14,6 +14,7 @@
  * @property {boolean} [nativeFilePicker]
  * @property {boolean} [backgroundParsing] OS capability, not parser speed.
  * @property {boolean} [releaseDownload]
+ * @property {{status: Function, check: Function, download: Function, cancel: Function, install: Function, preferences: Function, subscribe: Function}} [updates] Desktop update port; URLs and files remain in the host.
  * @property {(files: Array) => Promise<void>} [releaseFiles]
  * @property {Object|null} [resources]
  * @property {Object|null} [maintenance]

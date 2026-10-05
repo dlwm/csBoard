@@ -4,7 +4,7 @@ export function createElectronHost(bridge) {
     id: 'electron', kind: 'desktop', mobile: false, nativeFilePicker: true,
     chooseFiles: (event, input) => input === 'native' ? bridge.native.chooseDemos()
       : Promise.resolve(Array.from(event?.target?.files || [])),
-    resources: bridge.resources, maintenance: bridge.maintenance,
+    resources: bridge.resources, maintenance: bridge.maintenance, updates: bridge.updates,
     presentation: bridge.presentation, ai: bridge.ai,
     backgroundParsing: true,
   });

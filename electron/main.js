@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { createResourceStore } from './resource-store.js'
 import { registerNativeServices } from './native-services.js'
 import { applyPendingRestore } from './storage-management.js'
+import { registerUpdateService } from './update-service.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DESKTOP_HOST = '127.0.0.1'
@@ -100,6 +101,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('resources:status', event => { authorize(event); return resourceStore.status() })
   let importing = false
   nativeServices = registerNativeServices({ app, authorize, getWindow: () => mainWindow, resourceBusy: () => importing })
+  registerUpdateService({ app, authorize, getWindow: () => mainWindow, isBusy: () => nativeServices.busy || importing })
   ipcMain.handle('desktop:presentation', event => { authorize(event); return mainWindow.isVisible() && !mainWindow.isMinimized() })
   ipcMain.handle('resources:import', async event => {
     authorize(event)

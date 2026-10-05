@@ -6,6 +6,7 @@ import ChangelogModal from './ChangelogModal.jsx';
 import ResourcePackModal from './ResourcePackModal.jsx';
 import DesktopManager from './DesktopManager.jsx';
 import { getPlatform } from '../platform/index.js';
+import useDesktopUpdateState from './useDesktopUpdateState.js';
 
 import { availableWorkspaceMenus } from './workspace/menuRegistry.js';
 
@@ -18,6 +19,8 @@ export default function BoardHeader({ activePanel, language, mapName, parseGameS
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(false);
+  const { state: updateState } = useDesktopUpdateState();
+  const hasUpdate = Boolean(updateState?.latestVersion);
   const nextLanguageName = languageLabel(nextLanguage(language));
   const mapLabel = (map) => language === 'zh' ? MAP_LABELS_ZH[map.id] || map.label : map.label;
   const selectedMap = MAPS.find((map) => map.id === mapName);
@@ -31,7 +34,7 @@ export default function BoardHeader({ activePanel, language, mapName, parseGameS
     <div className="brand"><span className="brand-mark"><i /><i /><i /></span><span>CS<span>BOARD</span></span>{BUILD_VERSION && <button type="button" className="build-version" title={localize(language, { zh: '查看更新日志', en: 'View changelog', ru: 'Открыть список изменений' })} onClick={() => setChangelogOpen(true)}>{BUILD_VERSION}</button>}</div>
     <nav ref={navRef} className="topbar-panels">{availableWorkspaceMenus(getPlatform().capabilities).map(({ id: panel, label }) => <button type="button" key={panel} aria-current={activePanel === panel ? 'page' : undefined} className={activePanel === panel ? 'active' : ''} onClick={() => switchPanel(panel)}>{t(label)}</button>)}</nav>
     <div className="header-right">
-      {getPlatform().maintenance && <button type="button" className="desktop-manager-button" onClick={() => setDesktopOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>{localize(language, { zh: '桌面管理', en: 'Desktop', ru: 'Приложение' })}</button>}
+      {getPlatform().maintenance && <button type="button" className="desktop-manager-button" onClick={() => setDesktopOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>{localize(language, { zh: '桌面管理', en: 'Desktop', ru: 'Приложение' })}{hasUpdate && <span className="desktop-update-badge" title={localize(language, { zh: '发现新版本', en: 'Update available', ru: 'Доступно обновление' })} aria-label={localize(language, { zh: '发现新版本', en: 'Update available', ru: 'Доступно обновление' })}>↑</span>}</button>}
       {getPlatform().capabilities.resourceImport && <button type="button" className="resource-pack-button" onClick={() => setResourcesOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5v8l-9 5-9-5V8ZM3 8l9 5 9-5M12 13v8M8 5l9 5"/></svg>{localize(language, { zh: '资源包', en: 'Resources', ru: 'Ресурсы' })}</button>}
       <label className="map-select header-map-select" style={mapLabelStyle(mapName)}>
         <span>MAP</span>
@@ -45,10 +48,10 @@ export default function BoardHeader({ activePanel, language, mapName, parseGameS
         </span>
       </label>
       {getPlatform().capabilities.releaseDownload && <a className="release-download" href="https://github.com/dlwm/csBoard/releases/latest" target="_blank" rel="noopener noreferrer"
-        title={localize(language, { zh: '下载最新版本', en: 'Download latest version', ru: 'Скачать последнюю версию' })}
-        aria-label={localize(language, { zh: '下载最新版本', en: 'Download latest version', ru: 'Скачать последнюю версию' })}>
+        title={localize(language, { zh: '桌面端下载', en: 'Download desktop app', ru: 'Скачать для компьютера' })}
+        aria-label={localize(language, { zh: '桌面端下载', en: 'Download desktop app', ru: 'Скачать для компьютера' })}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" /></svg>
-        <span>{localize(language, { zh: '下载最新版本', en: 'Download latest', ru: 'Скачать' })}</span>
+        <span>{localize(language, { zh: '桌面端下载', en: 'Download desktop app', ru: 'Скачать для компьютера' })}</span>
       </a>}
       <a className="github-link" href="https://github.com/dlwm/csBoard" target="_blank" rel="noreferrer">GITHUB</a>
       <button type="button" className={`game-switch${parseGameState !== 'hidden' ? ' active' : ''}`} title={localize(language, { zh: '小游戏', en: 'Mini games', ru: 'Мини-игры' })} aria-label={localize(language, { zh: '打开小游戏', en: 'Open mini games', ru: 'Открыть мини-игры' })} aria-pressed={parseGameState !== 'hidden'} onClick={toggleGames}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 8h9.6a4 4 0 0 1 3.8 5.2l-1.2 3.7a2.2 2.2 0 0 1-3.5 1.1l-2.1-1.7h-3.6L8.1 18a2.2 2.2 0 0 1-3.5-1.1l-1.2-3.7A4 4 0 0 1 7.2 8Z"/><path d="M8 11v4M6 13h4M16.5 11.5h.01M18 14h.01"/></svg></button>
@@ -56,6 +59,6 @@ export default function BoardHeader({ activePanel, language, mapName, parseGameS
     </div>
     {changelogOpen && <ChangelogModal buildVersion={BUILD_VERSION} language={language} onClose={() => setChangelogOpen(false)} />}
     {resourcesOpen && <ResourcePackModal language={language} onClose={() => setResourcesOpen(false)} />}
-    {desktopOpen && <DesktopManager language={language} onClose={() => setDesktopOpen(false)} />}
+    {desktopOpen && <DesktopManager language={language} initialTab={hasUpdate ? 'updates' : 'storage'} onClose={() => setDesktopOpen(false)} />}
   </header>;
 }
