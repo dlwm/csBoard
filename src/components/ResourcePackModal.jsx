@@ -76,6 +76,10 @@ export default function ResourcePackModal({ language, onClose }) {
         <p className="resource-pack-hint">{kind === 'models'
           ? text('未导入的地图仍可使用 NAV。模型需保留原地图坐标并内置数据；训练场已内置。', 'Maps without models use NAV. GLBs need original map coordinates and embedded data. Training Ground is built in.', 'Без моделей используется NAV. GLB должны сохранять координаты карты и содержать данные. Учебная карта встроена.')
           : text('未导入的图标使用默认样式。导入文件名需与下方名称对应。', 'Missing icons use the default style. Match filenames to the names below.', 'Для отсутствующих значков используется стандартный стиль. Имена файлов указаны ниже.')}</p>
+        {changed && <div className="resource-pack-apply-notice" role="status">
+          <div><strong>{text('资源已保存，尚未应用', 'Resources saved; not yet applied', 'Ресурсы сохранены, но ещё не применены')}</strong><p>{text('建议重启应用，也可重新加载立即应用。请先保存未保存的协作内容。', 'Restart the app, or reload to apply now. Save unsaved collaboration work first.', 'Перезапустите приложение или перезагрузите для применения сейчас. Сначала сохраните совместную работу.')}</p></div>
+          <button type="button" disabled={busy} onClick={reload}>{text('重新加载并应用', 'Reload and apply', 'Применить')}</button>
+        </div>}
         {gameOpen && <GameResourceImport api={resources.game} language={language} onBusy={setBusy} onImported={result => {
           setStatus(result.status); setResults(result.results);
           if (result.results.some(item => item.ok)) { markResourcesChanged(); setChanged(true); }
