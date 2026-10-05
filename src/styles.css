@@ -577,3 +577,5 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 .model-material-style{display:flex;gap:4px}
 
 :root{font-size:calc(16px * var(--ui-font-scale,1))}
+
+.demo-source-label{display:flex;align-items:center;gap:8px;max-width:min(420px,65vw);padding:6px 9px;border:1px solid #354238;border-radius:5px;background:rgba(9,15,14,.9);color:#b1bdb1;font:10px var(--font-mono)}.demo-source-label>span{flex:none;color:var(--accent);font-size:9px}.demo-source-label>strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400}.workspace-frame .workspace-corner .demo-source-label{pointer-events:auto}

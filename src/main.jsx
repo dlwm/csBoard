@@ -1248,6 +1248,7 @@ function App() {
            : { zh: '正在更新分析…', en: 'Updating analysis…', ru: 'Обновление анализа…' })}</div>}
          <div className="stage-vignette" />
          {activePanel === 'utility' && <WorkspaceContribution slot="viewport-bottom-right"><UtilityInputOverlay playback={utilityReplay} language={language} /></WorkspaceContribution>}
+         {activePanel === 'demo' && demoData?.demo?.fileName && <WorkspaceContribution slot="viewport-bottom-left"><div className="demo-source-label" title={demoData.demo.fileName}><span>DEMO</span><strong>{demoData.demo.fileName}</strong></div></WorkspaceContribution>}
          {customReplay && !broadcastPage && <WorkspaceContribution slot="viewport-bottom-left"><div className="demo-recording-label">{t('customDemo')}</div></WorkspaceContribution>}
           {replayPanel && (!broadcastPage || activeBroadcastId) && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} minimal={broadcastPage || customReplay} />}
           {replayPanel && (!broadcastPage || activeBroadcastId) && demoSnapshot && <div className="demo-monitor-controls"><button type="button" className={`demo-monitor-toggle${demoCameraMode === 'monitor' ? ' selected' : ''}`} onClick={() => { if (demoCameraMode === 'monitor') { setDemoCameraMode('manual'); setDemoPovPlayerId(''); } else selectMonitorMode(); }}>{t('cameraMonitor')}</button>{demoCameraMode === 'monitor' && <DemoMonitorTeamSwitch players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} />}</div>}
