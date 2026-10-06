@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { firstMapCollisionHit } from './mapCollisionIndex.js';
 import { HE_SMOKE_CLEAR_SECONDS } from '../demo/effectLifetime.js';
 
 const GAME_TO_SCENE = 0.0254;
@@ -37,5 +38,5 @@ export function smokeBlastHasLineOfSight(blast, smokeCenter, collisionMeshes, ra
   raycaster.set(origin, direction.multiplyScalar(1 / distance));
   raycaster.near = 0.15;
   raycaster.far = distance - 0.2;
-  return raycaster.intersectObjects(collisionMeshes, false).length === 0;
+  return !firstMapCollisionHit(collisionMeshes, raycaster);
 }

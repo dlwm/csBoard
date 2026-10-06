@@ -1,6 +1,7 @@
 // Display clones share source textures; dispose each GPU resource only once.
 // 显示材质与原始材质共享贴图，地图切换时统一释放，避免重复释放或累积显存。
 export function disposeMapModel(root) {
+  root?.userData.disposeRenderBatches?.();
   const geometries = new Set(), materials = new Set(), textures = new Set();
   root?.traverse(object => {
     if (object.geometry) geometries.add(object.geometry);

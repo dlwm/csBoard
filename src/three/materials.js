@@ -72,9 +72,9 @@ export function enableMapSquareFade(material, boundary, layerState) {
     shader.uniforms.navModelFadeStart = { value: MODEL_FADE_START };
     shader.uniforms.navModelFadeEnd = { value: MODEL_FADE_END };
     shader.uniforms.mapLayerState = { value: layerState };
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 navBoundaryWorldPosition;').replace('#include <project_vertex>', 'navBoundaryWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;\n#include <project_vertex>');
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 navBoundaryWorldPosition;').replace('#include <project_vertex>', 'vec4 csboardBoundaryPosition = vec4(transformed, 1.0);\n#ifdef USE_BATCHING\ncsboardBoundaryPosition = batchingMatrix * csboardBoundaryPosition;\n#endif\nnavBoundaryWorldPosition = (modelMatrix * csboardBoundaryPosition).xyz;\n#include <project_vertex>');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 navBoundaryWorldPosition;\nuniform vec2 navBoundaryMin;\nuniform vec2 navBoundaryMax;\nuniform float navModelFadeStart;\nuniform float navModelFadeEnd;\nuniform vec4 mapLayerState;').replace('#include <alphatest_fragment>', 'vec2 navBoundaryOutside = max(max(navBoundaryMin - navBoundaryWorldPosition.xz, navBoundaryWorldPosition.xz - navBoundaryMax), vec2(0.0));\nfloat navBoundaryDistance = length(navBoundaryOutside);\nfloat navBoundaryAlpha = 1.0 - smoothstep(navModelFadeStart, navModelFadeEnd, navBoundaryDistance);\ndiffuseColor.a *= mix(1.0, navBoundaryAlpha, step(0.5, mapLayerState.w));\nif (diffuseColor.a < 0.01) discard;\n#include <alphatest_fragment>');
   };
-  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}-csboard-square-boundary-fade-v2`;
+  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}-csboard-square-boundary-fade-v3`;
   material.needsUpdate = true;
 }

@@ -43,6 +43,9 @@ import { isFirearm } from './weaponModel.js';
 import { replaySceneInputs } from '../demo/replaySceneInputs.js';
 import { buildSavedThrowNote } from '../utility/savedThrow.js';
 import { disposeMapModel } from './disposeMapModel.js';
+import { registerMapCollisionIndex, releaseMapCollisionIndex } from './mapCollisionIndex.js';
+import { createStaticMapBatches } from './staticMapBatches.js';
+import { cacheStaticMapTransforms, createMapMaterialRuntime } from './staticMapRuntime.js';
 import { bindMapObjectVisibility } from './mapObjectVisibility.js';
 import { modelVisibility, observeModelVisibility } from '../resources/modelVisibility.js';
 import { loadMapModel, removeImportedMapLights } from './mapModelLoader.js';
@@ -54,6 +57,8 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 // Owns the imperative Three.js scene and exposes its workspace API to the React shell.
 export default function ThreeBoard(inputProps) {
   const props = replaySceneInputs(inputProps);
+  const monitorPropsRef = useRef(props);
+  monitorPropsRef.current = props;
   const [touchEditMode, setTouchEditMode] = useState('move');
   const touchEditModeRef = useRef(touchEditMode);
   touchEditModeRef.current = touchEditMode;
@@ -126,6 +131,7 @@ export default function ThreeBoard(inputProps) {
     const aimRaycaster = new THREE.Raycaster();
     aimRaycaster.firstHitOnly = true;
     let collisionVersion = 0;
+    const collisionStateVersion = () => `${collisionVersion}:${worldModel?.position.y ?? 0}`;
     const applyObjectVisibility = () => { worldModel?.userData.applyObjectVisibility?.(modelVisibility(mapName)); };
     const unsubscribeObjectVisibility = observeModelVisibility(applyObjectVisibility);
     scene.add(demoPlayers);
@@ -182,14 +188,14 @@ export default function ThreeBoard(inputProps) {
       getModelCenter: () => modelCenter,
       getNav: () => nav,
       getCollisionMeshes: () => collisionMeshes,
-      getCollisionVersion: () => collisionVersion,
+      getCollisionVersion: collisionStateVersion,
     });
     const utilityNotesScene = createUtilityNotesSceneController({
       scene, navData, getNav: () => nav,
       refs: { notes: utilityNotesRef, enabled: utilityNotesEnabledRef, display: utilityReplayDisplayRef, playingNoteId: utilityPlayingNoteIdRef },
       floorFadeRef,
       getModelCenter: () => modelCenter,
-      getCollisionVersion: () => collisionVersion,
+      getCollisionVersion: collisionStateVersion,
     });
     const updateDemoPlayers = createDemoPlayerSceneUpdater({
       scene,
@@ -213,7 +219,7 @@ export default function ThreeBoard(inputProps) {
       getCamera: () => camera,
       getRenderer: () => renderer,
       getCollisionMeshes: () => collisionMeshes,
-      getCollisionVersion: () => collisionVersion,
+      getCollisionVersion: collisionStateVersion,
     });
     const c4Scene = createC4SceneController({
       scene,
@@ -464,7 +470,7 @@ export default function ThreeBoard(inputProps) {
         const player = createCollabPlayer({ position, id, name, team, weapon: 'ak47' });
         const flat = direction.clone(); flat.y = 0;
         if (flat.lengthSq()) player.rotation.y = Math.atan2(-flat.x, -flat.z);
-        updateCollabPlayerAim(player, collisionMeshes, aimRaycaster, collisionVersion);
+        updateCollabPlayerAim(player, collisionMeshes, aimRaycaster, collisionStateVersion());
         return player;
       }
       return createTacticalPoint(position, direction, id, rayLength, team, 'T');
@@ -474,7 +480,7 @@ export default function ThreeBoard(inputProps) {
         const flat = target.clone().sub(point.position); flat.y = 0;
         if (flat.lengthSq()) point.rotation.y = Math.atan2(-flat.x, -flat.z);
         point.userData.aimCollisionVersion = -1;
-        updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion);
+        updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionStateVersion());
         return;
       }
       const aimRay = point.children.find((child) => child.userData.aimRay);
@@ -486,7 +492,7 @@ export default function ThreeBoard(inputProps) {
       if (flat.lengthSq()) point.rotation.y = Math.atan2(-flat.x, -flat.z);
       if (point.userData.collabPlayer) {
         point.userData.aimCollisionVersion = -1;
-        updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion);
+        updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionStateVersion());
       } else {
         const aimRay = point.children.find((child) => child.userData.aimRay);
         if (aimRay) aimRay.scale.z = Math.max(flat.length(), 0.05);
@@ -684,7 +690,7 @@ export default function ThreeBoard(inputProps) {
         const point = createCollabPlayer({ position: new THREE.Vector3().fromArray(item.position || [0, 0, 0]), id: item.id, name: item.name || randomPlayerName(), team: item.team || 'T', crouched: Boolean(item.crouched), pitch: item.pitch || 0, weapon: item.weapon || 'ak47' });
         point.rotation.y = item.rotationY || 0;
         point.userData.pointId = item.id;
-        updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion);
+        updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionStateVersion());
         scene.add(point);
         pointsRef.current.push(point);
         if (item.crouched) setCollabPlayerCrouch(point, true);
@@ -823,7 +829,7 @@ export default function ThreeBoard(inputProps) {
         if (item.kind === 'player') {
           point = createCollabPlayer({ position: new THREE.Vector3().fromArray(item.position || [0, 0, 0]), id: item.id, name: item.name || randomPlayerName(), team: item.team || 'T', crouched: Boolean(item.crouched), pitch: item.pitch || 0, weapon: item.weapon || 'ak47' });
           point.rotation.y = item.rotationY || 0;
-          updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion);
+          updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionStateVersion());
           if (item.crouched) setCollabPlayerCrouch(point, true);
         } else {
           point = createTacticalPoint(new THREE.Vector3(), new THREE.Vector3(0, 0, 1), item.id, item.rayLength, item.team || 'T', item.type || 'T');
@@ -1184,7 +1190,7 @@ export default function ThreeBoard(inputProps) {
           const targetPosition = pointerToSurface(pointerCurrent);
           if (targetPosition) {
             pointPointerTarget.position.copy(targetPosition).add(new THREE.Vector3(0, 0.002, 0));
-            if (isCollabPlayer) { pointPointerTarget.userData.aimCollisionVersion = -1; updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionVersion); }
+            if (isCollabPlayer) { pointPointerTarget.userData.aimCollisionVersion = -1; updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionStateVersion()); }
           }
         } else if (isCollabPlayer && (pressedKeys.has('control') || event.pointerType === 'touch' && touchEditModeRef.current === 'aim')) {
           pointPointerMoved = true;
@@ -1195,7 +1201,7 @@ export default function ThreeBoard(inputProps) {
           const pitch = THREE.MathUtils.clamp(pointPointerBasePitch - deltaY * 1.8, -Math.PI * 0.42, Math.PI * 0.42);
           setCollabPlayerPitch(pointPointerTarget, pitch);
           pointPointerTarget.userData.aimCollisionVersion = -1;
-          updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionVersion);
+          updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionStateVersion());
         } else if (pressedKeys.has('control') && !isCollabPlayer) {
           const pitch = THREE.MathUtils.clamp(pointPointerBasePitch + deltaY * Math.PI, -Math.PI * 0.42, Math.PI * 0.42);
           if (aimRay) {
@@ -1267,7 +1273,7 @@ export default function ThreeBoard(inputProps) {
           if (pointPointerSnapshot) pushCollabHistory(pointPointerSnapshot);
           setCollabPlayerCrouch(pointPointerTarget, !pointPointerTarget.userData.crouched);
           pointPointerTarget.userData.aimCollisionVersion = -1;
-          updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionVersion);
+          updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionStateVersion());
           notifyCollabEdit();
           lastClickTime = 0;
           lastClickId = null;
@@ -1398,7 +1404,7 @@ export default function ThreeBoard(inputProps) {
       };
       worldModel.traverse((object) => {
         if (!object.isMesh) return;
-        object.geometry.computeBoundsTree();
+        if (!object.geometry.boundsTree) object.geometry.computeBoundsTree();
         collisionMeshes.push(object);
         object.frustumCulled = true;
         object.renderOrder = 3;
@@ -1408,23 +1414,25 @@ export default function ThreeBoard(inputProps) {
            materials.forEach(material => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); material.transparent = true; material.opacity = modelOpacity; material.depthWrite = true; });
          }
       });
+      const materialRuntime = createMapMaterialRuntime(worldModel, source => {
+        const material = createGhostMaterial(focusScreen, viewportSize, modelMode, modelRange, source);
+        material.opacity = modelOpacityRef.current;
+        enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current);
+        enableMaterialFloorFade(material, floorFadeRef.current);
+        return material;
+      });
+      const batches = createStaticMapBatches(worldModel, renderer, (getHost().mobile ? 16 : 64) * 1024 ** 2);
+      const applyVisibility = worldModel.userData.applyObjectVisibility;
+      if (applyVisibility) worldModel.userData.applyObjectVisibility = record => { applyVisibility(record); batches.syncVisibility(); };
+      let appliedStyle = null;
       worldModel.userData.applyMaterialStyle = style => {
-        worldModel.traverse(object => {
-          const original = object.userData.originalMapMaterial;
-          if (!original) return;
-          const oldMaterials = Array.isArray(object.material) ? object.material : [object.material];
-          const originals = Array.isArray(original) ? original : [original];
-          oldMaterials.filter(material => !originals.includes(material)).forEach(material => material.dispose());
-          const display = originals.map(source => {
-            const material = createGhostMaterial(focusScreen, viewportSize, modelMode, modelRange, style === 'original' ? source : null);
-            material.opacity = modelOpacityRef.current;
-            enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current);
-            enableMaterialFloorFade(material, floorFadeRef.current);
-            return material;
-          });
-          object.material = Array.isArray(original) ? display : display[0];
-        });
+        if (style === appliedStyle) return;
+        batches.clear();
+        materialRuntime.applyStyle(style);
+        if (mapName !== TUTORIAL_MAP_ID) batches.rebuild();
+        appliedStyle = style;
       };
+      worldModel.userData.disposeRenderBatches = batches.clear;
       worldModel.userData.applyMaterialStyle(materialStyleRef.current);
       scene.add(worldModel);
       // Static map materials share the live floor uniform; initialize once, not every scan.
@@ -1447,6 +1455,8 @@ export default function ThreeBoard(inputProps) {
       worldModel.visible = modelVisibilityRef.current;
          worldModel.position.y = modelBasePositionRef.current.y + (modelMode.value === 0 ? -0.12 : 0);
       worldModel.updateMatrixWorld(true);
+      if (mapName !== TUTORIAL_MAP_ID) cacheStaticMapTransforms(worldModel);
+      registerMapCollisionIndex(collisionMeshes, worldModel);
       resetCamera();
       cameraState.restoreCurrent();
       cameraState.enablePersistence();
@@ -1472,6 +1482,7 @@ export default function ThreeBoard(inputProps) {
         floor.position.y = -modelCenter.y - 0.35;
         collisionMeshes.push(nav.mesh, navBoundaryCollider);
         collisionVersion += 1;
+        registerMapCollisionIndex(collisionMeshes);
         const distance = Math.max(nav.size * 0.8, 18);
         camera.position.set(distance * 0.68, distance * 0.9, distance);
         camera.far = Math.max(nav.size * 4, 200);
@@ -1496,6 +1507,19 @@ export default function ThreeBoard(inputProps) {
       renderer,
       scene,
       primaryCamera: camera,
+      viewportSize,
+      getContentState: now => [
+        monitorPropsRef.current, demoTickRef.current, worldModel, modelVisibility(mapName),
+        worldModel?.userData.renderStats, modelVisibilityRef.current, materialStyleRef.current,
+        modelOpacityRef.current, modelMode.value, modelRange.value,
+        floorFadeRef.current.x, floorFadeRef.current.y, floorFadeRef.current.w,
+        modelMode.value === 1 ? focusScreen.x : null, modelMode.value === 1 ? focusScreen.y : null,
+        gridRef.current?.visible, hoveredDemoPlayerRef.current,
+        ...[...demoMarkers.values()].map(marker => marker.children.find(child => child.userData.demoEquipment)?.children.find(child => child.userData.demoFirearm)?.userData.weaponModelRevision),
+        demoGrenadeScene.getRealtimePhase(),
+        [...demoMarkers.values()].some(marker => marker.userData.muzzleFlash?.visible) ? Math.floor(now / 50) : null,
+      ],
+      getPlaybackState: () => ({ source: demoSnapshotsRef.current, seek: demoSourceRef.current?.seekRevision, tick: demoTickRef.current }),
       playersRef: demoMonitorPlayersRef,
       modeRef: demoCameraModeRef,
       getModelCenter: () => modelCenter,
@@ -1770,7 +1794,7 @@ export default function ThreeBoard(inputProps) {
         });
         if (progress >= 1) frameTween = null;
       }
-      pointsRef.current.forEach((point) => { if (point.userData.collabPlayer) updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionVersion); });
+      pointsRef.current.forEach((point) => { if (point.userData.collabPlayer) updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionStateVersion()); });
       updateAimTargetScreenSizes();
       const interactionLocked = Boolean(cameraTransition || collabFocusedPlayer || utilityFirstPersonRef.current?.player || utilityProjectileFollowRef.current || demoDirectorCameraActive || placing || grenadeAdjusting || pointPointerTarget || cameraInput.active);
       if (!interactionLocked && !controls.enabled) controls.enabled = true;
@@ -1792,7 +1816,7 @@ export default function ThreeBoard(inputProps) {
       if (!demoMonitorRenderer.render(now)) renderer.render(scene, camera);
     };
     const stopRenderLoop = startRenderLoop(animate);
-     return () => { disposed = true; unsubscribeObjectVisibility(); stopRenderLoop(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { scene.remove(worldModel); disposeMapModel(worldModel); } renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; unsubscribeObjectVisibility(); stopRenderLoop(); releaseMapCollisionIndex(collisionMeshes); demoMonitorRenderer.dispose(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { scene.remove(worldModel); disposeMapModel(worldModel); } renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {

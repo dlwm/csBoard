@@ -20,11 +20,13 @@ export function findInfernoSegment(segments, entityId, startEvent) {
 
 export default function createDemoGrenadeSceneController({ scene, navData, refs, floorFadeRef, getModelCenter, getNav, getCollisionMeshes, getCollisionVersion }) {
   const objects = new Map();
+  let realtimePhase = null;
   const blastVisibilityCache = new WeakMap();
   const blastRaycaster = new THREE.Raycaster();
   blastRaycaster.firstHitOnly = true;
 
   const update = () => {
+    realtimePhase = null;
     const active = new Set();
     const tick = refs.tick.current;
     const segments = refs.segments.current;
@@ -207,7 +209,10 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       if (event.event_name === 'smokegrenade_detonate') updateSmokeBlasts(effect);
       if (event.event_name === 'decoy_started') {
         const blink = effect.children.find((child) => child.userData.decoyBlink);
-        if (blink?.material?.color) blink.material.color.set(performance.now() % 1000 < 250 ? '#ffffff' : '#7f8b91');
+        if (blink?.material?.color) {
+          realtimePhase = performance.now() % 1000 < 250;
+          blink.material.color.set(realtimePhase ? '#ffffff' : '#7f8b91');
+        }
       }
     });
     objects.forEach((effect, key) => {
@@ -224,8 +229,8 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
       scene.remove(effect);
       disposeGrenadeEffect(effect);
     });
-    objects.clear();
+    objects.clear(); realtimePhase = null;
   };
 
-  return { objects, update, dispose };
+  return { objects, update, dispose, getRealtimePhase: () => realtimePhase };
 }

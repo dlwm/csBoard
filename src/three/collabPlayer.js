@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { firstMapCollisionHit } from './mapCollisionIndex.js';
 import { createPlayerPawn } from './playerPawn.js';
 import { createWeaponModel } from './weaponModel.js';
 
@@ -122,7 +123,7 @@ export function updateCollabPlayerAim(group, collisionMeshes, raycaster, collisi
   raycaster.set(worldOrigin, worldDirection);
   raycaster.near = 0.05;
   raycaster.far = 72;
-  const worldLength = Math.max(0.001, raycaster.intersectObjects(collisionMeshes, false)[0]?.distance ?? 72);
+  const worldLength = Math.max(0.001, firstMapCollisionHit(collisionMeshes, raycaster)?.distance ?? 72);
   const worldScale = group.getWorldScale(new THREE.Vector3()).z || 1;
   const length = worldLength / worldScale;
   group.userData.aimCollisionLength = length;

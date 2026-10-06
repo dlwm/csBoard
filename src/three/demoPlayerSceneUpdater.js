@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { firstMapCollisionHit } from './mapCollisionIndex.js';
 import { createPlayerPawn } from './playerPawn.js';
 import { createWeaponModel, updateWeaponModel, isFirearm } from './weaponModel.js';
 import { createTacticalPoint, updateTacticalPoint } from './tacticalPoint.js';
@@ -240,8 +241,10 @@ export default function createDemoPlayerSceneUpdater({
           const origin = new THREE.Vector3(0, 0.93 - duckAmount * 0.339, -0.42);
           aimRay.position.copy(origin);
           aimRay.rotation.set(-pitch, 0, 0);
-          const collisionKey = `${snapshot.tick}:${collisionVersion}`;
-          if (marker.userData.aimCollisionKey !== collisionKey) {
+          // Collision depends on pose, not playback time or weapon/HP changes.
+          // 站姿与瞄准不变时复用射线结果；隐藏的第一视角人物无需计算瞄准线。
+          const collisionKey = `${player.position.x}:${player.position.y}:${player.position.z}:${player.yaw}:${player.pitch}:${duckAmount}:${collisionVersion}`;
+          if (!hiddenInEye && marker.userData.aimCollisionKey !== collisionKey) {
             marker.userData.aimCollisionKey = collisionKey;
             const lineOrigin = new THREE.Vector3(0, 0.15, 0).applyEuler(aimRay.rotation).add(origin);
             const worldOrigin = marker.localToWorld(lineOrigin.clone());
@@ -249,7 +252,7 @@ export default function createDemoPlayerSceneUpdater({
             aimRaycaster.set(worldOrigin, worldDirection);
             aimRaycaster.near = 0.05;
             aimRaycaster.far = 72;
-            const worldLength = Math.max(0.05, (aimRaycaster.intersectObjects(collisionMeshes, false)[0]?.distance ?? 72) - 0.03);
+            const worldLength = Math.max(0.05, (firstMapCollisionHit(collisionMeshes, aimRaycaster)?.distance ?? 72) - 0.03);
             const worldScale = marker.getWorldScale(new THREE.Vector3()).z || 1;
             marker.userData.aimCollisionLength = worldLength / worldScale;
           }

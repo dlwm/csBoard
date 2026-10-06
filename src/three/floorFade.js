@@ -62,10 +62,10 @@ export function enableMaterialFloorFade(material, state) {
     previousCompile?.(shader, renderer);
     if (!shader.vertexShader.includes('#include <project_vertex>') || !shader.fragmentShader.includes('#include <dithering_fragment>')) return;
     shader.uniforms.floorFadeState = { value: state };
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying float csboardFloorWorldY;').replace('#include <project_vertex>', 'csboardFloorWorldY = (modelMatrix * vec4(transformed, 1.0)).y;\n#include <project_vertex>');
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying float csboardFloorWorldY;').replace('#include <project_vertex>', 'vec4 csboardFloorPosition = vec4(transformed, 1.0);\n#ifdef USE_BATCHING\ncsboardFloorPosition = batchingMatrix * csboardFloorPosition;\n#endif\ncsboardFloorWorldY = (modelMatrix * csboardFloorPosition).y;\n#include <project_vertex>');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float csboardFloorWorldY;\nuniform vec4 floorFadeState;').replace('#include <dithering_fragment>', 'float csboardFloorAlpha = step(floorFadeState.x, csboardFloorWorldY) * step(csboardFloorWorldY, floorFadeState.y);\ngl_FragColor.a *= mix(1.0, csboardFloorAlpha, floorFadeState.w);\nif (gl_FragColor.a < 0.01) discard;\n#include <dithering_fragment>');
   };
-  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}-csboard-floor-range-v2`;
+  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}-csboard-floor-range-v3`;
   material.needsUpdate = true;
 }
 

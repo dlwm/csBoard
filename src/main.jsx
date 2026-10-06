@@ -138,6 +138,12 @@ function App() {
   const [trackpadDetection, setTrackpadDetection] = useState(() => typeof initialViewPreferences.trackpadDetection === 'boolean' ? initialViewPreferences.trackpadDetection : true);
   const [demoData, setDemoData] = useState(null);
   const [demoTick, setDemoTick] = useState(0);
+  const demoSeekRevisionRef = useRef(0);
+  const seekDemoTick = tick => {
+    demoSeekRevisionRef.current += 1;
+    demoFrameSourceRuntime.current.seekRevision = demoSeekRevisionRef.current;
+    setDemoTick(tick);
+  };
   const [demoPlaying, setDemoPlaying] = useState(false);
   const [demoStatus, setDemoStatus] = useState('');
   const [demoParseProgress, setDemoParseProgress] = useState(0);
@@ -186,7 +192,7 @@ function App() {
       pendingPlaybackRestoreRef.current = null;
       const restored = pending?.round?.round === round.round ? pending : null;
       setDemoPovPlayerId(restored?.povPlayerId || '');
-      setDemoTick(restored?.tick ?? round.startTick);
+      seekDemoTick(restored?.tick ?? round.startTick);
       setDemoPlaying(false);
     },
   });
@@ -523,7 +529,7 @@ function App() {
     setDemoData(data);
     const firstRound = data.rounds?.[0] || null;
     setDemoRound(firstRound);
-    setDemoTick(firstRound?.startTick || 0);
+    seekDemoTick(firstRound?.startTick || 0);
     setDemoPovPlayerId('');
     resetDemoRoundData();
     setDemoPlaying(false);
@@ -555,7 +561,7 @@ function App() {
     setActiveBroadcastId(session?.broadcastId || '');
     setDemoData(session?.data || null);
     setDemoRound(session?.round || null);
-    setDemoTick(session?.tick || 0);
+    seekDemoTick(session?.tick || 0);
     setDemoPovPlayerId(session?.povPlayerId || '');
     setDemoCameraMode(session?.cameraMode || 'manual');
     setDemoSourceReady(Boolean(session?.sourceReady));
@@ -807,7 +813,7 @@ function App() {
         if (!saved || demoData?.demo.fileName !== saved.fileName) return;
         const round = demoData.rounds.find(item => item.round === saved.round);
         if (round) setDemoRound(round);
-        setDemoTick(saved.tick);
+        seekDemoTick(saved.tick);
       },
     },
   }));
@@ -991,7 +997,7 @@ function App() {
       setDemoPovPlayerId(player?.monitorId || '');
     }
   };
-  demoFrameSourceRuntime.current = { fileName: demoData?.demo.fileName || 'Demo', round: demoRound?.round || null, tickRate: demoData?.demo.tickRate || 64 };
+  demoFrameSourceRuntime.current = { fileName: demoData?.demo.fileName || 'Demo', round: demoRound?.round || null, seekRevision: demoSeekRevisionRef.current, tickRate: demoData?.demo.tickRate || 64 };
   const onDemoGrenadeSelect = (id, screen) => { setSelectedDemoGrenade(demoGrenadeSegments.find((segment) => segment.id === id) || null); setSelectedDemoGrenadeScreen(screen); setDemoPlaying(false); };
   const onAnalysisUtilitySelect = (id, screen) => { setSelectedAnalysisUtility(combinedAnalysis.utilities.find((utility) => utility.id === id) || null); setSelectedAnalysisUtilityScreen(screen); setAnalysisHighlightedUtilityId(''); setAnalysisPlaying(false); };
   const onAnalysisUtilityHover = (hover) => {
@@ -1159,7 +1165,7 @@ function App() {
            setAnalysisTime((time) => THREE.MathUtils.clamp(time + direction * 16, 0, analysisDuration));
          } else if (replayPanel && demoData && demoRound && !demoRoundLoading) {
            setDemoPlaying(false);
-           setDemoTick((tick) => THREE.MathUtils.clamp(tick + direction * 16, demoRound.freezeStartTick ?? demoRound.startTick, demoRound.endTick));
+           seekDemoTick((tick) => THREE.MathUtils.clamp(tick + direction * 16, demoRound.freezeStartTick ?? demoRound.startTick, demoRound.endTick));
          } else if (activePanel === 'collab' && hasActiveFrameContext && frames.length) {
            const currentIndex = Math.max(0, frames.findIndex((frame) => frame.id === activeFrameId));
            const nextFrame = frames[THREE.MathUtils.clamp(currentIndex + direction, 0, frames.length - 1)];
@@ -1282,7 +1288,7 @@ function App() {
              : customRecordings.error}</div>}
            <div className="demo-toolbar"><WorkspaceTarget slot="demo-mobile-settings" /><div className="demo-source-controls"><WorkspaceTarget slot="demo-source-controls" /><label className={`demo-upload${(customRecordings.loading || demoBatchRunning) ? ' disabled' : ''}`} onClick={platform.capabilities.nativeFilePicker ? loadDemo : undefined}><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple disabled={customRecordings.loading || demoBatchRunning} onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{!customReplay && demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{t('parsedDemos')} · {demoLibraryEntries.length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{t('parsedDemos')}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{demoLibraryEntries.length === 0 ? <div className="demo-cache-empty">{t('noCachedDemos')}</div> : demoLibraryEntries.map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}{isRecording(entry) && <small className="demo-recording-kind">{t('customDemo')}</small>}</strong><span>{entry.map} · {entry.rounds} {isRecording(entry) ? localize(language, { zh: '片段', en: 'clips', ru: 'фрагментов' }) : t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(localeForLanguage(language))}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}{!mobileWorkspace && <DemoParseSettings value={demoSampleRate} onChange={setDemoSampleRate} language={language} />}</div><ReplayTransportControls data={demoData} segment={demoRound} tick={demoTick} playing={demoPlaying} loading={demoRoundLoading || customRecordings.loading} mapMismatch={replayMapMismatch} recording={customReplay}
              economies={demoRoundEconomies} events={timelineEvents} menuOpen={demoRoundMenuOpen} onMenu={() => setDemoRoundMenuOpen(open => !open)}
-             onSegment={segment => { setDemoPlaying(false); setDemoRound(segment); setDemoRoundMenuOpen(false); }} onSeek={tick => { setDemoPlaying(false); setDemoTick(tick); }}
+             onSegment={segment => { setDemoPlaying(false); setDemoRound(segment); setDemoRoundMenuOpen(false); }} onSeek={tick => { setDemoPlaying(false); seekDemoTick(tick); }}
              onToggle={() => setDemoPlaying(playing => !playing)} onSaveFrame={() => openSaveArchiveModal(true)} showSaveFrame={Boolean(demoData)} language={language} t={t} /></div>
 
              {!customReplay && demoStatus && !demoData && <div className="demo-loading-wrap"><div className="demo-loading" role="progressbar" aria-label="Demo parsing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div>{!platform.capabilities.backgroundParsing && <p className="demo-parsing-hint">{t('demoForegroundParsingHint')}</p>}</div>}
