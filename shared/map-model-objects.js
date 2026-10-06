@@ -23,7 +23,16 @@ export function buildModelObjectTree(objects, query = '') {
     }
     branch.objects.push(object);
   }
-  const serialize = (branch, path) => ({ label: branch.label, key: JSON.stringify(path), ids: branch.ids,
-    objects: branch.objects, children: [...branch.children.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true })).map(child => serialize(child, [...path, child.label])) });
-  return serialize(root, []);
+  const serialize = (input, path, isRoot = false) => {
+    let branch = input;
+    const labels = isRoot ? [] : [branch.label];
+    while (!isRoot && !branch.objects.length && branch.children.size === 1) {
+      branch = branch.children.values().next().value;
+      labels.push(branch.label);
+    }
+    const fullPath = [...path, ...labels];
+    return { label: labels.join('_'), key: JSON.stringify(fullPath), ids: branch.ids,
+      objects: branch.objects, children: [...branch.children.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true })).map(child => serialize(child, fullPath)) };
+  };
+  return serialize(root, [], true);
 }

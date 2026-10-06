@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createSource2OverlayMaterial, overlayFadeShader } from './source2Overlays.js';
 
 // Map-only lighting response: leave players, NAV and effect colours untouched.
 // exposure scales linear radiance; Reinhard compresses highlights before sRGB
@@ -11,7 +12,8 @@ const MODEL_FADE_START = 50 * MAP_SCALE;
 const MODEL_FADE_END = 70 * MAP_SCALE;
 
 export function createGhostMaterial(focusScreen, viewportSize, viewMode, viewRange, source = null) {
-  const material = source ? source.clone() : new THREE.MeshStandardMaterial({
+  const overlay = source && createSource2OverlayMaterial(source);
+  const material = source ? overlay || source.clone() : new THREE.MeshStandardMaterial({
     color: new THREE.Color('#3b4858'),
     transparent: false,
     alphaToCoverage: true,
@@ -34,27 +36,36 @@ export function createGhostMaterial(focusScreen, viewportSize, viewMode, viewRan
   // 保留原贴图和材质 tint，以及其他材质真正的顶点颜色。
   if (source?.userData?.vmat?.ShaderName === 'csgo_foliage.vfx'
     && Number(source.userData.vmat.IntParams?.F_VERTEX_ANIMATION) > 0) material.vertexColors = false;
-  material.alphaToCoverage = true;
+  material.alphaToCoverage = !overlay;
   delete material.userData.csboardMapSquareFade;
   delete material.userData.csboardFloorFade;
   material.onBeforeCompile = (shader) => {
+    // MeshBasicMaterial does not declare StandardMaterial's vViewPosition.
+    // Own the view-space varying so exported unlit overlays compile too.
+    // 无光照覆盖层也需要视距淡化，不能依赖标准材质的内置 varying。
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 csboardModelViewPosition;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\ncsboardModelViewPosition = -mvPosition.xyz;');
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
-      '#include <common>\nuniform vec2 focusScreen;\nuniform vec2 viewportSize;\nuniform float modelViewMode;\nuniform float modelViewRange;',
+      '#include <common>\nvarying vec3 csboardModelViewPosition;\nuniform vec2 focusScreen;\nuniform vec2 viewportSize;\nuniform float modelViewMode;\nuniform float modelViewRange;',
     ).replace(
       '#include <alphatest_fragment>',
-      'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat viewRangeScale = mix(modelViewRange * 2.0, modelViewRange + 0.5, step(0.5, modelViewRange));\nfloat safeViewRangeScale = max(viewRangeScale, 0.0001);\nfloat viewRangeEnabled = step(0.001, modelViewRange);\nfloat mouseFade = mix(1.0, smoothstep(0.06 * safeViewRangeScale, 0.34 * safeViewRangeScale, modelFocusDistance), viewRangeEnabled);\nfloat cameraFade = mix(1.0, smoothstep(18.0 * safeViewRangeScale, 34.0 * safeViewRangeScale, length(vViewPosition)), viewRangeEnabled);\nfloat activeFade = 1.0;\nactiveFade = mix(activeFade, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
+      'vec2 modelScreenPosition = gl_FragCoord.xy / viewportSize;\nvec2 modelScreenDelta = modelScreenPosition - focusScreen;\nmodelScreenDelta.x *= viewportSize.x / viewportSize.y;\nfloat modelFocusDistance = length(modelScreenDelta);\nfloat viewRangeScale = mix(modelViewRange * 2.0, modelViewRange + 0.5, step(0.5, modelViewRange));\nfloat safeViewRangeScale = max(viewRangeScale, 0.0001);\nfloat viewRangeEnabled = step(0.001, modelViewRange);\nfloat mouseFade = mix(1.0, smoothstep(0.06 * safeViewRangeScale, 0.34 * safeViewRangeScale, modelFocusDistance), viewRangeEnabled);\nfloat cameraFade = mix(1.0, smoothstep(18.0 * safeViewRangeScale, 34.0 * safeViewRangeScale, length(csboardModelViewPosition)), viewRangeEnabled);\nfloat activeFade = 1.0;\nactiveFade = mix(activeFade, mouseFade, step(0.5, modelViewMode));\nactiveFade = mix(activeFade, cameraFade, step(1.5, modelViewMode));\ndiffuseColor.a *= activeFade;\n#include <alphatest_fragment>',
     );
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <opaque_fragment>',
-      `outgoingLight *= ${MAP_LIGHT_EXPOSURE.toFixed(2)};\noutgoingLight = outgoingLight / (vec3(1.0) + outgoingLight);\n#include <opaque_fragment>`,
-    );
+    if (overlay) {
+      shader.fragmentShader = shader.fragmentShader.replace('#include <colorspace_fragment>', `#include <colorspace_fragment>\n${overlayFadeShader(material.userData.csboardSourceBlendMode)}`);
+    } else {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        `outgoingLight *= ${MAP_LIGHT_EXPOSURE.toFixed(2)};\noutgoingLight = outgoingLight / (vec3(1.0) + outgoingLight);\n#include <opaque_fragment>`,
+      );
+    }
     shader.uniforms.focusScreen = { value: focusScreen };
     shader.uniforms.viewportSize = { value: viewportSize };
     shader.uniforms.modelViewMode = viewMode;
     shader.uniforms.modelViewRange = viewRange;
   };
-  material.customProgramCacheKey = () => `model-screen-focus-alpha-to-coverage-v4-${source ? 'original' : 'simple'}`;
+  material.customProgramCacheKey = () => `model-screen-focus-alpha-to-coverage-v6-${source ? 'original' : 'simple'}-${overlay ? material.userData.csboardSourceBlendMode : 'surface'}`;
   return material;
 }
 

@@ -109,7 +109,7 @@ export function registerGameResourceService({ app, authorize, getWindow, store, 
     const output = path.join(directory, 'world.glb');
     await runCli(['-i', source, '-o', output, '-d', '--gltf_export_format', 'glb', '--gltf_export_materials', '--gltf_textures_adapt', '--threads', '1'], signal);
     if (signal.aborted) throw coded('cancelled', 'Import cancelled');
-    await embedGlbImages(output);
+    await embedGlbImages(output, { signal });
     await validateResource(output, { kind: 'models' });
     const named = path.join(directory, `${key}.glb`);
     await fs.copyFile(output, named);

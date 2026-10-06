@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { MAX_GLB_BYTES, MAX_GLB_JSON_BYTES, MAX_SVG_BYTES } from './resource-limits.js';
 import { inspectModelObjects } from './model-objects.js';
 import catalog from '../src/resources/catalog.json' with { type: 'json' };
 
@@ -32,7 +33,7 @@ export async function validateResource(file, resource) {
   const stat = await fs.stat(file);
   if (!stat.isFile()) throw new Error('Not a file');
   if (resource.kind === 'icons') {
-    if (stat.size > 2 * 1024 ** 2) throw new Error('SVG exceeds 2 MB');
+    if (stat.size > MAX_SVG_BYTES) throw new Error('SVG exceeds 2 MB');
     const source = await fs.readFile(file, 'utf8');
     if (/<!ENTITY|<!DOCTYPE[^>]*\[/i.test(source)) throw new Error('SVG XML entities are not allowed');
     // Illustrator exports commonly contain a public SVG DTD. It is unnecessary
@@ -46,7 +47,7 @@ export async function validateResource(file, resource) {
     if (svg !== source) await fs.writeFile(file, svg);
     return;
   }
-  if (stat.size < 20 || stat.size > 1024 ** 3) throw new Error('GLB size must be between 20 bytes and 1 GB');
+  if (stat.size < 20 || stat.size > MAX_GLB_BYTES) throw new Error('GLB size must be between 20 bytes and the format limit (4 GiB)');
   const handle = await fs.open(file, 'r');
   try {
     const header = Buffer.alloc(20);
@@ -54,7 +55,7 @@ export async function validateResource(file, resource) {
     if (header.readUInt32LE(0) !== 0x46546c67 || header.readUInt32LE(4) !== 2 || header.readUInt32LE(8) !== stat.size
       || header.readUInt32LE(16) !== 0x4e4f534a) throw new Error('Invalid GLB 2.0 header');
     const length = header.readUInt32LE(12);
-    if (length > 32 * 1024 ** 2 || length + 20 > stat.size || length % 4) throw new Error('Invalid GLB JSON chunk');
+    if (length > MAX_GLB_JSON_BYTES || length + 20 > stat.size || length % 4) throw new Error('Invalid GLB JSON chunk');
     const bytes = Buffer.alloc(length);
     await handle.read(bytes, 0, length, 20);
     const json = JSON.parse(bytes.toString('utf8'));
@@ -95,7 +96,7 @@ export function createResourceStore(root, localModelsRoot = null) {
         if (seen.has(resource.name)) throw new Error('Duplicate target in this selection');
         seen.add(resource.name);
         const sourceStat = await fs.stat(file);
-        const maxBytes = resource.kind === 'icons' ? 2 * 1024 ** 2 : 1024 ** 3;
+        const maxBytes = resource.kind === 'icons' ? MAX_SVG_BYTES : MAX_GLB_BYTES;
         if (!sourceStat.isFile() || sourceStat.size > maxBytes) throw new Error('File exceeds resource size limit');
         const destination = location(resource);
         await fs.mkdir(path.dirname(destination), { recursive: true });

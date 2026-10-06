@@ -12,6 +12,10 @@ function VisibilityCheck({ ids, hidden, onChange, label, disabled }) {
 }
 function ObjectBranch({ branch, hidden, onChange, text, disabled }) {
   const [open, setOpen] = useState(false);
+  if (!branch.children.length && branch.objects.length === 1) {
+    const object = branch.objects[0];
+    return <label className="model-object-leaf"><VisibilityCheck ids={[object.id]} hidden={hidden} onChange={onChange} disabled={disabled} label={text(`显示 ${object.name}`, `Show ${object.name}`, `Показать ${object.name}`)} /><span title={object.name}>{branch.label}</span></label>;
+  }
   return <details className="model-object-branch" open={open} onToggle={event => { if (event.target === event.currentTarget) setOpen(event.currentTarget.open); }}>
     <summary><VisibilityCheck ids={branch.ids} hidden={hidden} onChange={onChange} disabled={disabled} label={text(`显示 ${branch.label}`, `Show ${branch.label}`, `Показать ${branch.label}`)} /><span title={branch.label}>{branch.label}</span><small>{branch.ids.length}</small></summary>
     {open && <div className="model-object-children">

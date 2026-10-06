@@ -12,5 +12,7 @@ export function disposeMapModel(root) {
   for (const material of materials) for (const value of Object.values(material)) if (value?.isTexture) textures.add(value);
   for (const geometry of geometries) { geometry.disposeBoundsTree?.(); geometry.dispose(); }
   for (const material of materials) material.dispose();
-  for (const texture of textures) { texture.dispose(); texture.source?.data?.close?.(); }
+  const images = new Set();
+  for (const texture of textures) { texture.dispose(); if (texture.source?.data) images.add(texture.source.data); }
+  for (const image of images) image.close?.();
 }

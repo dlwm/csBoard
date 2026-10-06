@@ -1,3 +1,4 @@
+import { isSource2Overlay } from './source2Overlays.js';
 // Keep one display material per source material, not one per mesh. Simple mode
 // needs just one shared material. Shader uniforms are map-wide in both modes.
 // 显示材质按源材质复用，简洁模式只用一个；切换时集中释放旧显示材质。
@@ -12,8 +13,9 @@ export function createMapMaterialRuntime(root, createMaterial) {
       for (const object of meshes) {
         const original = object.userData.originalMapMaterial;
         const display = (Array.isArray(original) ? original : [original]).map(source => {
-          const key = style === 'original' ? source : null;
-          if (!cache.has(key)) { const material = createMaterial(key); cache.set(key, material); next.add(material); }
+          const hiddenOverlay = style !== 'original' && isSource2Overlay(source);
+          const key = style === 'original' ? source : hiddenOverlay ? 'overlay-hidden' : null;
+          if (!cache.has(key)) { const material = createMaterial(style === 'original' ? source : null); if (hiddenOverlay) material.visible = false; cache.set(key, material); next.add(material); }
           return cache.get(key);
         });
         object.material = Array.isArray(original) ? display : display[0];

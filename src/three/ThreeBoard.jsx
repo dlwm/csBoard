@@ -1,3 +1,4 @@
+import { isSource2Overlay } from './source2Overlays.js';
 import { AI_ENABLED } from '../app/config.js';
 import { startRenderLoop } from './renderLoop.js';
 import { getHost, getPlatform } from '../platform/index.js';
@@ -1407,11 +1408,11 @@ export default function ThreeBoard(inputProps) {
         if (!object.geometry.boundsTree) object.geometry.computeBoundsTree();
         collisionMeshes.push(object);
         object.frustumCulled = true;
-        object.renderOrder = 3;
+        object.renderOrder = (Array.isArray(object.material) ? object.material : [object.material]).some(isSource2Overlay) ? 4 : 3;
          if (object.material && mapName !== TUTORIAL_MAP_ID) object.userData.originalMapMaterial = object.material;
          if (mapName === TUTORIAL_MAP_ID) {
            const materials = Array.isArray(object.material) ? object.material : [object.material];
-           materials.forEach(material => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); material.transparent = true; material.opacity = modelOpacity; material.depthWrite = true; });
+           materials.forEach(material => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); material.transparent = true; material.opacity = modelOpacity; material.depthWrite = !material.userData?.csboardSourceOverlay; });
          }
       });
       const materialRuntime = createMapMaterialRuntime(worldModel, source => {
@@ -1884,7 +1885,7 @@ export default function ThreeBoard(inputProps) {
        navMesh.material.depthTest = true;
        navMesh.renderOrder = 1;
      }
-        if (modelRef.current) modelRef.current.traverse((object) => { if (!object.material) return; const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = true; }); });
+        if (modelRef.current) modelRef.current.traverse((object) => { if (!object.material) return; const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = !material.userData?.csboardSourceOverlay; }); });
     }, [showModel, modelOpacity, modelViewMode]);
 
   // Demo POV owns its animated HUD crosshair; this simpler one is only for utility replay.

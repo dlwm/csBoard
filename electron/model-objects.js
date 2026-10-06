@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { MAX_GLB_JSON_BYTES } from './resource-limits.js';
 import { modelObjectsFromGltf, modelObjectSignature } from '../shared/map-model-objects.js';
 
 // Inspect only the JSON chunk, not hundreds of megabytes of geometry/textures.
@@ -11,7 +12,7 @@ export async function inspectModelObjects(file) {
     const { bytesRead } = await handle.read(header, 0, header.length, 0);
     if (bytesRead !== 20 || header.readUInt32LE(0) !== 0x46546c67 || header.readUInt32LE(4) !== 2 || header.readUInt32LE(8) !== stat.size || header.readUInt32LE(16) !== 0x4e4f534a) throw new Error('Invalid GLB');
     const length = header.readUInt32LE(12);
-    if (length > 32 * 1024 ** 2 || length % 4 || length + 20 > stat.size) throw new Error('Invalid GLB metadata');
+    if (length > MAX_GLB_JSON_BYTES || length % 4 || length + 20 > stat.size) throw new Error('Invalid GLB metadata');
     const bytes = Buffer.alloc(length);
     const read = await handle.read(bytes, 0, length, 20);
     if (read.bytesRead !== length) throw new Error('Truncated GLB metadata');
