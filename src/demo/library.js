@@ -19,3 +19,15 @@ export function createDemoLibrary(cache, schema) {
     remove: id => cache.deleteCachedDemo(id),
   });
 }
+
+// Storage ownership differs, but the replay catalogue exposes one recording
+// category for client captures and independently saved intervals.
+export function replayCatalogue(cachedEntries, savedRecordings) {
+  return [...cachedEntries.map(entry => ({ ...entry, storage: 'cache' })),
+    ...savedRecordings.map(recording => ({
+      id: recording.id, storage: 'record', kind: 'recording', fileName: recording.name,
+      rawMap: recording.mapName, map: recording.mapName,
+      rounds: recording.rounds, updatedAt: recording.savedAt || recording.createdAt,
+      sourceBytes: recording.sourceBytes || 0, dataBytes: 0, analysisBytes: 0,
+    }))].sort((left, right) => String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')));
+}

@@ -50,7 +50,7 @@ export function floorVisibilityAtY(y, state) {
 
 export function enableMaterialFloorFade(material, state) {
   // Imported scenes can expose placeholder material-like values; only patch real Three materials.
-  if (!material?.isMaterial) return;
+  if (!material?.isMaterial || material.userData?.csboardIgnoreFloorFade) return;
   // Some loaders/cloners omit userData even though core Three materials normally initialize it.
   if (!material.userData) material.userData = {};
   if (material.userData.csboardFloorFade) return;

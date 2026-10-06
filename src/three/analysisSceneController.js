@@ -22,7 +22,7 @@ const disposeTrack = ({ line, marker }) => {
   marker.removeFromParent();
 };
 
-export default function createAnalysisSceneController({ scene, refs, getModelCenter, floorFadeRef }) {
+export default function createAnalysisSceneController({ scene, refs, getModelCenter }) {
   const pathGroup = new THREE.Group();
   const utilityGroup = new THREE.Group();
   const paths = new Map();
@@ -57,7 +57,7 @@ export default function createAnalysisSceneController({ scene, refs, getModelCen
       const sourcePoints = utility.projectiles?.length >= 2 ? utility.projectiles : [utility.throwPosition, utility.landing].filter(Boolean);
       if (sourcePoints.length < 2) return;
       const points = sourcePoints.map(point => utilityTrajectoryPoint(point, modelCenter)).filter(Boolean);
-      const line = createUtilityTrajectory(points, { color: ANALYSIS_UTILITY_COLORS[utility.kind] || '#c9f76b', floorFade: floorFadeRef?.current });
+      const line = createUtilityTrajectory(points, { color: ANALYSIS_UTILITY_COLORS[utility.kind] || '#c9f76b' });
       line.userData.utilityKind = utility.kind;
       line.renderOrder = 5;
       utilityGroup.add(line);

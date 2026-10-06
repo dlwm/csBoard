@@ -130,10 +130,9 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
         if (!pathRecords.length) return;
         const points = pathRecords.map(record => utilityTrajectoryPoint(record, modelCenter, { source: true })).filter(Boolean);
         const color = first.grenade_type?.includes('Smoke') ? '#b9c7d6' : first.grenade_type?.includes('Flash') ? '#fff3a6' : first.grenade_type?.includes('Molotov') ? '#ff7a45' : first.grenade_type?.includes('Decoy') ? '#c8d0d4' : '#ffb36b';
-        trajectory = createUtilityTrajectory(points, { color, opacity: .9, floorFade: floorFadeRef.current });
+        trajectory = createUtilityTrajectory(points, { color, opacity: .9 });
         trajectory.userData.demoTrajectory = { firstTick: first.tick, lastTick: fadeStartTick, fadeTicks, pointCount: points.length, pathRecords, sourceRecords: records };
         trajectory.userData.demoGrenadeSegmentId = segments.find((segment) => segment.groupKey === groupKey)?.id;
-        enableObjectFloorFade(trajectory, floorFadeRef.current);
         scene.add(trajectory);
         objects.set(key, trajectory);
       }
@@ -164,10 +163,9 @@ export default function createDemoGrenadeSceneController({ scene, navData, refs,
         control.y += Math.max(0.8, start.distanceTo(end) * 0.22);
         const curve = new THREE.QuadraticBezierCurve3(start, control, end);
         const color = event.weapon?.includes('smoke') ? '#b9c7d6' : event.weapon?.includes('flash') ? '#fff3a6' : event.weapon?.includes('molotov') || event.weapon?.includes('inc') ? '#ff7a45' : '#ffb36b';
-        trajectory = createUtilityTrajectory(curve.getPoints(2), { color, opacity: .9, floorFade: floorFadeRef.current });
+        trajectory = createUtilityTrajectory(curve.getPoints(2), { color, opacity: .9 });
         trajectory.userData.demoTrajectory = { curve, landingTick: landing.tick, throwTick: event.tick };
         trajectory.userData.demoGrenadeSegmentId = segment.id;
-        enableObjectFloorFade(trajectory, floorFadeRef.current);
         scene.add(trajectory);
         objects.set(key, trajectory);
       }

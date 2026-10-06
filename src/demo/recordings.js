@@ -20,3 +20,12 @@ export function recordingSegments(headers, offsets) {
     return { round: index + 1, sourceRound: null, startTick: first + offsets[index], endTick: last + offsets[index], freezeStartTick: first + offsets[index], winner: null, reason: null };
   });
 }
+
+// Normalize imported recordings and legacy interval archives at their boundary.
+// Never retain two competing data/demoData objects in the playback domain.
+export function normalizeRecording(entry) {
+  const data = entry?.data || entry?.demoData;
+  if (!data?.demo || !data.rounds?.length) throw new Error('Recording has no playable data');
+  const { demoData: _legacyData, ...metadata } = entry;
+  return { ...metadata, kind: RECORDING_KIND, data: { ...data, demo: { ...data.demo, kind: RECORDING_KIND, fileName: entry.name?.trim() || data.demo.fileName, sourceFileName: data.demo.sourceFileName || data.demo.fileName }, analysisRows: [], analysisBytes: 0 } };
+}

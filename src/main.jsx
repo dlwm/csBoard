@@ -1,7 +1,13 @@
+import WorkspaceChoiceGroup from './components/workspace/WorkspaceChoiceGroup.jsx';
 import { WorkspaceContribution, WorkspaceTarget, WorkspacePanel } from './components/workspace/WorkspaceSlots.jsx';
 import ReplayTransportControls from './demo/ReplayTransportControls.jsx';
 import useCustomRecordings from './demo/useCustomRecordings.js';
-import { isRecording } from './demo/recordings.js';
+import { isRecording, normalizeRecording } from './demo/recordings.js';
+import { replayCatalogue } from './demo/library.js';
+import ReplayLibraryPicker from './demo/ReplayLibraryPicker.jsx';
+import RecordingClipModal from './demo/RecordingClipModal.jsx';
+import BroadcastRoomControls from './broadcast/BroadcastRoomControls.jsx';
+import BroadcastDownloadOverlay from './broadcast/BroadcastDownloadOverlay.jsx';
 import { createPlaybackSessions } from './demo/playbackSessions.js';
 import { preferences } from './platform/preferences.js';
 import { DEFAULT_RECOMMENDATION_FORMULAS } from './analysis/recommendationFormulas.js';
@@ -84,12 +90,11 @@ import ViewTools from './components/ViewTools.jsx';
 import { mergeUtilityNotes } from './utility/mergeUtilityNotes.js';
 import { emptyWorkspace, frameWorkspace, normalizeCollabWorkspace, normalizeFrames } from './collaboration/workspace.js';
 import { hasMapModel, initializeResourcePacks } from './app/resourcePacks.js';
-import { BroadcastClipModal, BroadcastDownloadOverlay, BroadcastPanel } from './broadcast/BroadcastPanel.jsx';
 import { WorkspaceArchiveTree } from './components/ArchiveCollections.jsx';
 import { ROOT_FOLDER_ID } from './app/archiveFolders.js';
 import useArchiveFolders from './app/useArchiveFolders.js';
-import { buildBroadcastArchive } from './broadcast/archive.js';
-import useBroadcastArchives from './broadcast/useBroadcastArchives.js';
+import { buildRecording } from './demo/recordingArchive.js';
+import useSavedRecordings from './demo/useSavedRecordings.js';
 import useBroadcastRoom from './broadcast/useBroadcastRoom.js';
 import AiPanel from './ai/AiPanel.jsx';
 
@@ -158,16 +163,15 @@ function App() {
   const [demoViewFlags, setDemoViewFlags] = useState({ deathVictim: true, deathKiller: true, killerHeat: false, victimHeat: false, targetHeat: false, opponentHeat: false, utilityThrow: true, utilityLanding: true, utilityKinds: [...ANALYSIS_UTILITY_KINDS], analysisMetric: 'kd', heatStyle: 'points', heatRadius: 9, areaPhases: [...ANALYSIS_AREA_PHASES], areaEarlySeconds: 30, economyOwn: [...ECONOMY_CATEGORIES], economyOpponent: [...ECONOMY_CATEGORIES] });
   const [showDemoNames, setShowDemoNames] = useState(false);
   const [demoRound, setDemoRound] = useState(null);
-  const [broadcastPage, setBroadcastPage] = useState(false);
-  const broadcastPageRef = useRef(false);
-  broadcastPageRef.current = broadcastPage;
   const playbackSessions = useRef(createPlaybackSessions()).current;
   const pendingPlaybackRestoreRef = useRef(null);
   const pendingCameraRestoreRef = useRef(null);
   const boardReadyMapRef = useRef('');
-  const [broadcastInlineRound, setBroadcastInlineRound] = useState(null);
-  const [activeBroadcastId, setActiveBroadcastId] = useState('');
-  const [broadcastClipDraft, setBroadcastClipDraft] = useState(null);
+  const [recordingInlineRound, setRecordingInlineRound] = useState(null);
+  const [activeRecordingId, setActiveRecordingId] = useState('');
+  const [recordingDraft, setRecordingDraft] = useState(null);
+  const recordingDraftRef = useRef(null);
+  recordingDraftRef.current = recordingDraft;
   const [demoRoundMenuOpen, setDemoRoundMenuOpen] = useState(false);
   const [demoCameraMode, setDemoCameraMode] = useState('manual');
   const [demoPovPlayerId, setDemoPovPlayerId] = useState('');
@@ -186,7 +190,7 @@ function App() {
   const activeDemoCacheIdRef = useRef('');
   const { voiceFrames: demoVoiceFrames, snapshots: demoSnapshots, throwSnapshots: demoThrowSnapshots, projectiles: demoProjectiles, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames, loading: demoRoundLoading, reset: resetDemoRoundData } = useDemoRoundData({
     demo: demoData, round: demoRound, cacheId: activeDemoCacheIdRef.current,
-    inlineData: broadcastInlineRound,
+    inlineData: recordingInlineRound,
     onBegin: (round) => {
       const pending = pendingPlaybackRestoreRef.current;
       pendingPlaybackRestoreRef.current = null;
@@ -198,7 +202,7 @@ function App() {
   });
   const [demoSourceReady, setDemoSourceReady] = useState(false);
   const { entries: demoLibraryEntries, loading: cachedDemosLoading, refresh: refreshCachedDemos,
-    open: readLibraryDemo, remove: removeCachedDemo } = useDemoLibrary({ cache: platform.cache,
+    open: readLibraryDemo, remove: removeCachedDemo, cancelSelection: cancelLibrarySelection } = useDemoLibrary({ cache: platform.cache,
     schema: DEMO_CACHE_SCHEMA_VERSION, enabled: platform.capabilities.demoParsing,
     onError: () => setDemoStatus(t('cacheFailed')),
   });
@@ -263,7 +267,7 @@ function App() {
   useEffect(() => setTouchDrawingEnabled(false), [activePanel, mapName]);
   useEffect(() => setModelLoadState({ mapName, status: 'loading', loaded: 0, total: 0 }), [mapName]);
   useEffect(() => {
-    if (!mobileH5 || !['demo', 'analysis', 'broadcast'].includes(activePanel)) return;
+    if (!mobileH5 || !['demo', 'analysis'].includes(activePanel)) return;
     setDemoPlaying(false);
     setAnalysisPlaying(false);
     setActivePanel('utility');
@@ -346,18 +350,16 @@ function App() {
   const [roomNotice, setRoomNotice] = useState('');
   const { archives, archivesRef, persistWorkspaceArchives, removeArchive } = useWorkspaceArchives(() => setRoomNotice(t('utilityStorageFailed')));
   const workspaceFolders = useArchiveFolders('workspace', () => setRoomNotice(t('utilityStorageFailed')));
-  const { archives: broadcastArchives, archivesRef: broadcastArchivesRef, persist: persistBroadcastArchives, remove: removeBroadcastArchive } = useBroadcastArchives(() => setRoomNotice(t('utilityStorageFailed')), !mobileH5);
-  const broadcastFolders = useArchiveFolders('broadcast', () => setRoomNotice(t('utilityStorageFailed')));
+  const { recordings: savedRecordings, recordingsRef: savedRecordingsRef, save: saveSavedRecording, load: loadSavedRecording, cancelSelection: cancelSavedRecordingSelection, remove: removeSavedRecording, error: recordingsStorageError, loadingId: recordingLoadingId } = useSavedRecordings(() => setRoomNotice(t('utilityStorageFailed')), !mobileH5);
+  const recordingFolders = useArchiveFolders('recordings', () => setRoomNotice(t('utilityStorageFailed')));
+  const replayEntries = useMemo(() => replayCatalogue(demoLibraryEntries, savedRecordings), [demoLibraryEntries, savedRecordings]);
   const broadcastRoom = useBroadcastRoom({
     onArchiveReceived: async (archive, isCancelled) => {
-      if (isCancelled?.() || !broadcastPageRef.current) return;
-      const current = broadcastArchivesRef.current;
-      const next = current.some((item) => item.id === archive.id)
-        ? current.map((item) => item.id === archive.id ? archive : item)
-        : [...current, archive];
-      if (!await persistBroadcastArchives(next)) throw new Error('broadcast archive storage failed');
-      if (isCancelled?.() || !broadcastPageRef.current) return;
-      playBroadcastArchive(archive);
+      if (isCancelled?.() || activePanelRef.current !== 'demo') return;
+      archive = normalizeRecording(archive);
+      if (!await saveSavedRecording(archive)) throw new Error('recording storage failed');
+      if (isCancelled?.() || activePanelRef.current !== 'demo') return;
+      playSavedRecording(archive);
     },
   });
   const [roomUsers, setRoomUsers] = useState([]);
@@ -513,19 +515,10 @@ function App() {
   }, [demoCacheOpen, demoRoundMenuOpen, modeMenuOpen]);
   useEffect(() => () => { window.clearTimeout(utilityHoverTimerRef.current); window.clearTimeout(analysisUtilityHoverTimerRef.current); }, []);
   useEffect(() => () => window.clearTimeout(parseGameTimerRef.current), []);
-  const applyDemoData = (data, cacheId, _analysisRowsFromCache = [], hasSource = false, inlineRoundData = null, broadcastId = '') => {
-    if (broadcastPageRef.current && !broadcastId) {
-      const round = data.rounds?.[0] || null;
-      playbackSessions.set('demo', {
-        data, round, tick: round?.startTick || 0,
-        cacheId: cacheId || '', inlineRoundData: null, povPlayerId: '', cameraMode: 'manual',
-        sourceReady: hasSource, mapName: data.demo.map || mapName,
-      });
-      return;
-    }
+  const applyDemoData = (data, cacheId, _analysisRowsFromCache = [], hasSource = false, inlineRoundData = null, recordingId = '') => {
     activeDemoCacheIdRef.current = cacheId || '';
-    setBroadcastInlineRound(inlineRoundData);
-    setActiveBroadcastId(broadcastId);
+    setRecordingInlineRound(inlineRoundData);
+    setActiveRecordingId(recordingId);
     setDemoData(data);
     const firstRound = data.rounds?.[0] || null;
     setDemoRound(firstRound);
@@ -535,17 +528,20 @@ function App() {
     setDemoPlaying(false);
     setDemoSourceReady(hasSource);
   };
-  const playBroadcastArchive = (archive) => {
-    if (!archive?.demoData || !archive?.roundData) return;
-    switchMainPanel('broadcast');
+  const playSavedRecording = (archive) => {
+    if (!archive?.data || !archive?.roundData) return;
+    cancelLibrarySelection(); cancelSavedRecordingSelection();
+    customRecordings.cancel();
+    switchMainPanel('demo');
     setDemoCameraMode('manual');
-    applyDemoData(archive.demoData, '', [], false, archive.roundData, archive.id);
-    setMapName(archive.mapName || archive.demoData.demo.map || mapName);
+    setDemoStatus(''); setDemoCacheOpen(false);
+    applyDemoData(archive.data, '', [], false, archive.roundData, archive.id);
+    setMapName(archive.mapName || archive.data.demo.map || mapName);
   };
   const capturePlayback = () => ({
     data: demoData, round: demoRound, tick: demoTick, cacheId: activeDemoCacheIdRef.current,
-    broadcastId: activeBroadcastId,
-    inlineRoundData: broadcastInlineRound || (!demoRoundLoading && demoRound && demoSnapshots.length
+    recordingId: activeRecordingId,
+    inlineRoundData: recordingInlineRound || (!demoRoundLoading && demoRound && demoSnapshots.length
       ? { round: demoRound.round, voiceFrames: demoVoiceFrames, snapshots: demoSnapshots, throwSnapshots: demoThrowSnapshots, projectiles: demoProjectiles, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames }
       : null),
     povPlayerId: demoPovPlayerId, cameraMode: demoCameraMode, sourceReady: demoSourceReady,
@@ -557,8 +553,8 @@ function App() {
     pendingPlaybackRestoreRef.current = session?.data && session.round ? session : null;
     pendingCameraRestoreRef.current = restoreCamera && session?.camera ? { mapName: targetMap, camera: session.camera } : null;
     activeDemoCacheIdRef.current = session?.cacheId || '';
-    setBroadcastInlineRound(session?.inlineRoundData || null);
-    setActiveBroadcastId(session?.broadcastId || '');
+    setRecordingInlineRound(session?.inlineRoundData || null);
+    setActiveRecordingId(session?.recordingId || '');
     setDemoData(session?.data || null);
     setDemoRound(session?.round || null);
     seekDemoTick(session?.tick || 0);
@@ -573,39 +569,50 @@ function App() {
     resetDemoRoundData();
     setMapName(targetMap);
   };
-  const hostBroadcastArchive = (archive) => {
+  const shareSavedRecording = async entry => {
+    cancelLibrarySelection();
+    const archive = await loadSavedRecording(entry.id);
+    if (!archive) return;
     broadcastRoom.leave();
-    playBroadcastArchive(archive);
-    // Let the previous provider dispose before publishing a new immutable payload.
-    setTimeout(() => broadcastRoom.open(archive), 0);
+    playSavedRecording(archive);
+    // Changing the room code disposes the previous provider in the hook.
+    broadcastRoom.open(archive);
   };
-  const openBroadcastClipModal = () => {
+  const openRecordingModal = () => {
     if (!demoData || !demoRound || demoRoundLoading) return;
     const tickRate = demoData.demo.tickRate || 64;
     setDemoPlaying(false);
-    setBroadcastClipDraft({
+    setRecordingDraft({
+      id: `recording-${crypto.randomUUID()}`,
       name: '',
       folderId: ROOT_FOLDER_ID,
+      source: { demoData, round: demoRound, roundData: { voiceFrames: demoVoiceFrames, snapshots: demoSnapshots, throwSnapshots: demoThrowSnapshots, projectiles: demoProjectiles, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames } },
       startTick: Math.max(demoRound.freezeStartTick ?? demoRound.startTick, Math.round(demoTick - tickRate * 10)),
       endTick: Math.min(demoRound.endTick, Math.round(demoTick + tickRate * 10)),
     });
   };
-  const saveBroadcastClip = async () => {
-    if (!broadcastClipDraft || !demoData || !demoRound) return;
-    const archive = buildBroadcastArchive({
-      name: broadcastClipDraft.name,
-      demoData,
-      round: demoRound,
-      roundData: { voiceFrames: demoVoiceFrames, snapshots: demoSnapshots, throwSnapshots: demoThrowSnapshots, projectiles: demoProjectiles, smokeVoxelFrames: demoSmokeVoxelFrames, infernoFrames: demoInfernoFrames },
-      startTick: broadcastClipDraft.startTick,
-      endTick: broadcastClipDraft.endTick,
+  const saveRecording = async () => {
+    if (!recordingDraft?.source) return;
+    const archive = buildRecording({
+      id: recordingDraft.id,
+      name: recordingDraft.name,
+      demoData: recordingDraft.source.demoData,
+      round: recordingDraft.source.round,
+      roundData: recordingDraft.source.roundData,
+      startTick: recordingDraft.startTick,
+      endTick: recordingDraft.endTick,
     });
-    if (!archive || !await persistBroadcastArchives([...broadcastArchivesRef.current, archive])) return;
-    await broadcastFolders.assign(archive.id, broadcastClipDraft.folderId, broadcastArchivesRef.current);
-    setBroadcastClipDraft(null);
+    if (!archive || !await saveSavedRecording(archive)) return;
+    await recordingFolders.assign(archive.id, recordingDraft.folderId, replayCatalogue(demoLibraryEntries, savedRecordingsRef.current));
+    if (recordingDraftRef.current?.id === recordingDraft.id && activePanelRef.current === 'demo') {
+      setRecordingDraft(null);
+      playSavedRecording(archive);
+    }
   };
   const openCachedDemo = async (id) => {
     customRecordings.cancel();
+    broadcastRoom.leave();
+    cancelSavedRecordingSelection();
     const entry = await readLibraryDemo(id);
     if (!entry) return;
     applyDemoData(entry.data, id, entry.analysisRows || [], false);
@@ -613,6 +620,23 @@ function App() {
     setMapName(entry.data.demo.map || mapName);
     setDemoStatus(t('cacheReady'));
     setDemoCacheOpen(false);
+  };
+  const openReplayEntry = async entry => {
+    setDemoCacheOpen(false);
+    if (entry.storage !== 'record') return openCachedDemo(entry.id);
+    broadcastRoom.leave();
+    cancelLibrarySelection();
+    setDemoPlaying(false);
+    const recording = await loadSavedRecording(entry.id);
+    if (recording) playSavedRecording(recording);
+  };
+  const removeReplayEntry = async entry => {
+    if (entry.storage === 'record') { if (!await removeSavedRecording(entry.id)) return; }
+    else await removeCachedDemo(entry.id);
+    await recordingFolders.unassign(entry.id);
+    if (entry.id === activeRecordingId || entry.id === activeDemoCacheIdRef.current) {
+      broadcastRoom.leave(); restorePlayback(null);
+    }
   };
   const onReady = (value) => {
     restoreReadyBoard(value);
@@ -627,7 +651,7 @@ function App() {
     if (pending?.mapName !== mapName || boardReadyMapRef.current !== mapName) return;
     boardRef.current?.restoreCameraState?.(pending.camera);
     if (modelLoadState.mapName === mapName && modelLoadState.status !== 'loading') pendingCameraRestoreRef.current = null;
-  }, [broadcastPage, demoData, mapName, modelLoadState]);
+  }, [demoData, mapName, modelLoadState]);
   const onPointSelect = (id, screen) => { setSelectedPoint(id); setSelectedPointScreen(screen); };
   const activeFrameWorkspace = () => boardRef.current?.getWorkspaceState?.() || { points: [], paths: [], grenades: [], collabUtilities: [] };
   const persistActiveArchiveFrames = (nextFrames, nextActiveId) => {
@@ -863,7 +887,9 @@ function App() {
   };
   const switchPanel = (panel) => {
     if (!availableWorkspaceMenus(platform.capabilities).some(menu => menu.id === panel)) return;
-    setDemoPlaying(false);    setAnalysisPlaying(false);
+    if (panel !== 'demo') setRecordingDraft(null);
+    setDemoPlaying(false);
+    setAnalysisPlaying(false);
     setSelectedDemoGrenade(null);
     setSelectedDemoGrenadeScreen(null);
     setUtilityReplay(null);
@@ -881,13 +907,10 @@ function App() {
   const switchMainPanel = (panel) => {
     if (!availableWorkspaceMenus(platform.capabilities).some(menu => menu.id === panel)) return;
     const menu = workspaceMenu(panel);
-    const context = menu.session === 'preserve' ? playbackSessions.active === 'broadcast' ? 'demo' : playbackSessions.active : menu.session;
+    const context = menu.session === 'preserve' ? playbackSessions.active : menu.session;
     const next = playbackSessions.switchTo(context, capturePlayback());
-    if (broadcastPage && context !== 'broadcast') broadcastRoom.leave();
-    broadcastPageRef.current = context === 'broadcast';
-    setBroadcastPage(context === 'broadcast');
-    if (next.changed) restorePlayback(next.session, mapName, ['demo', 'broadcast'].includes(panel));
-    if (panel === 'broadcast') { switchPanel('demo'); return; }
+    if (panel !== 'demo') broadcastRoom.leave();
+    if (next.changed) restorePlayback(next.session, mapName, panel === 'demo');
     switchPanel(panel);
   };
   const addUtilityNote = async (event) => {
@@ -962,9 +985,9 @@ function App() {
   const replayPanel = activePanel === 'demo';
   const replayMapMismatch = Boolean(demoData?.demo.map && demoData.demo.map !== mapName);
   const { speakingIds, status: voiceStatus } = useDemoVoicePlayback({ frames: demoVoiceFrames, tick: demoTick, tickRate: demoData?.demo.tickRate || 64, playing: demoPlaying && !demoRoundLoading, enabled: Boolean(replayPanel && demoData && !replayMapMismatch), summary: demoData?.demo.voice });
-  const displayPanel = broadcastPage ? 'broadcast' : activePanel;
+  const displayPanel = activePanel;
   const { hasLeft: hasLeftSidebar, hasRight: hasRightSidebar, radar: radarSource } = workspaceMenuLayout(displayPanel, { utilityMetric: demoViewFlags.analysisMetric === 'utility', hasFrame: hasActiveFrameContext, utilityPlaying: Boolean(utilityReplay) });
-  const modelControlsTarget = broadcastPage ? 'broadcast-model-controls' : replayPanel ? 'demo-model-controls' : activePanel === 'collab' && hasActiveFrameContext ? 'collab-model-controls' : 'bottom-model-controls';
+  const modelControlsTarget = replayPanel ? 'demo-model-controls' : activePanel === 'collab' && hasActiveFrameContext ? 'collab-model-controls' : 'bottom-model-controls';
   const currentUtilityNotes = utilityNotes.filter((note) => note.mapName === mapName);
   const collabUtilityOptions = [...currentUtilityNotes]
     .sort((left, right) => left.grenadeType?.localeCompare?.(right.grenadeType || 'custom') || 0)
@@ -1103,7 +1126,7 @@ function App() {
       const session = { data: entry.data, round: entry.data.rounds[0], tick: entry.data.rounds[0].startTick,
         cacheId: entry.id, sampleRate: entry.data.demo.sampleRate, mapName: entry.data.demo.map || mapName, cameraMode: 'manual', povPlayerId: '' };
       playbackSessions.set('demo', session);
-      if (activePanelRef.current === 'demo' && !broadcastPageRef.current) { restorePlayback(session); playbackSessions.acknowledge('demo'); }
+      if (activePanelRef.current === 'demo') { restorePlayback(session); playbackSessions.acknowledge('demo'); }
     },
   });
   const continueRecordingParsing = async taskId => {
@@ -1240,9 +1263,8 @@ function App() {
         selectedPlayers={analysisSelectedPlayers} focusedId={focusedAnalysisGroupId} onFocus={setFocusedAnalysisGroupId}
         onPreview={previewAnalysisRecommendation} previewState={recommendationPreviewState} onSave={utility => prepareAnalysisUtility(utility, true)} saveState={analysisUtilitySave} savedIds={savedAnalysisUtilityIds} development={IS_DEVELOPMENT_RUNTIME} formulas={recommendationFormulas} onFormulasChange={setRecommendationFormulas} />}</WorkspaceContribution>
       {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && utilityRecommendations.loading && <WorkspaceContribution slot="viewport-bottom-left"><div className="recommendation-loading" role="status"><i className="analysis-loading-spinner" aria-hidden="true" />{localize(language, { zh: '正在准备道具推荐…', en: 'Preparing utility recommendations…', ru: 'Подготовка рекомендаций гранат…' })}</div></WorkspaceContribution>}
-         <WorkspaceContribution slot="right">{broadcastPage && <BroadcastPanel archives={broadcastArchives} activeId={activeBroadcastId} folders={broadcastFolders.state} language={language} room={broadcastRoom.session} onCreateFolder={(name, parentId) => broadcastFolders.create(name, parentId, broadcastArchivesRef.current)} onDeleteFolder={(id) => broadcastFolders.remove(id, broadcastArchivesRef.current)} onMove={(source, target, position) => broadcastFolders.move(broadcastArchivesRef.current, source, target, position)} onDelete={async (id) => { if (!await removeBroadcastArchive(id)) return; await broadcastFolders.unassign(id); if (id === activeBroadcastId) setActiveBroadcastId(''); }} onJoin={broadcastRoom.join} onLeave={broadcastRoom.leave} onSelect={hostBroadcastArchive} />}</WorkspaceContribution>
-         {!broadcastPage && replayPanel && demoData && demoRound && <DemoPlaybackActionsPortal><button type="button" className="demo-save-clip" disabled={demoRoundLoading} onClick={openBroadcastClipModal}>{localize(language, { zh: '保存时间段', en: 'Save Interval', ru: 'Сохранить отрезок' })}</button></DemoPlaybackActionsPortal>}
-         {broadcastClipDraft && <BroadcastClipModal draft={broadcastClipDraft} folders={broadcastFolders.state} language={language} round={demoRound} tickRate={demoData?.demo?.tickRate || 64} onChange={setBroadcastClipDraft} onClose={() => setBroadcastClipDraft(null)} onSave={saveBroadcastClip} />}
+         {replayPanel && demoData && demoRound && <DemoPlaybackActionsPortal><button type="button" className="demo-save-clip" disabled={demoRoundLoading || replayMapMismatch} onClick={openRecordingModal}>{localize(language, { zh: '保存为自制 DEMO', en: 'Save as custom DEMO', ru: 'Сохранить свою DEMO' })}</button></DemoPlaybackActionsPortal>}
+         {recordingDraft && <RecordingClipModal error={recordingsStorageError} draft={recordingDraft} folders={recordingFolders.state} language={language} round={recordingDraft.source.round} tickRate={recordingDraft.source.demoData.demo.tickRate || 64} onChange={setRecordingDraft} onClose={() => setRecordingDraft(null)} onSave={saveRecording} />}
          <BroadcastDownloadOverlay download={broadcastRoom.download} language={language} onCancel={broadcastRoom.leave} />
          <DemoBatchPanel batch={demoBatch} counts={demoBatchCounts} development={IS_DEVELOPMENT_RUNTIME} language={language} onClose={clearDemoBatch} onRetry={retryDemoTask} onContinueRecording={continueRecordingParsing} continuationBusy={customRecordings.loading} />
          {mapName === TUTORIAL_MAP_ID && <TutorialGuide language={language} open={tutorialOpen} step={tutorialStep} onOpen={() => { setTutorialStep(0); setTutorialOpen(true); }} onStep={moveTutorial} onFinish={finishTutorial} onExit={() => { finishTutorial(); setMapName('de_dust2'); }} />}
@@ -1255,11 +1277,11 @@ function App() {
          <div className="stage-vignette" />
          {activePanel === 'utility' && <WorkspaceContribution slot="viewport-bottom-right"><UtilityInputOverlay playback={utilityReplay} language={language} /></WorkspaceContribution>}
          {activePanel === 'demo' && demoData?.demo?.fileName && <WorkspaceContribution slot="viewport-bottom-center"><div className="demo-source-label" title={demoData.demo.fileName}><span>DEMO</span><strong>{demoData.demo.fileName}</strong></div></WorkspaceContribution>}
-         {customReplay && !broadcastPage && <WorkspaceContribution slot="viewport-bottom-left"><div className="demo-recording-label">{t('customDemo')}</div></WorkspaceContribution>}
-          {replayPanel && (!broadcastPage || activeBroadcastId) && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} minimal={broadcastPage || customReplay} />}
-          {replayPanel && (!broadcastPage || activeBroadcastId) && demoSnapshot && <div className="demo-monitor-controls"><button type="button" className={`demo-monitor-toggle${demoCameraMode === 'monitor' ? ' selected' : ''}`} onClick={() => { if (demoCameraMode === 'monitor') { setDemoCameraMode('manual'); setDemoPovPlayerId(''); } else selectMonitorMode(); }}>{t('cameraMonitor')}</button>{demoCameraMode === 'monitor' && <DemoMonitorTeamSwitch players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} />}</div>}
-          {replayPanel && (!broadcastPage || activeBroadcastId) && demoCameraMode === 'monitor' && demoSnapshot && <DemoMonitorWall players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} translate={t} />}
-          {activePanel === 'demo' && !broadcastPage && !customReplay && demoSnapshot && <div className="demo-combat-hud"><div className={`demo-score${roundWinner ? ` winner-${roundWinner.toLowerCase()}` : ''}`}><span><SideLogo side="T" /></span><strong>{demoScore.T}</strong><i>ROUND {demoRound?.round || '-'}{roundResult ? <b className="round-result">{roundResult}</b> : c4Countdown != null ? <b className={c4Terminal?.event_name === 'bomb_defused' && demoTick >= c4Terminal.tick ? 'c4-paused' : ''}>C4 {c4Countdown.toFixed(4)}s</b> : <b className="round-clock">{roundClock}</b>}{defuseProgress != null && <span className={`score-defuse${currentDefuser.hasDefuser ? ' has-kit' : ''}`} style={{ '--defuse-progress': `${defuseProgress * 360}deg` }}><i>{currentDefuser.hasDefuser ? 'KIT' : '10s'}</i></span>}</i><strong>{demoScore.CT}</strong><span><SideLogo side="CT" /></span></div>{demoKills.length > 0 && <DemoKillFeed kills={demoKills} round={demoRound} translate={t} collapsed={demoKillsCollapsed} onToggle={() => setDemoKillsCollapsed((collapsed) => !collapsed)} />}</div>}
+         {customReplay && <WorkspaceContribution slot="viewport-bottom-left"><div className="demo-recording-label">{t('customDemo')}</div></WorkspaceContribution>}
+          {replayPanel && <DemoPovHud player={demoPovPlayer} firing={demoPovFiring} hurt={demoPovHurt} minimal={customReplay} />}
+          {replayPanel && demoSnapshot && <div className="demo-monitor-controls"><button type="button" className={`demo-monitor-toggle${demoCameraMode === 'monitor' ? ' selected' : ''}`} onClick={() => { if (demoCameraMode === 'monitor') { setDemoCameraMode('manual'); setDemoPovPlayerId(''); } else selectMonitorMode(); }}>{t('cameraMonitor')}</button>{demoCameraMode === 'monitor' && <DemoMonitorTeamSwitch players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} />}</div>}
+          {replayPanel && demoCameraMode === 'monitor' && demoSnapshot && <DemoMonitorWall players={demoMonitorPlayers} primaryId={demoPovPlayerId} onSelect={toggleDemoPov} translate={t} />}
+          {activePanel === 'demo' && !customReplay && demoSnapshot && <div className="demo-combat-hud"><div className={`demo-score${roundWinner ? ` winner-${roundWinner.toLowerCase()}` : ''}`}><span><SideLogo side="T" /></span><strong>{demoScore.T}</strong><i>ROUND {demoRound?.round || '-'}{roundResult ? <b className="round-result">{roundResult}</b> : c4Countdown != null ? <b className={c4Terminal?.event_name === 'bomb_defused' && demoTick >= c4Terminal.tick ? 'c4-paused' : ''}>C4 {c4Countdown.toFixed(4)}s</b> : <b className="round-clock">{roundClock}</b>}{defuseProgress != null && <span className={`score-defuse${currentDefuser.hasDefuser ? ' has-kit' : ''}`} style={{ '--defuse-progress': `${defuseProgress * 360}deg` }}><i>{currentDefuser.hasDefuser ? 'KIT' : '10s'}</i></span>}</i><strong>{demoScore.CT}</strong><span><SideLogo side="CT" /></span></div>{demoKills.length > 0 && <DemoKillFeed kills={demoKills} round={demoRound} translate={t} collapsed={demoKillsCollapsed} onToggle={() => setDemoKillsCollapsed((collapsed) => !collapsed)} />}</div>}
       {demoData?.demo.map && demoData.demo.map !== mapName && <ModelControlsPortal slot="demo-source-controls"><button type="button" className="demo-map-mismatch" onClick={() => setMapName(demoData.demo.map)}><span>{localize(language, { zh: '地图不匹配', en: 'MAP MISMATCH', ru: 'КАРТА НЕ СОВПАДАЕТ' })}</span><b>{mapName.toUpperCase()} → {demoData.demo.map.toUpperCase()}</b></button></ModelControlsPortal>}
        {grenadeWheel.open && <div className="grenade-wheel"><div className={`wheel-item wheel-smoke ${grenadeWheel.type === 'smoke' ? 'active' : ''}`}>{t('smoke')}</div><div className={`wheel-item wheel-fire ${grenadeWheel.type === 'fire' ? 'active' : ''}`}>{t('fire')}</div><div className={`wheel-item wheel-flash ${grenadeWheel.type === 'flash' ? 'active' : ''}`}>{t('flash')}</div><div className={`wheel-item wheel-explosion ${grenadeWheel.type === 'explosion' ? 'active' : ''}`}>{t('grenade')}</div><span className="wheel-key">Q</span></div>}
       {saveArchiveModal && <SaveArchiveModal archives={archives} draftName={saveArchiveName} folderState={workspaceFolders.state} folderId={saveArchiveFolderId} language={language} mapName={mapName} mode={saveArchiveMode} onClose={() => setSaveArchiveModal(false)} onDraftNameChange={setSaveArchiveName} onFolderChange={setSaveArchiveFolderId} onSave={saveWorkspaceArchive} onSelectedChange={(id) => { setSaveArchiveSelected(id); setSaveArchiveFolderId(workspaceFolders.state.items[id]?.folderId || ROOT_FOLDER_ID); }} selected={saveArchiveSelected} t={t} />}
@@ -1269,7 +1291,7 @@ function App() {
            {voiceStatus && <WorkspaceContribution slot="viewport-bottom-left"><VoicePlaybackStatus status={voiceStatus} language={language} /></WorkspaceContribution>}
            <div className="key-hints">{replayPanel || activePanel === 'analysis' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatPlayback')}</b><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : activePanel === 'utility' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : <><div className="key-group"><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintMovePlayer')}</span><span><kbd>CTRL+LMB</kbd>{t('hintYaw')}</span><span><kbd>SHIFT+LMB</kbd>{t('hintPitch')}</span><span><kbd>DBL</kbd>{t('hintCrouch')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></>}<div className="key-group"><WorkspaceTarget slot="camera-hints" /></div></div>
           <div className="aspect-frame" aria-hidden="true"><i /></div>
-          {activePanel === 'demo' && !broadcastPage && !customReplay && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} speakingIds={speakingIds} speakingLabel={localize(language, { zh: '正在讲话', en: 'Speaking', ru: 'Говорит' })} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} speakingIds={speakingIds} speakingLabel={localize(language, { zh: '正在讲话', en: 'Speaking', ru: 'Говорит' })} /></>}
+          {activePanel === 'demo' && !customReplay && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} speakingIds={speakingIds} speakingLabel={localize(language, { zh: '正在讲话', en: 'Speaking', ru: 'Говорит' })} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} speakingIds={speakingIds} speakingLabel={localize(language, { zh: '正在讲话', en: 'Speaking', ru: 'Говорит' })} /></>}
           {selectedPoint && selectedPointScreen && <div className="point-actions" style={{ left: selectedPointScreen.x, top: selectedPointScreen.y }}><span>{activePanel === 'collab' ? t('collabPlayer') : t('tacticalPoint')}</span><div className="point-choice"><b>{t('team')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div>{activePanel === 'collab' ? null : <div className="point-choice"><b>{t('type')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div>}<button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); setSelectedPointScreen(null); }}>{t('delete')}</button></div>}
           {replayPanel && selectedDemoGrenade && selectedDemoGrenadeScreen && <div className="demo-grenade-actions" style={{ left: selectedDemoGrenadeScreen.x, top: selectedDemoGrenadeScreen.y }}><div><strong>{selectedDemoGrenade.kind.toUpperCase()}</strong><span>{selectedDemoGrenade.throwEvent.user_name || t('unknown')} · T{selectedDemoGrenade.throwTick}</span></div><button type="button" onClick={saveDemoGrenade}>{t('saveUtility')}</button><button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedDemoGrenade(null); setSelectedDemoGrenadeScreen(null); }}>×</button></div>}
           {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && demoViewFlags.heatStyle === 'points' && analysisUtilityHover && !selectedAnalysisUtility && <WorkspacePopover className="utility-hover-card analysis-utility-hover-card" anchor={analysisUtilityHover} onPointerEnter={() => { analysisUtilityHoverInsideRef.current = true; window.clearTimeout(analysisUtilityHoverTimerRef.current); }} onPointerLeave={() => { analysisUtilityHoverInsideRef.current = false; window.clearTimeout(analysisUtilityHoverTimerRef.current); setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId(''); }}><header><strong>{localize(language, { zh: '附近道具', en: 'NEARBY UTILITIES', ru: 'ГРАНАТЫ РЯДОМ' })}</strong><span>{analysisUtilityHover.utilities.length}</span></header><div className="utility-hover-list">{analysisUtilityHover.utilities.map((utility) => <button type="button" key={utility.id} className="replayable" onPointerEnter={() => setAnalysisHighlightedUtilityId(utility.id)} onPointerLeave={() => setAnalysisHighlightedUtilityId('')} onFocus={() => setAnalysisHighlightedUtilityId(utility.id)} onBlur={() => setAnalysisHighlightedUtilityId('')} onClick={() => { setSelectedAnalysisUtility(utility); setSelectedAnalysisUtilityScreen({ x: analysisUtilityHover.x, y: analysisUtilityHover.y }); setAnalysisUtilityHover(null); setAnalysisHighlightedUtilityId(''); setAnalysisPlaying(false); }}><strong><RawIcon name={ANALYSIS_UTILITY_ICONS[utility.kind]} />{utility.kind.toUpperCase()}</strong><span>{utility.segment.throwEvent.user_name || t('unknown')} · R{utility.source.round} · T{utility.segment.throwTick}</span><p>{utility.source.fileName}</p></button>)}</div></WorkspacePopover>}
@@ -1280,13 +1302,17 @@ function App() {
 
          {utilityModalOpen && <UtilityNoteModal draft={utilityDraft} error={utilityError} folderState={utilityFolders.state} folderId={utilitySaveFolderId} language={language} onClose={() => setUtilityModalOpen(false)} onDraftChange={setUtilityDraft} onFolderChange={setUtilitySaveFolderId} onSubmit={addUtilityNote} t={t} />}
          {anonymousUtilitySave && <SaveAnonymousUtilityModal draft={anonymousUtilityDraft} error={anonymousUtilityError} folderState={utilityFolders.state} folderId={utilitySaveFolderId} kind={anonymousUtilitySave.kind} language={language} onClose={() => setAnonymousUtilitySave(null)} onDraftChange={setAnonymousUtilityDraft} onFolderChange={setUtilitySaveFolderId} onSubmit={saveAnonymousUtility} t={t} />}
-          <WorkspaceContribution slot="bottom">{replayPanel && <div className={`demo-panel ${replayPanel ? '' : 'panel-hidden'}${demoData ? ' has-demo' : ''}${broadcastPage && !activeBroadcastId ? ' broadcast-idle' : ''}`}>
-           {broadcastPage && <div className="broadcast-model-controls"><button type="button" className="broadcast-model-trigger">{t('model')}</button><div className="broadcast-model-options"><WorkspaceTarget slot="broadcast-model-controls" /></div></div>}
-           {activePanel === 'demo' && !broadcastPage && <DemoDataWarning warnings={demoData?.warnings} translate={t} />}
+          <WorkspaceContribution slot="bottom">{replayPanel && <div className={`demo-panel ${replayPanel ? '' : 'panel-hidden'}${demoData ? ' has-demo' : ''}`}>
+           {activePanel === 'demo' && <DemoDataWarning warnings={demoData?.warnings} translate={t} />}
            {(customRecordings.loading || customRecordings.error) && <div className="recording-notice" role="status">{customRecordings.loading && <i className="analysis-loading-spinner" aria-hidden="true" />}{customRecordings.loading
              ? localize(language, { zh: `正在继续解析 ${customRecordings.fileName}… ${Math.floor(customRecordings.progress)}%`, en: `Continuing parsing ${customRecordings.fileName}… ${Math.floor(customRecordings.progress)}%`, ru: `Продолжение разбора ${customRecordings.fileName}… ${Math.floor(customRecordings.progress)}%` })
              : customRecordings.error}</div>}
-           <div className="demo-toolbar"><WorkspaceTarget slot="demo-mobile-settings" /><div className="demo-source-controls"><WorkspaceTarget slot="demo-source-controls" /><label className={`demo-upload${(customRecordings.loading || demoBatchRunning) ? ' disabled' : ''}`} onClick={platform.capabilities.nativeFilePicker ? loadDemo : undefined}><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple disabled={customRecordings.loading || demoBatchRunning} onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{!customReplay && demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <div className="demo-cache-picker"><button type="button" onClick={() => setDemoCacheOpen((open) => !open)}>{t('parsedDemos')} · {demoLibraryEntries.length}</button>{demoCacheOpen && <div className="demo-cache-list"><header><strong>{t('parsedDemos')}</strong><button type="button" onClick={() => setDemoCacheOpen(false)}>×</button></header>{demoLibraryEntries.length === 0 ? <div className="demo-cache-empty">{t('noCachedDemos')}</div> : demoLibraryEntries.map((entry) => <article key={entry.id}><button type="button" className="demo-cache-open" onClick={() => openCachedDemo(entry.id)}><strong>{entry.fileName}{isRecording(entry) && <small className="demo-recording-kind">{t('customDemo')}</small>}</strong><span>{entry.map} · {entry.rounds} {isRecording(entry) ? localize(language, { zh: '片段', en: 'clips', ru: 'фрагментов' }) : t('round')}</span><small>{formatBytes((entry.dataBytes || 0) + (entry.analysisBytes || 0))} / {formatBytes(entry.sourceBytes)} · {new Date(entry.updatedAt).toLocaleString(localeForLanguage(language))}</small></button><button type="button" className="demo-cache-delete" aria-label={t('deleteCachedDemo')} title={t('deleteCachedDemo')} onClick={() => removeCachedDemo(entry.id)}>×</button></article>)}</div>}</div>}{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}{!mobileWorkspace && <DemoParseSettings value={demoSampleRate} onChange={setDemoSampleRate} language={language} />}</div><ReplayTransportControls data={demoData} segment={demoRound} tick={demoTick} playing={demoPlaying} loading={demoRoundLoading || customRecordings.loading} mapMismatch={replayMapMismatch} recording={customReplay}
+           <div className="demo-toolbar"><WorkspaceTarget slot="demo-mobile-settings" /><div className="demo-source-controls"><WorkspaceTarget slot="demo-source-controls" /><label className={`demo-upload${(customRecordings.loading || demoBatchRunning) ? ' disabled' : ''}`} onClick={platform.capabilities.nativeFilePicker ? loadDemo : undefined}><span>{t('multiDemo')}</span><input type="file" accept=".dem" multiple disabled={customRecordings.loading || demoBatchRunning} onChange={loadDemo} /><b>{t('chooseDemo')}</b></label>{!customReplay && demoStatus && !demoData ? <span className="demo-status">{demoStatus}</span> : <ReplayLibraryPicker loadingId={recordingLoadingId} error={recordingsStorageError} entries={replayEntries} activeId={activeRecordingId || activeDemoCacheIdRef.current} open={demoCacheOpen} language={language} folders={recordingFolders.state}
+             onToggle={() => setDemoCacheOpen(open => !open)} onClose={() => setDemoCacheOpen(false)} onOpen={openReplayEntry} onRemove={removeReplayEntry}
+             onShare={shareSavedRecording}
+             onCreateFolder={(name, parentId) => recordingFolders.create(name, parentId, replayEntries)} onDeleteFolder={id => recordingFolders.remove(id, replayEntries)}
+             onMove={(source, target, position) => recordingFolders.move(replayEntries, source, target, position)} />}
+             <BroadcastRoomControls room={broadcastRoom.session} language={language} onJoin={broadcastRoom.join} onLeave={broadcastRoom.leave} />{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}{!mobileWorkspace && <DemoParseSettings value={demoSampleRate} onChange={setDemoSampleRate} language={language} />}</div><ReplayTransportControls data={demoData} segment={demoRound} tick={demoTick} playing={demoPlaying} loading={demoRoundLoading || customRecordings.loading} mapMismatch={replayMapMismatch} recording={customReplay}
              economies={demoRoundEconomies} events={timelineEvents} menuOpen={demoRoundMenuOpen} onMenu={() => setDemoRoundMenuOpen(open => !open)}
              onSegment={segment => { setDemoPlaying(false); setDemoRound(segment); setDemoRoundMenuOpen(false); }} onSeek={tick => { setDemoPlaying(false); seekDemoTick(tick); }}
              onToggle={() => setDemoPlaying(playing => !playing)} onSaveFrame={() => openSaveArchiveModal(true)} showSaveFrame={Boolean(demoData)} language={language} t={t} /></div>
@@ -1308,10 +1334,13 @@ function App() {
           {activePanel === 'utility' && <UtilityPlaybackControls playback={utilityReplay} setPlayback={setUtilityReplay} display={utilityReplayDisplay} setDisplay={setUtilityReplayDisplay} language={language} t={t} />}
           {activePanel === 'analysis' && analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-bottom-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}
         </WorkspaceContribution>
-        {platform.capabilities.resourceImport && mapName !== TUTORIAL_MAP_ID && hasMapModel(mapName) && <ModelControlsPortal slot={modelControlsTarget}><div className="model-material-style">{[['simple', { zh: '简洁模型', en: 'Simple model', ru: 'Простая модель' }], ['original', { zh: '原始材质', en: 'Original materials', ru: 'Исходные материалы' }]].map(([value, label]) => <button type="button" key={value} aria-pressed={modelMaterialStyle === value} className={modelMaterialStyle === value ? 'selected' : ''} onClick={() => setModelMaterialStyle(value)}>{localize(language, label)}</button>)}</div></ModelControlsPortal>}
+        {platform.capabilities.resourceImport && mapName !== TUTORIAL_MAP_ID && hasMapModel(mapName) && <ModelControlsPortal slot={modelControlsTarget}><WorkspaceChoiceGroup label={localize(language, { zh: '模型材质', en: 'Model materials', ru: 'Материалы модели' })} value={modelMaterialStyle} onChange={setModelMaterialStyle} options={[
+          { value: 'simple', label: localize(language, { zh: '简洁模型', en: 'Simple model', ru: 'Простая модель' }) },
+          { value: 'original', label: localize(language, { zh: '原始材质', en: 'Original materials', ru: 'Исходные материалы' }) },
+        ]} /></ModelControlsPortal>}
         {!mobileWorkspace && navData && hasMapModel(mapName) && <ModelControlsPortal slot={modelControlsTarget}><div className="model-visual-controls nav-visual-controls"><button type="button" className={`nav-visibility-toggle${showNav ? ' selected' : ''}`} aria-pressed={showNav} onClick={() => setShowNav((visible) => !visible)}>{t('navGround')} {showNav ? t('on') : t('off')}</button></div></ModelControlsPortal>}
         {!mobileWorkspace && hasMapModel(mapName) && <ModelControlsPortal slot={modelControlsTarget}><div className="model-visual-controls"><ModelLoadIndicator state={modelLoadState} language={language} /><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><label className="model-opacity"><span>{t('viewRange')}</span><input type="range" min="0" max="1" step="0.01" value={modelViewRange} onChange={(event) => setModelViewRange(Number(event.target.value))} /><b>{Math.round(modelViewRange * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="workspace-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div></ModelControlsPortal>}
-        {mobileWorkspace && <MobileViewSettings slot={broadcastPage ? 'playback-actions' : replayPanel ? 'demo-mobile-settings' : activePanel === 'collab' && hasActiveFrameContext ? 'collab-mobile-settings' : 'bottom-mobile-settings'} language={language} t={t} showGrid={showGrid} setShowGrid={setShowGrid} trackpadDetection={trackpadDetection} setTrackpadDetection={setTrackpadDetection} showNav={showNav} setShowNav={setShowNav} hasNav={Boolean(navData)} hasModel={hasMapModel(mapName)} modelOpacity={modelOpacity} onModelOpacity={value => { setModelOpacity(value); setShowModel(value > 0); }} modelViewRange={modelViewRange} setModelViewRange={setModelViewRange} selectedMode={selectedMode} modeOptions={modeOptions} onModelMode={value => { if (value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity(current => current || 0.34); setModelViewMode(value); } }} modelLoadState={modelLoadState} sampleRate={demoSampleRate} setSampleRate={setDemoSampleRate} canParse={platform.capabilities.demoParsing && activePanel === 'demo' && !broadcastPage} onReset={() => boardRef.current?.reset?.()} />}
+        {mobileWorkspace && <MobileViewSettings slot={replayPanel ? 'demo-mobile-settings' : activePanel === 'collab' && hasActiveFrameContext ? 'collab-mobile-settings' : 'bottom-mobile-settings'} language={language} t={t} showGrid={showGrid} setShowGrid={setShowGrid} trackpadDetection={trackpadDetection} setTrackpadDetection={setTrackpadDetection} showNav={showNav} setShowNav={setShowNav} hasNav={Boolean(navData)} hasModel={hasMapModel(mapName)} modelOpacity={modelOpacity} onModelOpacity={value => { setModelOpacity(value); setShowModel(value > 0); }} modelViewRange={modelViewRange} setModelViewRange={setModelViewRange} selectedMode={selectedMode} modeOptions={modeOptions} onModelMode={value => { if (value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity(current => current || 0.34); setModelViewMode(value); } }} modelLoadState={modelLoadState} sampleRate={demoSampleRate} setSampleRate={setDemoSampleRate} canParse={platform.capabilities.demoParsing && activePanel === 'demo' } onReset={() => boardRef.current?.reset?.()} />}
   </WorkspaceFrame>;
 }
 

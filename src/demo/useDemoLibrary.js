@@ -31,5 +31,5 @@ export default function useDemoLibrary({ cache, schema, enabled, onError }) {
     return !ownership.current.disposed && revision === ownership.current.selection ? entry : undefined;
   }, [library, refresh]);
   const remove = useCallback(async id => { await library.remove(id); await refresh(); }, [library, refresh]);
-  return { ...state, refresh, open, remove };
+  return { ...state, refresh, open, remove, cancelSelection: () => { ownership.current.selection++; } };
 }

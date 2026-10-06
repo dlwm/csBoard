@@ -8,7 +8,7 @@ import { checkWorkspaceNode, checkWorkspaceStyles } from './check-workspace.js';
 // must not become false violations). 依赖边界通过 AST 检查，忽略注释和示例字符串。
 const domainRoots = [
   'src/analysis/queryService.js', 'src/app/serialization.js',
-  'src/demo/recordings.js', 'src/demo/playbackSessions.js', 'src/demo/library.js', 'src/demo/parserRuntime.js', 'src/demo/grenades.js',
+  'src/demo/savedRecordingRepository.js', 'src/demo/recordings.js', 'src/demo/playbackSessions.js', 'src/demo/library.js', 'src/demo/parserRuntime.js', 'src/demo/grenades.js',
   'src/analysis/buildAnalysisDataset.js', 'src/analysis/utilityRecommendations.js',
   'src/utility/savedThrow.js', 'src/utility/recordedThrowRepository.js',
   'src/utility/recoverRecordedReplay.js', 'src/app/commandRegistry.js', 'src/collaboration/boardCommands.js',

@@ -88,18 +88,12 @@
 .workspace-frame .demo-panel .demo-playback-controls { display: flex; order: 0; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; min-width: 0; }
 .workspace-frame .demo-playback-controls .demo-scrub { display: flex; flex: 1 1 220px; align-items: center; gap: 8px; min-width: 0; grid-column: auto; grid-row: auto; }
 .workspace-frame .demo-panel .timeline-track { flex: 1; min-width: 60px; }
-.workspace-frame .demo-panel .demo-source-controls, .workspace-frame .demo-panel .demo-controls-row, .workspace-frame .demo-panel .broadcast-model-controls { order: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.workspace-frame .demo-panel .demo-source-controls, .workspace-frame .demo-panel .demo-controls-row { order: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .workspace-frame .demo-panel .demo-source-controls { flex: 0 1 auto; }
 .workspace-frame .demo-panel .demo-controls-row { flex: 1 1 auto; }
 .workspace-frame .demo-controls-row .demo-view-options, .workspace-frame .demo-controls-row .demo-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .workspace-frame .demo-panel .demo-parse-settings { position: relative; inset: auto; margin: 0; flex: none; align-self: center; }
 .workspace-frame .demo-panel .demo-playback-controls:not(:has(button, input)) { display: none; }
-.workspace-frame .demo-panel .broadcast-model-controls { flex: 1 1 100%; }
-.workspace-frame[data-panel=broadcast] .demo-source-controls, .workspace-frame[data-panel=broadcast] .demo-round-picker, .workspace-frame[data-panel=broadcast] .demo-controls-row, .workspace-frame[data-panel=broadcast] .demo-parse-settings { display: none; }
-.workspace-frame .broadcast-model-controls .broadcast-model-trigger { display: none; }
-.workspace-frame .broadcast-model-controls .broadcast-model-options { display: flex; position: static; width: 100%; flex-wrap: wrap; gap: 8px; padding: 0; border: 0; box-shadow: none; background: transparent; }
-.workspace-frame .broadcast-model-options .model-visual-controls { flex: 0 1 auto; flex-wrap: wrap; margin: 0; }
-.workspace-frame .demo-panel.broadcast-idle { display: none; }
 .workspace-frame .utility-bottom-controls { display: flex; flex-direction: column; align-items: stretch; flex: 1 1 100%; gap: 8px; }
 .workspace-frame .utility-bottom-playback { order: 0; width: 100%; }
 .workspace-frame .utility-display-options { order: 1; }
@@ -120,7 +114,6 @@
 .workspace-bottom-transport:not(:has([data-workspace-slot] > *)), .workspace-bottom-settings:not(:has([data-workspace-slot] > *)) { display: none; }
 .workspace-frame .utility-display-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .workspace-frame .utility-bottom-playback { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.workspace-frame[data-panel=broadcast] .workspace-bottom-bar:has(.broadcast-idle) { display: none; }
 .utility-replay-notice { display: flex; flex-basis: 100%; align-items: center; gap: 8px; font: 10px var(--font-mono); color: var(--accent); }
 .utility-replay-notice span { flex: 1; }
 
@@ -161,3 +154,25 @@
 .workspace-frame .workspace-corner .recommendation-loading { position: static; margin: 0; pointer-events: none; }
 
 .workspace-corner-bottom-center.workspace-slot{bottom:var(--workspace-corner-gap);left:50%;transform:translateX(-50%);align-items:center;max-width:45%}
+
+/* Header popovers must sit above viewport task panels. The parent stacking
+   context controls priority; raising only the volume child's z-index cannot.
+   顶栏弹层高于主视图任务列表；优先级设在父堆叠上下文，避免子元素失效。 */
+.workspace-frame { --workspace-layer-header: 60; }
+.workspace-frame .workspace-top { position: relative; z-index: var(--workspace-layer-header); }
+.workspace-choice-group { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.workspace-choice-group button { border: 1px solid var(--workspace-divider); border-radius: 4px; padding: 7px 9px; background: #101815; color: #8c9b8d; font: 9px var(--font-mono); line-height: 1.3; cursor: pointer; }
+.workspace-choice-group button:hover, .workspace-choice-group button:focus-visible { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.workspace-choice-group button[aria-pressed=true] { border-color: var(--accent-border); color: var(--accent); background: var(--accent-bg2); }
+
+.replay-library .folder-tree { padding: 8px; }
+.replay-library .folder-tree-heading { padding: 4px 2px 8px; }
+.replay-library .folder-tree button, .replay-sharing button { border: 1px solid var(--workspace-divider); background: #101815; color: var(--accent); padding: 6px 8px; font: inherit; cursor: pointer; }
+.replay-library .folder-tree .demo-cache-open { border: 0; background: transparent; }
+.replay-library .folder-tree .demo-cache-open:hover, .replay-library article.active { background: var(--accent-bg2); }
+.replay-library-actions { display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 4px; padding: 4px; }
+.replay-sharing { position: relative; color: var(--accent); font: 9px var(--font-mono); }
+.replay-sharing summary { cursor: pointer; padding: 7px 9px; border: 1px solid var(--workspace-divider); }
+.replay-sharing>div { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 25; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 230px; max-width: calc(100vw - 32px); padding: 12px; border: 1px solid var(--workspace-divider); background: #101815; }
+.replay-sharing form { display: flex; gap: 6px; }.replay-sharing input { min-width: 0; width: 130px; border: 1px solid var(--workspace-divider); background: #0b1110; color: inherit; padding: 6px; font: inherit; }
+.replay-sharing p { flex-basis: 100%; margin: 0; color: #ffb6ab; overflow-wrap: anywhere; }

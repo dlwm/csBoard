@@ -3,7 +3,6 @@
 export const WORKSPACE_MENUS = Object.freeze([
   { id: 'demo', label: 'rounds', requires: ['demoParsing'], session: 'demo', left: 'none', right: false, radar: 'demo' },
   { id: 'analysis', label: 'analysis', requires: ['demoParsing'], session: 'demo', left: 'utilities', right: true, radar: null },
-  { id: 'broadcast', label: 'broadcast', requires: ['demoParsing'], session: 'broadcast', left: 'none', right: true, radar: 'demo' },
   { id: 'utility', label: 'utilityNotes', requires: [], session: 'preserve', left: 'always', right: false, radar: 'utility' },
   { id: 'collab', label: 'collab', requires: [], session: 'preserve', left: 'frame', right: true, radar: 'collab' },
 ].map(menu => Object.freeze({ ...menu, requires: Object.freeze(menu.requires) })));

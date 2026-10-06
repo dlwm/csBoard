@@ -71,10 +71,9 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     if (projectiles.length >= 2) {
       // Trajectory points are stored relative to the group so imported utilities remain movable.
       const points = projectiles.map(record => utilityTrajectoryPoint(record, modelCenter, { source: true, origin: originPosition })).filter(Boolean);
-      const trajectory = createUtilityTrajectory(points, { opacity: .9, floorFade: floorFadeRef.current });
+      const trajectory = createUtilityTrajectory(points, { opacity: .9 });
       trajectory.userData.collabUtilityTrajectory = true;
       trajectory.userData.collabUtilityTrajectoryPoints = points;
-      enableObjectFloorFade(trajectory, floorFadeRef.current);
       utility.add(trajectory);
     }
     utility.userData.collabUtility = true;

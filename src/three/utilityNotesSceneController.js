@@ -96,7 +96,7 @@ export default function createUtilityNotesSceneController({ scene, refs, floorFa
         if (valid(path[index - 1]) && valid(path[index])) edge(pathPositions, pathColors, world(path[index - 1]), world(path[index]), color);
       }
     });
-    if (pathPositions.length) trajectories.add(createUtilityTrajectory(pathPositions, { colors: pathColors, segments: true, opacity: .65, floorFade: floorFadeRef?.current }));
+    if (pathPositions.length) trajectories.add(createUtilityTrajectory(pathPositions, { colors: pathColors, segments: true, opacity: .65 }));
     updateEffects(notes);
     lastNotes = notes.slice(); lastCollision = collision; lastPlayingNoteId = playingNoteId;
   };

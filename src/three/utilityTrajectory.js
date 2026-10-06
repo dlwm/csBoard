@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { enableObjectFloorFade } from './floorFade.js';
 
 export const UTILITY_TRAJECTORY_RENDER_ORDER = 5;
 const SURFACE_LIFT = .035;
@@ -18,15 +17,17 @@ export function utilityTrajectoryPoint(point, modelCenter, { source = false, ori
   return position;
 }
 
-export function createUtilityTrajectory(points, { color = '#c58cff', colors, opacity = .82, segments = false, floorFade } = {}) {
+export function createUtilityTrajectory(points, { color = '#c58cff', colors, opacity = .82, segments = false } = {}) {
   const geometry = new THREE.BufferGeometry();
   if (points instanceof Float32Array || typeof points[0] === 'number') geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
   else geometry.setFromPoints(points);
   if (colors) geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   const material = new THREE.LineBasicMaterial({ color: colors ? '#ffffff' : color, vertexColors: Boolean(colors), transparent: true, opacity, depthTest: true, depthWrite: false });
+  material.userData.csboardIgnoreFloorFade = true;
   const line = segments ? new THREE.LineSegments(geometry, material) : new THREE.Line(geometry, material);
   line.renderOrder = UTILITY_TRAJECTORY_RENDER_ORDER;
-  if (floorFade) enableObjectFloorFade(line, floorFade);
+  // Floor selection controls map surfaces, never the recorded flight path.
+  // 楼层选择不裁切轨迹；遮挡仍由真实几何和深度测试决定。
   return line;
 }
 
