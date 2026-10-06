@@ -2,8 +2,8 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
 // One in-flight request preserves transactions; priority only reorders waiting work.
-export function createNativeClient(binary, args = [], { timeoutMs = 120_000, onMetrics } = {}) {
-  const child = spawn(binary, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+export function createNativeClient(binary, args = [], { timeoutMs = 120_000, onMetrics, env = process.env } = {}) {
+  const child = spawn(binary, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env });
   const queue = [];
   let sequence = 0, active = null, failure = null, stderr = '';
   const fail = error => {

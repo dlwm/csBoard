@@ -17,6 +17,7 @@
       "electron/**/*",
       "shared/ai-protocol.js",
       "shared/release-notes.js",
+      "shared/parser-limits.js",
       "shared/ai-providers.js",
       "shared/record-keys.js",
       "shared/storage-codec.js",

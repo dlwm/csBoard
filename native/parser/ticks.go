@@ -113,10 +113,10 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 			return position.Z
 		}
 	case "health":
-		if pawn == nil {
-			return nil
-		}
-		return player.Health()
+		// Pawn handles can resolve before their health property is available.
+		// Missing health is unknown (null), not zero/dead or a fatal tick error.
+		// 实体生命周期中缺失生命值时保留未知值，避免 Must 读取导致整份录像失败。
+		return entityValue(pawn, "m_iHealth")
 	case "team_num":
 		return int(player.Team)
 	case "pitch", "yaw":

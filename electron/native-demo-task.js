@@ -40,7 +40,7 @@ process.parentPort.on('message', async ({ data }) => {
     send({ type: 'telemetry', metrics: { peakBytes: nativePeak + workerPeak, nativePeakBytes: nativePeak, workerPeakBytes: workerPeak, parserReleased, timings } });
   };
   const memoryTimer = setInterval(reportMemory, 1500);
-  parser = createNativeClient(binary, [], { timeoutMs: 30 * 60_000, onMetrics: metrics => {
+  parser = createNativeClient(binary, [], { timeoutMs: 30 * 60_000, env: { ...process.env, ...(data.allocation?.memoryLimitBytes ? { GOMEMLIMIT: String(data.allocation.memoryLimitBytes) } : {}) }, onMetrics: metrics => {
     nativePeak = Math.max(nativePeak, metrics.peakRssBytes || 0);
     const stage = timings[metrics.method] ||= { calls: 0, elapsedMs: 0 };
     stage.calls++; stage.elapsedMs += metrics.elapsedMs;

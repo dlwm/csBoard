@@ -8,6 +8,7 @@ import { createNativeClient } from './native-client.js';
 import { createTaskScheduler } from './task-scheduler.js';
 import { createCacheTransfers } from './cache-files.js';
 import { registerStorageManagement } from './storage-management.js';
+import { MAX_DESKTOP_PARSERS } from '../shared/parser-limits.js';
 import { createParserAllocation } from './parser-allocation.js';
 import { createAnalysisSettings } from './analysis-settings.js';
 import { isAllowedRecordKey } from '../shared/record-keys.js';
@@ -26,7 +27,7 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
   let storage, storageReady, powerBlocker;
   let choosing = false, closing = false, maintenance = false, inFlight = 0, keepAwake = false;
   const assertAvailable = () => { if (closing || maintenance) throw new Error('Storage maintenance in progress; try again when it finishes'); };
-  const scheduler = createTaskScheduler({ limits: { parse: 16, compute: 1 }, admit: allocationPolicy.admit, onChange: tasks => {
+  const scheduler = createTaskScheduler({ limits: { parse: MAX_DESKTOP_PARSERS, compute: 1 }, admit: allocationPolicy.admit, onChange: tasks => {
     const running = tasks.some(task => task.state === 'running');
     if (running && keepAwake && powerBlocker == null) powerBlocker = powerSaveBlocker.start('prevent-app-suspension');
     if ((!running || !keepAwake) && powerBlocker != null) { powerSaveBlocker.stop(powerBlocker); powerBlocker = null; }

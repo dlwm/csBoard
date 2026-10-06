@@ -1,3 +1,4 @@
+import { MAX_DESKTOP_PARSERS } from '../../../../shared/parser-limits.js';
 import { startProcessDemo } from './processTask.js';
 
 // This host contract submits jobs and persists results in the host's cache.
@@ -8,7 +9,7 @@ export function createProcessParserDriver(backend) {
   }
   return Object.freeze({
     id: 'go-process', execution: 'native', input: 'native', cacheOwner: backend,
-    concurrency: jobs => Math.min(16, jobs.length),
+    concurrency: jobs => Math.min(MAX_DESKTOP_PARSERS, jobs.length),
     start: options => startProcessDemo(backend, options),
   });
 }
