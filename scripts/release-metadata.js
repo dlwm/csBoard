@@ -19,6 +19,18 @@ export async function readReleaseMetadata(tag) {
   return releaseMetadata(tag, JSON.parse(pkg), JSON.parse(lock), changelog);
 }
 
+export async function readLocalizedReleaseNotes(tag) {
+  const metadata = await readReleaseMetadata(tag);
+  const translated = await Promise.all(['zh-CN', 'ru-RU'].map(language => fs.readFile(`docs/CHANGELOG.${language}.md`, 'utf8')));
+  const notesByLanguage = { en: metadata.notes };
+  for (const [index, language] of ['zh', 'ru'].entries()) {
+    const section = translated[index].split(/^## /m).find(part => part.startsWith(`[${metadata.version}] - `));
+    if (!section || !section.includes('\n- ')) throw new Error(`Missing ${language} release notes for ${metadata.version}`);
+    notesByLanguage[language] = section.slice(section.indexOf('\n') + 1).trim();
+  }
+  return notesByLanguage;
+}
+
 async function main() {
   const metadata = await readReleaseMetadata(process.env.RELEASE_TAG || '');
   const git = args => execFileSync('git', args, { encoding: 'utf8' }).trim();

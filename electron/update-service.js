@@ -6,6 +6,7 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { parseReleaseNotes } from '../shared/release-notes.js';
 
 const REPOSITORY = 'dlwm/csBoard';
 const API = `https://api.github.com/repos/${REPOSITORY}/releases?per_page=100`;
@@ -79,7 +80,7 @@ export function registerUpdateService({ app, authorize, getWindow, isBusy }) {
       const release = releases.filter(item => !item.draft && !item.prerelease && versionParts(item.tag_name?.replace(/^v/, ''))).sort((a, b) => compareVersions(b.tag_name.replace(/^v/, ''), a.tag_name.replace(/^v/, '')))[0];
       if (!release || compareVersions(release.tag_name.replace(/^v/, ''), state.currentVersion) <= 0) {
         if (!downloaded) selected = null;
-        emit({ phase: downloaded ? 'ready' : 'current', ...(downloaded ? {} : { latestVersion: null, notes: null }), checkedAt: Date.now() }); return snapshot();
+        emit({ phase: downloaded ? 'ready' : 'current', ...(downloaded ? {} : { latestVersion: null, notes: null, notesByLanguage: null }), checkedAt: Date.now() }); return snapshot();
       }
       const version = release.tag_name.replace(/^v/, '');
       const name = `CSBoard-${version}-${process.platform === 'darwin' ? 'mac' : 'win'}-${process.arch}.${process.platform === 'darwin' ? 'dmg' : 'exe'}`;
@@ -90,8 +91,8 @@ export function registerUpdateService({ app, authorize, getWindow, isBusy }) {
       if (!/^[a-f0-9]{64}$/i.test(checksum || '')) throw coded('checksum', 'The release checksum is missing or invalid');
       selected = { version, name, url: assetUrl(installer), size: installer.size, checksum: checksum.toLowerCase() };
       if (downloaded?.version !== version) downloaded = null;
-      const notes = String(release.body || '').split('\n\nmacOS apps are ad-hoc signed')[0].split('<!-- csboard-release-commit:')[0].slice(0, 16000);
-      emit({ phase: downloaded ? 'ready' : 'available', latestVersion: version, packageBytes: installer.size, notes, progress: downloaded ? 100 : 0, checkedAt: Date.now() });
+      const notesByLanguage = parseReleaseNotes(release.body);
+      emit({ phase: downloaded ? 'ready' : 'available', latestVersion: version, packageBytes: installer.size, notes: notesByLanguage.en, notesByLanguage, progress: downloaded ? 100 : 0, checkedAt: Date.now() });
     } catch (error) { emit({ phase: 'error', error: { code: error.code || 'network', message: error.message } }); }
     finally { clearTimeout(timeout); if (controller === request) controller = null; }
     return snapshot();

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import MarkdownContent from './MarkdownContent.jsx';
+import { selectReleaseNotes } from '../../shared/release-notes.js';
 import { localize } from '../i18n.js';
 import { getPlatform } from '../platform/index.js';
 import useDesktopUpdateState from './useDesktopUpdateState.js';
@@ -14,6 +16,7 @@ export default function DesktopUpdates({ language, working }) {
     catch (error) { setError(error.message); }
     finally { setPending(false); }
   };
+  const notes = selectReleaseNotes(state?.notesByLanguage || { en: state?.notes }, language);
   const phase = state?.phase || 'idle';
   const busy = ['checking', 'downloading', 'verifying', 'installing'].includes(phase);
   const labels = {
@@ -53,6 +56,11 @@ export default function DesktopUpdates({ language, working }) {
       }}>{state.platform === 'darwin' ? text('打开更新安装包', 'Open update package', 'Открыть пакет обновления') : text('退出并安装更新', 'Quit and install update', 'Выйти и установить')}</button>}
     </div>
     <p>{state?.platform === 'darwin' ? text('下载完成后打开 DMG，退出 CSBoard，再将新版拖入“应用程序”并替换旧版。', 'Open the downloaded DMG, quit CSBoard, then drag the new app into Applications and replace the old version.', 'Откройте DMG, закройте CSBoard и замените приложение в папке Applications.') : text('仅下载已发布的稳定版本，不会自动下载安装；安装更新前请保存编辑内容。', 'Only published stable releases are offered. Downloads and installation require your action; save your edits before installing.', 'Доступны только стабильные выпуски. Загрузка и установка запускаются вами; сначала сохраните изменения.')}</p>
-    {state?.notes && <details className="desktop-update-notes"><summary>{text('更新说明', 'Release notes', 'Что нового')}</summary><div>{state.notes}</div></details>}
+    {notes.content && <details className="desktop-update-notes"><summary>{text('更新说明', 'Release notes', 'Что нового')}</summary>
+      <div className="desktop-update-notes-body">
+        {notes.fallback && <p className="desktop-update-notes-fallback">{text('当前语言的更新说明暂缺，以下为英文原文。', 'Release notes are shown in English because a translation is unavailable.', 'Перевод недоступен; ниже приведён английский оригинал.')}</p>}
+        <MarkdownContent content={notes.content} language={notes.language} />
+      </div>
+    </details>}
   </section>;
 }

@@ -1,0 +1,10 @@
+.markdown-content{overflow-wrap:anywhere;line-height:1.7}
+.markdown-content>:first-child{margin-top:0}.markdown-content>:last-child{margin-bottom:0}
+.markdown-content :is(h1,h2,h3,h4,h5,h6){margin:16px 0 8px;font-size:1.1em;font-weight:600;line-height:1.4;color:inherit}
+.markdown-content p{margin:8px 0}.markdown-content :is(ul,ol){margin:8px 0;padding-left:24px}.markdown-content li{margin:4px 0}.markdown-content li>p{margin:4px 0}
+.markdown-content a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.markdown-content code{font-family:var(--font-mono);font-size:.95em;padding:2px 4px;border-radius:4px;background:#ffffff0b}
+.markdown-content pre{max-width:100%;overflow:auto;padding:12px;border-radius:6px;background:#0004;white-space:pre}.markdown-content pre code{padding:0;background:none}
+.markdown-content blockquote{margin:12px 0;padding:2px 12px;border-left:3px solid var(--accent);color:var(--resource-muted)}
+.markdown-content table{display:block;max-width:100%;overflow:auto;border-collapse:collapse;margin:12px 0}.markdown-content :is(th,td){padding:6px 10px;border:1px solid var(--resource-line);text-align:start}
+.markdown-content hr{border:0;border-top:1px solid var(--resource-line);margin:16px 0}.markdown-content .task-list-item{list-style:none}.markdown-content .task-list-item input{margin-right:6px}

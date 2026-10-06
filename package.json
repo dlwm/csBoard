@@ -16,6 +16,7 @@
     "files": [
       "electron/**/*",
       "shared/ai-protocol.js",
+      "shared/release-notes.js",
       "shared/ai-providers.js",
       "shared/record-keys.js",
       "shared/storage-codec.js",
@@ -99,6 +100,8 @@
     "opus-decoder": "^0.7.12",
     "react": "latest",
     "react-dom": "latest",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "three": "latest",
     "three-mesh-bvh": "^0.9.14",
     "ws": "^8.21.0",

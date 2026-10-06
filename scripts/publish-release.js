@@ -1,14 +1,15 @@
 import fs from 'node:fs/promises';
+import { formatReleaseNotes } from '../shared/release-notes.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { readReleaseMetadata } from './release-metadata.js';
+import { readReleaseMetadata, readLocalizedReleaseNotes } from './release-metadata.js';
 
 export async function collectReleaseAssets(directory, version, kind = 'desktop') {
   if (!['desktop', 'mobile', 'all'].includes(kind)) throw new Error('Unknown release asset kind');
   const groups = [
-    { kind: 'desktop', checksum: 'SHA256SUMS.txt', files: [`CSBoard-${version}-mac-arm64.dmg`, `CSBoard-${version}-mac-x64.dmg`, `CSBoard-${version}-win-x64.exe`] },
-    { kind: 'mobile', checksum: 'SHA256SUMS-mobile.txt', files: [`CSBoard-${version}-android-development.apk`, `CSBoard-${version}-ios-arm64-unsigned.zip`] },
+    { kind: 'desktop', checksum: 'SHA256SUMS.txt', files: [`CSBoard-${version}-mac-arm64.dmg`, `CSBoard-${version}-win-x64.exe`] },
+    { kind: 'mobile', checksum: 'SHA256SUMS-mobile.txt', files: [`CSBoard-${version}-android-development.apk`] },
   ].filter(group => kind === 'all' || group.kind === kind);
   const expected = groups.flatMap(group => group.files);
   const checksumNames = groups.map(group => group.checksum);
@@ -26,7 +27,7 @@ export async function collectReleaseAssets(directory, version, kind = 'desktop')
   return [...expected, ...checksumNames];
 }
 
-export async function publishDraft({ repository, token, tag, commit, notes, directory, assets, fetchImpl = fetch }) {
+export async function publishDraft({ repository, token, tag, commit, notes, notesByLanguage, directory, assets, fetchImpl = fetch }) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repository) || !/^[a-f0-9]{40}$/.test(commit) || !token) throw new Error('Missing release repository, commit or token');
   const base = `https://api.github.com/repos/${repository}`;
   async function api(url, method = 'GET', body, binary = false) {
@@ -55,7 +56,7 @@ export async function publishDraft({ repository, token, tag, commit, notes, dire
   if ((recordedCommit && recordedCommit !== commit) || (targetCommit && targetCommit !== commit)) {
     throw new Error(`Draft ${tag} belongs to another commit: draft=${recordedCommit || targetCommit}, build=${commit} (${release.html_url}). Use a new version tag, or remove the obsolete unpublished draft before rebuilding; do not mix assets from different commits.`);
   }
-  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notes}\n\nmacOS apps are ad-hoc signed, without Apple notarization; Gatekeeper may require manual approval or removal of the app quarantine attribute. Windows installers are unsigned. Android APKs use a development signature. iOS ZIPs contain unsigned arm64 app bundles, not installable IPAs; signing is required before installation. SHA-256 checksums are attached separately for desktop and mobile assets.\n\n<!-- csboard-release-commit: ${commit} -->`, draft: true, make_latest: 'false' };
+  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notesByLanguage ? formatReleaseNotes(notesByLanguage) : notes}\n\nmacOS apps are ad-hoc signed, without Apple notarization; Gatekeeper may require manual approval or removal of the app quarantine attribute. Windows installers are unsigned. Android APKs use a development signature. SHA-256 checksums are attached separately for desktop and mobile assets.\n\n<!-- csboard-release-commit: ${commit} -->`, draft: true, make_latest: 'false' };
   release = await api(`${base}/releases${release ? `/${release.id}` : ''}`, release ? 'PATCH' : 'POST', payload);
   const upload = new URL(release.upload_url.split('{')[0]);
   if (upload.origin !== 'https://uploads.github.com') throw new Error('Unexpected GitHub upload endpoint');
@@ -72,7 +73,8 @@ async function main() {
   const metadata = await readReleaseMetadata(process.env.RELEASE_TAG || '');
   const directory = path.resolve('build/release');
   const assets = await collectReleaseAssets(directory, metadata.version, process.env.RELEASE_ASSET_KIND || 'desktop');
-  const url = await publishDraft({ ...metadata, commit: process.env.RELEASE_COMMIT || '', repository: process.env.GITHUB_REPOSITORY || '', token: process.env.GITHUB_TOKEN, directory, assets });
+  const notesByLanguage = await readLocalizedReleaseNotes(metadata.tag);
+  const url = await publishDraft({ ...metadata, notesByLanguage, commit: process.env.RELEASE_COMMIT || '', repository: process.env.GITHUB_REPOSITORY || '', token: process.env.GITHUB_TOKEN, directory, assets });
   console.log(`Draft release: ${url}`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await main();

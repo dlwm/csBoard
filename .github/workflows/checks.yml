@@ -32,18 +32,9 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - name: Prepare native test prerequisites
-        run: |
-          make version-check
-          make install
-      - name: Check architecture boundaries
-        run: make lint
-      - name: Run behavioral and native storage tests
-        run: make test
-      - name: Build web frontend
-        run: make build
-      - name: Run Go parser adapter tests
-        working-directory: native/parser
-        run: go test ./...
+      - name: Install dependencies
+        run: make install
+      - name: Check versions, architecture, behavior and web build
+        run: make check
       - name: Validate Workers with their real bundler (no deployment)
         run: make workers-build

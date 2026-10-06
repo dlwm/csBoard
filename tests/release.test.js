@@ -21,11 +21,11 @@ test('release metadata requires matching versions and extracts only the tagged r
 async function installers(t) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'csboard-release-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
-  const names = [`CSBoard-${version}-mac-arm64.dmg`, `CSBoard-${version}-mac-x64.dmg`, `CSBoard-${version}-win-x64.exe`];
+  const names = [`CSBoard-${version}-mac-arm64.dmg`, `CSBoard-${version}-win-x64.exe`];
   for (const name of names) await fs.writeFile(path.join(directory, name), `installer ${name}`);
   return { directory, names };
 }
-test('release requires all three nonempty installers and generates checksums from actual bytes', async t => {
+test('release requires both nonempty desktop installers and generates checksums from actual bytes', async t => {
   const { directory, names } = await installers(t);
   assert.deepEqual(await collectReleaseAssets(directory, version), [...names, 'SHA256SUMS.txt']);
   const sums = await fs.readFile(path.join(directory, 'SHA256SUMS.txt'), 'utf8');

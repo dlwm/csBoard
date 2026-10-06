@@ -40,15 +40,15 @@ jobs:
           cache-dependency-path: |
             native/parser/go.sum
             native/storage/go.sum
-      - name: Check release behavior before packaging
-        run: |
-          make install
-          make release-check
       - id: release
         name: Validate tag, versions and release notes
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: node scripts/release-metadata.js
+      - name: Check release behavior before packaging
+        run: |
+          make install
+          make release-check
 
   desktop:
     needs: prepare
@@ -61,12 +61,6 @@ jobs:
             arch: arm64
             native: darwin-arm64
             command: desktop-build-mac-arm64
-            extension: dmg
-          - target: mac-x64
-            runner: macos-15-intel
-            arch: x64
-            native: darwin-x64
-            command: desktop-build-mac-x64
             extension: dmg
           - target: win-x64
             runner: windows-2022
@@ -125,7 +119,7 @@ jobs:
     uses: ./.github/workflows/mobile-build.yml
     with:
       build_ref: ${{ needs.prepare.outputs.commit }}
-      platform: all
+      platform: android
       parser: native
 
   draft:

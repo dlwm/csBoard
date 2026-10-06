@@ -1,4 +1,4 @@
-name: Mobile builds
+name: Mobile preview
 
 on:
   workflow_call:
@@ -9,7 +9,7 @@ on:
         default: ''
       platform:
         type: string
-        default: all
+        default: android
       parser:
         type: string
         default: native
@@ -19,7 +19,7 @@ on:
         description: Mobile platform
         type: choice
         options: [all, android, ios]
-        default: all
+        default: android
       parser:
         description: Demo parser engine
         type: choice
@@ -30,7 +30,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-${{ inputs.build_ref || github.ref }}-${{ inputs.platform || 'all' }}-${{ inputs.parser || 'native' }}
+  group: mobile-${{ inputs.build_ref || github.ref }}-${{ inputs.platform || 'android' }}-${{ inputs.parser || 'native' }}
   cancel-in-progress: ${{ inputs.build_ref == '' && github.ref_type != 'tag' }}
 
 jobs:
@@ -43,7 +43,7 @@ jobs:
       - id: platforms
         name: Select platforms
         env:
-          MOBILE_PLATFORM: ${{ inputs.platform || 'all' }}
+          MOBILE_PLATFORM: ${{ inputs.platform || 'android' }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');

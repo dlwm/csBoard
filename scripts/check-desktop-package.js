@@ -26,7 +26,7 @@ if (target.startsWith('mac-')) {
 const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
 const packaged = JSON.parse(extractFile(archive, 'package.json').toString());
 if (packaged.version !== pkg.version || packaged.csboardLocalModels || packaged.csboardLocalParser) throw new Error('Wrong packaged version or local-model test build');
-for (const file of ['electron/main.js', 'electron/preload.cjs', 'shared/record-keys.js', 'shared/storage-codec.js', 'LICENSE', 'docs/THIRD_PARTY_NOTICES.md', 'build/renderer/index.html', 'build/renderer/go-parser/parser.wasm', 'build/renderer/go-parser/wasm_exec.js', 'build/tasks/demo.js', 'build/tasks/data.js']) {
+for (const file of ['electron/main.js', 'electron/preload.cjs', 'shared/record-keys.js', 'shared/storage-codec.js', 'shared/release-notes.js', 'LICENSE', 'docs/THIRD_PARTY_NOTICES.md', 'build/renderer/index.html', 'build/renderer/go-parser/parser.wasm', 'build/renderer/go-parser/wasm_exec.js', 'build/tasks/demo.js', 'build/tasks/data.js']) {
   extractFile(archive, path.join(...file.split('/')));
 }
 const features = JSON.parse(extractFile(archive, path.join('build', 'renderer', 'features.json')).toString());
