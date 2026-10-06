@@ -2,6 +2,28 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.7] - 2026-10-06
+
+### Added
+
+- Display desktop update notes as formatted Markdown in the selected language.
+- Save replay intervals as independent Custom DEMOs in the local replay library, with optional sharing.
+
+### Changed
+
+- Merge saved intervals into Match Replay alongside custom recordings, retaining playback tools without match-only analysis or combat HUDs.
+- Load saved replay data only when selected, and automatically reduce parsing concurrency under memory pressure.
+- Simplify imported model object trees by combining branches with only one child.
+- Use consistent workspace controls for map material selection.
+
+### Fixed
+
+- Import large maps with embedded textures without unnecessary full-file copies or rejecting valid resources because of texture size alone.
+- Restore exported overlay blending and texture atlas sampling so Nuke water effects no longer replace building surfaces.
+- Keep the voice volume popover above the parsing list.
+- Preserve utility trajectories when changing map floors, while retaining normal depth occlusion.
+- Avoid Demo parsing failures when a player entity temporarily lacks its health property.
+
 ## [1.20.6] - 2026-10-06
 
 ### Changed

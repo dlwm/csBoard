@@ -8,6 +8,10 @@
 
 CSBoard 将 CS2 地图与 Demo 文件转换成可交互的战术工作区，在同一个应用中提供战术编辑、回合回放、玩家与道具可视化、事件时间轴、空间分析、本地存档以及基于 Yjs 的多人协作。
 
+## 数据存储
+
+Demo、分析缓存、存档、道具速记和助手会话保存在本机；本地回放、分析与编辑无需上传到服务器。多人协作和共享回放需要连接服务器，并传输共享内容。可选 AI 请求会将所用会话上下文发送给配置的服务；远程资源和更新下载也会使用网络。
+
 ## 操作助手
 
 **实验性功能。**
@@ -45,17 +49,17 @@ AI 可以读取和编辑玩家、示意道具效果、绘制路线、战术帧�
 - 跟踪 C4 携带、掉落、安装、爆炸、拆除、近似掉落轨迹和炸弹倒计时。
 - 保存当前帧，将当前玩家和生效道具转换成可编辑的战术板对象。
 - 可切换同阵营监视器墙，选择主视角；阵亡队友的画面会变黑。
-- 可将命名时间段保存为视角演播片段。
+- 可将命名时间段保存为本地列表中的独立自制 DEMO。
 
 #### 自制 DEMO
 
 支持通过 `record <名称>` / `stop` 录制的跑图和练习片段，不要求完整回合或固定人数。统一从“对局回放”导入；解析列表提示非常规对局时，点击“继续解析”。标准对局与自制录像共用本地列表、镜头、时间轴、道具效果和保存能力。自制类别左下角显示“自制DEMO”，不生成对局分析，也不显示比分、队伍状态栏和击杀栏。
 
-### 视角演播
+#### 共享回放
 
-- 播放单个已存时间段，不展示比分、击杀栏与回合控制；保留监视器、模型选项和点击道具保存。
-- 选择片段即开放六位房间号；访客先查看全屏下载进度，存到本地后再播放。
-- 与对局回放分别保留播放进度、镜头和主视角，切换页面不混用状态。
+- 自制录像和保存时间段共用对局回放工具，显示「自制 DEMO」，不提供对局分析与战斗状态栏。
+- 点击已存片段的「分享」开放六位房间号；访客接收并保存后播放。
+- 保存的是 CSBoard 回放数据，不重新生成 Source 2 `.dem` 文件；列表仅在选中时加载完整片段。
 
 ### 战术编辑
 
@@ -199,27 +203,26 @@ make workers-build
 
 `make build` 使用本地 `/maps` 和同源 API；`make build-remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
 
-Electron 正式版使用 `make desktop-build-mac-arm64` / `make desktop-build-mac-x64` 或 `make desktop-build-win-x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。从游戏导入时会包含转换后的贴图，可在模型控件中切换「简洁模型 / 原始材质」；旧资源包需重新导入才能获得贴图。详见[资源包说明](ai/references/resource-packs.zh.md)。
+Electron 正式版使用 `make desktop-build-mac-arm64` 或 `make desktop-build-win-x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。从游戏导入时会包含转换后的贴图，可在模型控件中切换「简洁模型 / 原始材质」；旧资源包需重新导入才能获得贴图。详见[资源包说明](ai/references/resource-packs.zh.md)。
 
 未打包的开发启动可读取 `.local/official/maps`；`make desktop-prepare ARGS=--local-models` 专门构建带本地模型的测试包。正式构建不包含 `.local/official` 或 `.local/official/maps`；网页版保留现有本地/OSS 模型逻辑。
 
 桌面页面输出到 `build/renderer/`，后台任务输出到 `build/tasks/`，Web 保持 `dist/`，两者不会互相覆盖。首次或代码更新后运行 `make desktop-prepare` 构建原生组件、页面和应用包；日常使用 `make desktop-start` 直接启动，不重复构建。`make desktop-dev` 保留未打包调试入口。
 
-发布仅保留以下三个目标。Mac 命令在 macOS 上执行，Windows 命令在 Windows 上执行：
+自动发布的桌面包仅保留以下两个目标。Mac 命令在 macOS 上执行，Windows 命令在 Windows 上执行：
 
 | 目标 | 命令 | `build/desktop/` 中的产物 |
 | --- | --- | --- |
 | Apple Silicon | `make desktop-build-mac-arm64` | `CSBoard-<version>-mac-arm64.dmg` |
-| Intel Mac | `make desktop-build-mac-x64` | `CSBoard-<version>-mac-x64.dmg` |
 | Windows amd64 | `make desktop-build-win-x64` | `CSBoard-<version>-win-x64.exe` |
 
-源码构建使用 Git、Node.js 和 Go。两个原生组件都使用 Go 并关闭 CGO；同一台 Mac 可构建两种 macOS 架构，Windows 使用 x64 Node.js。命令自动匹配 Go、存储组件与 Electron 架构，不自动上传；签名凭据需另行配置。
+源码构建使用 Git、Node.js 和 Go。两个原生组件都使用 Go 并关闭 CGO；本地仍可使用 `make desktop-build-mac-x64` 构建 Intel Mac，Windows 使用 x64 Node.js。命令自动匹配 Go、存储组件与 Electron 架构，不自动上传；签名凭据需另行配置。
 
 #### GitHub Actions 自动化
 
 将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.18.0` tag，或在 **Actions → Release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
 
-统一 Release 工作流并行构建三个桌面目标及 Android／iOS，检查安装包内容和包内原生存储，全部通过后把五个包及 `SHA256SUMS.txt`、`SHA256SUMS-mobile.txt` 上传到 **草稿 Release**。移动端仍支持分支、PR 和手动开发构建；版本 tag 只触发统一 Release 工作流。不会自动公开发布，也不会覆盖已发布版本；重跑只更新同一提交的草稿。检查安装运行后，在 GitHub 点击 **Publish release**。
+Release 先校验 tag、版本、行为与网页构建，再并行构建 macOS Apple Silicon、Windows x64 和 Android。全部构建及安装包检查通过后，将三个包和 `SHA256SUMS.txt`、`SHA256SUMS-mobile.txt` 上传到同一个**草稿 Release**；不再构建 Intel Mac 和 iOS 发布包。**Mobile preview** 仅手动运行，默认 Android，也可选择 iOS 或两者，产物仅保存在 Actions，不创建 Release。版本 tag 只触发 Release。重跑只更新同一提交的草稿，不覆盖已发布版本；检查安装运行后，在 GitHub 点击 **Publish release**。
 
 通常无需新增 Secrets 或个人 token：使用 GitHub 自带的 `GITHUB_TOKEN`，只有草稿汇总任务申请写权限。仓库需启用 Actions，仓库／组织策略需允许相关 Actions 和 Release 写入。macOS 应用及内置原生程序使用免费 ad-hoc 签名，上传前检查签名完整性；未进行 Developer ID 签名或 Apple 公证。Windows 安装包仍未签名。
 
@@ -229,7 +232,7 @@ Electron 正式版使用 `make desktop-build-mac-arm64` / `make desktop-build-ma
 
 桌面原生组件的源码构建需要 Git、Node.js 和 Go（工具链按 `native/parser/go.mod` 与 `native/storage/go.mod` 选择）；SQLite 使用纯 Go 驱动，无需 Rust/Cargo 或 C 编译器。安装后的应用自带可执行文件，无需安装 Go 或 Python。原生数据位于 Electron 用户数据目录的 `native-data/`，旧 IndexedDB 数据按需复制，保留原数据库；浏览器偏好仍留在浏览器存储中。升级前建议备份重要存档。
 
-桌面端解析默认使用全部逻辑核心，多份 Demo 共享线程，不再因估算内存预算等待。实体、事件及烟火状态保持顺序处理。“桌面管理 → 存储与备份”保留即时分析开关，默认复用分析缓存。
+桌面端解析共享可用逻辑核心，最多同时解析两份 Demo；低内存设备或内存压力下自动串行，并设置解析器垃圾回收的软内存目标。其余导入项排队等待。实体、事件及烟火状态保持顺序处理。“桌面管理 → 存储与备份”保留即时分析开关，默认复用分析缓存。
 
 “桌面管理 → 显示”提供 80%–150% 界面字号调整，自动保存，可恢复默认。
 

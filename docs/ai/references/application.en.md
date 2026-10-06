@@ -1,5 +1,10 @@
 # CSBoard application guide
 
+## Data storage
+
+Demos, analysis caches, archives, utility notes and chat sessions are stored on your device; local replay, analysis and editing do not require uploading them to a server. Multiplayer collaboration and shared replays connect to a server and transmit the shared content. Optional AI requests send the supplied conversation context to the configured service; remote resources and update downloads also use the network.
+
+
 ## Operation assistant
 
 **Experimental feature.**
@@ -28,13 +33,13 @@ For image-capable models, enable **Model supports image input** in settings. The
 - Track C4 carriers, drops, plants, explosions, defuses, approximate drop trajectories, and the bomb timer.
 - Save the current frame and convert live players and active utility into editable tactical-board objects.
 - Switch to a same-team monitor wall with a selectable main POV; fallen teammates show a blacked-out view.
-- Save a named time interval as a View Broadcast clip.
+- Save a named time interval as an independent Custom DEMO in the local replay library.
 
-### View Broadcast
+#### Shared replay
 
-- Play one saved Demo interval without match-only score, kill-feed, or round controls; retain monitor mode, model settings, and clickable utility saving.
-- Selecting a clip opens a six-character room. Guests see full-screen transfer progress and receive a local archive before playback starts.
-- Keep Broadcast and Round Replay playback positions, cameras, and selected POVs separate when switching pages.
+- Custom recordings and saved intervals use the same Match Replay tools and Custom DEMO label, without match analysis or combat HUDs.
+- Select Share for a saved interval to open a six-character room. Guests receive and save the clip before playing it.
+- Saved intervals contain CSBoard playback data; they do not regenerate a Source 2 `.dem` file. The library loads their full data only when selected.
 
 ### Tactical Editing
 
@@ -59,7 +64,7 @@ For image-capable models, enable **Model supports image input** in settings. The
 - Export the utility library as JSON and append imported JSON records to the local library.
 - Deduplicate records by complete deep equality during import; identical records are retained only once.
 - Import a saved utility into a collaboration frame only after selecting it and confirming the action. Imported utility and custom `Q`-wheel utility remain separate data types.
-- Sort saved setups into draggable folders independently of Collaboration and View Broadcast archives.
+- Sort saved setups into draggable folders independently of Collaboration and replay archives.
 
 ### Demo Analysis
 
@@ -176,6 +181,6 @@ First-time visitors are asked whether to open the tutorial, which starts directl
 
 ## Desktop performance and storage
 
-Desktop parsing automatically uses the full logical-core budget, shared across concurrent Demos, without waiting for an estimated memory budget. Entity, event and smoke/fire processing remains sequential. Desktop → Storage & backups includes the realtime analysis toggle; cached analysis is used by default.
+Desktop parsing shares the available logical cores across at most two Demos. Low-memory machines or memory pressure reduce concurrency to one; the parser also uses a soft garbage-collection memory target. Remaining imports stay queued. Entity, event and smoke/fire processing remains sequential. Desktop → Storage & backups includes the realtime analysis toggle; cached analysis is used by default.
 
 Desktop → Storage & backups shows database, cache and resource usage, supports manual least-recently-used cache cleanup, and creates verified backup folders. Restore replaces native data and imported resources on restart while retaining the previous directories. Original Demo files, browser preferences and unsaved work are not included. Background tasks are bounded and cancellable; automatic sleep prevention is optional for the current session.

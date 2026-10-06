@@ -14,6 +14,7 @@ terms and is outside the GPL grant unless explicitly licensed otherwise.
 | Component | License |
 | --- | --- |
 | React / React DOM, Three.js / three-mesh-bvh | MIT |
+| react-markdown / remark-gfm | MIT |
 | Yjs / y-websocket / y-protocols / lib0, ws | MIT |
 | Electron | MIT and bundled component licenses |
 | [Source 2 Viewer / ValveResourceFormat](https://github.com/ValveResourceFormat/ValveResourceFormat) | MIT; desktop converter includes its license and attribution |
@@ -39,6 +40,12 @@ The following copyright notices share the MIT terms reproduced below.
 ```text
 opus-decoder / @wasm-audio-decoders/common / simple-yenc
 Copyright 2021-2026 Ethan Halsall
+
+react-markdown
+Copyright (c) Espen Hovlandsdal
+
+remark-gfm
+Copyright (c) Titus Wormer <tituswormer@gmail.com>
 
 react 19.2.8
 Copyright (c) Meta Platforms, Inc. and affiliates.

@@ -8,6 +8,10 @@
 
 CSBoard turns CS2 maps and Demo files into an interactive tactical workspace. It combines editing, round playback, player and utility visualization, event timelines, spatial analysis, local archives, and Yjs-powered collaboration in one application.
 
+## Data storage
+
+Demos, analysis caches, archives, utility notes and chat sessions are stored on your device; local replay, analysis and editing do not require uploading them to a server. Multiplayer collaboration and shared replays connect to a server and transmit the shared content. Optional AI requests send the supplied conversation context to the configured service; remote resources and update downloads also use the network.
+
 ## Operation assistant
 
 **Experimental feature.**
@@ -45,17 +49,17 @@ For image-capable models, enable **Model supports image input** in settings. The
 - Track C4 carriers, drops, plants, explosions, defuses, approximate drop trajectories, and the bomb timer.
 - Save the current frame and convert live players and active utility into editable tactical-board objects.
 - Switch to a same-team monitor wall with a selectable main POV; fallen teammates show a blacked-out view.
-- Save a named time interval as a View Broadcast clip.
+- Save a named time interval as an independent Custom DEMO in the local replay library.
 
 #### Custom DEMO
 
 Play CS2 clips recorded with `record <name>` and `stop`, including practice sessions with varying numbers of bots or incomplete rounds. Import them through **Match Replay**; for non-standard Demos, select **Continue parsing** in the parsing list. Standard matches and custom recordings share the local library and playback tools. Custom recordings show a **Custom DEMO** label at the lower left, without match analysis, scoreboards, team status bars or kill feeds.
 
-### View Broadcast
+#### Shared replay
 
-- Play one saved Demo interval without match-only score, kill-feed, or round controls; retain monitor mode, model settings, and clickable utility saving.
-- Selecting a clip opens a six-character room. Guests see full-screen transfer progress and receive a local archive before playback starts.
-- Keep Broadcast and Match Replay playback positions, cameras, and selected POVs separate when switching pages.
+- Custom recordings and saved intervals use the same Match Replay tools and Custom DEMO label, without match analysis or combat HUDs.
+- Select Share for a saved interval to open a six-character room. Guests receive and save the clip before playing it.
+- Saved intervals contain CSBoard playback data; they do not regenerate a Source 2 `.dem` file. The library loads their full data only when selected.
 
 ### Tactical Editing
 
@@ -80,7 +84,7 @@ Play CS2 clips recorded with `record <name>` and `stop`, including practice sess
 - Export the utility library as JSON and append imported JSON records to the local library.
 - Deduplicate records by complete deep equality during import; identical records are retained only once.
 - Import a saved utility into a collaboration frame only after selecting it and confirming the action. Imported utility and custom `Q`-wheel utility remain separate data types.
-- Sort saved setups into draggable folders independently of Collaboration and View Broadcast archives.
+- Sort saved setups into draggable folders independently of Collaboration and replay archives.
 
 ### Demo Analysis
 
@@ -134,7 +138,7 @@ Play CS2 clips recorded with `record <name>` and `stop`, including practice sess
 ![Mobile collaboration](docs/img/mobile.jpeg)
 
 - Native apps and mobile H5 use landscape layouts with collapsible sidebars and larger touch controls; mouse and keyboard remain supported.
-- Native apps retain the full workspace. Mobile H5 offers Utility Notes and Collaboration, with Demo import, Match Replay, Analysis and Broadcast disabled.
+- Native apps retain the full workspace. Mobile H5 offers Utility Notes and Collaboration, with Demo import, Match Replay, Analysis disabled.
 - Portrait mode prompts you to rotate the device and pauses map rendering.
 - Rotate with one finger; use two fingers to zoom and pan. Move, aim and pitch controls support touch editing.
 - Android/iOS development builds use native Go parsing and SQLite, with optional WASM parsing. See the [mobile development guide](docs/mobile.md) for build commands and current limitations.
@@ -199,27 +203,26 @@ make workers-build
 
 `make build` uses local `/maps` resources and same-origin APIs. `make build-remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
-Electron release builds (`make desktop-build-mac-arm64` / `make desktop-build-mac-x64` / `make desktop-build-win-x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. Game imports include converted textures; use **Simple model / Original materials** in the model controls. Reimport older game packs to obtain textures. See [resource-pack instructions](docs/ai/references/resource-packs.en.md).
+Electron release builds (`make desktop-build-mac-arm64` / `make desktop-build-win-x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. Game imports include converted textures; use **Simple model / Original materials** in the model controls. Reimport older game packs to obtain textures. See [resource-pack instructions](docs/ai/references/resource-packs.en.md).
 
 Unpackaged development runs may read `.local/official/maps`; `make desktop-prepare ARGS=--local-models` creates an explicit local-test package containing these models. Ordinary release packaging never includes `.local/official` or `.local/official/maps`. Web builds retain their existing local/OSS model behavior.
 
 Desktop builds write the renderer to `build/renderer/` and bundled background tasks to `build/tasks/`; Web builds keep `dist/`. `make desktop-prepare` builds native components, icons and desktop bundles, then creates a CSBoard application for the host platform. `make desktop-start` opens that existing application without rebuilding. Run prepare again after source changes. `make desktop-dev` launches the unpackaged Electron runtime with DevTools and optional local models; macOS can display this runtime as Electron.
 
-Release packages are limited to these three targets. Run macOS commands on macOS and Windows commands on Windows:
+Automated desktop releases include these two targets. Run macOS commands on macOS and Windows commands on Windows:
 
 | Target | Command | Output in `build/desktop/` |
 | --- | --- | --- |
 | Apple Silicon | `make desktop-build-mac-arm64` | `CSBoard-<version>-mac-arm64.dmg` |
-| Intel Mac | `make desktop-build-mac-x64` | `CSBoard-<version>-mac-x64.dmg` |
 | Windows amd64 | `make desktop-build-win-x64` | `CSBoard-<version>-win-x64.exe` |
 
-Use Git, Node.js and Go to build. Both native components use Go with CGO disabled; one Mac can build both macOS architectures. On Windows, use x64 Node.js. The commands select matching Go, storage and Electron targets and never publish automatically. Signing credentials must be configured separately.
+Use Git, Node.js and Go to build. Both native components use Go with CGO disabled. Local Intel Mac builds remain available via `make desktop-build-mac-x64`. On Windows, use x64 Node.js. The commands select matching Go, storage and Electron targets and never publish automatically. Signing credentials must be configured separately.
 
 #### GitHub Actions
 
 Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.18.0` tag pointing at the version commit, or run **Actions → Release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
 
-One Release workflow builds the three desktop targets and Android/iOS in parallel, checks packaged contents and native storage, then attaches all five packages plus `SHA256SUMS.txt` and `SHA256SUMS-mobile.txt` to a **draft Release** after every build succeeds. Mobile development builds remain available for branches, pull requests and manual runs; version tags trigger only the unified Release workflow. It never publishes the draft or overwrites a published release. Reruns update only a draft for the same commit. Check installation before selecting **Publish release** on GitHub.
+Release first validates the tag, versions, behavior and web build, then builds macOS Apple Silicon, Windows x64 and Android in parallel. After all builds and package inspections succeed, it uploads three packages plus `SHA256SUMS.txt` and `SHA256SUMS-mobile.txt` to one **draft Release**. Intel Mac and iOS are excluded from release builds. **Mobile preview** runs only manually (Android by default; iOS or both can be selected), uploads Actions artifacts and does not publish a Release. Version tags trigger only Release. Reruns update only a draft for the same commit; published releases are never overwritten. Check installation before selecting **Publish release** on GitHub.
 
 Normally no extra Secrets or personal token are needed: the workflow uses the built-in `GITHUB_TOKEN`, with write access only for the draft job. GitHub Actions must be enabled; repository/organization policies must permit these actions and Release writes. macOS apps and bundled native programs use free ad-hoc signing, and CI verifies their signatures before upload. They are not Developer ID signed or Apple notarized; Windows installers remain unsigned.
 
@@ -229,7 +232,7 @@ Version: `make version` offers major, minor, patch and custom input; it synchron
 
 Building the native desktop component requires Git, Node.js and Go (the toolchain follows `native/parser/go.mod` and `native/storage/go.mod`). SQLite uses a pure Go driver, with no Rust/Cargo or C compiler requirement. Installed applications include the executables and need no Go or Python setup. Native data lives under the Electron user-data directory in `native-data/`. Legacy IndexedDB data is copied when needed without deleting the original database; browser preferences remain in browser storage. Back up important archives before upgrading.
 
-Desktop parsing automatically uses the full logical-core budget, shared across concurrent Demos, without waiting for an estimated memory budget. Entity, event and smoke/fire processing remains sequential. Desktop → Storage & backups includes the realtime analysis toggle; cached analysis is used by default.
+Desktop parsing shares the available logical cores across at most two Demos. Low-memory machines or memory pressure reduce concurrency to one; the parser also uses a soft garbage-collection memory target. Remaining imports stay queued. Entity, event and smoke/fire processing remains sequential. Desktop → Storage & backups includes the realtime analysis toggle; cached analysis is used by default.
 
 Desktop → Appearance adjusts interface text size from 80% to 150%, saves it automatically and offers a default reset.
 
