@@ -28,8 +28,8 @@ contextBridge.exposeInMainWorld('csboardDesktop', {
     },
   } } : {}),
   maintenance: {
-    performance: () => ipcRenderer.invoke('native:performance'),
-    savePerformance: settings => ipcRenderer.invoke('native:performance-save', settings),
+    analysisSettings: () => ipcRenderer.invoke('native:analysis-settings'),
+    saveAnalysisSettings: settings => ipcRenderer.invoke('native:analysis-settings-save', settings),
     status: () => ipcRenderer.invoke('desktop:storage-status'),
     openFolder: () => ipcRenderer.invoke('desktop:storage-folder'),
     backup: () => ipcRenderer.invoke('desktop:backup'),

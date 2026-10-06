@@ -41,7 +41,6 @@ export default function DemoTaskDetails({ task, batch, language }) {
     [text('伤害事件', 'Damage events', 'События урона'), result.damageEvents],
     [text('已保存回合', 'Rounds saved', 'Сохранено раундов'), task.cachedRounds],
     [text('解析线程', 'Parser threads', 'Потоки разбора'), task.allocation?.threads],
-    [text('预留内存', 'Reserved memory', 'Зарезервированная память'), task.allocation?.memoryBytes == null ? null : formatBytes(task.allocation.memoryBytes)],
     [text('解析器内存峰值', 'Parser peak memory', 'Пиковая память парсера'), result.performance?.nativePeakBytes == null ? null : formatBytes(result.performance.nativePeakBytes)],
     [text('缓存进程内存峰值', 'Cache process peak memory', 'Пиковая память процесса кэша'), result.performance?.workerPeakBytes == null ? null : formatBytes(result.performance.workerPeakBytes)],
   ].filter(([, value]) => value != null && value !== '');

@@ -8,7 +8,8 @@ import { createNativeClient } from './native-client.js';
 import { createTaskScheduler } from './task-scheduler.js';
 import { createCacheTransfers } from './cache-files.js';
 import { registerStorageManagement } from './storage-management.js';
-import { createParsePerformance } from './parse-performance.js';
+import { createParserAllocation } from './parser-allocation.js';
+import { createAnalysisSettings } from './analysis-settings.js';
 import { isAllowedRecordKey } from '../shared/record-keys.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -20,11 +21,12 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
   const root = path.join(app.getPath('userData'), 'native-data');
   const transfers = createCacheTransfers(root);
   const sources = new Map(), jobs = new Map(), owners = new Map();
-  const performance = createParsePerformance(app.getPath('userData'));
+  const allocationPolicy = createParserAllocation();
+  const analysisSettings = createAnalysisSettings(app.getPath('userData'));
   let storage, storageReady, powerBlocker;
   let choosing = false, closing = false, maintenance = false, inFlight = 0, keepAwake = false;
   const assertAvailable = () => { if (closing || maintenance) throw new Error('Storage maintenance in progress; try again when it finishes'); };
-  const scheduler = createTaskScheduler({ limits: { parse: 16, compute: 1 }, admit: performance.admit, onChange: tasks => {
+  const scheduler = createTaskScheduler({ limits: { parse: 16, compute: 1 }, admit: allocationPolicy.admit, onChange: tasks => {
     const running = tasks.some(task => task.state === 'running');
     if (running && keepAwake && powerBlocker == null) powerBlocker = powerSaveBlocker.start('prevent-app-suspension');
     if ((!running || !keepAwake) && powerBlocker != null) { powerSaveBlocker.stop(powerBlocker); powerBlocker = null; }
@@ -57,19 +59,7 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
       return await current.request(method, args, options);
     } finally { inFlight--; }
   }
-  let memoryRefreshing = false;
-  async function refreshMemory() {
-    if (closing || maintenance || memoryRefreshing) return;
-    memoryRefreshing = true;
-    // Sample between writes even during sustained imports; otherwise a busy
-    // storage queue prevents all updates and admission uses stale free memory.
-    try { performance.sampleMemory(await request('system.memory', {}, { priority: 10 })); scheduler.wake(); }
-    catch (error) { scheduler.rejectQueued('parse', error); }
-    finally { memoryRefreshing = false; }
-  }
-  const memoryTimer = setInterval(() => { if (scheduler.busy) refreshMemory(); }, 2000);
-  memoryTimer.unref();
-  registerDataService({ app, authorize, storage: request, scheduler, root, assertAvailable, analysisRealtime: () => performance.snapshot().settings.analysisRealtime });
+  registerDataService({ app, authorize, storage: request, scheduler, root, assertAvailable, analysisRealtime: () => analysisSettings.snapshot().realtime });
   const emit = (owner, id, message) => { if (!owner.isDestroyed()) owner.send('native:demo-event', { id, ...message }); };
   const cancelOwner = owner => {
     scheduler.cancelOwner(owner.id);
@@ -80,11 +70,11 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
     contents.once('destroyed', () => { cancelOwner(contents); owners.delete(contents.id); });
   });
   ipcMain.handle('native:tasks', event => { authorize(event); owners.set(event.sender.id, event.sender); return scheduler.snapshot().filter(task => task.owner === event.sender.id); });
-  ipcMain.handle('native:performance', event => { authorize(event); return performance.snapshot(); });
-  ipcMain.handle('native:performance-save', (event, settings) => {
+  ipcMain.handle('native:analysis-settings', event => { authorize(event); return analysisSettings.snapshot(); });
+  ipcMain.handle('native:analysis-settings-save', (event, settings) => {
     authorize(event); assertAvailable();
-    if (scheduler.busy) throw new Error('Finish or cancel background tasks before changing performance settings');
-    const result = performance.save(settings); scheduler.wake(); return result;
+    if (scheduler.busy) throw new Error('Finish or cancel background tasks before changing analysis settings');
+    return analysisSettings.save(settings);
   });
   ipcMain.handle('native:cancel-task', (event, id) => { authorize(event); scheduler.cancel(id, event.sender.id); });
   ipcMain.handle('native:keep-awake', (event, value) => {
@@ -176,7 +166,6 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
           if (stopped) return;
           if (message.type === 'telemetry') {
             scheduler.metrics(key, message.metrics);
-            if (message.metrics?.parserReleased) refreshMemory();
             return;
           }
           if (message.type === 'storage') {
@@ -201,8 +190,7 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
       }); } finally { await fs.rm(staging, { recursive: true, force: true }); }
     } });
     jobs.set(key, job);
-    refreshMemory();
-    promise.then(message => emit(event.sender, input.id, message), error => emit(event.sender, input.id, { type: 'error', message: error.message, code: error.code, reason: error.reason })).finally(() => { jobs.delete(key); refreshMemory(); });
+    promise.then(message => emit(event.sender, input.id, message), error => emit(event.sender, input.id, { type: 'error', message: error.message, code: error.code, reason: error.reason })).finally(() => jobs.delete(key));
     return { id: input.id };
   });
   ipcMain.handle('native:cancel-demo', (event, id) => { authorize(event); scheduler.cancel(`${event.sender.id}:demo:${id}`, event.sender.id); });
@@ -216,7 +204,6 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
     keepAwake: () => keepAwake,
   });
   const close = () => {
-    clearInterval(memoryTimer);
     closing = true; scheduler.close(); storage?.close(); sources.clear(); transfers.clear();
     if (powerBlocker != null) { powerSaveBlocker.stop(powerBlocker); powerBlocker = null; }
   };
