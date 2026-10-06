@@ -229,7 +229,7 @@ Electron 正式版使用 `make desktop-build-mac-arm64` / `make desktop-build-ma
 
 桌面原生组件的源码构建需要 Git、Node.js 和 Go（工具链按 `native/parser/go.mod` 与 `native/storage/go.mod` 选择）；SQLite 使用纯 Go 驱动，无需 Rust/Cargo 或 C 编译器。安装后的应用自带可执行文件，无需安装 Go 或 Python。原生数据位于 Electron 用户数据目录的 `native-data/`，旧 IndexedDB 数据按需复制，保留原数据库；浏览器偏好仍留在浏览器存储中。升级前建议备份重要存档。
 
-“桌面管理 → 解析性能”提供均衡（默认）、极速和自定义模式。极速允许使用全部逻辑核心预算，多份 Demo 共享该预算；自定义可设置同时解析数量、单任务线程上限及内存预算。每段 Demo 的回放、分析与动作采样共用一次扫描；Go 运行线程受预算限制，实体、事件及烟火状态保持顺序处理。内存预算用于决定是否启动任务，内存不足时等待，并非进程硬性上限。
+桌面端解析默认使用全部逻辑核心，多份 Demo 共享线程，不再因估算内存预算等待。实体、事件及烟火状态保持顺序处理。“桌面管理 → 存储与备份”保留即时分析开关，默认复用分析缓存。
 
 “桌面管理 → 显示”提供 80%–150% 界面字号调整，自动保存，可恢复默认。
 
@@ -301,7 +301,6 @@ GLB 存储桶需返回 `Access-Control-Allow-Origin` 头。`src/navParser.js` �
 
 ## 技术架构
 
-代码位置、数据流与验证方式见[开发导览](development.md)。
 
 - React 与 Vite：应用外壳和界面。
 - `src/analysis/` 收纳分析组件与计算逻辑，`src/demo/` 放置 Demo 领域逻辑和 HUD，`src/components/` 放置共享 UI，`src/three/` 放置 Three.js 辅助模块，`src/utility/` 放置道具速记逻辑，`src/hooks/` 放置跨面板 DOM 行为。

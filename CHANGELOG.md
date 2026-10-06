@@ -2,6 +2,20 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.6] - 2026-10-06
+
+### Changed
+
+- Reduce imported map rendering overhead and memory use; improve multi-view monitor playback and avoid redrawing unchanged paused views.
+- Automatically use the full logical-core budget for desktop parsing, shared across Demos; remove adjustable performance modes and memory-budget waiting.
+- Move the realtime analysis toggle to Storage & backups while preserving existing settings.
+
+### Fixed
+
+- Clear outdated monitor images after seeking or changing rounds, and refresh views when visibility, animated effects or weapon models change.
+- Keep player aim lines and collision results consistent when the map model moves.
+- Show the foreground parsing reminder only in the browser.
+
 ## [1.20.5] - 2026-10-06
 
 ### Added

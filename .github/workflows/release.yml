@@ -20,7 +20,7 @@ concurrency:
 jobs:
   prepare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
@@ -34,6 +34,16 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: native/parser/go.mod
+          cache-dependency-path: |
+            native/parser/go.sum
+            native/storage/go.sum
+      - name: Check release behavior before packaging
+        run: |
+          make install
+          make release-check
       - id: release
         name: Validate tag, versions and release notes
         env:
@@ -97,9 +107,7 @@ jobs:
           make install
       - name: Build native component and run behavioral tests
         run: |
-          make native-build
-          node --test tests/*.test.js
-          go -C native/storage test ./...
+          make test
       - name: Build installer
         run: make ${{ matrix.command }}
       - name: Inspect package signatures, files and packaged storage

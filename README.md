@@ -229,7 +229,7 @@ Version: `make version` offers major, minor, patch and custom input; it synchron
 
 Building the native desktop component requires Git, Node.js and Go (the toolchain follows `native/parser/go.mod` and `native/storage/go.mod`). SQLite uses a pure Go driver, with no Rust/Cargo or C compiler requirement. Installed applications include the executables and need no Go or Python setup. Native data lives under the Electron user-data directory in `native-data/`. Legacy IndexedDB data is copied when needed without deleting the original database; browser preferences remain in browser storage. Back up important archives before upgrading.
 
-Desktop → Parser performance offers Balanced (default), Fast and Custom modes. Fast allows the full logical-core budget; concurrent Demos share it and wait when memory is insufficient. Custom controls concurrent Demos, threads per Demo and the memory admission budget. Safe tick sampling uses native threads; events, button state and smoke/fire journals remain sequential. The budget does not impose a hard process memory limit.
+Desktop parsing automatically uses the full logical-core budget, shared across concurrent Demos, without waiting for an estimated memory budget. Entity, event and smoke/fire processing remains sequential. Desktop → Storage & backups includes the realtime analysis toggle; cached analysis is used by default.
 
 Desktop → Appearance adjusts interface text size from 80% to 150%, saves it automatically and offers a default reset.
 
@@ -301,7 +301,6 @@ Map extraction tools and raw game resources remain local-only. Do not commit VPK
 
 ## Architecture
 
-For code navigation and validation workflows, see the [development guide (Chinese)](docs/development.md).
 
 - React and Vite for the application shell and UI.
 - Feature-scoped Analysis components and calculations under `src/analysis/`; Demo domain logic and HUD under `src/demo/`; shared UI under `src/components/`; Three.js helpers under `src/three/`; utility-note logic under `src/utility/`; and reusable cross-panel DOM behavior under `src/hooks/`.

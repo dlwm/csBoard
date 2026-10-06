@@ -38,13 +38,8 @@ jobs:
           make install
       - name: Check architecture boundaries
         run: make lint
-      - name: Build native prerequisites
-        run: make native-build
       - name: Run behavioral and native storage tests
-        run: node --test tests/*.test.js
-      - name: Run Go storage tests
-        working-directory: native/storage
-        run: go test ./...
+        run: make test
       - name: Build web frontend
         run: make build
       - name: Run Go parser adapter tests

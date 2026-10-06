@@ -176,6 +176,6 @@ First-time visitors are asked whether to open the tutorial, which starts directl
 
 ## Desktop performance and storage
 
-Desktop → Parser performance offers Balanced (default), Fast and Custom modes. Fast allows the full logical-core budget; concurrent Demos share it and wait when memory is insufficient. Custom controls concurrent Demos, threads per Demo and the memory admission budget. Safe tick sampling uses native threads; events, button state and smoke/fire journals remain sequential. The budget does not impose a hard process memory limit.
+Desktop parsing automatically uses the full logical-core budget, shared across concurrent Demos, without waiting for an estimated memory budget. Entity, event and smoke/fire processing remains sequential. Desktop → Storage & backups includes the realtime analysis toggle; cached analysis is used by default.
 
 Desktop → Storage & backups shows database, cache and resource usage, supports manual least-recently-used cache cleanup, and creates verified backup folders. Restore replaces native data and imported resources on restart while retaining the previous directories. Original Demo files, browser preferences and unsaved work are not included. Background tasks are bounded and cancellable; automatic sleep prevention is optional for the current session.

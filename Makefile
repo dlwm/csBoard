@@ -10,7 +10,7 @@ BUMP ?=
 VERSION ?=
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint dev dev-workers server deploy build build-remote \
+.PHONY: help install lint test release-check dev dev-workers server deploy build build-remote \
 	desktop-start desktop-dev desktop-prepare desktop-build-mac-arm64 \
 	desktop-build-mac-x64 desktop-build-win-x64 native-build \
 	mobile-prepare mobile-open mobile-build version version-sync version-check \
@@ -21,6 +21,8 @@ help:
 		'CSBoard — make <command> [ARGS="extra flags"]' \
 		'  install                      Install locked dependencies' \
 		'  lint                         Check architecture boundaries' \
+		'  test                         Build storage and run behavioral tests' \
+		'  release-check                Check versions, notes, tests and web build' \
 		'  dev / server                 Build and serve / serve existing frontend' \
 		'  build / build-remote         Build local / remote frontend' \
 		'  desktop-prepare              Build the local desktop application' \
@@ -46,6 +48,19 @@ install:
 
 lint:
 	$(NODE) scripts/check-architecture.js
+
+# Sequential recipes keep failures from starting later release checks.
+test: native-build
+	$(NODE) --test tests/*.test.js
+	go -C native/storage test ./...
+
+release-check:
+	$(MAKE) version-check
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) build
+	go -C native/parser test ./...
+	$(NODE) scripts/check-release-notes.js
 
 dev: build
 	$(NODE) server/node.js $(ARGS)
