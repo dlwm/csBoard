@@ -4,7 +4,6 @@ import { createReadStream, createWriteStream } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { parseReleaseNotes } from '../shared/release-notes.js';
 
@@ -143,18 +142,18 @@ export function registerUpdateService({ app, authorize, getWindow, isBusy }) {
       for await (const chunk of createReadStream(downloaded.path)) hash.update(chunk);
       if (hash.digest('hex') !== downloaded.checksum) { downloaded = null; throw coded('checksum', 'Update file changed after verification; download it again'); }
       if (isBusy()) throw coded('tasks', 'Wait for background tasks and storage operations to finish');
-      if (process.platform === 'darwin') {
-        const error = await shell.openPath(downloaded.path);
-        if (error) throw new Error(error);
-        emit({ phase: 'ready' });
-      } else {
-        // Explicit install hand-off uses the existing assisted NSIS installer.
-        // 用户确认后启动现有安装向导；成功启动才退出，避免中断工作。
-        const child = spawn(downloaded.path, [], { detached: true, stdio: 'ignore', windowsHide: false });
-        await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
-        child.unref(); app.quit();
-      }
-    } catch (error) { emit({ phase: downloaded ? 'ready' : 'error', error: { code: error.code || 'install', message: error.message } }); }
+      // Let the OS open the verified package. On Windows this uses the shell
+      // launch path, which can handle installer elevation; direct spawn uses
+      // CreateProcess and may fail with UNKNOWN instead of showing UAC.
+      // 系统负责打开已校验安装包并处理提权；成功交接才退出，失败保留文件供重试。
+      const launchError = await shell.openPath(downloaded.path);
+      if (launchError) throw coded('install', launchError);
+      if (process.platform === 'darwin') emit({ phase: 'ready' });
+      else app.quit();
+    } catch (error) {
+      const code = ['checksum', 'tasks'].includes(error.code) ? error.code : 'install';
+      emit({ phase: downloaded ? 'ready' : 'error', error: { code, message: error.message } });
+    }
     return snapshot();
   }
   for (const [action, handler] of Object.entries({ status: async () => { await ready; return snapshot(); }, check, download, install, cancel: () => { controller?.abort('cancelled'); return snapshot(); }, preferences: input => {
