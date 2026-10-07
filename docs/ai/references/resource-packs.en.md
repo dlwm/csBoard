@@ -11,7 +11,9 @@ built in. Web behavior is unchanged.
 Imported files live under Electron's `userData/resource-packs`, outside browser
 storage. Valid matching files replace previous imports; invalid files do not.
 SVGs must be self-contained, image-only and at most 2 MB. GLB 2.0 models must
-embed required data, retain original map coordinates and be at most 1 GB.
+embed required data, retain original map coordinates and fit the GLB format limit (about 4 GiB).
 Structural validation does not guarantee correct rendering or NAV alignment.
 Zone models, map logos, scripts and custom maps are not supported. Save work
 before **Reload and apply**, or restart the app later.
+
+Map imports remove textures and pack the retained geometry using native chunked IO. Coordinates, object names and hierarchy stay unchanged; the selected source is not modified. Previously imported textured models are converted on first use. Maps use one simplified display with no material selector. The final geometry-only file must fit the renderer’s single-buffer limit (below 2 GiB).

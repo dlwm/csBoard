@@ -2,6 +2,19 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.8] - 2026-10-07
+
+### Changed
+
+- Remove textures during map import and use a single simplified display without material selection.
+- Automatically prepare previously imported textured maps on first use, preserving geometry, coordinates and object hierarchy.
+
+### Fixed
+
+- Prevent large texture-heavy maps from failing to load by removing embedded image data before rendering.
+- Avoid Demo parsing failures when current weapon, armor, equipment or other optional player properties are missing.
+- Open Windows update installers through the system shell to support installation prompts; keep the app open and retain the download if launch fails.
+
 ## [1.20.7] - 2026-10-06
 
 ### Added

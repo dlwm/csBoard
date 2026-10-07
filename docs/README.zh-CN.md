@@ -203,7 +203,7 @@ make workers-build
 
 `make build` 使用本地 `/maps` 和同源 API；`make build-remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
 
-Electron 正式版使用 `make desktop-build-mac-arm64` 或 `make desktop-build-win-x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。从游戏导入时会包含转换后的贴图，可在模型控件中切换「简洁模型 / 原始材质」；旧资源包需重新导入才能获得贴图。详见[资源包说明](ai/references/resource-packs.zh.md)。
+Electron 正式版使用 `make desktop-build-mac-arm64` 或 `make desktop-build-win-x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。地图导入时移除贴图，统一简洁显示，保留几何、坐标与对象层级，不修改选中的原文件。旧的带贴图导入模型会在首次使用时自动转换。详见[资源包说明](ai/references/resource-packs.zh.md)。
 
 未打包的开发启动可读取 `.local/official/maps`；`make desktop-prepare ARGS=--local-models` 专门构建带本地模型的测试包。正式构建不包含 `.local/official` 或 `.local/official/maps`；网页版保留现有本地/OSS 模型逻辑。
 
