@@ -8,6 +8,7 @@ import (
 
 	dem "github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/common"
+	"github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/constants"
 	"github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/events"
 	st "github.com/markus-wa/demoinfocs-golang/v6/pkg/demoinfocs/sendtables"
 )
@@ -96,7 +97,22 @@ func equipmentName(item *common.Equipment) string {
 	return item.String()
 }
 
-func playerValue(player *common.Player, name string, commandButtons map[int]uint64) any {
+// Resolve the optional active-weapon handle from the same authoritative map
+// used by the library, without ActiveWeaponID's PropertyValueMust. Missing or
+// invalid handles stay unknown; never substitute an inventory weapon.
+// 用库的武器实体表解析句柄，缺失不猜背包中的武器，不因实体过渡使整份录像失败。
+func playerActiveWeapon(pawn st.Entity, weapons map[int]*common.Equipment) *common.Equipment {
+	handle, ok := entityValue(pawn, "m_pWeaponServices.m_hActiveWeapon").(uint64)
+	if !ok || handle == constants.InvalidEntityHandleSource2 {
+		return nil
+	}
+	return weapons[int(handle&constants.EntityHandleIndexMaskSource2)]
+}
+
+// Tick properties are optional during entity transitions. Read scalar fields
+// with PropertyValue, not convenience getters that call PropertyValueMust.
+// 缺字段统一保留 null，不伪造默认状态，也不通过 recover 吞掉其他解析错误。
+func playerValue(player *common.Player, name string, commandButtons map[int]uint64, weapons map[int]*common.Equipment) any {
 	pawn := player.PlayerPawnEntity()
 	switch name {
 	case "X", "Y", "Z":
@@ -134,14 +150,14 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 		return player.UserID
 	case "team_rounds_total":
 		if player.TeamState != nil {
-			return player.TeamState.Score()
+			return entityValue(player.TeamState.Entity, "m_iScore")
 		}
 		return nil
 	case "grenade_pin_pulled", "grenade_throw_strength":
 		if pawn == nil {
 			return nil
 		}
-		if weapon := player.ActiveWeapon(); weapon != nil {
+		if weapon := playerActiveWeapon(pawn, weapons); weapon != nil {
 			if name == "grenade_pin_pulled" {
 				return entityValue(weapon.Entity, "m_bPinPulled")
 			}
@@ -152,7 +168,7 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 		if pawn == nil {
 			return nil
 		}
-		if weapon := player.ActiveWeapon(); weapon != nil {
+		if weapon := playerActiveWeapon(pawn, weapons); weapon != nil {
 			return equipmentName(weapon)
 		}
 		return nil
@@ -160,7 +176,11 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 		return entityValue(pawn, "m_pWeaponServices.m_hActiveWeapon")
 	case "inventory":
 		items := []string{}
-		if entityValue(pawn, "m_lifeState") != uint64(0) {
+		lifeState := entityValue(pawn, "m_lifeState")
+		if lifeState == nil {
+			return nil
+		}
+		if lifeState != uint64(0) {
 			return items
 		}
 		handles, ok := entityValue(pawn, "m_pWeaponServices.m_hMyWeapons").([]any)
@@ -184,24 +204,24 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 		}
 		return items
 	case "armor_value":
-		return player.Armor()
+		return entityValue(pawn, "m_ArmorValue")
 	case "has_helmet":
-		return player.HasHelmet()
+		return entityValue(pawn, "m_pItemServices.m_bHasHelmet")
 	case "has_defuser":
-		return player.HasDefuseKit()
+		return entityValue(pawn, "m_pItemServices.m_bHasDefuser")
 	case "flash_duration":
 		return float64(player.FlashDuration)
 	case "flash_max_alpha":
 		return entityValue(pawn, "m_flFlashMaxAlpha")
 	case "is_scoped":
-		return player.IsScoped()
+		return entityValue(pawn, "m_bIsScoped")
 	case "is_walking":
-		return player.IsWalking()
+		return entityValue(pawn, "m_bIsWalking")
 	case "active_weapon_ammo":
 		if pawn == nil {
 			return nil
 		}
-		if weapon := player.ActiveWeapon(); weapon != nil {
+		if weapon := playerActiveWeapon(pawn, weapons); weapon != nil {
 			if weapon.Type == common.EqKnife {
 				return 0
 			}
@@ -211,7 +231,11 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 				}
 				return ammo
 			}
-			return weapon.AmmoInMagazine()
+			// Grenades/equipment have one item, not a magazine property.
+			if weapon.Class() == common.EqClassGrenade || weapon.Class() == common.EqClassEquipment {
+				return 1
+			}
+			return nil
 		}
 		return nil
 	case "is_alive":
@@ -222,17 +246,21 @@ func playerValue(player *common.Player, name string, commandButtons map[int]uint
 	case "is_defusing":
 		return player.IsDefusing
 	case "balance":
-		return player.Money()
+		return entityValue(player.Entity, "m_pInGameMoneyServices.m_iAccount")
 	case "cash_spent_this_round":
-		return player.MoneySpentThisRound()
+		return entityValue(player.Entity, "m_pInGameMoneyServices.m_iCashSpentThisRound")
 	case "round_start_equip_value":
-		return player.EquipmentValueRoundStart()
+		return entityValue(pawn, "m_unRoundStartEquipmentValue")
 	case "current_equip_value":
-		return player.EquipmentValueCurrent()
+		return entityValue(pawn, "m_unCurrentEquipmentValue")
 	case "is_airborne":
-		return player.IsAirborne()
+		handle, available := entityValue(pawn, "m_hGroundEntity").(uint64)
+		if !available {
+			return nil
+		}
+		return handle == constants.InvalidEntityHandleSource2
 	case "last_place_name":
-		return player.LastPlaceName()
+		return entityValue(pawn, "m_szLastPlaceName")
 	case "FIRE", "RIGHTCLICK", "FORWARD", "BACK", "LEFT", "RIGHT", "JUMP", "WALK":
 		// The fork restores checkpoint commands directly onto the Player, without
 		// dispatching UserCmd events. Read that authoritative state first.
@@ -309,6 +337,7 @@ func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, pr
 		if !requested && len(throws) == 0 {
 			return
 		}
+		weapons := parser.GameState().Weapons()
 		for _, player := range parser.GameState().Participants().All() {
 			if player == nil || player.Name == "" {
 				continue
@@ -349,7 +378,7 @@ func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, pr
 				rowProps = preparationProps
 			}
 			for _, prop := range rowProps {
-				row[prop] = playerValue(player, prop, commandButtons)
+				row[prop] = playerValue(player, prop, commandButtons, weapons)
 			}
 			if requested {
 				rows = append(rows, row)

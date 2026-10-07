@@ -237,7 +237,7 @@ func parseWithContext(ctx context.Context, data []byte) (Report, error) {
 					row["user_velocity"] = math.Hypot(velocity.X, velocity.Y)
 					row["user_velocity_X"], row["user_velocity_Y"], row["user_velocity_Z"] = velocity.X, velocity.Y, velocity.Z
 				}
-				row["user_active_weapon_name"] = playerValue(player, "active_weapon_name", nil)
+				row["user_active_weapon_name"] = playerValue(player, "active_weapon_name", nil, parser.GameState().Weapons())
 			}
 		}
 		result.ProductEvents = append(result.ProductEvents, row)
