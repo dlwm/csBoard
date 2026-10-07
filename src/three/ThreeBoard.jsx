@@ -1,4 +1,4 @@
-import { isSource2Overlay } from './source2Overlays.js';
+import { isMapModelOverlay } from '../../shared/map-model-materials.js';
 import { AI_ENABLED } from '../app/config.js';
 import { startRenderLoop } from './renderLoop.js';
 import { getHost, getPlatform } from '../platform/index.js';
@@ -91,9 +91,6 @@ export default function ThreeBoard(inputProps) {
   const [error, setError] = useState('');
   const modelOpacityRef = useRef(modelOpacity);
   modelOpacityRef.current = modelOpacity;
-  const materialStyleRef = useRef(props.modelMaterialStyle || 'simple');
-  materialStyleRef.current = props.modelMaterialStyle || 'simple';
-  useEffect(() => { modelRef.current?.userData.applyMaterialStyle?.(materialStyleRef.current); }, [props.modelMaterialStyle]);
   updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current, navData);
   useEffect(() => {
     demoProjectileGroupsRef.current = groupDemoProjectiles(demoProjectiles);
@@ -1408,15 +1405,15 @@ export default function ThreeBoard(inputProps) {
         if (!object.geometry.boundsTree) object.geometry.computeBoundsTree();
         collisionMeshes.push(object);
         object.frustumCulled = true;
-        object.renderOrder = (Array.isArray(object.material) ? object.material : [object.material]).some(isSource2Overlay) ? 4 : 3;
-         if (object.material && mapName !== TUTORIAL_MAP_ID) object.userData.originalMapMaterial = object.material;
+        object.renderOrder = (Array.isArray(object.material) ? object.material : [object.material]).some(isMapModelOverlay) ? 4 : 3;
+         if (object.material && mapName !== TUTORIAL_MAP_ID) object.userData.sourceMapMaterial = object.material;
          if (mapName === TUTORIAL_MAP_ID) {
            const materials = Array.isArray(object.material) ? object.material : [object.material];
-           materials.forEach(material => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); material.transparent = true; material.opacity = modelOpacity; material.depthWrite = !material.userData?.csboardSourceOverlay; });
+           materials.forEach(material => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); material.transparent = true; material.opacity = modelOpacity; material.depthWrite = true; });
          }
       });
-      const materialRuntime = createMapMaterialRuntime(worldModel, source => {
-        const material = createGhostMaterial(focusScreen, viewportSize, modelMode, modelRange, source);
+      const materialRuntime = createMapMaterialRuntime(worldModel, () => {
+        const material = createGhostMaterial(focusScreen, viewportSize, modelMode, modelRange);
         material.opacity = modelOpacityRef.current;
         enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current);
         enableMaterialFloorFade(material, floorFadeRef.current);
@@ -1425,16 +1422,9 @@ export default function ThreeBoard(inputProps) {
       const batches = createStaticMapBatches(worldModel, renderer, (getHost().mobile ? 16 : 64) * 1024 ** 2);
       const applyVisibility = worldModel.userData.applyObjectVisibility;
       if (applyVisibility) worldModel.userData.applyObjectVisibility = record => { applyVisibility(record); batches.syncVisibility(); };
-      let appliedStyle = null;
-      worldModel.userData.applyMaterialStyle = style => {
-        if (style === appliedStyle) return;
-        batches.clear();
-        materialRuntime.applyStyle(style);
-        if (mapName !== TUTORIAL_MAP_ID) batches.rebuild();
-        appliedStyle = style;
-      };
       worldModel.userData.disposeRenderBatches = batches.clear;
-      worldModel.userData.applyMaterialStyle(materialStyleRef.current);
+      materialRuntime.apply();
+      if (mapName !== TUTORIAL_MAP_ID) batches.rebuild();
       scene.add(worldModel);
       // Static map materials share the live floor uniform; initialize once, not every scan.
       worldModel.traverse((object) => {
@@ -1511,7 +1501,7 @@ export default function ThreeBoard(inputProps) {
       viewportSize,
       getContentState: now => [
         monitorPropsRef.current, demoTickRef.current, worldModel, modelVisibility(mapName),
-        worldModel?.userData.renderStats, modelVisibilityRef.current, materialStyleRef.current,
+        worldModel?.userData.renderStats, modelVisibilityRef.current,
         modelOpacityRef.current, modelMode.value, modelRange.value,
         floorFadeRef.current.x, floorFadeRef.current.y, floorFadeRef.current.w,
         modelMode.value === 1 ? focusScreen.x : null, modelMode.value === 1 ? focusScreen.y : null,
@@ -1885,7 +1875,7 @@ export default function ThreeBoard(inputProps) {
        navMesh.material.depthTest = true;
        navMesh.renderOrder = 1;
      }
-        if (modelRef.current) modelRef.current.traverse((object) => { if (!object.material) return; const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = !material.userData?.csboardSourceOverlay; }); });
+        if (modelRef.current) modelRef.current.traverse((object) => { if (!object.material) return; const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = true; }); });
     }, [showModel, modelOpacity, modelViewMode]);
 
   // Demo POV owns its animated HUD crosshair; this simpler one is only for utility replay.

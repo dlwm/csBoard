@@ -5,6 +5,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { MAX_GLB_BYTES, MAX_GLB_JSON_BYTES, MAX_SVG_BYTES } from './resource-limits.js';
 import { inspectModelObjects } from './model-objects.js';
+import { mapHasTextures, writeTexturelessMap } from './textureless-map.js';
 import catalog from '../src/resources/catalog.json' with { type: 'json' };
 
 // Game filenames use internal weapon IDs; keep aliases shared by manual and
@@ -76,6 +77,31 @@ export async function validateResource(file, resource) {
 export function createResourceStore(root, localModelsRoot = null) {
   const location = resource => path.join(root, resource.kind, resource.name);
   const exists = async file => { try { return (await fs.stat(file)).isFile(); } catch { return false; } };
+  const preparedModels = new Map(), preparingModels = new Map(), removingModels = new Set();
+  const fingerprint = stat => `${stat.ino}:${stat.size}:${stat.mtimeMs}`;
+  async function prepareImportedModel(file) {
+    const initial = await fs.stat(file), signature = fingerprint(initial);
+    if (preparedModels.get(file) === signature) return file;
+    if (preparingModels.has(file)) return preparingModels.get(file);
+    const operation = (async () => {
+      if (await mapHasTextures(file)) {
+        const temporary = `${file}.${randomUUID()}.tmp`;
+        try {
+          await writeTexturelessMap(file, temporary);
+          await validateResource(temporary, { kind: 'models' });
+          // Never overwrite a newer import or resurrect a removed resource.
+          // 旧资源首次使用时转换；并发导入/移除后不回写旧结果。
+          if (fingerprint(await fs.stat(file)) !== signature) throw new Error('Map changed during preparation; reload to retry');
+          await fs.rename(temporary, file);
+        } finally { await fs.rm(temporary, { force: true }).catch(() => {}); }
+      }
+      preparedModels.set(file, fingerprint(await fs.stat(file)));
+      return file;
+    })();
+    preparingModels.set(file, operation);
+    try { return await operation; }
+    finally { if (preparingModels.get(file) === operation) preparingModels.delete(file); }
+  }
   async function status() {
     const icons = {}, models = {};
     for (const key of catalog.icons) if (await exists(location({ kind: 'icons', name: `${key}.svg` }))) icons[key] = true;
@@ -85,7 +111,7 @@ export function createResourceStore(root, localModelsRoot = null) {
     }
     return { icons, models };
   }
-  async function importFiles(files) {
+  async function importFiles(files, { signal } = {}) {
     const results = [], seen = new Set();
     for (const file of files) {
       const resource = identifyResource(file);
@@ -101,10 +127,16 @@ export function createResourceStore(root, localModelsRoot = null) {
         const destination = location(resource);
         await fs.mkdir(path.dirname(destination), { recursive: true });
         temporary = `${destination}.${randomUUID()}.tmp`;
-        await fs.copyFile(file, temporary);
+        signal?.throwIfAborted();
+        if (resource.kind === 'models') Object.assign(result, await writeTexturelessMap(file, temporary, { signal }));
+        else await fs.copyFile(file, temporary);
         await validateResource(temporary, resource);
+        signal?.throwIfAborted();
         // Rename only a validated copy: failed imports leave the old asset intact.
+        // Finish any first-use migration before replacing its owned file.
+        await preparingModels.get(destination)?.catch(() => {});
         await fs.rename(temporary, destination);
+        preparedModels.delete(destination);
         result.ok = true;
         result.target = resource.name;
       } catch (error) { result.error = error.message; }
@@ -119,7 +151,13 @@ export function createResourceStore(root, localModelsRoot = null) {
     // Only imported catalogue entries can be removed. Never accept caller paths
     // or delete the development fallback / original game installation.
     // 仅删除导入目录中固定名称的资源，不删除开发素材或游戏原文件。
-    await fs.rm(location({ kind, name: `${key}.${kind === 'icons' ? 'svg' : 'glb'}` }), { force: true });
+    const file = location({ kind, name: `${key}.${kind === 'icons' ? 'svg' : 'glb'}` });
+    removingModels.add(file);
+    try {
+      await preparingModels.get(file)?.catch(() => {});
+      await fs.rm(file, { force: true });
+      preparedModels.delete(file);
+    } finally { removingModels.delete(file); }
     return { status: await status() };
   }
   async function resolve(kind, key) {
@@ -127,7 +165,8 @@ export function createResourceStore(root, localModelsRoot = null) {
     if (!names.includes(key)) return null;
     const name = `${key}.${kind === 'icons' ? 'svg' : 'glb'}`;
     const imported = location({ kind, name });
-    if (await exists(imported)) return imported;
+    if (removingModels.has(imported)) return null;
+    if (await exists(imported)) return kind === 'models' ? prepareImportedModel(imported) : imported;
     if (kind === 'models' && localModelsRoot) {
       const local = path.join(localModelsRoot, key, name);
       if (await exists(local)) return local;

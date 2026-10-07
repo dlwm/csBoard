@@ -50,7 +50,7 @@ export function createStaticMapBatches(root, renderer, copyBudget = DEFAULT_COPY
       const groups = new Map();
       root.traverse(object => {
         const geometry = object.geometry, material = object.material;
-        if (!object.userData.originalMapMaterial || !object.isMesh || object.isSkinnedMesh || object.isInstancedMesh || Array.isArray(material)
+        if (!object.userData.sourceMapMaterial || !object.isMesh || object.isSkinnedMesh || object.isInstancedMesh || Array.isArray(material)
           || object.layers.mask !== 1 || material.visible === false || material.transparent || material.transmission > 0 || Object.keys(geometry.morphAttributes).length
           || geometry.groups.length || geometry.drawRange.start !== 0 || geometry.drawRange.count !== Infinity
           || geometry.getAttribute('position').count > MAX_GEOMETRY_VERTICES) return;

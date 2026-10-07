@@ -1,29 +1,28 @@
-import { isSource2Overlay } from './source2Overlays.js';
-// Keep one display material per source material, not one per mesh. Simple mode
-// needs just one shared material. Shader uniforms are map-wide in both modes.
-// 显示材质按源材质复用，简洁模式只用一个；切换时集中释放旧显示材质。
+import { isMapModelOverlay } from '../../shared/map-model-materials.js';
+
+// All map surfaces share one display material; decorative overlays stay hidden.
+// 地图统一简洁显示，按覆盖层标记隐藏装饰；不再保留材质切换状态。
 export function createMapMaterialRuntime(root, createMaterial) {
-  const meshes = [];
-  root.traverse(object => { if (object.userData.originalMapMaterial) meshes.push(object); });
-  let displayMaterials = new Set(), currentStyle = null;
+  let applied = false;
   return {
-    applyStyle(style) {
-      if (currentStyle === style) return;
-      const cache = new Map(), next = new Set();
-      for (const object of meshes) {
-        const original = object.userData.originalMapMaterial;
-        const display = (Array.isArray(original) ? original : [original]).map(source => {
-          const hiddenOverlay = style !== 'original' && isSource2Overlay(source);
-          const key = style === 'original' ? source : hiddenOverlay ? 'overlay-hidden' : null;
-          if (!cache.has(key)) { const material = createMaterial(style === 'original' ? source : null); if (hiddenOverlay) material.visible = false; cache.set(key, material); next.add(material); }
-          return cache.get(key);
+    apply() {
+      if (applied) return;
+      const cache = new Map(); let meshes = 0;
+      root.traverse(object => {
+        if (!object.userData.sourceMapMaterial) return;
+        meshes++;
+        const source = object.userData.sourceMapMaterial;
+        const display = (Array.isArray(source) ? source : [source]).map(material => {
+          const hidden = isMapModelOverlay(material);
+          if (!cache.has(hidden)) {
+            const next = createMaterial(); next.visible = !hidden; cache.set(hidden, next);
+          }
+          return cache.get(hidden);
         });
-        object.material = Array.isArray(original) ? display : display[0];
-      }
-      for (const material of displayMaterials) material.dispose();
-      displayMaterials = next;
-      currentStyle = style;
-      root.userData.renderStats = { meshes: meshes.length, displayMaterials: next.size, style };
+        object.material = Array.isArray(source) ? display : display[0];
+      });
+      root.userData.renderStats = { meshes, displayMaterials: cache.size };
+      applied = true;
     },
   };
 }

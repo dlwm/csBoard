@@ -1,11 +1,11 @@
-// Display clones share source textures; dispose each GPU resource only once.
-// 显示材质与原始材质共享贴图，地图切换时统一释放，避免重复释放或累积显存。
+// Dispose shared display materials and any legacy/fallback source textures once.
+// 统一释放共享显示材质与旧/回退资源的贴图，避免重复释放或累积显存。
 export function disposeMapModel(root) {
   root?.userData.disposeRenderBatches?.();
   const geometries = new Set(), materials = new Set(), textures = new Set();
   root?.traverse(object => {
     if (object.geometry) geometries.add(object.geometry);
-    for (const value of [object.material, object.userData?.originalMapMaterial]) {
+    for (const value of [object.material, object.userData?.sourceMapMaterial]) {
       for (const material of Array.isArray(value) ? value : [value]) if (material) materials.add(material);
     }
   });

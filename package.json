@@ -22,6 +22,7 @@
       "shared/record-keys.js",
       "shared/storage-codec.js",
       "shared/map-model-objects.js",
+      "shared/map-model-materials.js",
       "LICENSE",
       "docs/THIRD_PARTY_NOTICES.md",
       "package.json",

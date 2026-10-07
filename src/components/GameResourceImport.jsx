@@ -82,7 +82,7 @@ export default function GameResourceImport({ api, language, onBusy, onImported }
   };
   return <section className="game-resource-import" aria-busy={active || checking}>
     <header><h3>{text('导入游戏资源包', 'Import game resources', 'Импорт ресурсов игры')}</h3><div><button disabled={active || checking} onClick={detect}>{text('重新检测', 'Detect again', 'Найти снова')}</button><button disabled={active || checking} onClick={choose}>{text('选择游戏目录…', 'Choose game folder…', 'Выбрать папку игры…')}</button></div></header>
-    <p>{text('读取 Steam 安装信息和 CS2 资源，不修改游戏文件。转换结果保存到 CSBoard 数据目录。', 'Reads Steam installation information and CS2 resources without changing game files. Converted resources are saved in CSBoard’s data folder.', 'Читает сведения об установке Steam и ресурсы CS2, не меняя файлы игры. Результаты сохраняются в папке данных CSBoard.')}</p>
+    <p>{text('读取 Steam 安装信息和 CS2 资源，不修改游戏文件。地图移除贴图并统一简洁显示，结果保存到 CSBoard 数据目录。', 'Reads Steam installation information and CS2 resources without changing game files. Map textures are removed for a simplified display; resources are saved in CSBoard’s data folder.', 'Читает сведения об установке Steam и ресурсы CS2, не меняя файлы игры. Текстуры карт удаляются для упрощённого вида; результаты сохраняются в папке данных CSBoard.')}</p>
     {checking && !active && <p role="status">{text('正在检查…', 'Checking…', 'Проверка…')}</p>}
     {!checking && !installations.length && !active && <p>{text('未找到可用的 CS2 资源，可手动选择游戏目录；macOS 可选择复制过来的 CS2 目录。', 'No CS2 resources found. Choose a game folder manually; on macOS you can select a copied CS2 folder.', 'Ресурсы CS2 не найдены. Выберите папку вручную; на macOS можно выбрать скопированную папку CS2.')}</p>}
     {installations.length > 0 && <>

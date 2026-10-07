@@ -5,8 +5,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { detectGameInstallations, inspectGameDirectory, estimateImportSpace } from './game-installation.js';
-import { identifyResource, validateResource } from './resource-store.js';
-import { embedGlbImages } from './glb-images.js';
+import { identifyResource } from './resource-store.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const activePhases = new Set(['preparing', 'extracting', 'converting', 'importing', 'cleaning']);
@@ -86,7 +85,7 @@ export function registerGameResourceService({ app, authorize, getWindow, store, 
     const results = [];
     for (const file of files) {
       if (signal.aborted) break;
-      const result = await store.importFiles([file]);
+      const result = await store.importFiles([file], { signal });
       results.push(...result.results);
       emit({ results: [...state.results, ...result.results] });
     }
@@ -109,10 +108,11 @@ export function registerGameResourceService({ app, authorize, getWindow, store, 
     const output = path.join(directory, 'world.glb');
     await runCli(['-i', source, '-o', output, '-d', '--gltf_export_format', 'glb', '--gltf_export_materials', '--gltf_textures_adapt', '--threads', '1'], signal);
     if (signal.aborted) throw coded('cancelled', 'Import cancelled');
-    await embedGlbImages(output, { signal });
-    await validateResource(output, { kind: 'models' });
+    // The common importer discards texture references and image bytes. Exported
+    // texture files are never read or embedded into the installed map.
+    // 手动导入和游戏提取共用无贴图转换，不再嵌入 PNG 或复制整份带贴图模型。
     const named = path.join(directory, `${key}.glb`);
-    await fs.copyFile(output, named);
+    await fs.rename(output, named);
     return await importOutput([named], signal);
   }
   async function convertIcons(installation, directory, signal) {
