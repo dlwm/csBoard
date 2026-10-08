@@ -10,9 +10,9 @@ function VisibilityCheck({ ids, hidden, onChange, label, disabled }) {
   return <input ref={ref} type="checkbox" checked={count === ids.length} disabled={disabled} aria-label={label}
     onClick={event => event.stopPropagation()} onChange={event => onChange(ids, event.target.checked)} />;
 }
-function ObjectBranch({ branch, hidden, onChange, text, disabled }) {
-  const [open, setOpen] = useState(false);
-  if (!branch.children.length && branch.objects.length === 1) {
+function ObjectBranch({ branch, hidden, onChange, text, disabled, root = false }) {
+  const [open, setOpen] = useState(root);
+  if (!root && !branch.children.length && branch.objects.length === 1) {
     const object = branch.objects[0];
     return <label className="model-object-leaf"><VisibilityCheck ids={[object.id]} hidden={hidden} onChange={onChange} disabled={disabled} label={text(`显示 ${object.name}`, `Show ${object.name}`, `Показать ${object.name}`)} /><span title={object.name}>{branch.label}</span></label>;
   }
@@ -53,7 +53,7 @@ export default function ModelObjectTree({ mapName, api, language, disabled }) {
         <div className="model-object-tree-actions"><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={text('搜索对象名称…', 'Search objects…', 'Поиск объектов…')} aria-label={text('搜索模型对象', 'Search model objects', 'Поиск объектов модели')} /><button type="button" disabled={disabled} onClick={() => toggle(metadata.objects.map(object => object.id), true)}>{text('全部显示', 'Show all', 'Показать всё')}</button></div>
         {saveError && <p role="alert">{saveError}</p>}
         {!tree.ids.length && <p>{text('没有匹配的对象', 'No matching objects', 'Нет подходящих объектов')}</p>}
-        <div className="model-object-tree-branches">{tree.children.map(branch => <ObjectBranch key={`${query}:${branch.key}`} branch={branch} hidden={hidden} onChange={toggle} text={text} disabled={disabled} />)}</div>
+        <div className="model-object-tree-branches">{tree.ids.length > 0 && <ObjectBranch key={query} root branch={{ ...tree, label: 'root' }} hidden={hidden} onChange={toggle} text={text} disabled={disabled} />}</div>
       </>}
     </div>}
   </details>;

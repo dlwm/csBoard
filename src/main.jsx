@@ -133,11 +133,11 @@ function App() {
   });
   const [showGrid, setShowGrid] = useState(() => typeof initialViewPreferences.showGrid === 'boolean' ? initialViewPreferences.showGrid : false);
   const [showNav, setShowNav] = useState(() => typeof initialViewPreferences.showNav === 'boolean' ? initialViewPreferences.showNav : true);
-  const [showModel, setShowModel] = useState(() => typeof initialViewPreferences.showModel === 'boolean' ? initialViewPreferences.showModel : true);
+  const [showModel, setShowModel] = useState(() => typeof initialViewPreferences.showModel === 'boolean' ? initialViewPreferences.showModel : false);
   const [modelOpacity, setModelOpacity] = useState(() => Number.isFinite(initialViewPreferences.modelOpacity) ? THREE.MathUtils.clamp(initialViewPreferences.modelOpacity, 0, 1) : 0.9);
   const [modelViewMode, setModelViewMode] = useState(() => [1, 2].includes(initialViewPreferences.modelViewMode) ? initialViewPreferences.modelViewMode : 2);
   const [modelViewRange, setModelViewRange] = useState(() => Number.isFinite(initialViewPreferences.modelViewRange) ? THREE.MathUtils.clamp(initialViewPreferences.modelViewRange, 0, 1) : 0.5);
-  const [modelLoadState, setModelLoadState] = useState({ mapName: 'de_dust2', status: 'loading', loaded: 0, total: 0 });
+  const [modelLoadState, setModelLoadState] = useState({ mapName: 'de_dust2', status: 'idle', loaded: 0, total: 0 });
   const [trackpadDetection, setTrackpadDetection] = useState(() => typeof initialViewPreferences.trackpadDetection === 'boolean' ? initialViewPreferences.trackpadDetection : true);
   const [demoData, setDemoData] = useState(null);
   const [demoTick, setDemoTick] = useState(0);

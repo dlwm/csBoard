@@ -67,6 +67,7 @@ export default function ThreeBoard(inputProps) {
   touchDrawingEnabledRef.current = props.touchDrawingEnabled !== false;
   const { mapName, navData, showGrid, showModel, modelOpacity, modelViewMode, demoProjectiles, analysisRounds, deletePointId, pointUpdate, onCameraSlots, onReady } = props;
   const mountRef = useRef(null);
+  const requestModelRef = useRef(null);
   const utilityPlayingNoteIdRef = useRef(props.utilityPlayingNoteId);
   utilityPlayingNoteIdRef.current = props.utilityPlayingNoteId;
   const utilityReplayDisplayRef = useRef(props.utilityReplayDisplay);
@@ -1369,25 +1370,28 @@ export default function ThreeBoard(inputProps) {
       saveCamera: saveCameraSlot, restoreCamera: restoreCameraSlot, focusPlayer: focusCollabPlayer, focusPlacedUtility: focusCollabUtility,
       focusUtility: focusUtilityNote, endPreview: clearCollabUtilityPreview, resetCamera: () => resetToDefault(defaultCameraReset),
     });
-    modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: 0, total: 0 });
+    let boardReady = false;
+    const publishBoardReady = (ready) => {
+      if (ready && boardReady) return;
+      boardReady = ready;
+      onReady({ commands: boardCommands, ready, reset: () => resetToDefault(defaultCameraReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+    };
     const loadWorldModel = (loadedModel) => {
       if (disposed) { disposeMapModel(loadedModel); return; }
       worldModel = loadedModel;
       removeImportedMapLights(worldModel);
       applyObjectVisibility();
       const modelBounds = new THREE.Box3().setFromObject(worldModel);
-      modelCenter = modelBounds.getCenter(new THREE.Vector3());
+      // NAV defines a stable workspace origin before any visual model exists.
+      // 模型迟加载不能改变人员、道具或存档的坐标基准。
+      if (!nav) modelCenter = modelBounds.getCenter(new THREE.Vector3());
       modelCenterYRef.current = modelCenter.y;
       updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current, navData);
       worldModel.position.sub(modelCenter);
       modelBasePositionRef.current = worldModel.position.clone();
       floor.position.y = -modelCenter.y - 0.35;
-      if (nav) {
-        nav.group.position.copy(modelCenter).multiplyScalar(-1);
-        const horizontalCenter = new THREE.Vector2(modelCenter.x, modelCenter.z);
-        nav.modelBoundary.min.sub(horizontalCenter);
-        nav.modelBoundary.max.sub(horizontalCenter);
-      }
+      releaseMapCollisionIndex(collisionMeshes);
+      collisionMeshes.length = 0;
       const modelSize = modelBounds.getSize(new THREE.Vector3()).length();
       const cameraTarget = new THREE.Vector3();
       if (NAV_TOP_CAMERA_TARGET_MAPS.has(mapName) && nav?.bounds) cameraTarget.y = nav.bounds.max.y - modelCenter.y;
@@ -1448,51 +1452,73 @@ export default function ThreeBoard(inputProps) {
       worldModel.updateMatrixWorld(true);
       if (mapName !== TUTORIAL_MAP_ID) cacheStaticMapTransforms(worldModel);
       registerMapCollisionIndex(collisionMeshes, worldModel);
-      resetCamera();
-      cameraState.restoreCurrent();
-      cameraState.enablePersistence();
-      defaultCameraReset = resetCamera;
-      onReady({ commands: boardCommands, ready: true, reset: () => resetToDefault(resetCamera), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
-      modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
-    };
-    if (mapName === TUTORIAL_MAP_ID) loadWorldModel(createTutorialMap());
-    else loadMapModel(new GLTFLoader(), mapModelSource(mapName, MAP_MODEL_BASES).bases, mapModelSource(mapName, MAP_MODEL_BASES).file, (gltf) => { bindMapObjectVisibility(gltf); loadWorldModel(gltf.scene); }, (event) => {
-      if (disposed) return;
-      const now = performance.now();
-      if (now - lastModelProgressAt < 80 && (!event.total || event.loaded < event.total)) return;
-      lastModelProgressAt = now;
-      modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: event.loaded || 0, total: event.total || 0 });
-    }, (loadError) => {
-      if (disposed) return;
-      modelLoadStateRef.current?.({ mapName, status: hasMapModel(mapName) ? 'error' : 'absent', loaded: 0, total: 0 });
-    if (hasMapModel(mapName)) console.info(`${mapName} visual model unavailable.`, loadError.message);
-      if (nav) {
-        modelCenter.copy(nav.center);
-        nav.group.position.copy(modelCenter).multiplyScalar(-1);
-        nav.group.updateMatrixWorld(true);
-        floor.position.y = -modelCenter.y - 0.35;
-        collisionMeshes.push(nav.mesh, navBoundaryCollider);
-        collisionVersion += 1;
-        registerMapCollisionIndex(collisionMeshes);
-        const distance = Math.max(nav.size * 0.8, 18);
-        camera.position.set(distance * 0.68, distance * 0.9, distance);
-        camera.far = Math.max(nav.size * 4, 200);
-        camera.updateProjectionMatrix();
-        controls.target.set(0, 0, 0);
-        controls.maxDistance = Math.max(nav.size * 2.2, 70);
-        controls.update();
+      // Preserve the active camera while a lazy model joins an already-ready NAV.
+      if (!boardReady) {
+        resetCamera();
         cameraState.restoreCurrent();
         cameraState.enablePersistence();
-         const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
-         defaultCameraReset = normalReset;
-         onReady({ commands: boardCommands, ready: true, reset: () => resetToDefault(normalReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+      } else {
+        camera.far = Math.max(camera.far, modelSize * 4);
+        camera.updateProjectionMatrix();
+        controls.maxDistance = Math.max(controls.maxDistance, modelSize * 2.2);
       }
-    }, ({ failedUrl, nextBase }) => {
-      console.info(`${mapName} packaged model unavailable at ${failedUrl}; trying ${nextBase}.`);
-    });
-    controls.target.set(0, 0, 0);
+      defaultCameraReset = resetCamera;
+      publishBoardReady(true);
+      modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
+    };
+    let modelRequested = false;
+    const requestModel = () => {
+      if (disposed || modelRequested || !modelVisibilityRef.current) return;
+      modelRequested = true;
+      lastModelProgressAt = 0;
+      modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: 0, total: 0 });
+      if (mapName === TUTORIAL_MAP_ID) loadWorldModel(createTutorialMap());
+      else loadMapModel(new GLTFLoader(), mapModelSource(mapName, MAP_MODEL_BASES).bases, mapModelSource(mapName, MAP_MODEL_BASES).file, (gltf) => { bindMapObjectVisibility(gltf); loadWorldModel(gltf.scene); }, (event) => {
+        if (disposed) return;
+        const now = performance.now();
+        if (now - lastModelProgressAt < 80 && (!event.total || event.loaded < event.total)) return;
+        lastModelProgressAt = now;
+        modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: event.loaded || 0, total: event.total || 0 });
+      }, (loadError) => {
+        if (disposed) return;
+        modelRequested = false;
+        modelLoadStateRef.current?.({ mapName, status: hasMapModel(mapName) ? 'error' : 'absent', loaded: 0, total: 0 });
+        if (hasMapModel(mapName)) console.info(`${mapName} visual model unavailable.`, loadError.message);
+      }, ({ failedUrl, nextBase }) => {
+        console.info(`${mapName} packaged model unavailable at ${failedUrl}; trying ${nextBase}.`);
+      });
+    };
+    requestModelRef.current = requestModel;
+    modelLoadStateRef.current?.({ mapName, status: 'idle', loaded: 0, total: 0 });
+    if (nav) {
+      modelCenter.copy(nav.center);
+      nav.group.position.copy(modelCenter).multiplyScalar(-1);
+      nav.group.updateMatrixWorld(true);
+      const horizontalCenter = new THREE.Vector2(modelCenter.x, modelCenter.z);
+      nav.modelBoundary.min.sub(horizontalCenter);
+      nav.modelBoundary.max.sub(horizontalCenter);
+      modelCenterYRef.current = modelCenter.y;
+      updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenter.y, navData);
+      floor.position.y = -modelCenter.y - 0.35;
+      collisionMeshes.push(nav.mesh, navBoundaryCollider);
+      collisionVersion += 1;
+      registerMapCollisionIndex(collisionMeshes);
+      const distance = Math.max(nav.size * 0.8, 18);
+      camera.position.set(distance * 0.68, distance * 0.9, distance);
+      camera.far = Math.max(nav.size * 4, 200);
+      camera.updateProjectionMatrix();
+      controls.target.set(0, 0, 0);
+      controls.maxDistance = Math.max(nav.size * 2.2, 70);
+      controls.update();
+      cameraState.restoreCurrent();
+      cameraState.enablePersistence();
+      const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
+      defaultCameraReset = normalReset;
+    }
+    // NAV initialization already restored the saved target; do not overwrite it.
     controls.update();
-     onReady({ commands: boardCommands, ready: false, reset: () => resetToDefault(initialReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+    publishBoardReady(Boolean(nav));
+    requestModel();
     const demoMonitorRenderer = createDemoMonitorRenderer({
       mount,
       renderer,
@@ -1807,7 +1833,7 @@ export default function ThreeBoard(inputProps) {
       if (!demoMonitorRenderer.render(now)) renderer.render(scene, camera);
     };
     const stopRenderLoop = startRenderLoop(animate);
-     return () => { disposed = true; unsubscribeObjectVisibility(); stopRenderLoop(); releaseMapCollisionIndex(collisionMeshes); demoMonitorRenderer.dispose(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { scene.remove(worldModel); disposeMapModel(worldModel); } renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; if (requestModelRef.current === requestModel) requestModelRef.current = null; unsubscribeObjectVisibility(); stopRenderLoop(); releaseMapCollisionIndex(collisionMeshes); demoMonitorRenderer.dispose(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { scene.remove(worldModel); disposeMapModel(worldModel); } renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {
@@ -1864,6 +1890,7 @@ export default function ThreeBoard(inputProps) {
 
   useEffect(() => {
     modelVisibilityRef.current = showModel;
+    if (showModel) requestModelRef.current?.();
     if (modelRef.current) modelRef.current.visible = showModel;
     if (modelRef.current && modelBasePositionRef.current) modelRef.current.position.y = modelBasePositionRef.current.y + (modelViewMode === 0 ? -0.12 : 0);
      if (navFocusRef.current) navFocusRef.current.value = 0;
