@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"runtime"
 	"runtime/debug"
 	"syscall/js"
 
@@ -54,6 +55,12 @@ func source(_ js.Value, args []js.Value) any {
 		return `{"error":"no demo sources"}`
 	}
 	session = goparser.NewSession(len(inputs), func(part int) ([]byte, error) { return inputs[part], nil })
+	session.SetTickProgress(func(part, tick, target int) {
+		observer := js.Global().Get("csboardGoParserTickProgress")
+		if observer.Type() == js.TypeFunction {
+			observer.Invoke(part, tick, target)
+		}
+	})
 	return encodeResponse(sources, nil)
 }
 
@@ -73,12 +80,26 @@ func request(_ js.Value, args []js.Value) any {
 		return encodeResponse(nil, err)
 	}
 	result, err := session.Request(args[0].String(), query)
-	return encodeResponse(result, err)
+	encoded := encodeResponse(result, err)
+	if args[0].String() == "grenades" {
+		// A whole effect journal leaves a large encoding/json buffer in sync.Pool.
+		// Two collection cycles discard both the pool and its victim generation
+		// before small tick projections can repeatedly reuse that oversized buffer.
+		// 清理道具整包编码留下的池化大缓冲及临时实体，防止每批小查询背负大对象。
+		result = nil
+		runtime.GC()
+		runtime.GC()
+	}
+	return encoded
 }
 
 func main() {
-	// Leave room for transferred inputs and JS output below the wasm32 ceiling.
-	debug.SetMemoryLimit(1 << 30)
+	// A large input and prepared rows can legitimately exceed 1 GiB. A lower
+	// soft target forces collection on nearly every cached projection. Reserve
+	// half of wasm32's address space for allocator peaks and bridge copies;
+	// callers must still keep each JSON projection small.
+	// 大文件与缓存需要合理存活堆；保留一半地址空间应对临时分配与桥接副本。
+	debug.SetMemoryLimit(2 << 30)
 	js.Global().Set("csboardGoParserSource", js.FuncOf(source))
 	js.Global().Set("csboardGoParserRequest", js.FuncOf(request))
 	select {}

@@ -113,7 +113,10 @@ func playerActiveWeapon(pawn st.Entity, weapons map[int]*common.Equipment) *comm
 // with PropertyValue, not convenience getters that call PropertyValueMust.
 // 缺字段统一保留 null，不伪造默认状态，也不通过 recover 吞掉其他解析错误。
 func playerValue(player *common.Player, name string, commandButtons map[int]uint64, weapons map[int]*common.Equipment) any {
-	pawn := player.PlayerPawnEntity()
+	return playerValueWithPawn(player, player.PlayerPawnEntity(), name, commandButtons, weapons)
+}
+
+func playerValueWithPawn(player *common.Player, pawn st.Entity, name string, commandButtons map[int]uint64, weapons map[int]*common.Equipment) any {
 	switch name {
 	case "X", "Y", "Z":
 		if pawn == nil {
@@ -297,6 +300,24 @@ func parseTicksWithContext(ctx context.Context, data []byte, ticks []int, props,
 }
 
 func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, props, players []string, throws []ThrowPreparation) ([]map[string]any, []int, error) {
+	rows := []map[string]any{}
+	preparation, err := streamTicksWithPreparation(ctx, data, ticks, props, players, throws, func(row map[string]any) { rows = append(rows, row) }, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i]["tick"].(int) != rows[j]["tick"].(int) {
+			return rows[i]["tick"].(int) < rows[j]["tick"].(int)
+		}
+		return rows[i]["steamid"].(string) < rows[j]["steamid"].(string)
+	})
+	return rows, preparation, nil
+}
+
+// Sessions consume each row immediately instead of retaining every property
+// map until the entire match ends. Throw histories still keep full tick detail.
+// 会话即时压紧数据，避免整场大 map 常驻及二次收集；投掷前动作精度保持不变。
+func streamTicksWithPreparation(ctx context.Context, data []byte, ticks []int, props, players []string, throws []ThrowPreparation, emit func(map[string]any), progress func(int)) ([]int, error) {
 	wanted := make(map[int]struct{}, len(ticks))
 	for _, tick := range ticks {
 		wanted[tick] = struct{}{}
@@ -305,7 +326,6 @@ func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, pr
 	for _, player := range players {
 		selected[player] = struct{}{}
 	}
-	rows := []map[string]any{}
 	histories := map[string]*preparationHistory{}
 	plans := map[string][]ThrowPreparation{}
 	cursors := map[string]int{}
@@ -322,7 +342,11 @@ func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, pr
 	preparationProps := []string{"X", "Y", "Z", "health", "team_num", "pitch", "yaw", "duck_amount", "is_airborne", "is_walking", "FIRE", "RIGHTCLICK", "FORWARD", "BACK", "LEFT", "RIGHT", "JUMP", "WALK", "active_weapon_name", "has_defuser", "last_place_name", "grenade_pin_pulled", "grenade_throw_strength"}
 	preparationTicks := map[int]bool{}
 	extraRows := map[int]map[string]bool{}
-	parser := newParserWithContext(ctx, data, dem.UserCmdParsingFull)
+	// CSBoard samples buttons, entity angles and positions. It does not consume
+	// full input-history/subtick protobufs; the fork's buttons-only path also
+	// restores checkpoint baselines and authoritative Player button state.
+	// 按键、瞄准与位置采样不需要完整命令树；按键模式保留检查点和逐 tick 状态。
+	parser := newParserWithContext(ctx, data, dem.UserCmdParsingButtonsOnly)
 	commandButtons := map[int]uint64{}
 	parser.RegisterEventHandler(func(event events.UserCmd) {
 		buttons := event.Command.GetBase().GetButtonsPb()
@@ -331,8 +355,13 @@ func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, pr
 		}
 	})
 	defer parser.Close()
+	lastProgressTick := -64
 	parser.RegisterEventHandler(func(events.FrameDone) {
 		tick := parser.GameState().IngameTick()
+		if progress != nil && tick-lastProgressTick >= 64 {
+			progress(tick)
+			lastProgressTick = tick
+		}
 		_, requested := wanted[tick]
 		if !requested && len(throws) == 0 {
 			return
@@ -372,16 +401,59 @@ func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, pr
 			if !requested && !preparing {
 				continue
 			}
-			row := map[string]any{"tick": tick, "steamid": steamID, "name": player.Name}
 			rowProps := props
 			if !requested {
 				rowProps = preparationProps
 			}
+			row := make(map[string]any, len(rowProps)+3)
+			row["tick"], row["steamid"], row["name"] = tick, steamID, player.Name
+			// Resolve shared player state once per row, rather than once per property.
+			// 相同 tick 的位置、角度与武器只读取一次，减少重复实体查询。
+			pawn := player.PlayerPawnEntity()
+			position := player.Position()
+			pitch, yaw, anglesAvailable := playerViewAngles(player)
+			weapon := playerActiveWeapon(pawn, weapons)
 			for _, prop := range rowProps {
-				row[prop] = playerValue(player, prop, commandButtons, weapons)
+				var value any
+				switch prop {
+				case "X", "Y", "Z":
+					if pawn != nil {
+						switch prop {
+						case "X":
+							value = position.X
+						case "Y":
+							value = position.Y
+						case "Z":
+							value = position.Z
+						}
+					}
+				case "pitch", "yaw":
+					if anglesAvailable {
+						if prop == "pitch" {
+							value = pitch
+						} else {
+							value = yaw
+						}
+					}
+				case "active_weapon_name":
+					if weapon != nil {
+						value = equipmentName(weapon)
+					}
+				case "grenade_pin_pulled", "grenade_throw_strength":
+					if weapon != nil {
+						if prop == "grenade_pin_pulled" {
+							value = entityValue(weapon.Entity, "m_bPinPulled")
+						} else {
+							value = entityValue(weapon.Entity, "m_flThrowStrength")
+						}
+					}
+				default:
+					value = playerValueWithPawn(player, pawn, prop, commandButtons, weapons)
+				}
+				row[prop] = value
 			}
 			if requested {
-				rows = append(rows, row)
+				emit(row)
 			}
 			if preparing {
 				history := histories[steamID]
@@ -405,7 +477,7 @@ func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, pr
 							extraRows[sampleTick] = map[string]bool{}
 						}
 						if !extraRows[sampleTick][steamID] {
-							rows = append(rows, sample)
+							emit(sample)
 							extraRows[sampleTick][steamID] = true
 						}
 					}
@@ -414,19 +486,12 @@ func parseTicksWithPreparation(ctx context.Context, data []byte, ticks []int, pr
 		}
 	})
 	if err := parser.ParseToEnd(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	sort.SliceStable(rows, func(i, j int) bool {
-		left, right := rows[i], rows[j]
-		if left["tick"].(int) != right["tick"].(int) {
-			return left["tick"].(int) < right["tick"].(int)
-		}
-		return left["steamid"].(string) < right["steamid"].(string)
-	})
 	preparation := make([]int, 0, len(preparationTicks))
 	for tick := range preparationTicks {
 		preparation = append(preparation, tick)
 	}
 	sort.Ints(preparation)
-	return rows, preparation, nil
+	return preparation, nil
 }

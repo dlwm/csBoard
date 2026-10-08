@@ -35,7 +35,11 @@ const eventNames = ['round_start', 'round_freeze_end', 'round_end', 'player_deat
 const replayProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'user_id', 'team_rounds_total', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'inventory', 'armor_value', 'has_helmet', 'has_defuser', 'flash_duration', 'flash_max_alpha', 'is_scoped', 'is_walking', 'active_weapon_ammo', 'is_alive', 'is_defusing', 'balance', 'cash_spent_this_round', 'round_start_equip_value', 'current_equip_value', ...controllerFallbackProps];
 const analysisProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'is_alive', ...controllerFallbackProps];
 const throwProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'is_airborne', 'is_walking', 'FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'JUMP', 'WALK', 'grenade_pin_pulled', 'grenade_throw_strength', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'has_defuser', 'last_place_name', ...controllerFallbackProps];
-const PARSE_TICK_BATCH_SIZE = 32768;
+// Bound the JSON bridge response, not the number of ticks scanned by Go.
+// 512 ticks × players × properties keeps temporary maps/JSON/string copies
+// manageable below wasm32's 4 GiB ceiling, including long throw preparations.
+// 限制每次返回体积，不降低采样率，也不重复全量扫描；避免大批 JSON 耗尽 WASM。
+const PARSE_TICK_BATCH_SIZE = 512;
 const parseProgressStages = [
   { percent: 0, zh: '正在展开 Demo 时间轴并校准起始 tick…', en: 'Expanding the demo timeline and calibrating its first tick...' },
   { percent: 3, zh: '正在合并分段录像的重叠回合…', en: 'Merging overlapping rounds from segmented recordings...' },
@@ -462,7 +466,10 @@ return async (data) => {
            let progressStageIndex = -1;
            const reportProgress = () => {
              completedBatches += 1;
-             const percent = totalBatches ? completedBatches / totalBatches * 100 : 100;
+             // The full position pass is the expensive stage; cached projections then
+             // consume the remaining range. 阶段权重保持连续，不是虚构的计时进度。
+             const base = prepareTicks ? 85 : 0;
+             const percent = totalBatches ? base + completedBatches / totalBatches * (100 - base) : 100;
              const stageIndex = parseProgressStages.findLastIndex((stage) => percent >= stage.percent);
              const stage = parseProgressStages[Math.max(0, stageIndex)];
              postMessage({ type: 'progress', phase: 'ticks', completed: completedBatches, total: totalBatches, percent, stage: stageIndex !== progressStageIndex ? stage : null });

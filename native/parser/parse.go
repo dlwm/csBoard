@@ -23,6 +23,7 @@ type RawEvent struct {
 // Report retains metadata and normalized events for one source session.
 // Player samples and effect journals are queried separately.
 type Report struct {
+	grenades          []map[string]any
 	VoiceFrames       []VoiceFrame      `json:"voiceFrames"`
 	VoiceSummary      VoiceSummary      `json:"voiceSummary"`
 	Protocol          int               `json:"protocol"`
@@ -124,6 +125,10 @@ func purchaseName(index uint64) string {
 func Parse(data []byte) (Report, error) { return parseWithContext(context.Background(), data) }
 
 func parseWithContext(ctx context.Context, data []byte) (Report, error) {
+	return parseReportWithContext(ctx, data, false)
+}
+
+func parseReportWithContext(ctx context.Context, data []byte, includeGrenades bool) (Report, error) {
 	result := Report{Protocol: 1, EventCounts: make(map[string]int), Events: []RawEvent{}, SemanticEvents: []RawEvent{}, ProductEvents: []map[string]any{}, FirstTick: -1}
 	if len(data) < 8 || string(data[:8]) != "PBDEMS2\x00" {
 		return result, fmt.Errorf("invalid Source 2 demo header")
@@ -131,6 +136,10 @@ func parseWithContext(ctx context.Context, data []byte) (Report, error) {
 	parser := newParserWithContext(ctx, data, dem.UserCmdParsingDisabled)
 	defer parser.Close()
 	trackVoice(parser, &result)
+	var grenades func() []map[string]any
+	if includeGrenades {
+		grenades = trackGrenades(parser)
+	}
 	names := make(map[string]struct{})
 	seenFrame := false
 	round := 0
@@ -329,6 +338,9 @@ func parseWithContext(ctx context.Context, data []byte) (Report, error) {
 	})
 	if err := parser.ParseToEnd(); err != nil {
 		return result, err
+	}
+	if grenades != nil {
+		result.grenades = grenades()
 	}
 	if firstPrestartTick < 0 {
 		if len(counterRoundTicks) > 0 {

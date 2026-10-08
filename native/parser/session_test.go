@@ -32,11 +32,11 @@ func TestPreparedQueriesAndRelease(t *testing.T) {
 	readError := errors.New("source changed")
 	reads := 0
 	session := NewSession(1, func(int) ([]byte, error) { reads++; return nil, readError })
-	session.parts[0].ticks = map[int][]map[string]any{
-		10: {{"tick": 10, "name": "one", "steamid": "76561198000000001", "X": 1, "health": 100}, {"tick": 10, "name": "two", "steamid": "76561198000000002", "X": 2, "health": 50}},
+	session.parts[0].ticks = map[int][]preparedTickRow{
+		10: {{name: "one", steamID: "76561198000000001", values: []any{1, 100}}, {name: "two", steamID: "76561198000000002", values: []any{2, 50}}},
 		20: {},
 	}
-	session.parts[0].props = map[string]struct{}{"X": {}, "health": {}}
+	session.parts[0].props = map[string]int{"X": 0, "health": 1}
 	query := Query{Ticks: []int{20, 10, 10}, Props: []string{"X"}, Players: []string{"76561198000000002"}}
 	result, err := session.Request("ticks", query)
 	if err != nil {

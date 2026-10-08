@@ -75,7 +75,7 @@ export default function useDemoBatchParser({ language, sampleRate, cacheSchemaVe
           status: 'parsing', parseStartedAt: current.parseStartedAt ?? performance.now(),
           progress: Math.max(current.progress, Math.min(99, Number(message.percent) || 0)),
           progressReceivedAt: performance.now(),
-          hasTickProgress: current.hasTickProgress || message.phase === 'ticks',
+          hasTickProgress: current.hasTickProgress || message.phase === 'ticks' || message.phase === 'preparing',
           progressTotal: message.total,
         }));
         if (message.type === 'caching') updateTask(batchId, task.id, { status: 'caching', progress: 99, statusText: '' });

@@ -7,6 +7,7 @@ import (
 )
 
 type Query struct {
+	Format  string             `json:"format"`
 	Part    int                `json:"part"`
 	Ticks   []int              `json:"ticks"`
 	Props   []string           `json:"props"`
@@ -15,24 +16,38 @@ type Query struct {
 	Throws  []ThrowPreparation `json:"throws"`
 }
 
+type tickTable struct {
+	Columns []string `json:"columns"`
+	Rows    [][]any  `json:"rows"`
+}
+
 type Source struct {
 	Part       int   `json:"part"`
 	ByteLength int64 `json:"byteLength"`
 }
 
+// Property names belong to the plan, not to every sampled player row.
+// 全部行共用属性列名，缓存只保留值与身份，减少 Go/WASM 的存活堆和 GC 压力。
+type preparedTickRow struct {
+	name    string
+	steamID string
+	values  []any
+}
+
 type sessionPart struct {
 	report *Report
-	ticks  map[int][]map[string]any
-	props  map[string]struct{}
+	ticks  map[int][]preparedTickRow
+	props  map[string]int
 }
 
 // Session owns per-import state. Native reads are lazy; the browser retains
 // transferred input bytes. Neither session reads or writes product caches.
 type Session struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	read   func(int) ([]byte, error)
-	parts  []sessionPart
+	ctx          context.Context
+	cancel       context.CancelFunc
+	read         func(int) ([]byte, error)
+	parts        []sessionPart
+	tickProgress func(part, tick, target int)
 }
 
 func NewSession(count int, read func(int) ([]byte, error)) *Session {
@@ -53,6 +68,9 @@ func ValidateSource(data []byte, size int64) error {
 	}
 	return nil
 }
+
+// Hosts may observe scanned ticks without changing the request/response protocol.
+func (s *Session) SetTickProgress(observer func(part, tick, target int)) { s.tickProgress = observer }
 
 func (s *Session) Cancel() { s.cancel() }
 
@@ -75,7 +93,7 @@ func (s *Session) Request(method string, q Query) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			report, err := parseWithContext(s.ctx, data)
+			report, err := parseReportWithContext(s.ctx, data, true)
 			if err != nil {
 				return nil, err
 			}
@@ -117,6 +135,11 @@ func (s *Session) Request(method string, q Query) (any, error) {
 		}
 		return rows, nil
 	case "grenades":
+		if part.report != nil && part.report.grenades != nil {
+			rows := part.report.grenades
+			part.report.grenades = nil // The consumer owns the journal after this response.
+			return rows, nil
+		}
 		data, err := s.read(q.Part)
 		if err != nil {
 			return nil, err
@@ -129,28 +152,60 @@ func (s *Session) Request(method string, q Query) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		rows, throwTicks, err := parseTicksWithPreparation(s.ctx, data, q.Ticks, q.Props, nil, q.Throws)
+		// Release the replaced plan before decoding a new one; do not keep both.
+		part.ticks, part.props = nil, nil
+		properties := map[string]int{}
+		columns := []string{}
+		for _, prop := range q.Props {
+			if _, exists := properties[prop]; !exists {
+				properties[prop] = len(columns)
+				columns = append(columns, prop)
+			}
+		}
+		prepared := make(map[int][]preparedTickRow, len(q.Ticks))
+		for _, tick := range q.Ticks {
+			prepared[tick] = []preparedTickRow{}
+		}
+		rowCount := 0
+		target := 0
+		for _, tick := range q.Ticks {
+			if tick > target {
+				target = tick
+			}
+		}
+		for _, plan := range q.Throws {
+			if plan.Tick > target {
+				target = plan.Tick
+			}
+		}
+		var progress func(int)
+		if s.tickProgress != nil && target > 0 {
+			progress = func(tick int) { s.tickProgress(q.Part, tick, target) }
+		}
+		throwTicks, err := streamTicksWithPreparation(s.ctx, data, q.Ticks, q.Props, nil, q.Throws, func(row map[string]any) {
+			values := make([]any, len(columns))
+			for index, prop := range columns {
+				values[index] = row[prop]
+			}
+			tick := row["tick"].(int)
+			prepared[tick] = append(prepared[tick], preparedTickRow{name: row["name"].(string), steamID: row["steamid"].(string), values: values})
+			rowCount++
+		}, progress)
 		if err != nil {
 			return nil, err
 		}
-		prepared := make(map[int][]map[string]any, len(q.Ticks))
-		for _, tick := range q.Ticks {
-			prepared[tick] = []map[string]any{}
-		}
-		for _, row := range rows {
-			tick := row["tick"].(int)
-			prepared[tick] = append(prepared[tick], row)
-		}
-		properties := map[string]struct{}{}
-		for _, prop := range q.Props {
-			properties[prop] = struct{}{}
+		for _, rows := range prepared {
+			sort.SliceStable(rows, func(i, j int) bool { return rows[i].steamID < rows[j].steamID })
 		}
 		part.ticks, part.props = prepared, properties
-		return map[string]any{"ticks": len(prepared), "rows": len(rows), "throwTicks": throwTicks}, nil
+		return map[string]any{"ticks": len(prepared), "rows": rowCount, "throwTicks": throwTicks}, nil
 	case "releaseTicks":
 		part.ticks, part.props = nil, nil
 		return true, nil
 	case "ticks":
+		if q.Format != "" && q.Format != "columns" {
+			return nil, fmt.Errorf("unsupported tick format %q", q.Format)
+		}
 		if part.ticks != nil {
 			for _, prop := range q.Props {
 				if _, ok := part.props[prop]; !ok {
@@ -162,6 +217,9 @@ func (s *Session) Request(method string, q Query) (any, error) {
 				selected[player] = struct{}{}
 			}
 			rows := []map[string]any{}
+			// The compact transport shares field names once and avoids per-row maps.
+			// 传输层复用列名，不改变外部采样对象；减少 Go/JS 桥的分配和重复 JSON 字段。
+			table := tickTable{Columns: append([]string{"tick", "steamid", "name"}, q.Props...), Rows: [][]any{}}
 			ticks := append([]int(nil), q.Ticks...)
 			sort.Ints(ticks)
 			for i, tick := range ticks {
@@ -174,16 +232,31 @@ func (s *Session) Request(method string, q Query) (any, error) {
 				}
 				for _, value := range values {
 					if len(selected) > 0 {
-						if _, ok := selected[value["steamid"].(string)]; !ok {
+						if _, ok := selected[value.steamID]; !ok {
 							continue
 						}
 					}
-					row := map[string]any{"tick": value["tick"], "steamid": value["steamid"], "name": value["name"]}
+					if q.Format == "columns" {
+						row := make([]any, len(table.Columns))
+						row[0], row[1], row[2] = tick, value.steamID, value.name
+						for index, prop := range q.Props {
+							row[index+3] = value.values[part.props[prop]]
+						}
+						table.Rows = append(table.Rows, row)
+						continue
+					}
+					// Allocate the known row width once instead of repeatedly growing maps.
+					// 属性数量已知，预分配容量避免逐行扩容与反复复制。
+					row := make(map[string]any, len(q.Props)+3)
+					row["tick"], row["steamid"], row["name"] = tick, value.steamID, value.name
 					for _, prop := range q.Props {
-						row[prop] = value[prop]
+						row[prop] = value.values[part.props[prop]]
 					}
 					rows = append(rows, row)
 				}
+			}
+			if q.Format == "columns" {
+				return table, nil
 			}
 			return rows, nil
 		}
@@ -191,7 +264,22 @@ func (s *Session) Request(method string, q Query) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return parseTicksWithContext(s.ctx, data, q.Ticks, q.Props, q.Players)
+		rows, err := parseTicksWithContext(s.ctx, data, q.Ticks, q.Props, q.Players)
+		if err != nil {
+			return nil, err
+		}
+		if q.Format == "columns" {
+			table := tickTable{Columns: append([]string{"tick", "steamid", "name"}, q.Props...), Rows: make([][]any, 0, len(rows))}
+			for _, values := range rows {
+				row := make([]any, len(table.Columns))
+				for index, prop := range table.Columns {
+					row[index] = values[prop]
+				}
+				table.Rows = append(table.Rows, row)
+			}
+			return table, nil
+		}
+		return rows, nil
 	default:
 		return nil, fmt.Errorf("unknown parser method %q", method)
 	}

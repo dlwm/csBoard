@@ -98,13 +98,48 @@ func ParseGrenades(data []byte) ([]map[string]any, error) {
 func parseGrenadesWithContext(ctx context.Context, data []byte) ([]map[string]any, error) {
 	parser := newParserWithContext(ctx, data, dem.UserCmdParsingDisabled)
 	defer parser.Close()
+	collect := trackGrenades(parser)
+	if err := parser.ParseToEnd(); err != nil {
+		return nil, err
+	}
+	return collect(), nil
+}
+
+// The collector can share the metadata/event pass. Track entity lifetimes
+// instead of scanning every world entity and class name on every tick.
+// 道具跟踪可复用事件扫描；实体创建/销毁维护索引，避免逐帧遍历整张地图。
+func trackGrenades(parser dem.Parser) func() []map[string]any {
 	rows := []map[string]any{}
 	previousSmokeSize := map[int]int{}
 	previousFire := map[int]string{}
 	previousThrowTime := map[int]float64{}
 	weaponOwner := map[int]*common.Player{}
 	previousSerial := map[int]int{}
+	entities := map[int]st.Entity{}
+	ids := []int{}
+	dirty := false
+	parser.RegisterEventHandler(func(events.DataTablesParsed) {
+		for _, class := range parser.ServerClasses().All() {
+			name := class.Name()
+			if !(strings.Contains(name, "Projectile") || strings.Contains(name, "Inferno") || strings.Contains(name, "Grenade") || strings.Contains(name, "Flashbang") || strings.Contains(name, "Molotov") || strings.Contains(name, "Incendiary") || strings.Contains(name, "Decoy")) {
+				continue
+			}
+			class.OnEntityCreated(func(entity st.Entity) {
+				id := entity.ID()
+				entities[id], dirty = entity, true
+				entity.OnDestroy(func() {
+					if entities[id] == entity {
+						delete(entities, id)
+						dirty = true
+					}
+				})
+			})
+		}
+	})
 	parser.RegisterEventHandler(func(events.FrameDone) {
+		if len(entities) == 0 {
+			return
+		}
 		tick := parser.GameState().IngameTick()
 		for _, player := range parser.GameState().Participants().All() {
 			if player == nil {
@@ -116,18 +151,14 @@ func parseGrenadesWithContext(ctx context.Context, data []byte) ([]map[string]an
 				}
 			}
 		}
-		entities := parser.GameState().Entities()
-		ids := make([]int, 0, len(entities))
-		for id, entity := range entities {
-			if entity == nil || entity.ServerClass() == nil {
-				continue
-			}
-			name := entity.ServerClass().Name()
-			if strings.Contains(name, "Projectile") || strings.Contains(name, "Inferno") || strings.Contains(name, "Grenade") || strings.Contains(name, "Flashbang") || strings.Contains(name, "Molotov") || strings.Contains(name, "Incendiary") || strings.Contains(name, "Decoy") {
+		if dirty {
+			ids = ids[:0]
+			for id := range entities {
 				ids = append(ids, id)
 			}
+			sort.Ints(ids)
+			dirty = false
 		}
-		sort.Ints(ids)
 		for _, id := range ids {
 			entity := entities[id]
 			if serial, exists := previousSerial[id]; !exists || serial != entity.SerialNum() {
@@ -217,8 +248,5 @@ func parseGrenadesWithContext(ctx context.Context, data []byte) ([]map[string]an
 			rows = append(rows, row)
 		}
 	})
-	if err := parser.ParseToEnd(); err != nil {
-		return nil, err
-	}
-	return rows, nil
+	return func() []map[string]any { return rows }
 }
