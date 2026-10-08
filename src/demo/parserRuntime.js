@@ -1,3 +1,4 @@
+import { projectileStartsNewLifecycle } from './grenades.js';
 import { DEMO_CACHE_SCHEMA_VERSION } from './cacheSchema.js';
 import { matchCompatibility, recordingSegments, NON_STANDARD_DEMO, RECORDING_KIND } from './recordings.js';
 import { appendChangedInfernoFrame } from './infernoFrames.js';
@@ -159,7 +160,7 @@ async function parsePartGrenades(part, recoverHeldGrenades) {
       if (row.x != null && row.y != null && row.z != null) {
         const entityId = row.entity_id ?? row.grenade_entity_id;
         const previous = lastProjectileByEntity.get(entityId);
-        const startsLifecycle = !previous || row.tick - previous.tick > 2 || row.grenade_type !== previous.grenade_type;
+        const startsLifecycle = projectileStartsNewLifecycle(row, previous);
         const projectile = { ...row };
         GRENADE_ENTITY_PROPS.forEach((prop) => { delete projectile[prop]; delete projectile[prop.split('.').at(-1)]; });
         const initialVelocity = readProp('m_vInitialVelocity');
@@ -190,7 +191,7 @@ function inferProjectileThrows(projectiles, events, throwStates) {
     const records = [...unsorted].sort((left, right) => left.tick - right.tick);
     records.forEach((record, index) => {
       const previous = records[index - 1];
-      if (previous && record.tick - previous.tick <= 2 && record.grenade_type === previous.grenade_type) return;
+      if (!projectileStartsNewLifecycle(record, previous)) return;
       const weapon = grenadeWeaponName(record.grenade_type);
       const steamid = String(record.thrower_steamid ?? record.steamid ?? '');
       const fire = fires.findLast((event) => !usedFires.has(event) && String(event.user_steamid) === steamid && grenadeWeaponName(event.weapon) === weapon && event.tick <= record.tick && record.tick - event.tick <= 32);

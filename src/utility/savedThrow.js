@@ -66,7 +66,7 @@ export function buildSavedThrowNote({ mapName, segment, source = {}, unknownLabe
     effectTick: segment.effectTick - replayStartTick,
     endTick: replayEndTick - replayStartTick,
     snapshots: replaySnapshots,
-    projectiles: segment.projectiles.map((record) => ({ tick: record.tick - replayStartTick, entity_id: record.entity_id, grenade_type: record.grenade_type, initialVelocity: record.initial_velocity ?? null, x: record.x, y: record.y, z: record.z })),
+    projectiles: segment.projectiles.map((record) => ({ tick: record.tick - replayStartTick, entity_id: record.entity_id, entity_serial: record.entity_serial, grenade_type: record.grenade_type, initialVelocity: record.initial_velocity ?? null, x: record.x, y: record.y, z: record.z })),
     smokeVoxelFrames,
     infernoFrames,
     events: [{ event_name: 'grenade_thrown', tick: segment.throwTick - replayStartTick, weapon: segment.throwEvent.weapon, user_name: throwerName, user_steamid: segment.throwEvent.user_steamid, user_X: segment.throwEvent.user_X, user_Y: segment.throwEvent.user_Y, user_Z: segment.throwEvent.user_Z }, ...(segment.landing ? [{ event_name: segment.landing.event_name, tick: segment.effectTick - replayStartTick, entityid: segment.landing.entityid, user_steamid: segment.landing.user_steamid, x: segment.landing.x, y: segment.landing.y, z: segment.landing.z }] : [])],

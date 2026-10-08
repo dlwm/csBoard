@@ -177,7 +177,7 @@ func trackGrenades(parser dem.Parser) func() []map[string]any {
 				}
 			}
 			class := entity.ServerClass().Name()
-			row := map[string]any{"tick": tick, "entity_id": id, "grenade_type": class}
+			row := map[string]any{"tick": tick, "entity_id": id, "entity_serial": entity.SerialNum(), "grenade_type": class}
 			if !strings.Contains(class, "Projectile") && !strings.Contains(class, "Inferno") {
 				throwTime := floatProperty(entity, "m_fThrowTime")
 				if throwTime <= 0 || throwTime == previousThrowTime[id] {

@@ -16,6 +16,18 @@ const grenadeLandingEvent = (kind) => ({
   he: 'hegrenade_detonate',
 })[kind];
 
+// Sampling gaps in client recordings are not entity destruction. Prefer the
+// Source 2 entity serial to distinguish ID reuse; keep the old gap fallback
+// only for records whose parser/cache did not provide lifecycle identity.
+// 自录 Demo 的采样间隔不表示投掷物结束；用实体序号区分复用，旧数据才按间隔兜底。
+export function projectileStartsNewLifecycle(record, previous) {
+  if (!previous || record.grenade_type !== previous.grenade_type) return true;
+  if (Number.isInteger(record.entity_serial) && Number.isInteger(previous.entity_serial)) {
+    return record.entity_serial !== previous.entity_serial;
+  }
+  return record.tick - previous.tick > 2;
+}
+
 export function groupDemoProjectiles(projectiles = []) {
   const byEntity = new Map();
   projectiles.forEach((projectile) => {
@@ -27,7 +39,7 @@ export function groupDemoProjectiles(projectiles = []) {
     const records = [...unsorted].sort((left, right) => left.tick - right.tick);
     let segment = [];
     records.forEach((record, index) => {
-      if (index > 0 && (record.tick - records[index - 1].tick > 2 || record.grenade_type !== records[index - 1].grenade_type)) {
+      if (index > 0 && projectileStartsNewLifecycle(record, records[index - 1])) {
         groups.set(`${entityId}-${segment[0].tick}`, segment);
         segment = [];
       }

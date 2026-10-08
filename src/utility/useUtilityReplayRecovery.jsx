@@ -31,9 +31,9 @@ export default function useUtilityReplayRecovery({ active, mapName, compute, lan
     } catch (error) {
       if (request.signal.aborted) return;
       setStatus({ note, firstPerson, message: localize(language, {
-        zh: '旧速记的完整动作或按键记录尚未补齐。请重新解析来源 Demo，再点击“更新记录”；当前仍可播放已有片段。',
-        en: 'This older note needs its full actions/inputs restored. Reparse the source Demo, then update its recording. Existing playback remains available.',
-        ru: 'Старой заметке нужны полные действия и нажатия. Разберите исходную Demo заново и обновите запись. Старый фрагмент доступен.',
+        zh: '此速记的投掷时序或记录需要更新。请重新解析来源 Demo，再点击“更新记录”；当前仍可播放已有片段。',
+        en: 'This note needs its throw timing or recorded data updated. Reparse the source Demo, then update its recording. Existing playback remains available.',
+        ru: 'Нужно обновить время броска или записанные данные заметки. Разберите исходную Demo заново и обновите запись. Старый фрагмент доступен.',
       }) });
       ports.current.onPlay(note, firstPerson);
     } finally { if (pending.current === request) pending.current = null; }
