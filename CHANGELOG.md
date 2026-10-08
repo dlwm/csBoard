@@ -2,6 +2,19 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.9] - 2026-10-08
+
+### Changed
+
+- Reduce Demo parsing time and memory use, with live progress during position sampling.
+- Keep map models disabled on first launch, load them when enabled, and remember the display preference.
+- Collapse the model object tree from its root and change visibility for the whole group.
+
+### Fixed
+
+- Prevent large Demos from failing while preparing replay data.
+- Fix saved smoke throws from custom recordings playing early or using a default smoke shape; update older notes after reparsing the source Demo.
+
 ## [1.20.8] - 2026-10-07
 
 ### Changed
