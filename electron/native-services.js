@@ -141,7 +141,7 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
       const staging = await fs.mkdtemp(path.join(stagingRoot, 'parse-'));
       try { return await new Promise((resolve, reject) => {
         const worker = utilityProcess.fork(path.join(here, '../build/tasks/demo.js'), [], { serviceName: 'CSBoard Demo', stdio: 'pipe' });
-        let stopped = false, parserPid = null;
+        let stopped = false, parserPid = null, stderrHead = '', stderrTail = '';
         const writes = new Set();
         const finish = async (error, result) => {
           if (stopped) return;
@@ -156,7 +156,12 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
         const deadline = setTimeout(() => finish(new Error('Demo task exceeded 2 hours')), 2 * 60 * 60_000);
         signal.addEventListener('abort', cancel, { once: true });
         worker.once('spawn', () => { if (stopped) worker.kill(); });
-        worker.stderr?.on('data', chunk => console.error(String(chunk).trim()));
+        worker.stderr?.on('data', chunk => {
+          const text = String(chunk), headSize = Math.min(text.length, 4000 - stderrHead.length);
+          stderrHead += text.slice(0, headSize);
+          stderrTail = (stderrTail + text.slice(headSize)).slice(-4000);
+          console.error(text.trim());
+        });
         worker.stdout?.resume();
         worker.on('message', message => {
           if (message.type === 'parserPid') {
@@ -182,16 +187,22 @@ export function registerNativeServices({ app, authorize, getWindow, resourceBusy
           }
           if (message.type === 'progress') scheduler.progress(key, message.percent);
           if (message.type === 'complete') finish(null, message);
-          else if (message.type === 'error') finish(Object.assign(new Error(message.message), { code: message.code, reason: message.reason }));
+          else if (message.type === 'error') finish(Object.assign(new Error(message.message), { code: message.code, reason: message.reason, diagnostic: message.diagnostic }));
           else emit(event.sender, input.id, message);
         });
-        worker.on('exit', code => { if (!stopped) finish(new Error(`Demo task exited (${code}); retry to start a new process.`)); });
+        worker.on('exit', code => {
+          if (stopped) return;
+          const stderr = `${stderrHead}${stderrTail}`.trim();
+          finish(Object.assign(new Error(`Demo task exited (${code})${stderr ? `: ${stderr}` : '; no process error output was captured.'}`), {
+            diagnostic: { phase: 'task', exitCode: code, stderr },
+          }));
+        });
         if (signal.aborted) { cancel(); return; }
         worker.postMessage({ type: 'start', binary: parserBinary, staging, allocation, job: { cacheId, fileName: descriptors.map(file => file.name).join(' + '), sampleRate: input.sampleRate, kind: input.kind, paths: selected.map(source => source.path) } });
       }); } finally { await fs.rm(staging, { recursive: true, force: true }); }
     } });
     jobs.set(key, job);
-    promise.then(message => emit(event.sender, input.id, message), error => emit(event.sender, input.id, { type: 'error', message: error.message, code: error.code, reason: error.reason })).finally(() => jobs.delete(key));
+    promise.then(message => emit(event.sender, input.id, message), error => emit(event.sender, input.id, { type: 'error', message: error.message, code: error.code, reason: error.reason, diagnostic: error.diagnostic })).finally(() => jobs.delete(key));
     return { id: input.id };
   });
   ipcMain.handle('native:cancel-demo', (event, id) => { authorize(event); scheduler.cancel(`${event.sender.id}:demo:${id}`, event.sender.id); });

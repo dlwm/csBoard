@@ -81,7 +81,7 @@ func request(_ js.Value, args []js.Value) any {
 	}
 	result, err := session.Request(args[0].String(), query)
 	encoded := encodeResponse(result, err)
-	if args[0].String() == "grenades" {
+	if args[0].String() == "grenades" && query.Limit == 0 {
 		// A whole effect journal leaves a large encoding/json buffer in sync.Pool.
 		// Two collection cycles discard both the pool and its victim generation
 		// before small tick projections can repeatedly reuse that oversized buffer.

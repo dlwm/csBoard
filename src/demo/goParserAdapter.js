@@ -13,6 +13,23 @@ export function createGoParserAdapter({ init, openSources, request, compactTicks
     parseVoice: part => call('voice', part),
     parseEvents: (part, events, props) => call('events', part, { events, props }),
     parseGrenades: (part, props) => call('grenades', part, { props }),
+    async *iterateGrenades(part, props) {
+      let offset = 0;
+      for (;;) {
+        const page = await call('grenades', part, { props, offset, limit: 512 });
+        // Older transports can still return an array; current hosts stream pages.
+        // 旧引擎仍可返回数组，新引擎按页交付，业务层不积累整包原始日志。
+        if (Array.isArray(page)) { yield* page; return; }
+        if (!Array.isArray(page?.rows) || !Number.isInteger(page.total) || page.total < offset + page.rows.length) throw new Error('Invalid grenade page');
+        yield* page.rows;
+        if (page.nextOffset == null) {
+          if (offset + page.rows.length !== page.total) throw new Error('Incomplete grenade journal');
+          return;
+        }
+        if (!page.rows.length || page.nextOffset !== offset + page.rows.length) throw new Error('Invalid grenade page offset');
+        offset = page.nextOffset;
+      }
+    },
     prepareTicks: (part, props, ticks, throws = []) => call('prepareTicks', part, { props, ticks: Array.from(ticks), throws }),
     releaseTicks: part => call('releaseTicks', part),
     parseTicks: async (part, props, ticks, players) => {

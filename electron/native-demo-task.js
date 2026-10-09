@@ -53,6 +53,7 @@ process.parentPort.on('message', async ({ data }) => {
     await parser.request('configure', { threads: data.allocation?.threads || 1 });
     const parse = createDemoParser({
       ...createGoParserAdapter({
+        compactTicks: true,
         init: async () => null,
         openSources: () => parser.request('source', { paths: job.paths }),
         request: (method, args) => parser.request(method, args),

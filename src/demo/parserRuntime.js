@@ -5,7 +5,7 @@ import { appendChangedInfernoFrame } from './infernoFrames.js';
 import { smokeVoxelFramesFromRow } from './smokeVoxels.js';
 
 // Each task owns its parser state; both Web Workers and desktop jobs use this contract.
-export function createDemoParser({ init, parseEvents, parseGrenades, parseHeader, parseVoice, parseTicks, prepareTicks, releaseTicks, openSources, postMessage }) {
+export function createDemoParser({ init, parseEvents, parseGrenades, iterateGrenades, parseHeader, parseVoice, parseTicks, prepareTicks, releaseTicks, openSources, postMessage }) {
 let parserReady;
 let wasmInstance;
 let demoBytes;
@@ -146,7 +146,8 @@ async function parsePartGrenades(part, recoverHeldGrenades) {
   const lastProjectileByEntity = new Map();
   // CInferno is a non-projectile world entity. Always request this class; the
   // patched parser already collapses held weapons to changed throw-time rows.
-  for (const value of await parseGrenades(part, GRENADE_ENTITY_PROPS, true) || []) {
+  const rows = iterateGrenades ? iterateGrenades(part, GRENADE_ENTITY_PROPS) : await parseGrenades(part, GRENADE_ENTITY_PROPS, true) || [];
+  for await (const value of rows) {
     const row = toPlainObject(value);
     const readProp = (name) => row[name] ?? row[`Grenade.${name}`];
     if (String(row.grenade_type || '').includes('Inferno')) {

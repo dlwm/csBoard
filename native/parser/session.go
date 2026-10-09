@@ -2,11 +2,14 @@ package goparser
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 )
 
 type Query struct {
+	Offset  int                `json:"offset"`
+	Limit   int                `json:"limit"`
 	Format  string             `json:"format"`
 	Part    int                `json:"part"`
 	Ticks   []int              `json:"ticks"`
@@ -34,10 +37,18 @@ type preparedTickRow struct {
 	values  []any
 }
 
+type grenadePage struct {
+	Rows       []json.RawMessage `json:"rows"`
+	Total      int               `json:"total"`
+	NextOffset *int              `json:"nextOffset"`
+}
+
 type sessionPart struct {
-	report *Report
-	ticks  map[int][]preparedTickRow
-	props  map[string]int
+	grenades      []map[string]any
+	grenadeOffset int
+	report        *Report
+	ticks         map[int][]preparedTickRow
+	props         map[string]int
 }
 
 // Session owns per-import state. Native reads are lazy; the browser retains
@@ -135,9 +146,69 @@ func (s *Session) Request(method string, q Query) (any, error) {
 		}
 		return rows, nil
 	case "grenades":
+		if q.Offset < 0 || q.Limit < 0 || q.Limit > 4096 || (q.Offset != 0 && q.Limit == 0) {
+			return nil, fmt.Errorf("invalid grenade page")
+		}
+		if q.Limit > 0 {
+			if part.grenades == nil {
+				if q.Offset != 0 {
+					return nil, fmt.Errorf("grenade paging must start at offset 0")
+				}
+				if part.report != nil && part.report.grenades != nil {
+					part.grenades, part.report.grenades = part.report.grenades, nil
+				} else {
+					data, err := s.read(q.Part)
+					if err != nil {
+						return nil, err
+					}
+					rows, err := parseGrenadesWithContext(s.ctx, data)
+					if err != nil {
+						return nil, err
+					}
+					part.grenades = rows
+				}
+				part.grenadeOffset = 0
+			}
+			if q.Offset != part.grenadeOffset {
+				return nil, fmt.Errorf("expected grenade offset %d", part.grenadeOffset)
+			}
+			page := grenadePage{Rows: []json.RawMessage{}, Total: len(part.grenades)}
+			bytes := 0
+			// Limit by both count and encoded bytes. A dense smoke/fire journal must
+			// never become one giant JSON line in a Node/Electron or WASM bridge.
+			// 同时限制记录数与编码字节，逐页释放已交付的原始数据，不组成巨大 JSON 行。
+			const pageBytes = 4 * 1024 * 1024
+			for part.grenadeOffset < len(part.grenades) && len(page.Rows) < q.Limit {
+				row, err := json.Marshal(part.grenades[part.grenadeOffset])
+				if err != nil {
+					return nil, fmt.Errorf("encode grenade row %d: %w", part.grenadeOffset, err)
+				}
+				if len(row) > pageBytes {
+					return nil, fmt.Errorf("grenade row exceeds page size limit")
+				}
+				if len(page.Rows) > 0 && bytes+len(row) > pageBytes {
+					break
+				}
+				page.Rows = append(page.Rows, row)
+				bytes += len(row)
+				part.grenades[part.grenadeOffset] = nil
+				part.grenadeOffset++
+			}
+			if part.grenadeOffset < len(part.grenades) {
+				next := part.grenadeOffset
+				page.NextOffset = &next
+			} else {
+				part.grenades = nil
+				part.grenadeOffset = 0
+			}
+			return page, nil
+		}
+		if part.grenades != nil {
+			return nil, fmt.Errorf("grenade journal has an active paged reader")
+		}
 		if part.report != nil && part.report.grenades != nil {
 			rows := part.report.grenades
-			part.report.grenades = nil // The consumer owns the journal after this response.
+			part.report.grenades = nil
 			return rows, nil
 		}
 		data, err := s.read(q.Part)
