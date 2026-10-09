@@ -2,6 +2,19 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.20.10] - 2026-10-09
+
+### Changed
+
+- List folders before individual objects in the model object tree.
+
+### Fixed
+
+- Prevent large Demos with extensive utility data from crashing during parsing, and retain error details when a parsing process exits.
+- Fix model object tree roots and groups failing to collapse.
+- Avoid showing a model download stuck at zero when no model has been requested.
+- Restore continuous cursor movement for middle-button rotation and modified middle-button panning, with normal navigation when pointer locking is unavailable.
+
 ## [1.20.9] - 2026-10-08
 
 ### Changed
