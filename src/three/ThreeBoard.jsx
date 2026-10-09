@@ -978,7 +978,7 @@ export default function ThreeBoard(inputProps) {
         if (demoCameraModeRef.current !== 'manual' || demoInEyePlayerRef.current) demoCameraInterruptRef.current?.();
       }
       if ((event.button === 1 || event.button === 2) && (demoCameraModeRef.current !== 'manual' || demoInEyePlayerRef.current)) demoCameraInterruptRef.current?.();
-      if (event.button === 1) cameraInput.beginPan(event);
+      if (event.button === 1 && cameraInput.beginDrag(event)) event.stopImmediatePropagation();
       if (event.button === 0) renderer.domElement.setPointerCapture?.(event.pointerId);
       if (event.button === 1 || event.button === 2) cameraState.clearActiveSlot();
       focusScreen.set(pointerCurrent.x * 0.5 + 0.5, pointerCurrent.y * 0.5 + 0.5);
@@ -1076,7 +1076,7 @@ export default function ThreeBoard(inputProps) {
       }
     };
     const onPointerMove = (event) => {
-      if (cameraInput.continuePan(event)) return;
+      if (cameraInput.continueDrag(event)) return;
       pointerCurrent = pointerPosition(event);
       raycaster.setFromCamera(pointerCurrent, camera);
       const demoHit = raycaster.intersectObjects([...demoMarkers.values()], true).find((candidate) => isInteractiveFloorPoint(candidate.point) && !candidate.object.userData.aimRay && !candidate.object.userData.aimTarget)?.object;
@@ -1223,7 +1223,7 @@ export default function ThreeBoard(inputProps) {
     };
     const onPointerUp = (event) => {
       if (event.button === 1) {
-        const wasWrapped = cameraInput.endPan();
+        const wasWrapped = cameraInput.endDrag();
         if (wasWrapped) return;
       }
       if (event.button === 0 && eraserActive) {
@@ -1293,7 +1293,7 @@ export default function ThreeBoard(inputProps) {
       if (!cameraTransition && !utilityFirstPersonRef.current?.player && !utilityProjectileFollowRef.current && !demoDirectorCameraActive) controls.enabled = true;
     };
     const cancelPointerInteraction = () => {
-      cameraInput.endPan();
+      cameraInput.endDrag();
       pressedKeys.clear();
       if (grenadeAdjusting) rebuildGrenadeEffect(activeGrenade, activeGrenade?.userData.grenadeEffect, nav);
       grenadeAdjusting = false;

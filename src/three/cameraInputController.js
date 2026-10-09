@@ -1,4 +1,4 @@
-// Normalizes wheel/trackpad gestures and Shift+middle-button wrapped panning.
+// Normalizes wheel/trackpad gestures and wrapped middle-button camera drags.
 import * as THREE from 'three';
 
 export default function createCameraInputController({
@@ -19,23 +19,28 @@ export default function createCameraInputController({
 
   const abortController = new AbortController();
   let attached = false;
-  let nativePanActive = false;
-  let wrappedPanRequested = false;
-  let wrappedPanDenied = false;
-  let wrappedPanActive = false;
-  let wrappedPanX = 0;
-  let wrappedPanY = 0;
+  let dragActive = false;
+  let wrappedDragRequested = false;
+  let wrappedDragDenied = false;
+  let wrappedDragActive = false;
+  let wrappedDragX = 0;
+  let wrappedDragY = 0;
+  let dragGeneration = 0;
+  let downEvent;
+  const fallbackEvents = new WeakSet();
 
   const positionCursor = () => {
-    cursor.style.transform = `translate(${wrappedPanX}px, ${wrappedPanY}px)`;
+    cursor.style.transform = `translate(${wrappedDragX}px, ${wrappedDragY}px)`;
   };
 
-  const endPan = (exitPointerLock = true) => {
-    const wasWrapped = wrappedPanActive;
-    nativePanActive = false;
-    wrappedPanRequested = false;
-    if (!wrappedPanActive) return wasWrapped;
-    wrappedPanActive = false;
+  const endDrag = (exitPointerLock = true) => {
+    const wasWrapped = wrappedDragActive || wrappedDragRequested;
+    dragGeneration += 1;
+    downEvent = null;
+    dragActive = false;
+    wrappedDragRequested = false;
+    if (!wrappedDragActive) return wasWrapped;
+    wrappedDragActive = false;
     cursor.hidden = true;
     element.style.cursor = '';
     if (exitPointerLock && document.pointerLockElement === element) document.exitPointerLock?.();
@@ -43,83 +48,87 @@ export default function createCameraInputController({
     return wasWrapped;
   };
 
-  const requestWrappedPan = (event) => {
-    if (!nativePanActive || wrappedPanRequested || wrappedPanDenied || wrappedPanActive) return;
+  const fallbackToNativeDrag = () => {
+    wrappedDragRequested = false;
+    wrappedDragDenied = true;
+    const generation = dragGeneration;
+    const saved = downEvent;
+    // Replay only a still-held drag whose original OrbitControls down was
+    // suppressed. Pointer Lock denial must leave ordinary navigation usable.
+    // 申请失败时回交普通拖动；释放/切窗后的旧请求不能重新启动操作。
+    queueMicrotask(() => {
+      if (!dragActive || generation !== dragGeneration || !saved || wrappedDragActive) return;
+      const event = new PointerEvent('pointerdown', { ...saved, bubbles: true });
+      fallbackEvents.add(event);
+      element.dispatchEvent(event);
+    });
+  };
+
+  const beginDrag = (event) => {
+    if (fallbackEvents.has(event)) return false;
+    if (event.button !== 1 || event.pointerType === 'touch' || typeof element.requestPointerLock !== 'function') return false;
+    dragActive = true;
+    wrappedDragRequested = true;
+    wrappedDragDenied = false;
+    const generation = ++dragGeneration;
+    downEvent = { pointerId: event.pointerId, pointerType: event.pointerType || 'mouse',
+      button: 1, buttons: 4, clientX: event.clientX, clientY: event.clientY,
+      shiftKey: event.shiftKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey };
     const bounds = element.getBoundingClientRect();
-    const localX = event.clientX - bounds.left;
-    const localY = event.clientY - bounds.top;
-    const edge = 1;
-    const atLeft = localX <= edge;
-    const atRight = localX >= bounds.width - edge;
-    const atTop = localY <= edge;
-    const atBottom = localY >= bounds.height - edge;
-    if (!atLeft && !atRight && !atTop && !atBottom) return;
-    wrappedPanX = atLeft ? Math.max(0, bounds.width - 2) : atRight ? 1 : THREE.MathUtils.clamp(localX, 0, Math.max(0, bounds.width - 1));
-    wrappedPanY = atTop ? Math.max(0, bounds.height - 2) : atBottom ? 1 : THREE.MathUtils.clamp(localY, 0, Math.max(0, bounds.height - 1));
-    wrappedPanRequested = true;
-    // Pointer Lock keeps receiving motion after the cursor reaches a viewport edge.
+    wrappedDragX = THREE.MathUtils.clamp(event.clientX - bounds.left, 0, Math.max(0, bounds.width - 1));
+    wrappedDragY = THREE.MathUtils.clamp(event.clientY - bounds.top, 0, Math.max(0, bounds.height - 1));
+    // Request within the trusted pointer-down activation, not a later edge move
+    // after browser activation has expired. The virtual cursor wraps visually.
+    // 中键按下即申请，避免拖到边缘时用户激活过期；虚拟指针负责跨边缘循环。
     try {
-      const request = element.requestPointerLock();
-      request?.catch?.(() => {
-        wrappedPanRequested = false;
-        wrappedPanDenied = true;
+      element.requestPointerLock()?.catch?.(() => {
+        if (generation === dragGeneration && wrappedDragRequested) fallbackToNativeDrag();
       });
-    } catch {
-      wrappedPanRequested = false;
-      wrappedPanDenied = true;
-    }
+    } catch { fallbackToNativeDrag(); }
+    return true;
   };
 
-  const beginPan = (event) => {
-    nativePanActive = event.shiftKey && typeof element.requestPointerLock === 'function';
-    wrappedPanRequested = false;
-    wrappedPanDenied = false;
-    if (nativePanActive) requestWrappedPan(event);
+  const continueDrag = (event) => {
+    if (dragActive && !(event.buttons & 4)) endDrag();
+    return wrappedDragActive || wrappedDragRequested;
   };
 
-  const continuePan = (event) => {
-    if (nativePanActive && !(event.buttons & 4)) endPan();
-    else if (nativePanActive) requestWrappedPan(event);
-    return wrappedPanActive;
-  };
-
-  const onWrappedPanMove = (event) => {
-    if (!wrappedPanActive || document.pointerLockElement !== element) return;
+  const onWrappedDragMove = (event) => {
+    if (!wrappedDragActive || document.pointerLockElement !== element) return;
+    if (!(event.buttons & 4)) { endDrag(); return; }
     const width = element.clientWidth;
     const height = element.clientHeight;
     if (!width || !height) return;
-    wrappedPanX = (wrappedPanX + event.movementX + width) % width;
-    wrappedPanY = (wrappedPanY + event.movementY + height) % height;
+    wrappedDragX = ((wrappedDragX + event.movementX) % width + width) % width;
+    wrappedDragY = ((wrappedDragY + event.movementY) % height + height) % height;
     positionCursor();
-    const distance = camera.position.distanceTo(controls.target);
-    const scale = 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) / height;
-    camera.updateMatrix();
-    const pan = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0).multiplyScalar(-event.movementX * scale);
-    pan.add(new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1).multiplyScalar(event.movementY * scale));
-    camera.position.add(pan);
-    controls.target.add(pan);
-    camera.lookAt(controls.target);
-    controls.update();
+    onManualInteraction();
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      if (controls.enablePan) controls.pan(event.movementX * controls.panSpeed, event.movementY * controls.panSpeed);
+    } else if (controls.enableRotate) {
+      const radiansPerPixel = 2 * Math.PI * controls.rotateSpeed / height;
+      controls.rotateLeft(event.movementX * radiansPerPixel);
+      controls.rotateUp(event.movementY * radiansPerPixel);
+    }
   };
 
   const onPointerLockChange = () => {
-    if (wrappedPanRequested && nativePanActive && document.pointerLockElement === element) {
-      wrappedPanRequested = false;
-      wrappedPanActive = true;
+    if (wrappedDragRequested && dragActive && document.pointerLockElement === element) {
+      wrappedDragRequested = false;
+      wrappedDragActive = true;
       cursor.hidden = false;
       element.style.cursor = 'none';
       positionCursor();
       controls.enabled = false;
-    } else if (!wrappedPanActive && document.pointerLockElement === element) {
+    } else if (!wrappedDragActive && document.pointerLockElement === element) {
       document.exitPointerLock?.();
-    } else if (wrappedPanActive && document.pointerLockElement !== element) {
-      endPan(false);
+    } else if (wrappedDragActive && document.pointerLockElement !== element) {
+      endDrag(false);
     }
   };
 
   const onPointerLockError = () => {
-    wrappedPanRequested = false;
-    wrappedPanDenied = true;
+    if (wrappedDragRequested && !wrappedDragDenied) fallbackToNativeDrag();
   };
 
   const onWheel = (event) => {
@@ -173,14 +182,15 @@ export default function createCameraInputController({
     mount.appendChild(cursor);
     // This controller owns wheel/trackpad input; OrbitControls owns touch zoom.
     element.addEventListener('wheel', onWheel, { passive: false, capture: true });
-    document.addEventListener('mousemove', onWrappedPanMove, { signal: abortController.signal });
-    document.addEventListener('mouseup', (event) => { if (event.button === 1) endPan(); }, { signal: abortController.signal });
+    document.addEventListener('mousemove', onWrappedDragMove, { signal: abortController.signal });
+    document.addEventListener('mouseup', (event) => { if (event.button === 1) endDrag(); }, { signal: abortController.signal });
     document.addEventListener('pointerlockchange', onPointerLockChange, { signal: abortController.signal });
     document.addEventListener('pointerlockerror', onPointerLockError, { signal: abortController.signal });
+    window.addEventListener('blur', () => endDrag(), { signal: abortController.signal });
   };
 
   const dispose = () => {
-    endPan();
+    endDrag();
     abortController.abort();
     element.removeEventListener('wheel', onWheel, true);
     cursor.remove();
@@ -189,10 +199,10 @@ export default function createCameraInputController({
 
   return {
     attach,
-    beginPan,
-    continuePan,
-    endPan,
+    beginDrag,
+    continueDrag,
+    endDrag,
     dispose,
-    get active() { return wrappedPanActive; },
+    get active() { return wrappedDragActive; },
   };
 }
