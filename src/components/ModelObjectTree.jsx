@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { localize } from '../i18n.js';
-import { buildModelObjectTree } from '../../shared/map-model-objects.js';
+import { buildModelObjectTree, isModelObjectLeaf } from '../../shared/map-model-objects.js';
 import { setModelVisibility, useModelVisibility } from '../resources/modelVisibility.js';
 
 function VisibilityCheck({ ids, hidden, onChange, label, disabled }) {
@@ -12,12 +12,12 @@ function VisibilityCheck({ ids, hidden, onChange, label, disabled }) {
 }
 function ObjectBranch({ branch, hidden, onChange, text, disabled, root = false }) {
   const [open, setOpen] = useState(root);
-  if (!root && !branch.children.length && branch.objects.length === 1) {
+  if (!root && isModelObjectLeaf(branch)) {
     const object = branch.objects[0];
     return <label className="model-object-leaf"><VisibilityCheck ids={[object.id]} hidden={hidden} onChange={onChange} disabled={disabled} label={text(`显示 ${object.name}`, `Show ${object.name}`, `Показать ${object.name}`)} /><span title={object.name}>{branch.label}</span></label>;
   }
-  return <details className="model-object-branch" open={open} onToggle={event => { if (event.target === event.currentTarget) setOpen(event.currentTarget.open); }}>
-    <summary><VisibilityCheck ids={branch.ids} hidden={hidden} onChange={onChange} disabled={disabled} label={text(`显示 ${branch.label}`, `Show ${branch.label}`, `Показать ${branch.label}`)} /><span title={branch.label}>{branch.label}</span><small>{branch.ids.length}</small></summary>
+  return <details className="model-object-branch" open={open}>
+    <summary onClick={event => { event.preventDefault(); setOpen(value => !value); }}><VisibilityCheck ids={branch.ids} hidden={hidden} onChange={onChange} disabled={disabled} label={text(`显示 ${branch.label}`, `Show ${branch.label}`, `Показать ${branch.label}`)} /><span title={branch.label}>{branch.label}</span><small>{branch.ids.length}</small></summary>
     {open && <div className="model-object-children">
       {branch.children.map(child => <ObjectBranch key={child.key} branch={child} hidden={hidden} onChange={onChange} text={text} disabled={disabled} />)}
       {branch.objects.map(object => <label className="model-object-leaf" key={object.id}><VisibilityCheck ids={[object.id]} hidden={hidden} onChange={onChange} disabled={disabled} label={text(`显示 ${object.name}`, `Show ${object.name}`, `Показать ${object.name}`)} /><span title={object.name}>{object.name}</span></label>)}
@@ -45,8 +45,8 @@ export default function ModelObjectTree({ mapName, api, language, disabled }) {
     try { setModelVisibility(mapName, metadata.signature, [...next]); setSaveError(''); }
     catch (error) { setSaveError(error.message); }
   };
-  return <details className="model-object-tree" open={open} onToggle={event => { if (event.target === event.currentTarget) setOpen(event.currentTarget.open); }}>
-    <summary>{text('模型对象', 'Model objects', 'Объекты модели')}{metadata && <small>{metadata.objects.length - hidden.size} / {metadata.objects.length}</small>}</summary>
+  return <details className="model-object-tree" open={open}>
+    <summary onClick={event => { event.preventDefault(); setOpen(value => !value); }}>{text('模型对象', 'Model objects', 'Объекты модели')}{metadata && <small>{metadata.objects.length - hidden.size} / {metadata.objects.length}</small>}</summary>
     {open && <div className="model-object-tree-content">
       <p>{text('按名称分组，立即应用并保存。仅控制模型显示，NAV 与碰撞不变。', 'Grouped by name; changes apply and save immediately. NAV and collisions stay unchanged.', 'Группировка по имени; изменения применяются и сохраняются сразу. NAV и столкновения не меняются.')}</p>
       {error ? <p role="alert">{error} <button type="button" onClick={() => setAttempt(value => value + 1)}>{text('重试', 'Retry', 'Повторить')}</button></p> : !metadata ? <p role="status">{text('正在读取对象名称…', 'Reading object names…', 'Чтение имён объектов…')}</p> : <>
