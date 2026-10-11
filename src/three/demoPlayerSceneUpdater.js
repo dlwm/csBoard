@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { firstMapCollisionHit } from './mapCollisionIndex.js';
+import { playerBaseColor } from './playerColors.js';
 import { createPlayerPawn } from './playerPawn.js';
 import { createWeaponModel, updateWeaponModel, isFirearm } from './weaponModel.js';
 import { createTacticalPoint, updateTacticalPoint } from './tacticalPoint.js';
@@ -22,7 +23,11 @@ export default function createDemoPlayerSceneUpdater({
   getRenderer,
   getCollisionMeshes,
   getCollisionVersion,
+  getDemoId,
 }) {
+  let colorSource;
+  const playerColors = new Map();
+  const sideSeats = new Map();
   const demoFlashedHeadColor = new THREE.Color('#e4e7e5');
   const {
     snapshot: demoSnapshotRef,
@@ -37,6 +42,8 @@ export default function createDemoPlayerSceneUpdater({
   } = refs;
 
   return () => {
+    const source = getDemoId?.();
+    if (source !== colorSource) { colorSource = source; playerColors.clear(); sideSeats.clear(); }
     const modelCenter = getModelCenter();
     const camera = getCamera();
     const renderer = getRenderer();
@@ -52,6 +59,11 @@ export default function createDemoPlayerSceneUpdater({
       const displaySide = player.team === 2 ? 'T' : 'CT';
       const playerId = String(player.steamid || player.name);
       activeIds.add(playerId);
+      if (!playerColors.has(playerId)) {
+        const seat = sideSeats.get(displaySide) || 0;
+        playerColors.set(playerId, playerBaseColor(seat, playerId));
+        sideSeats.set(displaySide, seat + 1);
+      }
       let marker = demoMarkers.get(playerId);
       if (!marker) {
         const direction = new THREE.Vector3(Math.sin(THREE.MathUtils.degToRad(player.yaw || 0)), 0, Math.cos(THREE.MathUtils.degToRad(player.yaw || 0)));
@@ -64,9 +76,9 @@ export default function createDemoPlayerSceneUpdater({
            const headMaterial = bodyMaterial.clone();
            marker.userData.demoBodyMaterial = bodyMaterial;
            marker.userData.demoHeadMaterial = headMaterial;
-         const standingBody = createPlayerPawn(bodyMaterial, headMaterial);
+         const standingBody = createPlayerPawn(bodyMaterial, headMaterial, false, playerColors.get(playerId));
          standingBody.userData.demoStandingBody = true;
-         const crouchedBody = createPlayerPawn(bodyMaterial, headMaterial, true);
+         const crouchedBody = createPlayerPawn(bodyMaterial, headMaterial, true, playerColors.get(playerId));
          crouchedBody.userData.demoCrouchedBody = true;
           const equipment = new THREE.Group();
           equipment.userData.demoEquipment = true;
@@ -169,6 +181,11 @@ export default function createDemoPlayerSceneUpdater({
           label.userData.demoNameLabel = true;
           label.raycast = () => {};
           marker.add(label);
+      }
+      const baseColor = playerColors.get(playerId);
+      if (marker.userData.baseColor !== baseColor) {
+        marker.userData.baseColor = baseColor;
+        marker.traverse(object => { if (object.userData.playerBase) object.material.color.set(baseColor); });
       }
       marker.position.set(player.position.x - modelCenter.x, player.position.y - modelCenter.y + 0.16, player.position.z - modelCenter.z);
        updateTacticalPoint(marker, displaySide, 'T');

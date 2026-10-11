@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useVoiceSettings, voiceAudioContext } from './settings.js';
 
 const EMPTY = [];
-export default function useDemoVoicePlayback({ frames = EMPTY, tick, tickRate = 64, playing, enabled, summary }) {
-  const { muted, volume } = useVoiceSettings();
+export default function useDemoVoicePlayback({ frames = EMPTY, tick, tickRate = 64, playing, enabled, summary, players = EMPTY }) {
+  const { muted, volume, side } = useVoiceSettings();
   const [decoded, setDecoded] = useState(null);
   const [status, setStatus] = useState('');
   const runtime = useRef({ sources: new Set(), anchor: null, gain: null, index: 0 });
@@ -31,6 +31,8 @@ export default function useDemoVoicePlayback({ frames = EMPTY, tick, tickRate = 
     worker.postMessage({ frames, tickRate });
     return () => { cancelled = true; worker.terminate(); };
   }, [frames, tickRate, audible, summary]);
+  const playerTeams = useRef(new Map());
+  playerTeams.current = new Map(players.flatMap(player => [[String(player.steamid), player.team], [player.name, player.team]]));
   const currentTick = useRef(tick);
   currentTick.current = tick;
   useEffect(() => {
@@ -56,6 +58,11 @@ export default function useDemoVoicePlayback({ frames = EMPTY, tick, tickRate = 
         const start = anchor.time + (clip.tick - anchor.tick) / tickRate;
         if (start > context.currentTime + 0.8) break;
         state.index++;
+        // New caches carry the side at the packet tick. Older caches use the
+        // active round roster; unknown speakers are only audible in All mode.
+        // 新数据使用语音发生时的阵营，旧缓存回退到当前回合人员；未知仅在全部模式播放。
+        const team = clip.team || playerTeams.current.get(clip.id) || playerTeams.current.get(clip.name);
+        if (side !== "all" && team !== (side === "T" ? 2 : 3)) continue;
         const offset = Math.max(0, context.currentTime - start);
         if (offset >= clip.samples.length / clip.sampleRate) continue;
         const buffer = context.createBuffer(1, clip.samples.length, clip.sampleRate);
@@ -72,7 +79,7 @@ export default function useDemoVoicePlayback({ frames = EMPTY, tick, tickRate = 
     const timer = setInterval(schedule, 25);
     state.seek = seek;
     return () => { clearInterval(timer); state.seek = null; stop(); };
-  }, [decoded, frames, tickRate, playing, audible]);
+  }, [decoded, frames, tickRate, playing, audible, side]);
   useEffect(() => {
     const context = voiceAudioContext();
     const state = runtime.current;

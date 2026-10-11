@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { firstMapCollisionHit } from './mapCollisionIndex.js';
 import { createPlayerPawn } from './playerPawn.js';
+import { playerBaseColor, validPlayerBaseColor } from './playerColors.js';
 import { createWeaponModel } from './weaponModel.js';
 
 export function randomPlayerName() {
@@ -21,8 +22,9 @@ function createNameLabel(name) {
   return label;
 }
 
-export function createCollabPlayer({ position, id, name, team = 'T', crouched = false, pitch = 0, weapon = 'ak47', showName = true }) {
+export function createCollabPlayer({ position, id, name, team = 'T', crouched = false, pitch = 0, weapon = 'ak47', showName = true, baseColor }) {
   const group = new THREE.Group();
+  group.userData.baseColor = validPlayerBaseColor(baseColor) ? baseColor : playerBaseColor(5, id || name);
   group.userData.collabPlayer = true;
   group.userData.pointId = id;
   group.userData.team = team;
@@ -36,10 +38,10 @@ export function createCollabPlayer({ position, id, name, team = 'T', crouched = 
   const bodyMaterial = new THREE.MeshStandardMaterial({ color: sideColor, roughness: 0.72, metalness: 0.04, transparent: true, opacity: 0.82 });
   const headMaterial = bodyMaterial.clone();
 
-  const standingBody = createPlayerPawn(bodyMaterial, headMaterial);
+  const standingBody = createPlayerPawn(bodyMaterial, headMaterial, false, group.userData.baseColor);
   standingBody.userData.collabBody = 'standing';
 
-  const crouchedBody = createPlayerPawn(bodyMaterial, headMaterial, true);
+  const crouchedBody = createPlayerPawn(bodyMaterial, headMaterial, true, group.userData.baseColor);
   crouchedBody.userData.collabBody = 'crouched';
 
   const equipment = new THREE.Group();
@@ -136,6 +138,6 @@ export function setCollabPlayerTeam(group, team) {
   const aimRay = group.userData.aimRay;
   if (aimRay) aimRay.material.color.copy(color);
   group.children.filter((child) => child.userData.collabBody).forEach((body) => {
-    body.traverse((child) => { if (child.material?.color) child.material.color.copy(color); });
+    body.traverse((child) => { if (child.material?.color && !child.userData.playerBase) child.material.color.copy(color); });
   });
 }

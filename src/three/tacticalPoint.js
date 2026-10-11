@@ -63,7 +63,7 @@ export function updateTacticalPoint(point, team, type) {
   const color = new THREE.Color(team === 'CT' ? '#5da9ff' : '#ffb347');
   point.userData.team = team;
   point.userData.type = type;
-  point.traverse((object) => { if (object.material?.color) object.material.color.copy(color); });
+  point.traverse((object) => { if (object.material?.color && !object.userData.playerBase) object.material.color.copy(color); });
   const symbol = point.children.find((child) => child.userData.symbol);
   if (!symbol) return;
   const [stem, bar] = symbol.children;

@@ -9,13 +9,14 @@ let context;
 const snapshot = () => {
   if (!state) {
     const saved = Number(preferences.getItem('csboard-voice-volume') ?? 0.7);
-    state = { muted: true, volume: Number.isFinite(saved) ? Math.max(0, Math.min(1, saved)) : 0.7 };
+    state = { side: 'all', muted: true, volume: Number.isFinite(saved) ? Math.max(0, Math.min(1, saved)) : 0.7 };
   }
   return state;
 };
 const subscribe = listener => { listeners.add(listener); return () => listeners.delete(listener); };
 export function useVoiceSettings() { return useSyncExternalStore(subscribe, snapshot); }
 export function setVoiceSettings(changes) {
+  if ('side' in changes && !['all', 'T', 'CT'].includes(changes.side)) throw new Error('Invalid voice side');
   state = { ...snapshot(), ...changes };
   if ('volume' in changes) {
     state.volume = Math.max(0, Math.min(1, Number(changes.volume) || 0));

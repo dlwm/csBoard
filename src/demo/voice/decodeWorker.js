@@ -31,8 +31,8 @@ self.onmessage = async ({ data: { frames, tickRate } }) => {
       const start = Math.abs(frame.tick - speaker.end) <= tickRate * 0.025 ? speaker.end : frame.tick;
       speaker.end = start + decoded.samplesDecoded / decoded.sampleRate * tickRate;
       let chunk = chunks.get(id);
-      if (!chunk || chunk.sampleRate !== decoded.sampleRate || Math.abs(start - chunk.end) > tickRate * 0.0001 || chunk.length >= decoded.sampleRate * 2) {
-        chunk = { tick: start, end: start, length: 0, sampleRate: decoded.sampleRate, parts: [] };
+      if (!chunk || chunk.team !== frame.team || chunk.sampleRate !== decoded.sampleRate || Math.abs(start - chunk.end) > tickRate * 0.0001 || chunk.length >= decoded.sampleRate * 2) {
+        chunk = { id, name: frame.name, team: frame.team, tick: start, end: start, length: 0, sampleRate: decoded.sampleRate, parts: [] };
         chunks.set(id, chunk);
         clips.push(chunk);
       }
@@ -47,7 +47,7 @@ self.onmessage = async ({ data: { frames, tickRate } }) => {
       const samples = new Float32Array(chunk.length);
       let offset = 0;
       for (const part of chunk.parts) { samples.set(part, offset); offset += part.length; }
-      return { tick: chunk.tick, samples, sampleRate: chunk.sampleRate };
+      return { id: chunk.id, name: chunk.name, team: chunk.team, tick: chunk.tick, samples, sampleRate: chunk.sampleRate };
     }).sort((left, right) => left.tick - right.tick);
     self.postMessage({ clips: merged, skipped, limited }, merged.map(clip => clip.samples.buffer));
   } catch (error) { self.postMessage({ error: error.message }); }

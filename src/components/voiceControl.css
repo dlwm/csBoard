@@ -8,3 +8,5 @@
 .voice-playback-status{font:10px var(--font-mono);color:#bdcaad;pointer-events:none}
 
 .roster-player strong{display:flex;align-items:center;min-width:0}.roster-name{min-width:0;overflow:hidden;text-overflow:ellipsis}.roster-player.dead.speaking{opacity:.65;filter:none}
+
+.voice-side-filter{display:flex;gap:4px}.voice-side-filter button{padding:4px 6px;background:#101815;border:1px solid #354238;color:#a7b7a9;font:inherit}.voice-side-filter button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}

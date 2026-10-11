@@ -12,6 +12,7 @@ import (
 // Compressed Opus frames stay in round caches; PCM is decoded only for playback.
 // 只缓存压缩语音帧，播放时解码 PCM；解析器无需 cgo 或本机音频依赖。
 type VoiceFrame struct {
+	Team     int     `json:"team,omitempty"`
 	Tick     float64 `json:"tick"`
 	SteamID  string  `json:"steamid"`
 	Name     string  `json:"name"`
@@ -154,10 +155,12 @@ func trackVoice(parser dem.Parser, report *Report) {
 			id = binary.LittleEndian.Uint64(message.Audio.GetVoiceData()[:8])
 		}
 		name := ""
+		team := 0
 		for _, player := range parser.GameState().Participants().All() {
 			if (id != 0 && player.SteamID64 == id) || (id == 0 && player.EntityID == int(message.GetEntity())) {
 				id = player.SteamID64
 				name = player.Name
+				team = int(player.Team)
 				break
 			}
 		}
@@ -201,7 +204,7 @@ func trackVoice(parser dem.Parser, report *Report) {
 				return
 			}
 			bytes += len(packet)
-			report.VoiceFrames = append(report.VoiceFrames, VoiceFrame{Tick: tick, SteamID: strconv.FormatUint(id, 10), Name: name, Duration: duration, Data: append([]byte(nil), packet...)})
+			report.VoiceFrames = append(report.VoiceFrames, VoiceFrame{Tick: tick, Team: team, SteamID: strconv.FormatUint(id, 10), Name: name, Duration: duration, Data: append([]byte(nil), packet...)})
 			report.VoiceSummary.Frames++
 			tick += duration * 64
 		}
