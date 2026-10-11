@@ -4,6 +4,7 @@ import { getPlatform } from '../platform/index.js';
 import { localize } from '../i18n.js';
 import './resourcePack.css';
 import './desktopManager.css';
+import { useDataCleanupConfirmation } from './ConfirmDataCleanup.jsx';
 import AnalysisCacheSettings from './AnalysisCacheSettings.jsx';
 import DesktopUpdates from './DesktopUpdates.jsx';
 import DesktopAppearance from './DesktopAppearance.jsx';
@@ -15,8 +16,9 @@ const bytes = value => {
   const divisor = { GB: 1024 ** 3, MB: 1024 ** 2, KB: 1024, B: 1 }[unit];
   return `${(size / divisor).toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unit}`;
 };
-export default function AppSettings({ language, onClose, initialTab = 'appearance', modelQuality, setModelQuality, sampleRate, setSampleRate }) {
-  const api = getPlatform().maintenance;
+export default function AppSettings({ storageWorking = false, language, onClose, initialTab = 'appearance', modelQuality, setModelQuality, sampleRate, setSampleRate }) {
+  const platform = getPlatform(), api = platform.maintenance;
+  const { confirm, confirmation } = useDataCleanupConfirmation(language);
   const dialog = useRef(null), mounted = useRef(false), content = useRef(null);
   const jumpTo = id => { const element = content.current?.querySelector(`#settings-${id}`); if (element) { content.current.scrollTo({ top: element.offsetTop, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); setTab(id); } };
   const [status, setStatus] = useState(null), [tasks, setTasks] = useState([]);
@@ -40,7 +42,7 @@ export default function AppSettings({ language, onClose, initialTab = 'appearanc
     refresh().catch(error => { if (mounted.current) setError(error.message); });
     return () => { mounted.current = false; cancelAnimationFrame(scrollFrame); off(); };
   }, []);
-  const working = tasks.some(task => ['queued', 'running'].includes(task.state));
+  const working = storageWorking || tasks.some(task => ['queued', 'running'].includes(task.state));
   const taskState = state => ({ queued: text('排队中', 'Queued', 'В очереди'), running: text('运行中', 'Running', 'В работе'), completed: text('已完成', 'Completed', 'Готово'), failed: text('失败', 'Failed', 'Ошибка'), cancelled: text('已取消', 'Cancelled', 'Отменено') })[state] || state;
   const taskLabel = task => task.kind === 'parse' ? task.label : ({
     'analysis.catalog': text('读取选手目录', 'Load player directory', 'Загрузка списка игроков'),
@@ -53,7 +55,8 @@ export default function AppSettings({ language, onClose, initialTab = 'appearanc
     'broadcast.decode': text('读取演播数据', 'Read broadcast data', 'Чтение трансляции'),
   })[task.label] || text('后台计算', 'Background computation', 'Фоновые вычисления');
   const clean = async maxBytes => {
-    if (!window.confirm(text('将删除 Demo 缓存，保留用户存档和资源包。请先保存当前编辑内容；清理后页面会重新加载。继续？', 'Remove Demo cache while keeping saved work and resources? Save your edits first; the page will reload.', 'Удалить кэш Demo, сохранив архивы и ресурсы? Сохраните изменения: страница перезагрузится.'))) return;
+    const description = maxBytes == null ? text('将删除未引用的 Demo 缓存，保留存档和资源包。清理后页面会重新加载。', 'Remove unreferenced Demo caches while keeping saved work and resources. The page will reload.', 'Удалить неиспользуемый кэш Demo, сохранив архивы и ресурсы. Страница перезагрузится.') : text('将删除 Demo 缓存，保留用户存档和资源包。请先保存当前编辑内容；清理后页面会重新加载。继续？', 'Remove Demo cache while keeping saved work and resources? Save your edits first; the page will reload.', 'Удалить кэш Demo, сохранив архивы и ресурсы? Сохраните изменения: страница перезагрузится.');
+    if (!await confirm(description)) return;
     await api.clean(maxBytes); location.reload();
   };
   return createPortal(<dialog ref={dialog} className="resource-pack-dialog desktop-manager" onClose={onClose} onCancel={event => { if (busy) event.preventDefault(); }} onKeyDown={event => event.stopPropagation()} aria-labelledby="desktop-manager-title">
@@ -64,7 +67,8 @@ export default function AppSettings({ language, onClose, initialTab = 'appearanc
         ['appearance', text('界面显示', 'Appearance', 'Интерфейс')],
         ['models', text('模型面简化', 'Model simplification', 'Упрощение модели')],
         ...(getPlatform().capabilities.demoParsing ? [['parsing', text('Demo 解析', 'Demo parsing', 'Разбор Demo')]] : []),
-        ...(api ? [['storage', text('存储与备份', 'Storage & backups', 'Хранилище и копии')], ['tasks', text('后台任务', 'Background tasks', 'Фоновые задачи')]] : []),
+        ['storage', text('存储与备份', 'Storage & backups', 'Хранилище и копии')],
+        ...(api ? [['tasks', text('后台任务', 'Background tasks', 'Фоновые задачи')]] : []),
         ...(getPlatform().updates ? [['updates', text('应用更新', 'Updates', 'Обновления')]] : []),
       ].map(([id, label]) => <button type="button" key={id} aria-current={tab === id ? 'location' : undefined} onClick={() => jumpTo(id)}>{label}</button>)}
     </nav>
@@ -78,6 +82,14 @@ export default function AppSettings({ language, onClose, initialTab = 'appearanc
       <section id="settings-appearance" data-settings-section="appearance"><h2>{text('界面显示', 'Appearance', 'Интерфейс')}</h2><DesktopAppearance language={language} /></section>
       <section id="settings-models" data-settings-section="models"><h2>{text('模型面简化', 'Model simplification', 'Упрощение модели')}</h2><ModelQualitySettings language={language} value={modelQuality} onChange={setModelQuality} /></section>
       {getPlatform().capabilities.demoParsing && <section id="settings-parsing" data-settings-section="parsing"><h2>{text('Demo 解析', 'Demo parsing', 'Разбор Demo')}</h2><ParsingSettings language={language} value={sampleRate} onChange={setSampleRate} /></section>}
+      {!api && <section id="settings-storage" data-settings-section="storage"><h2>{text('存储与备份', 'Storage & backups', 'Хранилище и копии')}</h2>
+        <p>{text('数据保存在当前设备。清空会删除本地存档、道具速记、Demo 缓存、助手会话及设置；服务器中的协作房间不受影响。请先导出需要保留的内容。', 'Data is stored on this device. Cleanup deletes local archives, utility notes, Demo caches, assistant sessions and settings. Server collaboration rooms are unaffected. Export anything you want to keep first.', 'Данные хранятся на устройстве. Очистка удалит локальные архивы, заметки гранат, кэш Demo, диалоги помощника и настройки. Комнаты на сервере не затрагиваются. Сначала экспортируйте нужные данные.')}</p>
+        <div className="desktop-manager-actions"><button type="button" disabled={busy || working || !platform.clearData} onClick={async () => {
+          if (working) return;
+          if (!await confirm(text('本设备中保存的 CSBoard 数据将被永久删除，完成后页面会重新加载。此操作无法撤销。', 'Saved CSBoard data on this device will be permanently deleted and the page will reload. This cannot be undone.', 'Сохранённые данные CSBoard на устройстве будут удалены без возможности отмены. Страница перезагрузится.'))) return;
+          run(async () => { await platform.clearData(); location.reload(); });
+        }}>{text('清空本地数据', 'Clear local data', 'Очистить локальные данные')}</button></div>
+      </section>}
       {api && <section id="settings-storage" data-settings-section="storage"><h2>{text('存储与备份', 'Storage & backups', 'Хранилище и копии')}</h2>
         <div className="desktop-storage-summary">
           {[[text('数据库（包含存档）', 'Database (includes saved work)', 'База данных (с архивами)'), status?.databaseBytes], [text('Demo 缓存', 'Demo cache', 'Кэш Demo'), status?.cacheBytes], [text('分析缓存', 'Analysis cache', 'Кэш анализа'), status?.analysisBytes], [text('已导入资源', 'Imported resources', 'Импортированные ресурсы'), status?.resourceBytes], [text('未引用缓存', 'Unreferenced cache', 'Неиспользуемый кэш'), status?.orphanBytes], [text('解析临时文件', 'Parse staging files', 'Временные файлы'), status?.stagingBytes], [text('恢复前的数据副本', 'Restore safety copies', 'Копии до восстановления'), status?.recoveryBytes]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{status ? bytes(value) : '—'}</strong></div>)}
@@ -99,5 +111,5 @@ export default function AppSettings({ language, onClose, initialTab = 'appearanc
       {getPlatform().updates && <section id="settings-updates" data-settings-section="updates"><h2>{text('应用更新', 'Updates', 'Обновления')}</h2><DesktopUpdates language={language} working={working} /></section>}
     </div></div>
     {api && <footer className="resource-pack-footer"><p>{busy ? text('正在处理，请稍候…', 'Working…', 'Обработка…') : working ? text('任务运行期间暂不进行存储维护。', 'Storage maintenance waits for background tasks.', 'Обслуживание хранилища доступно после завершения задач.') : text('存档与可重建缓存分别管理。', 'Saved work is kept separate from rebuildable caches.', 'Архивы и восстанавливаемый кэш разделены.')}</p><button disabled={busy} onClick={() => run(refresh)}>{text('刷新占用', 'Refresh usage', 'Обновить размер')}</button></footer>}
-  </dialog>, document.body);
+  {confirmation}</dialog>, document.body);
 }

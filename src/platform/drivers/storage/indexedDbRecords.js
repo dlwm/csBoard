@@ -25,6 +25,7 @@ function transact(mode, action) {
 }
 
 export const indexedDbRecords = {
+  clear: () => transact('readwrite', store => store.clear()),
   get: key => transact('readonly', store => store.get(key)),
   put: (key, value) => transact('readwrite', store => store.put(value, key)),
 };

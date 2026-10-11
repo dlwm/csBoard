@@ -45,3 +45,9 @@
 
 .resource-pack-dialog .desktop-appearance input[type=range]{padding:0;border:0;background:transparent;box-sizing:border-box}
 
+.data-cleanup-confirmation { width: min(440px, calc(100vw - 32px)); padding: 24px; }
+.data-cleanup-confirmation form { display: flex; flex-direction: column; gap: 16px; }
+.data-cleanup-confirmation h2, .data-cleanup-confirmation p { margin: 0; }
+.data-cleanup-confirmation p { line-height: 1.6; }
+.data-cleanup-confirmation label { display: flex; flex-direction: column; gap: 8px; }
+.data-cleanup-confirmation input { padding: 10px; border: 1px solid var(--accent-border, #354238); background: #0d1512; color: #e4eee9; font: inherit; }

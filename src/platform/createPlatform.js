@@ -40,6 +40,7 @@ export function createPlatform({ host, parser, storage, compute, ai = null }) {
       backgroundParsing: parser.execution === 'native' && Boolean(host.backgroundParsing),
       resourceImport: Boolean(host.resources), releaseDownload: Boolean(host.releaseDownload),
     }),
+    clearData: storage.clearData,
     cache: storage.cache, records: storage.records, preferences: storage.preferences, compute: run,
     demos: Object.freeze({ concurrency: jobs => parser.concurrency(jobs), start: options => parser.start(options),
       chooseFiles: event => host.chooseFiles(event, parser.input),

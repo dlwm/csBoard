@@ -12,7 +12,7 @@ import useDesktopUpdateState from './useDesktopUpdateState.js';
 import { availableWorkspaceMenus } from './workspace/menuRegistry.js';
 
 // Global navigation owns locale cycling and the mini-game launcher, independent of panel content.
-export default function BoardHeader({ modelQuality, setModelQuality, sampleRate, setSampleRate, boardViewMode, onBoardViewModeChange, activePanel, language, mapName, parseGameState, setLanguage, setMapName, setParseGameManual, setParseGameState, switchPanel, t }) {
+export default function BoardHeader({ storageWorking, modelQuality, setModelQuality, sampleRate, setSampleRate, boardViewMode, onBoardViewModeChange, activePanel, language, mapName, parseGameState, setLanguage, setMapName, setParseGameManual, setParseGameState, switchPanel, t }) {
   const navRef = useRef(null);
   useEffect(() => {
     if (getPlatform().capabilities.mobile) navRef.current?.querySelector('[aria-current=page]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -61,6 +61,6 @@ export default function BoardHeader({ modelQuality, setModelQuality, sampleRate,
     </div>
     {changelogOpen && <ChangelogModal buildVersion={BUILD_VERSION} language={language} onClose={() => setChangelogOpen(false)} />}
     {resourcesOpen && <ResourcePackModal language={language} onClose={() => setResourcesOpen(false)} />}
-    {desktopOpen && <AppSettings modelQuality={modelQuality} setModelQuality={setModelQuality} sampleRate={sampleRate} setSampleRate={setSampleRate} language={language} initialTab={hasUpdate ? 'updates' : 'appearance'} onClose={() => setDesktopOpen(false)} />}
+    {desktopOpen && <AppSettings storageWorking={storageWorking} modelQuality={modelQuality} setModelQuality={setModelQuality} sampleRate={sampleRate} setSampleRate={setSampleRate} language={language} initialTab={hasUpdate ? 'updates' : 'appearance'} onClose={() => setDesktopOpen(false)} />}
   </header>;
 }

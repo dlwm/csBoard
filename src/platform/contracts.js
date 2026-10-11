@@ -51,6 +51,7 @@
  * @property {Object} cache Demo metadata and round payload port.
  * @property {{get: Function, put: Function}} records Large application records.
  * @property {PreferenceStore} preferences Small UI preferences, never Demo data.
+ * @property {() => Promise<void>} [clearData] Clear this application's durable records, caches and preferences.
  * @property {Object} [owner] Identity of the backend that owns the cache.
  */
 

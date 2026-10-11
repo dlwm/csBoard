@@ -70,3 +70,9 @@ export async function deleteCachedDemo(id) {
   const keys = await runTransaction(ROUND_STORE_NAME, 'readonly', (transaction) => transaction.objectStore(ROUND_STORE_NAME).getAllKeys());
   for (const key of keys || []) if (String(key).startsWith(`${id}:`)) await runTransaction(ROUND_STORE_NAME, 'readwrite', (transaction) => transaction.objectStore(ROUND_STORE_NAME).delete(key));
 }
+
+export function clearCachedDemos() {
+  return runTransaction([STORE_NAME, INDEX_STORE_NAME, ROUND_STORE_NAME], 'readwrite', transaction => {
+    for (const name of [STORE_NAME, INDEX_STORE_NAME, ROUND_STORE_NAME]) transaction.objectStore(name).clear();
+  });
+}
