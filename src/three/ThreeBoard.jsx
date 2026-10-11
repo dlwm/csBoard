@@ -24,7 +24,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import { createNavMesh } from './navMesh.js';
 import { createZoneModel } from './zoneModel.js';
-import { createTutorialMap, TUTORIAL_MAP_ID } from './tutorialMap.js';
 import { createGhostMaterial, enableMapSquareFade } from './materials.js';
 import { createTacticalPoint, updateTacticalPoint } from './tacticalPoint.js';
 import { createCollabPlayer, randomPlayerName, renameCollabPlayer, setCollabPlayerCrouch, setCollabPlayerPitch, setCollabPlayerTeam, updateCollabPlayerAim } from './collabPlayer.js';
@@ -1466,11 +1465,8 @@ export default function ThreeBoard(inputProps) {
         collisionMeshes.push(object);
         object.frustumCulled = true;
         object.renderOrder = (Array.isArray(object.material) ? object.material : [object.material]).some(isMapModelOverlay) ? 4 : 3;
-         if (object.material && mapName !== TUTORIAL_MAP_ID) object.userData.sourceMapMaterial = object.material;
-         if (mapName === TUTORIAL_MAP_ID) {
-           const materials = Array.isArray(object.material) ? object.material : [object.material];
-           materials.forEach(material => { enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current); material.transparent = true; material.opacity = modelOpacity; material.depthWrite = true; });
-         }
+         if (object.material) object.userData.sourceMapMaterial = object.material;
+
       });
       const materialRuntime = createMapMaterialRuntime(worldModel, () => {
         const material = createGhostMaterial(focusScreen, viewportSize, modelMode, modelRange);
@@ -1485,14 +1481,14 @@ export default function ThreeBoard(inputProps) {
       if (applyVisibility) worldModel.userData.applyObjectVisibility = record => { applyVisibility(record); modelSimplification.applyHidden(); batches.syncVisibility(); };
       worldModel.userData.disposeRenderBatches = batches.clear;
       materialRuntime.apply();
-      if (mapName !== TUTORIAL_MAP_ID) batches.rebuild();
+      batches.rebuild();
       scene.add(worldModel);
       // Static map materials share the live floor uniform; initialize once, not every scan.
       worldModel.traverse((object) => {
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.forEach((material) => enableMaterialFloorFade(material, floorFadeRef.current));
       });
-      if (MAP_ZONE_MODELS_ENABLED && !getPlatform().capabilities.resourceImport && mapName !== TUTORIAL_MAP_ID) {
+      if (MAP_ZONE_MODELS_ENABLED && !getPlatform().capabilities.resourceImport) {
         loadMapModel(new GLTFLoader(), MAP_MODEL_BASES, `${mapName}/${mapName}.zones.glb`, (gltf) => {
           if (disposed || !worldModel) return;
           const zones = createZoneModel(gltf.scene, mapName);
@@ -1507,7 +1503,7 @@ export default function ThreeBoard(inputProps) {
       worldModel.visible = modelVisibilityRef.current;
          worldModel.position.y = modelBasePositionRef.current.y + (modelMode.value === 0 ? -0.12 : 0);
       worldModel.updateMatrixWorld(true);
-      if (mapName !== TUTORIAL_MAP_ID) cacheStaticMapTransforms(worldModel);
+      cacheStaticMapTransforms(worldModel);
       registerMapCollisionIndex(collisionMeshes, worldModel);
       // Preserve the active camera while a lazy model joins an already-ready NAV.
       if (!boardReady) {
@@ -1529,8 +1525,7 @@ export default function ThreeBoard(inputProps) {
       modelRequested = true;
       lastModelProgressAt = 0;
       modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: 0, total: 0 });
-      if (mapName === TUTORIAL_MAP_ID) loadWorldModel(createTutorialMap());
-      else loadMapModel(new GLTFLoader(), mapModelSource(mapName, MAP_MODEL_BASES).bases, mapModelSource(mapName, MAP_MODEL_BASES).file, (gltf) => { bindMapObjectVisibility(gltf); loadWorldModel(gltf.scene); }, (event) => {
+      loadMapModel(new GLTFLoader(), mapModelSource(mapName, MAP_MODEL_BASES).bases, mapModelSource(mapName, MAP_MODEL_BASES).file, (gltf) => { bindMapObjectVisibility(gltf); loadWorldModel(gltf.scene); }, (event) => {
         if (disposed) return;
         const now = performance.now();
         if (now - lastModelProgressAt < 80 && (!event.total || event.loaded < event.total)) return;

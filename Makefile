@@ -14,7 +14,7 @@ VERSION ?=
 	desktop-start desktop-dev desktop-prepare desktop-build-mac-arm64 \
 	desktop-build-mac-x64 desktop-build-win-x64 native-build \
 	mobile-prepare mobile-open mobile-build version version-sync version-check \
-	resources nav-data nav-labels map-places map-export workers-build wrangler docker
+	resources nav-data nav-labels map-places map-export workers-build wrangler docker guide-example
 
 help:
 	@printf '%s\n' \
@@ -40,6 +40,7 @@ help:
 		'  dev-workers / workers-build Run Workers locally / bundle without publishing' \
 		'  deploy                      Authorize and deploy Workers' \
 		'  wrangler ARGS="whoami"       Run the installed Wrangler CLI' \
+		'  guide-example DEMO=path       Prepare the compact operation guide replay' \
 		'  nav-labels                   Paint NAV regions and save place names' \
 		'  map-places                   Import map place/spawn entities from local VPKs' \
 		'  resources / nav-data / map-export  Prepare map resources' \
@@ -136,3 +137,6 @@ nav-labels:
 
 map-places:
 	$(NODE) scripts/import-map-places.js $(ARGS)
+
+guide-example:
+	$(NODE) scripts/build-guide-example.js $(if $(DEMO),"$(DEMO)",) $(ARGS)

@@ -14,7 +14,7 @@ export default function ReplayLibraryPicker({ entries, error, loadingId, activeI
       <ArchiveFolderTree state={folders} items={entries} language={language} onCreate={onCreateFolder} onDelete={onDeleteFolder} onMove={onMove}
         emptyLabel={text('暂无本地 Demo', 'No local Demos', 'Нет локальных Demo')}
         renderItem={entry => <article className={entry.id === activeId ? 'active' : ''} key={entry.id}>
-          <button type="button" className="demo-cache-open" onClick={() => onOpen(entry)}><strong>{entry.fileName}{isRecording(entry) && <small className="demo-recording-kind">{text('自制DEMO', 'Custom DEMO', 'Своя DEMO')}</small>}</strong>
+          <button type="button" className="demo-cache-open" onClick={() => onOpen(entry)}><strong>{entry.fileName}{entry.builtinExample && <small className="demo-recording-kind">{text('示例回放', 'Example replay', 'Пример повтора')}</small>}{isRecording(entry) && <small className="demo-recording-kind">{text('自制DEMO', 'Custom DEMO', 'Своя DEMO')}</small>}</strong>
             <span>{entry.map} · {entry.rounds} {isRecording(entry) ? text('片段', 'clips', 'фрагментов') : text('回合', 'rounds', 'раундов')}</span>
             {entry.updatedAt && <small>{new Date(entry.updatedAt).toLocaleString(localeForLanguage(language))}</small>}
           </button>

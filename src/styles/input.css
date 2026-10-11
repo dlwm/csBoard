@@ -184,7 +184,7 @@
   background: rgba(9,15,14,.98);
   box-shadow: 0 12px 30px rgba(0,0,0,.5);
 }
-:root .board-shell[data-mobile-workspace] .view-tools-top { flex: none; align-items: start; }
+:root .board-shell[data-mobile-workspace] .view-tools-top { display: flex; flex: none; align-items: start; }
 :root .board-shell[data-mobile-workspace] .map-preview-slot { flex: 0 0 145px; width: 145px; height: 145px; aspect-ratio: 1; }
 :root .board-shell[data-mobile-workspace] .camera-slots { grid-template-columns: repeat(3, minmax(44px, 1fr)); gap: 4px; transform: none; }
 :root .board-shell[data-mobile-workspace] .camera-slots>button { height: 44px; font-size: 12px; }

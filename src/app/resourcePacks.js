@@ -19,7 +19,7 @@ export function importedIconUrl(name) {
 }
 
 export function hasMapModel(mapName) {
-  return !getPlatform().capabilities.resourceImport || mapName === 'cs_tutorial' || Boolean(resources.models[mapName]);
+  return !getPlatform().capabilities.resourceImport || Boolean(resources.models[mapName]);
 }
 
 export function importedModelBase(mapName) {

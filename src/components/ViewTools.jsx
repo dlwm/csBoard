@@ -18,11 +18,12 @@ const BRUSH_COLORS = ['#a5e0ff', '#ff6b6b', '#7cf29c', '#ffd166', '#ffffff', '#c
 const BRUSH_WIDTHS = [2, 3, 5, 8];
 
 // Shared camera, radar-floor and drawing controls; mobile collapses the surface.
-export default function ViewTools({ boardViewMode, map2dStyle, setMap2dStyle, mobile = false, touchDrawingEnabled = false, setTouchDrawingEnabled, activePanel, radarSource, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
+export default function ViewTools({ guideControlsOpen = false, boardViewMode, map2dStyle, setMap2dStyle, mobile = false, touchDrawingEnabled = false, setTouchDrawingEnabled, activePanel, radarSource, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
   const [open, setOpen] = useState(false);
   const [savingCamera, setSavingCamera] = useState(false);
   const contentId = useId();
   useEffect(() => { setOpen(false); setSavingCamera(false); }, [activePanel, mapName]);
+  useEffect(() => { if (guideControlsOpen) setOpen(true); }, [guideControlsOpen, activePanel, mapName]);
   useEffect(() => {
     if (!mobile || !open) return undefined;
     const close = event => { if (event.key === 'Escape') setOpen(false); };

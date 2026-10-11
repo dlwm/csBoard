@@ -13,7 +13,7 @@ export default function UtilityNotesPanel({ notes, folders, language, onCreateFo
   const [sort,setSort] = useState(()=>preferences.getItem('csboard-utility-sort') === 'manual' ? 'manual' : 'landing');
   const compareItems = sort === 'landing' ? (a,b)=>compareUtilityLandingPlaces(a,b,localeForLanguage(language)) : null;
   const changeSort = event => { setSort(event.target.value); preferences.setItem('csboard-utility-sort',event.target.value); };
-  return <WorkspacePanel className="utility-location-panel">
+  return <WorkspacePanel className="utility-location-panel" data-tour="notes">
     <header><strong>{t('utilityNotes')}</strong><select className="utility-sort-select" aria-label={t('utilitySort')} title={t('utilitySort')} value={sort} onChange={changeSort}><option value="landing">{t('sortLandingPlace')}</option><option value="manual">{t('sortManual')}</option></select><span>{t('utilityCount', { count: notes.length })}</span></header>
     <UtilityArchiveTree notes={notes} folders={folders} language={language} onCreateFolder={onCreateFolder}
       onDeleteFolder={onDeleteFolder} onMove={onMove} compareItems={compareItems} onFocus={onFocus} onClearFocus={onClearFocus} onOpen={onOpen} t={t}

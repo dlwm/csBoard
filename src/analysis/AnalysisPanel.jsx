@@ -34,7 +34,7 @@ export default function AnalysisPanel({
 }) {
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const hasPlayers = selectedPlayers.length > 0;
-  return <WorkspacePanel className="analysis-panel" aria-busy={queryLoading}>
+  return <WorkspacePanel className="analysis-panel" data-tour="analysis" aria-busy={queryLoading}>
     <div className="collab-heading">
       <div><span>DEMO ANALYSIS</span><h2>{translate('analysis')}</h2></div>
       <button type="button" disabled={queryLoading || !hasPlayers || !rowsAvailable} onClick={onTogglePlay}>{playing ? translate('pause') : translate('play')}</button>

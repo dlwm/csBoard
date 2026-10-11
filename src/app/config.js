@@ -1,5 +1,4 @@
 import { preferences } from '../platform/preferences.js';
-import { TUTORIAL_MAP_ID } from '../three/tutorialMap.js';
 
 import { OSS_BASE, BACKEND_BASE } from './buildConfig.js';
 export { AI_ENABLED, PARSER_ENGINE, AI_CHAT_URL } from './buildConfig.js';
@@ -22,7 +21,6 @@ export const MAP_ZONE_MODELS_ENABLED = false;
 export const NAV_TOP_CAMERA_TARGET_MAPS = new Set(['de_anubis']);
 
 export const MAPS = [
-  { id: TUTORIAL_MAP_ID, label: 'Training Ground' },
   { id: 'de_dust2', label: 'Dust II' },
   { id: 'de_mirage', label: 'Mirage' },
   { id: 'de_nuke', label: 'Nuke' },
@@ -36,7 +34,6 @@ export const MAPS = [
 ];
 
 export const MAP_LABELS_ZH = {
-  [TUTORIAL_MAP_ID]: '训练场',
   de_dust2: '炙热沙城 II',
   de_mirage: '荒漠迷城',
   de_nuke: '核子危机',

@@ -8,7 +8,7 @@ const kinds = { smoke: ['烟雾弹', 'Smoke', 'Дым'], flash: ['闪光弹', 'F
 export default function UtilityRecommendationsPanel({ language, groups, utilities, loading, error, selectedPlayers, focusedId, onFocus, onPreview, previewState, onSave, saveState, savedIds, development, formulas, onFormulasChange }) {
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const index = new Map(utilities.map(utility => [utility.id, utility]));
-  return <WorkspacePanel className="utility-recommendations" aria-busy={loading}>
+  return <WorkspacePanel className="utility-recommendations" data-tour="recommendations" aria-busy={loading}>
     <header><h2>{text('道具推荐', 'Utility recommendations', 'Рекомендуемые гранаты')}</h2>{focusedId && <button type="button" onClick={() => onFocus('')}>{text('显示全部', 'Show all', 'Показать все')}</button>}</header>
     {!selectedPlayers.length && <p>{text('选择选手与 Demo 后显示推荐。', 'Select players and Demos to see recommendations.', 'Выберите игроков и Demo для рекомендаций.')}</p>}
     {loading && <p role="status">{text('正在准备推荐…', 'Preparing recommendations…', 'Подготовка рекомендаций…')}</p>}

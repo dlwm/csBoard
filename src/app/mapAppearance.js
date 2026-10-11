@@ -1,6 +1,5 @@
 // Primary emblem colors, applied to localized text rather than a second wordmark.
 export const MAP_LABEL_PALETTES = {
-  cs_tutorial: ['#e0ffab', '#a5df63', '#57ba98'],
   de_ancient: ['#fff0bc', '#dfcc85', '#a89650'],
   de_anubis: ['#f1f4f5', '#c1c6c9', '#929296'],
   de_cache: ['#f0d98e', '#df787b', '#76a1b9'],
@@ -18,7 +17,7 @@ export const MAP_LABEL_TONES = Object.fromEntries(
 );
 
 export function mapLabelStyle(id) {
-  const colors = MAP_LABEL_PALETTES[id] || MAP_LABEL_PALETTES.cs_tutorial;
+  const colors = MAP_LABEL_PALETTES[id] || MAP_LABEL_PALETTES.de_dust2;
   return {
     '--map-label-color': colors[1],
     '--map-label-gradient': `linear-gradient(125deg, ${colors[0]} 5%, ${colors[1]} 52%, ${colors[2]} 100%)`,

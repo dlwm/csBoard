@@ -6,7 +6,6 @@ import { regionColor, regionAnchor, svgText } from './mapRegionPresentation.js';
 
 // Shared floor cuts keep the 2D NAV preview and 3D floor filter aligned.
 export const NAV_FLOOR_BOUNDARIES = {
-  cs_tutorial: 66.54,
   de_nuke: -495,
   // Main yards sit around -200; the lower yard is around -300.
   // -50 only isolated rooftops and incorrectly put both yards downstairs.

@@ -13,6 +13,7 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
   const [selectedDemoIds, setSelectedDemoIds] = useState([]);
   const [status, setStatus] = useState('');
   const loadedKeyRef = useRef('');
+  const catalogueKey = useMemo(() => `${mapName}|${cachedDemos.filter(entry => entry.rawMap === mapName).map(entry => `${entry.id}:${entry.updatedAt || ''}`).sort().join('|')}`, [cachedDemos, mapName]);
 
   useEffect(() => {
     if (!active) {
@@ -26,7 +27,7 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
       return undefined;
     }
     const candidates = cachedDemos.filter((entry) => entry.rawMap === mapName);
-    const loadKey = `${mapName}|${candidates.map((entry) => `${entry.id}:${entry.updatedAt || ''}`).sort().join('|')}`;
+    const loadKey = catalogueKey;
     if (loadedKeyRef.current === loadKey) {
       setPlayersLoading(false);
       return undefined;
@@ -57,7 +58,7 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
       if (!cancelled) setPlayersLoading(false);
     });
     return () => { cancelled = true; controller.abort(); };
-  }, [active, cachedDemos, cachedDemosLoading, mapName, language, cacheSchemaVersion]);
+  }, [active, cachedDemos, cachedDemosLoading, mapName, language, cacheSchemaVersion, catalogueKey]);
 
   const playerName = selectedPlayers[0] || '';
   const demosForPlayers = useMemo(() => getAnalysisDemosForPlayers(demos, selectedPlayers), [demos, selectedPlayers]);
@@ -80,6 +81,23 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
       return preserved.length ? preserved : available.slice(0, 3).map((entry) => entry.id);
     });
   }, [demos, selectedPlayers]);
+  // Batch selection must publish one query, not race multiple toggle closures.
+  // 批量选择一次发布；不循环调用 toggle，避免旧闭包覆盖选手和 Demo 范围。
+  const selectPlayers = useCallback(names => {
+    const known = new Set(players), next = [...new Set(names)].filter(name => known.has(name));
+    const available = getAnalysisDemosForPlayers(demos, next);
+    setSelectedPlayers(next); setPlayerQuery('');
+    setSelectedDemoIds(current => {
+      if (!next.length) return [];
+      const ids = current.filter(id => available.some(entry => entry.id === id));
+      if (!ids.length) ids.push(...available.slice(0, 3).map(entry => entry.id));
+      for (const name of next) if (!ids.some(id => available.find(entry => entry.id === id)?.analysisPlayerNames.includes(name))) {
+        const entry = available.find(entry => entry.analysisPlayerNames.includes(name));
+        if (entry && !ids.includes(entry.id)) ids.push(entry.id);
+      }
+      return ids;
+    });
+  }, [demos, players]);
   const clearPlayers = useCallback(() => {
     setSelectedPlayers([]);
     setSelectedDemoIds([]);
@@ -88,6 +106,9 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
 
   return {
     clearPlayers,
+    selectPlayers,
+    catalogueKey,
+    catalogueReady: active && !cachedDemosLoading && !playersLoading && loadedKeyRef.current === catalogueKey,
     demosForPlayers,
     playerName,
     playerQuery,

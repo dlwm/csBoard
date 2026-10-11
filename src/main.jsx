@@ -28,9 +28,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as THREE from 'three';
 import { getBundledNavData } from './data/navData.js';
-import { tutorialNavData, tutorialWorkspaceArchive, TUTORIAL_MAP_ID } from './three/tutorialMap.js';
 import SideGameHub from './SideGameHub.jsx';
-import TutorialGuide, { TutorialOffer } from './TutorialGuide.jsx';
+import OperationGuide, { TutorialOffer } from './onboarding/OperationGuide.jsx';
+import WorkspaceHelp from './onboarding/WorkspaceHelp.jsx';
+import { operationGuideSteps } from './onboarding/steps.js';
 import AnalysisControls from './analysis/AnalysisControls.jsx';
 import AnalysisPanel from './analysis/AnalysisPanel.jsx';
 import { getAnalysisEconomyAvailability } from './analysis/buildAnalysisDataset.js';
@@ -124,18 +125,19 @@ function App() {
   languageRef.current = language;
   const [mapName, setMapName] = useState(() => MAPS.some((map) => map.id === initialViewPreferences.mapName) ? initialViewPreferences.mapName : 'de_dust2');
   // Resolve NAV in the same render as the map name so a new GLB never mounts with the previous map's geometry.
-  const navData = useMemo(() => mapName === TUTORIAL_MAP_ID ? tutorialNavData : getBundledNavData(mapName), [mapName]);
+  const navData = useMemo(() => getBundledNavData(mapName), [mapName]);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
-  const [tutorialOfferOpen, setTutorialOfferOpen] = useState(() => {
-    const firstVisit = !preferences.getItem('csboard-tutorial-prompted') && !preferences.getItem('csboard-tutorial-complete');
-    if (IS_DEVELOPMENT_RUNTIME) {
-      const visits = Number(preferences.getItem('csboard-localhost-visits') || 0) + 1;
-      try { preferences.setItem('csboard-localhost-visits', String(visits)); } catch { /* The current visit can still be evaluated. */ }
-      return firstVisit || visits % 3 === 0;
-    }
-    return firstVisit;
-  });
+  const [tutorialOfferOpen, setTutorialOfferOpen] = useState(() => !preferences.getItem('csboard-operation-guide-prompted'));
+  const tutorialSteps = useMemo(() => operationGuideSteps({ demoParsing: platform.capabilities.demoParsing, mobile: mobileWorkspace }), []);
+  const tutorialUtilityBaseline = useRef(new Set());
+  const tutorialSelectionApplied = useRef(null);
+  const [tutorialSavedMoments, setTutorialSavedMoments] = useState([]);
+  const [tutorialExampleLoading, setTutorialExampleLoading] = useState(false);
+  const [tutorialExampleProgress, setTutorialExampleProgress] = useState(0);
+  const [tutorialExampleError, setTutorialExampleError] = useState('');
+  const tutorialExampleRequest = useRef(0);
+  const tutorialExampleInFlight = useRef(false);
   const [map2dStyle, setMap2dStyle] = useState(() => initialViewPreferences.map2dStyle === 'places' ? 'places' : 'plain');
   const [boardViewMode, setBoardViewMode] = useState(() => initialViewPreferences.boardViewMode === "2d" ? "2d" : "3d");
   const [showGrid, setShowGrid] = useState(() => typeof initialViewPreferences.showGrid === 'boolean' ? initialViewPreferences.showGrid : false);
@@ -240,6 +242,9 @@ function App() {
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
   const {
     clearPlayers: clearAnalysisPlayers,
+    selectPlayers: selectAnalysisPlayers,
+    catalogueKey: analysisCatalogueKey,
+    catalogueReady: analysisCatalogueReady,
     demosForPlayers: analysisDemosForPlayers,
     playerName: analysisPlayerName,
     playerQuery: analysisPlayerQuery,
@@ -529,7 +534,7 @@ function App() {
     setRecordingInlineRound(inlineRoundData);
     setActiveRecordingId(recordingId);
     setDemoData(data);
-    const firstRound = data.rounds?.[0] || null;
+    const firstRound = (data.demo.example && data.rounds?.find(round => round.round === data.demo.preferredRound)) || data.rounds?.[0] || null;
     setDemoRound(firstRound);
     seekDemoTick(firstRound?.startTick || 0);
     setDemoPovPlayerId('');
@@ -792,6 +797,10 @@ function App() {
     if (!result || result.error) return;
     const { archive, next, savedFrames, savedActiveFrameId } = result;
     if (!await persistWorkspaceArchives(next)) return;
+    if (tutorialOpen && saveArchiveIncludeDemo && demoData) setTutorialSavedMoments(current => {
+      const moment = { archiveId: archive.id, fileName: demoData.demo.fileName, round: demoRound?.round, tick: demoTick };
+      return current.some(item => item.archiveId === moment.archiveId && item.fileName === moment.fileName && item.round === moment.round && item.tick === moment.tick) ? current : [...current, moment];
+    });
     await workspaceFolders.assign(archive.id, saveArchiveFolderId, next);
     if (!roomCode) {
       setActiveArchiveId(archive.id);
@@ -806,7 +815,7 @@ function App() {
   const openSaveArchiveModal = (includeDemo = false) => { const selectedId = !includeDemo && activeArchiveId ? activeArchiveId : ''; setSaveArchiveMode('select'); setSaveArchiveIncludeDemo(includeDemo); setSaveArchiveSelected(selectedId); setSaveArchiveFolderId(workspaceFolders.state.items[selectedId]?.folderId || ROOT_FOLDER_ID); setSaveArchiveName(''); setSaveArchiveModal(true); };
   const openOverwriteArchiveModal = (archiveId) => { setSaveArchiveMode('overwrite'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(archiveId); setSaveArchiveFolderId(workspaceFolders.state.items[archiveId]?.folderId || ROOT_FOLDER_ID); setSaveArchiveName(''); setSaveArchiveModal(true); };
   const openNewArchiveModal = () => { setSaveArchiveMode('new'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(''); setSaveArchiveFolderId(ROOT_FOLDER_ID); setSaveArchiveName(''); setSaveArchiveModal(true); };
-  const { openRoom, leaveRoom, joinRoom, restoreWorkspaceArchive, onReady: restoreReadyBoard } = useWorkspaceSession(() => ({
+  const { openRoom, leaveRoom, joinRoom, restoreWorkspaceArchive: restoreKnownWorkspaceArchive, onReady: restoreReadyBoard } = useWorkspaceSession(() => ({
     scene: {
       get: () => boardRef.current,
       attach: (board) => { boardRef.current = board; },
@@ -907,9 +916,12 @@ function App() {
     if (activePanel === 'collab' && panel !== 'collab') boardRef.current?.clearWorkspaceState?.();
     if (panel !== 'collab' && roomCode) { const wasOwner = roomOwner; leaveRoom(); window.alert(wasOwner ? t('roomDestroyed') : t('roomExited')); }
     if (panel !== 'utility') { setUtilityModalOpen(false); setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); setUtilityError(''); }
-    if (mapName === TUTORIAL_MAP_ID && panel !== 'utility' && panel !== 'collab') setMapName('de_dust2');
     activePanelRef.current = panel;
     setActivePanel(panel);
+  };
+  const restoreWorkspaceArchive = archive => {
+    if (!MAPS.some(map => map.id === archive.mapName)) { setRoomNotice(localize(language, { zh: '此存档的地图已不再提供，请选择其他存档。', en: 'This archive uses an unavailable map. Choose another archive.', ru: 'Карта этого архива недоступна. Выберите другой архив.' })); return; }
+    restoreKnownWorkspaceArchive(archive);
   };
   const switchMainPanel = (panel) => {
     if (!availableWorkspaceMenus(platform.capabilities).some(menu => menu.id === panel)) return;
@@ -959,33 +971,64 @@ function App() {
       setUtilityImportNotice(t('utilityImportFailed'));
     }
   };
-  const openTutorialWorkspace = () => {
-    let archive = archivesRef.current.find((item) => item.id === tutorialWorkspaceArchive.id);
-    if (!archive) {
-      archive = tutorialWorkspaceArchive;
-      const next = [...archivesRef.current, archive];
-      persistWorkspaceArchives(next);
+  const openTutorialExample = async () => {
+    if (!platform.capabilities.demoParsing || tutorialExampleInFlight.current) return;
+    const request = ++tutorialExampleRequest.current;
+    tutorialExampleInFlight.current = true;
+    setTutorialExampleLoading(true); setTutorialExampleProgress(0); setTutorialExampleError('');
+    try {
+      const { loadGuideExample } = await import('./onboarding/sampleDemo.js');
+      const entry = await loadGuideExample(platform.cache, value => { if (request === tutorialExampleRequest.current) setTutorialExampleProgress(value); });
+      await refreshCachedDemos();
+      if (request !== tutorialExampleRequest.current || activePanelRef.current !== 'demo') return;
+      await openCachedDemo(entry.id);
+    } catch (error) { if (request === tutorialExampleRequest.current) setTutorialExampleError(localize(language, { zh: '示例载入失败，请重试或继续使用自己的 Demo。', en: 'Could not load the example. Retry or use your own Demo.', ru: 'Не удалось загрузить пример. Повторите или используйте своё Demo.' })); console.error('Guide example:', error); }
+    finally { tutorialExampleInFlight.current = false; setTutorialExampleLoading(false); }
+  };
+  const moveTutorial = nextStep => {
+    const index = Math.max(0, Math.min(nextStep, tutorialSteps.length - 1));
+    const item = tutorialSteps[index];
+    setTutorialStep(index);
+    if (item.panel && activePanel !== item.panel) switchMainPanel(item.panel);
+    if (['model', 'floors'].includes(item.id)) setBoardViewMode('3d');
+    if (['utility-events', 'recommendations'].includes(item.id)) setDemoViewFlags(current => ({ ...current, analysisMetric: 'utility' }));
+    if (['recommendations', 'notes', 'getpos', 'players', 'drawing', 'camera-slots', 'floors'].includes(item.id)) setLeftSidebarOpen(true);
+    if (['analysis', 'utility-events', 'collab'].includes(item.id)) setRightSidebarOpen(true);
+    if (item.id === 'import' && !demoData) void openTutorialExample();
+    if (item.id === 'save-frames') { setDemoPlaying(false); setBoardViewMode('3d'); }
+  };
+  useEffect(() => {
+    const id = tutorialSteps[tutorialStep].id;
+    if (!tutorialOpen || activePanel !== 'analysis' || !analysisCatalogueReady || !['analysis', 'recommendations'].includes(id)) return;
+    const key = `${id}:${analysisCatalogueKey}`;
+    if (tutorialSelectionApplied.current === key) return;
+    tutorialSelectionApplied.current = key;
+    if (id === 'recommendations') selectAnalysisPlayers(analysisPlayers);
+    else {
+      const teses = analysisPlayers.find(name => name.toLowerCase() === 'teses');
+      if (teses) selectAnalysisPlayers([teses]);
     }
-    switchPanel('collab');
-    restoreWorkspaceArchive(archive);
-  };
-  const moveTutorial = (nextStep) => {
-    setTutorialStep(nextStep);
-    if (nextStep === 3 && activeArchiveId !== tutorialWorkspaceArchive.id) openTutorialWorkspace();
-  };
+  }, [tutorialOpen, tutorialStep, tutorialSteps, activePanel, analysisCatalogueReady, analysisCatalogueKey, analysisPlayers, selectAnalysisPlayers]);
   const rememberTutorialOffer = () => {
     setTutorialOfferOpen(false);
-    try { preferences.setItem('csboard-tutorial-prompted', '1'); } catch { /* Keep the dismissal state for this session. */ }
+    try { preferences.setItem('csboard-operation-guide-prompted', '1'); } catch { /* Keep this session's dismissal when storage is unavailable. */ }
   };
   const beginTutorial = () => {
     rememberTutorialOffer();
+    tutorialSelectionApplied.current = null;
+    tutorialUtilityBaseline.current = new Set(utilityNotesRef.current.map(note => note.id));
+    setTutorialSavedMoments([]);
     setTutorialStep(0);
     setTutorialOpen(true);
-    openTutorialWorkspace();
   };
   const finishTutorial = () => {
-    setTutorialOpen(false);
-    try { preferences.setItem('csboard-tutorial-prompted', '1'); preferences.setItem('csboard-tutorial-complete', '1'); } catch { /* Keep the completion state for this session. */ }
+    setTutorialOpen(false); tutorialExampleRequest.current++;
+    try { preferences.setItem('csboard-operation-guide-prompted', '1'); } catch { /* Keep this session's dismissal when storage is unavailable. */ }
+  };
+  const tutorialFrameCount = Math.max(0, ...tutorialSavedMoments.map(moment => tutorialSavedMoments.filter(item => item.archiveId === moment.archiveId).length));
+  const tutorialTaskProgress = {
+    utility: { current: utilityNotes.filter(note => !tutorialUtilityBaseline.current.has(note.id) || (activeDemoCacheIdRef.current && note.demoSource?.demoId === activeDemoCacheIdRef.current)).length, total: 1 },
+    frames: { current: tutorialFrameCount, total: 2 },
   };
   const selectedMode = showModel ? modelViewMode : -1;
   const customReplay = activePanel === 'demo' && isRecording(demoData);
@@ -1215,15 +1258,10 @@ function App() {
     window.dispatchEvent(new CustomEvent('csboard-map-floor', { detail: { mapName, floor: modelFloor } }));
   }, [mapName, navData, modelFloor]);
   useLayoutEffect(() => {
-    const allowed = activePanel === 'utility' || activePanel === 'collab';
     document.querySelectorAll('.map-select option').forEach((option) => {
       const map = MAPS.find((item) => item.id === option.value);
       if (!map) return;
       option.textContent = language === 'zh' ? MAP_LABELS_ZH[map.id] || map.label : map.label;
-      if (map.id === TUTORIAL_MAP_ID) {
-        option.disabled = !allowed;
-        option.hidden = !allowed;
-      }
     });
     document.querySelectorAll('.demo-options').forEach((options) => {
       const buttons = options.querySelectorAll(':scope > button');
@@ -1262,8 +1300,8 @@ function App() {
   return <WorkspaceFrame panel={displayPanel} mobile={mobileWorkspace} mobileH5={mobileH5} analysisMetric={demoViewFlags.analysisMetric} mapName={mapName} navData={navData}
     hasLeft={hasLeftSidebar} hasRight={hasRightSidebar} leftOpen={leftSidebarOpen} rightOpen={rightSidebarOpen}
     onLeftToggle={() => setLeftSidebarOpen(open => !open)} onRightToggle={() => setRightSidebarOpen(open => !open)} language={language}>
-    {tutorialOfferOpen && <TutorialOffer language={language} devMode={IS_DEVELOPMENT_RUNTIME} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
-    <WorkspaceContribution slot="top"><BoardHeader storageWorking={demoBatchRunning || customRecordings.loading} modelQuality={modelQuality} setModelQuality={setModelQuality} sampleRate={demoSampleRate} setSampleRate={setDemoSampleRate} boardViewMode={boardViewMode} onBoardViewModeChange={value => { setBoardViewMode(value); setDemoCameraMode("manual"); }} activePanel={displayPanel} language={language} mapName={mapName} parseGameState={parseGameState} setLanguage={setLanguage} setMapName={setMapName} setParseGameManual={setParseGameManual} setParseGameState={setParseGameState} switchPanel={switchMainPanel} t={t} /></WorkspaceContribution>
+    {tutorialOfferOpen && <TutorialOffer language={language} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
+    <WorkspaceContribution slot="top"><BoardHeader storageWorking={demoBatchRunning || customRecordings.loading || tutorialExampleLoading} modelQuality={modelQuality} setModelQuality={setModelQuality} sampleRate={demoSampleRate} setSampleRate={setDemoSampleRate} boardViewMode={boardViewMode} onBoardViewModeChange={value => { setBoardViewMode(value); setDemoCameraMode("manual"); }} activePanel={displayPanel} language={language} mapName={mapName} parseGameState={parseGameState} setLanguage={setLanguage} setMapName={setMapName} setParseGameManual={setParseGameManual} setParseGameState={setParseGameState} switchPanel={switchMainPanel} t={t} /></WorkspaceContribution>
       <WorkspaceContribution slot="left">{activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && <UtilityRecommendationsPanel language={language}
         groups={utilityRecommendations.groups} utilities={combinedAnalysis.utilities} loading={utilityRecommendations.loading} error={utilityRecommendations.error}
         selectedPlayers={analysisSelectedPlayers} focusedId={focusedAnalysisGroupId} onFocus={setFocusedAnalysisGroupId}
@@ -1273,7 +1311,7 @@ function App() {
          {recordingDraft && <RecordingClipModal error={recordingsStorageError} draft={recordingDraft} folders={recordingFolders.state} language={language} round={recordingDraft.source.round} tickRate={recordingDraft.source.demoData.demo.tickRate || 64} onChange={setRecordingDraft} onClose={() => setRecordingDraft(null)} onSave={saveRecording} />}
          <BroadcastDownloadOverlay download={broadcastRoom.download} language={language} onCancel={broadcastRoom.leave} />
          <DemoBatchPanel batch={demoBatch} counts={demoBatchCounts} development={IS_DEVELOPMENT_RUNTIME} language={language} onClose={clearDemoBatch} onRetry={retryDemoTask} onContinueRecording={continueRecordingParsing} continuationBusy={customRecordings.loading} />
-         {mapName === TUTORIAL_MAP_ID && <TutorialGuide language={language} open={tutorialOpen} step={tutorialStep} onOpen={() => { setTutorialStep(0); setTutorialOpen(true); }} onStep={moveTutorial} onFinish={finishTutorial} onExit={() => { finishTutorial(); setMapName('de_dust2'); }} />}
+         {tutorialOpen && <OperationGuide language={language} steps={tutorialSteps} step={tutorialStep} mobile={mobileWorkspace} hasDemo={Boolean(demoData)} taskProgress={tutorialTaskProgress} exampleAvailable={platform.capabilities.demoParsing} exampleLoading={tutorialExampleLoading} exampleProgress={tutorialExampleProgress} exampleError={tutorialExampleError} onExample={openTutorialExample} onStep={moveTutorial} onReturn={() => moveTutorial(tutorialStep)} onFinish={finishTutorial} />}
          {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><SideGameHub language={language} stopped={!parseGameManual && parseGameState === 'stopped'} manual={parseGameManual} onClose={() => { setParseGameDismissed(true); setParseGameManual(false); setParseGameState('hidden'); }} /></div>}
         <ThreeBoard showSpawnMarkers={showSpawnMarkers} mapFloor={modelFloor} map2dStyle={map2dStyle} onModelSimplificationStatus={setModelSimplificationStatus} modelQuality={modelQuality} smokeTimersEnabled={replayPanel} boardViewMode={boardViewMode} demoMapName={replayPanel ? demoData?.demo.map : utilityReplay?.note.mapName} utilityPlayingNoteId={activePanel === 'utility' ? utilityReplay?.note.id : null} utilityReplayDisplay={activePanel === 'utility' ? utilityReplayDisplay : undefined} language={language} key={mapName} mapName={mapName} navData={navData} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoSnapshot={replayPanel ? demoSnapshot : activePanel === 'utility' ? utilityReplaySnapshot : null} demoSnapshots={replayPanel ? demoSnapshots : []} demoTick={replayPanel ? demoTick : utilityReplay?.tick || 0} demoFires={replayPanel ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={replayPanel ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={replayPanel ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name) && event.tick >= (demoRound?.contextStartTick ?? demoRound?.freezeStartTick ?? demoRound?.startTick ?? 0)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={replayPanel ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={replayPanel ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoInfernoFrames={replayPanel ? demoInfernoFrames : utilityReplay?.note.replay.infernoFrames || []} demoGrenadeSegments={replayPanel ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={replayPanel ? onDemoGrenadeSelect : null} demoDeaths={replayPanel ? demoDeaths : []} demoC4Events={replayPanel ? demoC4Events : []} demoHltvEvents={replayPanel ? demoHltvEvents : []} demoCameraMode={replayPanel ? demoCameraMode : 'manual'} onDemoCameraInterrupt={() => setDemoCameraMode('manual')} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={visibleAnalysisUtilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} touchDrawingEnabled={!mobileWorkspace || touchDrawingEnabled} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} />
          {AI_ENABLED && <WorkspaceContribution slot="viewport-bottom-right"><AiPanel language={language} ports={aiPorts} transport={platform.ai} enabled={activePanel === 'collab' && hasActiveFrameContext} visible={activePanel === 'collab'} /></WorkspaceContribution>}
@@ -1293,10 +1331,10 @@ function App() {
       {saveArchiveModal && <SaveArchiveModal archives={archives} draftName={saveArchiveName} folderState={workspaceFolders.state} folderId={saveArchiveFolderId} language={language} mapName={mapName} mode={saveArchiveMode} onClose={() => setSaveArchiveModal(false)} onDraftNameChange={setSaveArchiveName} onFolderChange={setSaveArchiveFolderId} onSave={saveWorkspaceArchive} onSelectedChange={(id) => { setSaveArchiveSelected(id); setSaveArchiveFolderId(workspaceFolders.state.items[id]?.folderId || ROOT_FOLDER_ID); }} selected={saveArchiveSelected} t={t} />}
       <UtilityFolderModal note={pendingUtilityNote} folderState={utilityFolders.state} folderId={utilitySaveFolderId} language={language} onClose={() => setPendingUtilityNote(null)} onFolderChange={setUtilitySaveFolderId} onSave={confirmUtilityNote} t={t} />
       {renameModal && <RenamePointModal draft={renameDraft} onClose={() => setRenameModal(null)} onConfirm={confirmRename} onDraftChange={setRenameDraft} t={t} />}
-            <WorkspaceContribution slot="map"><ViewTools boardViewMode={boardViewMode} map2dStyle={map2dStyle} setMap2dStyle={setMap2dStyle} radarSource={radarSource} mobile={mobileWorkspace} touchDrawingEnabled={touchDrawingEnabled} setTouchDrawingEnabled={setTouchDrawingEnabled} activePanel={activePanel} mapName={mapName} navData={navData} activeCameraSlot={activeCameraSlot} boardRef={boardRef} brushColor={brushColor} brushWidth={brushWidth} cameraSlotState={cameraSlotState} currentLayerUrl={currentLayerUrl} currentMapLayers={currentMapLayers} cycleMapFloor={cycleMapFloor} eraserEnabled={eraserEnabled} floorOptions={floorOptions} language={language} map2dLayer={map2dLayer} modelFloor={modelFloor} selectMapFloor={selectMapFloor} setBrushColor={setBrushColor} setBrushWidth={setBrushWidth} setEraserEnabled={setEraserEnabled} t={t} /></WorkspaceContribution>
+            <WorkspaceContribution slot="map"><ViewTools guideControlsOpen={tutorialOpen && ['camera-slots', 'floors'].includes(tutorialSteps[tutorialStep].id)} boardViewMode={boardViewMode} map2dStyle={map2dStyle} setMap2dStyle={setMap2dStyle} radarSource={radarSource} mobile={mobileWorkspace} touchDrawingEnabled={touchDrawingEnabled} setTouchDrawingEnabled={setTouchDrawingEnabled} activePanel={activePanel} mapName={mapName} navData={navData} activeCameraSlot={activeCameraSlot} boardRef={boardRef} brushColor={brushColor} brushWidth={brushWidth} cameraSlotState={cameraSlotState} currentLayerUrl={currentLayerUrl} currentMapLayers={currentMapLayers} cycleMapFloor={cycleMapFloor} eraserEnabled={eraserEnabled} floorOptions={floorOptions} language={language} map2dLayer={map2dLayer} modelFloor={modelFloor} selectMapFloor={selectMapFloor} setBrushColor={setBrushColor} setBrushWidth={setBrushWidth} setEraserEnabled={setEraserEnabled} t={t} /></WorkspaceContribution>
            {modelSimplificationStatus && <WorkspaceContribution slot="viewport-bottom-right"><ModelSimplificationStatus status={modelSimplificationStatus} language={language} /></WorkspaceContribution>}
            {voiceStatus && <WorkspaceContribution slot="viewport-bottom-left"><VoicePlaybackStatus status={voiceStatus} language={language} /></WorkspaceContribution>}
-           <div className="key-hints">{replayPanel || activePanel === 'analysis' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatPlayback')}</b><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : activePanel === 'utility' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : <><div className="key-group"><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintMovePlayer')}</span><span><kbd>CTRL+LMB</kbd>{t('hintYaw')}</span><span><kbd>SHIFT+LMB</kbd>{t('hintPitch')}</span><span><kbd>DBL</kbd>{t('hintCrouch')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></>}<div className="key-group"><WorkspaceTarget slot="camera-hints" /></div></div>
+           <WorkspaceHelp language={language} mobile={mobileWorkspace} onTutorial={beginTutorial}>{replayPanel || activePanel === 'analysis' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatPlayback')}</b><span><kbd>SPACE</kbd>{t('hintPlayPause')}</span><span><kbd>← →</kbd>{t('hintStep')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : activePanel === 'utility' ? <><div className="key-group"><b>{t('hintCatEdit')}</b><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintBrushDrag')}</span><span><kbd>CTRL+LMB</kbd>{t('hintErase')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span></div><div className="key-group"><b>{t('hintCatCamera')}</b><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></> : <><div className="key-group"><span><kbd>E</kbd>{t('hintPlacePoint')}</span><span><kbd>Q</kbd>{t('hintGrenadeWheel')}</span><span><kbd>CTRL+LMB</kbd>{t('hintDeleteUtility')}</span><span><kbd>LMB</kbd>{t('hintMovePlayer')}</span><span><kbd>CTRL+LMB</kbd>{t('hintYaw')}</span><span><kbd>SHIFT+LMB</kbd>{t('hintPitch')}</span><span><kbd>DBL</kbd>{t('hintCrouch')}</span><span><kbd>CTRL+Z</kbd>{t('hintUndo')}</span><span><kbd>CTRL+Y</kbd>{t('hintRedo')}</span><span><kbd>WASD</kbd>{t('hintMove')}</span><span><kbd>MMB</kbd>{t('hintRotate')}</span><span><kbd>SCROLL</kbd>{t('hintZoom')}</span></div></>}<div className="key-group"><WorkspaceTarget slot="camera-hints" /></div></WorkspaceHelp>
           <div className="aspect-frame" aria-hidden="true"><i /></div>
           {activePanel === 'demo' && !customReplay && demoSnapshot && <><DemoRoster side="T" players={demoTeams.T} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} speakingIds={speakingIds} speakingLabel={localize(language, { zh: '正在讲话', en: 'Speaking', ru: 'Говорит' })} /><DemoRoster side="CT" players={demoTeams.CT} events={demoData?.events || []} tick={demoTick} round={demoRound} tickRate={demoData.demo.tickRate || 64} povPlayerId={demoPovPlayerId} noGrenadesLabel={t('noGrenades')} speakingIds={speakingIds} speakingLabel={localize(language, { zh: '正在讲话', en: 'Speaking', ru: 'Говорит' })} /></>}
           {selectedPoint && selectedPointScreen && <div className="point-actions" style={{ left: selectedPointScreen.x, top: selectedPointScreen.y }}><span>{activePanel === 'collab' ? t('collabPlayer') : t('tacticalPoint')}</span><div className="point-choice"><b>{t('team')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, team: 'CT' })}>CT</button></div>{activePanel === 'collab' ? null : <div className="point-choice"><b>{t('type')}</b><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'T' })}>T</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'V' })}>V</button><button type="button" onClick={() => setPointUpdate({ id: selectedPoint, type: 'X' })}>X</button></div>}<button type="button" onClick={() => { setDeletePointId(selectedPoint); setSelectedPoint(null); setSelectedPointScreen(null); }}>{t('delete')}</button></div>}
@@ -1305,7 +1343,7 @@ function App() {
           {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && demoViewFlags.heatStyle === 'points' && selectedAnalysisUtility && selectedAnalysisUtilityScreen && <div className="demo-grenade-actions analysis-grenade-actions" style={{ left: selectedAnalysisUtilityScreen.x, top: selectedAnalysisUtilityScreen.y }}><div><strong>{selectedAnalysisUtility.kind.toUpperCase()}</strong><span>{selectedAnalysisUtility.segment.throwEvent.user_name || t('unknown')} · {selectedAnalysisUtility.source.fileName} · R{selectedAnalysisUtility.source.round}</span></div><button type="button" disabled={analysisUtilitySave.loading} onClick={saveAnalysisUtility}>{analysisUtilitySave.loading ? localize(language, { zh: '正在读取回放…', en: 'Loading replay…', ru: 'Загрузка повтора…' }) : t('saveUtility')}</button>{analysisUtilitySave.error && <p role="alert">{analysisUtilitySave.error}</p>}<button type="button" className="close" aria-label={t('cancel')} onClick={() => { setSelectedAnalysisUtility(null); setSelectedAnalysisUtilityScreen(null); }}>×</button></div>}
         <div className="board-tools"><button type="button" onClick={() => setShowGrid((value) => !value)} className={showGrid ? 'selected' : ''}><i /> {t('grid')}</button><button type="button" onClick={() => setTrackpadDetection((value) => !value)} className={trackpadDetection ? 'selected' : ''}><i /> {t('trackpad')} {trackpadDetection ? t('on') : t('off')}</button>{boardViewMode !== "2d" && hasMapModel(mapName) && <div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)} className={showModel ? 'selected' : ''}><i /> {modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) setShowModel(false); else { setShowModel(true); setModelViewMode(option.value); } setModeMenuOpen(false); }} /> <span>{option.label}</span></label>)}</div>}</div>}</div>
           <WorkspaceContribution slot="left">{activePanel === 'utility' && <UtilityNotesPanel notes={currentUtilityList} folders={utilityFolders.state} language={language} onCreateFolder={(name, parentId) => utilityFolders.create(name, parentId, utilityNotesRef.current)} onDeleteFolder={(id) => utilityFolders.remove(id, utilityNotesRef.current)} onMove={(source, target, position) => utilityFolders.move(utilityNotesRef.current.filter((note) => note.mapName === mapName), source, target, position)} onFocus={(note) => boardRef.current?.focusUtilityNote?.(note)} onClearFocus={() => boardRef.current?.clearCollabUtilityPreview?.()} onOpen={(note) => { setUtilityHover({ key: note.positionKey, entries: note.positionEntries, x: 16, y: 16 }); setSelectedUtilityNote(withUtilityLandingPlace(note)); setUtilityCopied(false); }} onAdd={() => { setUtilityDraft({ getpos: '', name: '', summary: '' }); setUtilityError(''); setUtilityModalOpen(true); }} t={t} />}</WorkspaceContribution>
-           {activePanel === 'utility' && utilityHover && <WorkspacePopover className="utility-hover-card" anchor={utilityHover} onPointerEnter={() => { utilityHoverInsideRef.current = true; window.clearTimeout(utilityHoverTimerRef.current); }} onPointerLeave={() => { utilityHoverInsideRef.current = false; utilityHoverTimerRef.current = window.setTimeout(() => { setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); }, 180); }}><header><strong>{selectedUtilityNote ? t('utilityDetails') : 'LOCATION'}</strong><span>{selectedUtilityNote ? <button type="button" onClick={() => { setSelectedUtilityNote(null); setUtilityEditDraft(null); }}>←</button> : utilityHover.entries.length}</span></header>{selectedUtilityNote ? <div className="utility-detail">{utilityEditDraft ? <form className="utility-edit-form" onSubmit={saveUtilityEdit}><label><span>{t('utilityTitle')}</span><input required value={utilityEditDraft.name} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><label><span>{t('utilityDescription')}</span><textarea required value={utilityEditDraft.summary} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, summary: event.target.value }))} /></label><div><button type="button" onClick={() => setUtilityEditDraft(null)}>{t('cancel')}</button><button type="submit">{t('saveUtilityEdit')}</button></div></form> : <><strong>{selectedUtilityNote.name}</strong><p>{selectedUtilityNote.summary}</p></>}<dl><div><dt>{t('map')}</dt><dd>{selectedUtilityNote.mapName}</dd></div><div><dt>{t('landingPlace')}</dt><dd>{selectedUtilityNote.landingPlace || t('landingPlaceUnknown')}</dd></div>{selectedUtilityNote.startPlace && <div><dt>{t('startPlace')}</dt><dd>{selectedUtilityNote.startPlace}</dd></div>}{selectedUtilityNote.throwPlace && <div><dt>{t('throwPlace')}</dt><dd>{selectedUtilityNote.throwPlace}</dd></div>}<div><dt>{t('position')}</dt><dd>{selectedUtilityNote.position.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('angles')}</dt><dd>{selectedUtilityNote.angles.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('exportedBy')}</dt><dd>{selectedUtilityNote.thrower || t('customUtility')}</dd></div>{selectedUtilityNote.demoSource && <div><dt>{t('sourceDemo')}</dt><dd>{selectedUtilityNote.demoSource.fileName} · R{selectedUtilityNote.demoSource.round || '-'} · T{selectedUtilityNote.demoSource.tick}</dd></div>}<div><dt>{t('exportedAt')}</dt><dd>{new Date(selectedUtilityNote.createdAt).toLocaleString(localeForLanguage(language))}</dd></div></dl><div className="utility-detail-actions"><button type="button" onClick={() => setUtilityEditDraft({ name: selectedUtilityNote.name, summary: selectedUtilityNote.summary || '' })}>{t('editUtility')}</button><button type="button" onClick={() => copyUtilityCommand(selectedUtilityNote)}>{utilityCopied ? t('copied') : t('getposCommand')}</button><button type="button" className="utility-delete" onClick={() => deleteUtilityNote(selectedUtilityNote)}>{t('delete')}</button>{selectedUtilityNote.replay && <><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote)}>{t('replayUtility')}</button><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote, true)}>{t('replayUtilityFirstPerson')}</button></>}</div></div> : <div className="utility-hover-list">{utilityHover.entries.map((note) => <button type="button" key={note.id} className={`utility-list-entry${note.replay ? ' replayable' : ''}`} onClick={() => { setSelectedUtilityNote(withUtilityLandingPlace(note)); setUtilityEditDraft(null); setUtilityCopied(false); }}><strong>{note.name}</strong><span>{t('landingPlace')}: {withUtilityLandingPlace(note).landingPlace || t('landingPlaceUnknown')}</span><span>{t('angles')}: {(note.angles || [0, 0, 0]).map((value) => Number(value).toFixed(2)).join(' / ')}</span><p>{note.summary}</p></button>)}</div>}</WorkspacePopover>}
+           {activePanel === 'utility' && utilityHover && <WorkspacePopover className="utility-hover-card" anchor={utilityHover} onPointerEnter={() => { utilityHoverInsideRef.current = true; window.clearTimeout(utilityHoverTimerRef.current); }} onPointerLeave={() => { utilityHoverInsideRef.current = false; utilityHoverTimerRef.current = window.setTimeout(() => { setUtilityHover(null); setSelectedUtilityNote(null); setUtilityEditDraft(null); }, 180); }}><header><strong>{selectedUtilityNote ? t('utilityDetails') : 'LOCATION'}</strong><span>{selectedUtilityNote ? <button type="button" onClick={() => { setSelectedUtilityNote(null); setUtilityEditDraft(null); }}>←</button> : utilityHover.entries.length}</span></header>{selectedUtilityNote ? <div className="utility-detail">{utilityEditDraft ? <form className="utility-edit-form" onSubmit={saveUtilityEdit}><label><span>{t('utilityTitle')}</span><input required value={utilityEditDraft.name} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><label><span>{t('utilityDescription')}</span><textarea required value={utilityEditDraft.summary} onChange={(event) => setUtilityEditDraft((draft) => ({ ...draft, summary: event.target.value }))} /></label><div><button type="button" onClick={() => setUtilityEditDraft(null)}>{t('cancel')}</button><button type="submit">{t('saveUtilityEdit')}</button></div></form> : <><strong>{selectedUtilityNote.name}</strong><p>{selectedUtilityNote.summary}</p></>}<dl><div><dt>{t('map')}</dt><dd>{selectedUtilityNote.mapName}</dd></div><div><dt>{t('landingPlace')}</dt><dd>{selectedUtilityNote.landingPlace || t('landingPlaceUnknown')}</dd></div>{selectedUtilityNote.startPlace && <div><dt>{t('startPlace')}</dt><dd>{selectedUtilityNote.startPlace}</dd></div>}{selectedUtilityNote.throwPlace && <div><dt>{t('throwPlace')}</dt><dd>{selectedUtilityNote.throwPlace}</dd></div>}<div><dt>{t('position')}</dt><dd>{selectedUtilityNote.position.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('angles')}</dt><dd>{selectedUtilityNote.angles.map((value) => Number(value).toFixed(2)).join(' / ')}</dd></div><div><dt>{t('exportedBy')}</dt><dd>{selectedUtilityNote.thrower || t('customUtility')}</dd></div>{selectedUtilityNote.demoSource && <div><dt>{t('sourceDemo')}</dt><dd>{selectedUtilityNote.demoSource.fileName} · R{selectedUtilityNote.demoSource.round || '-'} · T{selectedUtilityNote.demoSource.tick}</dd></div>}<div><dt>{t('exportedAt')}</dt><dd>{new Date(selectedUtilityNote.createdAt).toLocaleString(localeForLanguage(language))}</dd></div></dl><div className="utility-detail-actions"><button type="button" onClick={() => setUtilityEditDraft({ name: selectedUtilityNote.name, summary: selectedUtilityNote.summary || '' })}>{t('editUtility')}</button><button type="button" data-tour="getpos" onClick={() => copyUtilityCommand(selectedUtilityNote)}>{utilityCopied ? t('copied') : t('getposCommand')}</button><button type="button" className="utility-delete" onClick={() => deleteUtilityNote(selectedUtilityNote)}>{t('delete')}</button>{selectedUtilityNote.replay && <><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote)}>{t('replayUtility')}</button><button type="button" onClick={() => playUtilityReplay(selectedUtilityNote, true)}>{t('replayUtilityFirstPerson')}</button></>}</div></div> : <div className="utility-hover-list">{utilityHover.entries.map((note) => <button type="button" key={note.id} className={`utility-list-entry${note.replay ? ' replayable' : ''}`} onClick={() => { setSelectedUtilityNote(withUtilityLandingPlace(note)); setUtilityEditDraft(null); setUtilityCopied(false); }}><strong>{note.name}</strong><span>{t('landingPlace')}: {withUtilityLandingPlace(note).landingPlace || t('landingPlaceUnknown')}</span><span>{t('angles')}: {(note.angles || [0, 0, 0]).map((value) => Number(value).toFixed(2)).join(' / ')}</span><p>{note.summary}</p></button>)}</div>}</WorkspacePopover>}
 
          {utilityModalOpen && <UtilityNoteModal draft={utilityDraft} error={utilityError} folderState={utilityFolders.state} folderId={utilitySaveFolderId} language={language} onClose={() => setUtilityModalOpen(false)} onDraftChange={setUtilityDraft} onFolderChange={setUtilitySaveFolderId} onSubmit={addUtilityNote} t={t} />}
          {anonymousUtilitySave && <SaveAnonymousUtilityModal draft={anonymousUtilityDraft} error={anonymousUtilityError} folderState={utilityFolders.state} folderId={utilitySaveFolderId} kind={anonymousUtilitySave.kind} language={language} onClose={() => setAnonymousUtilitySave(null)} onDraftChange={setAnonymousUtilityDraft} onFolderChange={setUtilitySaveFolderId} onSubmit={saveAnonymousUtility} t={t} />}
@@ -1342,7 +1380,7 @@ function App() {
           {activePanel === 'analysis' && analysisSelectedPlayers.length > 0 && analysisRows.length > 0 && <div className="analysis-bottom-timeline"><span>{(analysisTime / 64).toFixed(1)}s</span><input type="range" min="0" max={analysisDuration} value={analysisTime} onChange={(event) => { setAnalysisPlaying(false); setAnalysisTime(Number(event.target.value)); }} /><span>{(analysisDuration / 64).toFixed(1)}s</span></div>}
         </WorkspaceContribution>
         {!mobileWorkspace && boardViewMode !== "2d" && navData && hasMapModel(mapName) && <ModelControlsPortal slot={modelControlsTarget}><div className="model-visual-controls nav-visual-controls"><button type="button" className={`nav-visibility-toggle${navVisible ? ' selected' : ''}`} aria-pressed={navVisible} disabled={boardViewMode === "2d"} onClick={() => setShowNav((visible) => !visible)}>{t('navGround')} {navVisible ? t('on') : t('off')}</button></div></ModelControlsPortal>}
-        {!mobileWorkspace && boardViewMode !== "2d" && hasMapModel(mapName) && <ModelControlsPortal slot={modelControlsTarget}><div className="model-visual-controls"><ModelLoadIndicator state={currentModelLoadState} language={language} /><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><label className="model-opacity"><span>{t('viewRange')}</span><input type="range" min="0" max="1" step="0.01" value={modelViewRange} onChange={(event) => setModelViewRange(Number(event.target.value))} /><b>{Math.round(modelViewRange * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="workspace-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div></ModelControlsPortal>}
+        {!mobileWorkspace && boardViewMode !== "2d" && hasMapModel(mapName) && <ModelControlsPortal slot={modelControlsTarget}><div className="model-visual-controls" data-tour="models"><ModelLoadIndicator state={currentModelLoadState} language={language} /><label className="model-opacity"><span>{t('model').toUpperCase()}</span><input type="range" min="0" max="1" step="0.01" value={modelOpacity} onChange={(event) => { const value = Number(event.target.value); setModelOpacity(value); setShowModel(value > 0); }} /><b>{Math.round(modelOpacity * 100)}%</b></label><label className="model-opacity"><span>{t('viewRange')}</span><input type="range" min="0" max="1" step="0.01" value={modelViewRange} onChange={(event) => setModelViewRange(Number(event.target.value))} /><b>{Math.round(modelViewRange * 100)}%</b></label><div className={`mode-picker ${modeMenuOpen ? 'open' : ''}`}><button type="button" onClick={() => setModeMenuOpen((value) => !value)}>{modeOptions.find((option) => option.value === selectedMode)?.label}</button>{modeMenuOpen && <div className="mode-list">{modeOptions.map((option) => <label key={option.value} className={option.value === selectedMode ? 'active' : ''}><input type="radio" name="workspace-model-mode" checked={option.value === selectedMode} onChange={() => { if (option.value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity((value) => value || 0.34); setModelViewMode(option.value); } setModeMenuOpen(false); }} /><span>{option.label}</span></label>)}</div>}</div></div></ModelControlsPortal>}
         {mobileWorkspace && <MobileViewSettings slot={replayPanel ? 'demo-mobile-settings' : 'bottom-mobile-settings'} language={language} t={t} showGrid={showGrid} setShowGrid={setShowGrid} trackpadDetection={trackpadDetection} setTrackpadDetection={setTrackpadDetection} showNav={navVisible} setShowNav={setShowNav} hasNav={boardViewMode !== "2d" && Boolean(navData)} hasModel={boardViewMode !== "2d" && hasMapModel(mapName)} modelOpacity={modelOpacity} onModelOpacity={value => { setModelOpacity(value); setShowModel(value > 0); }} modelViewRange={modelViewRange} setModelViewRange={setModelViewRange} selectedMode={selectedMode} modeOptions={modeOptions} onModelMode={value => { if (value < 0) { setShowModel(false); setModelOpacity(0); } else { setShowModel(true); setModelOpacity(current => current || 0.34); setModelViewMode(value); } }} modelLoadState={currentModelLoadState} onReset={() => boardRef.current?.reset?.()} />}
   </WorkspaceFrame>;
 }
