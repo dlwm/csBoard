@@ -2,7 +2,7 @@
 
 > A 3D tactical board, CS2 Demo replay viewer, analysis workspace, and real-time collaboration tool.
 
-[中文说明](docs/README.zh-CN.md) · [Русский](docs/README.ru-RU.md) · [Changelog](CHANGELOG.md)
+[中文说明](docs/README.zh-CN.md) · [Русский](docs/README.ru-RU.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 ![CSBoard demonstration](https://bucket.csboard.kuzuma.asia/output.gif)
 
@@ -340,6 +340,10 @@ Copyright (C) 2026 Colvin Chen. Original CSBoard source code and documentation a
 
 ## Roadmap
 
-### Model Size Reduction
+See the [phased roadmap](ROADMAP.md) and [proposed library contracts](docs/library-design.md).
 
-- Reduce map model asset size, download cost, and runtime memory usage.
+- Integrate a portable Demo data format through parser adapters.
+- Extract an independently usable 3D viewer with injected data and resources.
+- Publish shared operation APIs and events for application UI, scripts and AI.
+
+These are planned milestones, not features already available in the current release.

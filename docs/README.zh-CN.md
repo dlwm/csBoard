@@ -2,7 +2,7 @@
 
 > 集 3D 战术板、CS2 Demo 回放、数据分析和实时协作于一体的工具。
 
-[English](../README.md) · [Русский](README.ru-RU.md) · [更新日志](CHANGELOG.zh-CN.md)
+[English](../README.md) · [Русский](README.ru-RU.md) · [更新日志](CHANGELOG.zh-CN.md) · [路线图](../ROADMAP.md)
 
 ![CSBoard 使用演示](https://bucket.csboard.kuzuma.asia/output.gif)
 
@@ -339,10 +339,12 @@ Copyright (C) 2026 Colvin Chen。CSBoard 原创源代码与文档采用 [GNU GPL
 - Demo 初次解析后会缓存全部回合，大型 Demo 可能占用较多内存。
 - 对局回放和数据分析在桌面浏览器及原生应用中提供；移动 H5 提供道具速记与协作。
 
-## 未来方向
+## 路线图
 
-### 模型尺寸缩减
+完整阶段与完成条件见 [Roadmap](../ROADMAP.md)，接口边界见[数据格式与视图库设计草案](library-design.md)。
 
-- 缩减地图模型资源体积、下载开销和运行时内存占用。
+- 通过解析器适配层接入可交换的 Demo 数据格式。
+- 抽离可独立使用、可注入数据源与资源源的 3D 视图库。
+- 对界面、脚本和 AI 提供统一的操作 API、查询与事件订阅。
 
-HTTP 解析接口及离线分析工具也使用生成的 Go WASM；请求结束释放解析会话，同一运行实例串行处理。Cloudflare 的 CPU、内存及包体限制仍然适用。
+以上为计划，尚未作为当前版本的库能力发布。
