@@ -26,11 +26,11 @@ AI 可以读取和编辑玩家、示意道具效果、绘制路线、战术帧�
 
 使用支持图像输入的模型时，在设置中开启 **模型支持图像输入**。助手可查看带编号的当前、俯视和局部画布视图，并将图像像素定位到 NAV 候选。纯文本模型保持关闭，仍可查询局部多边形、高差、连接和相对位置。截图只包含画布，使用临时相机，不保留到后续对话轮次；图像识别和导入模型几何不能证明游戏内掩体、视线或道具覆盖。
 
-## 1.20.4
+## 1.21.2
 
-- 3D 主视图显示当前 Demo 文件名。
-- 支持单独移除已导入的地图模型和界面图标。
-- 改善语音播放断续，降低世界模型过亮的问题。
+- 房间号输入、操作确认与提示统一使用应用内弹窗；getpos 自动复制失败时可手动选取文本。
+- 房间同步前保留本地画布，连接持续失败时停止重试并明确提示。
+- 外部链接使用系统浏览器打开。
 - 详细内容见[版本记录](CHANGELOG.zh-CN.md)。
 
 ## 主要功能
@@ -102,7 +102,7 @@ AI 可以读取和编辑玩家、示意道具效果、绘制路线、战术帧�
 
 ![协作面板](img/collaboration.png)
 
-- 创建或加入 6 位房间号的 Yjs WebSocket 房间。
+- 创建或加入 6 位房间号的 Yjs WebSocket 房间，加入时使用应用内输入框。同步成功前保留本地画布；连接持续失败后停止重试，检查网络后可离开并重新加入。
 - 同步人物、引入道具、自定义道具、画笔、帧顺序和当前帧。
 - 人物点带人物模型和 AK47，并使用自动生成的“形容词 + 水果”名称；可拖动移动，使用 `Ctrl` 调整 yaw、`Shift` 调整 pitch，双击切换蹲下/站立，并可在人物列表中直接选择 `T` 或 `CT` 阵营。
 - 每帧包含人物、引入道具、自定义道具、轨迹和画笔；当前相机与镜头预设属于存档级数据，不属于单帧。
@@ -218,7 +218,7 @@ Electron 正式版使用 `make desktop-build-mac-arm64` 或 `make desktop-build-
 
 #### GitHub Actions 自动化
 
-将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `v1.18.0` tag，或在 **Actions → Release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
+将 `.github/workflows/` 和版本修改一起提交到仓库。PR 与 main/master 推送会执行检查。发布时推送指向版本提交的 `vX.Y.Z` tag，或在 **Actions → Release → Run workflow** 填入已存在的 tag 手动运行；手动入口要求工作流已位于默认分支。tag、package／lockfile 版本和 changelog 必须一致。
 
 Release 先校验 tag、版本、行为与网页构建，再并行构建 macOS Apple Silicon、Windows x64 和 Android。全部构建及安装包检查通过后，将三个包和 `SHA256SUMS.txt`、`SHA256SUMS-mobile.txt` 上传到同一个**草稿 Release**；不再构建 Intel Mac 和 iOS 发布包。**Mobile preview** 仅手动运行，默认 Android，也可选择 iOS 或两者，产物仅保存在 Actions，不创建 Release。版本 tag 只触发 Release。重跑只更新同一提交的草稿，不覆盖已发布版本；检查安装运行后，在 GitHub 点击 **Publish release**。
 

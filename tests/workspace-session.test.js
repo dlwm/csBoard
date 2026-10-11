@@ -40,8 +40,9 @@ test('joining and leaving preserve the suspended local frame session', () => {
   session.joinRoom(' abc123 ');
   assert.equal(runtime.roomCode, 'ABC123');
   assert.equal(runtime.activeArchiveId, null);
-  assert.equal(runtime.framesRef.current.length, 0);
-  assert.deepEqual(calls, ['clear']);
+  assert.equal(runtime.framesRef.current.length, 1);
+  assert.equal(runtime.activeFrameIdRef.current, 'local-frame');
+  assert.deepEqual(calls, []);
   session.leaveRoom();
   assert.equal(runtime.roomCode, '');
   assert.equal(runtime.activeArchiveId, 'local');

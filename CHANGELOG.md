@@ -2,6 +2,22 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.21.2] - 2026-10-11
+
+### Changed
+
+- Use consistent in-app confirmation and notice dialogs for resources, updates, folders, assistant sessions and collaboration.
+- Open external links in the system browser while keeping the application on its workspace.
+
+### Fixed
+
+- Show a room-code input when joining a collaboration room in the desktop app.
+- Prevent collaboration and shared replay connections from targeting the local asset server; show a clear message when no server is configured.
+- Stop repeated failed connections and show a retry notice instead of reconnecting indefinitely.
+- Preserve the local board and frames until the remote room finishes synchronizing.
+- Show selectable getpos text when clipboard access fails, without incorrectly reporting a successful copy.
+- Resolve configured service addresses correctly on mobile devices using a custom application origin.
+
 ## [1.21.1] - 2026-10-11
 
 ### Added

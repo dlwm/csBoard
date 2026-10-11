@@ -26,11 +26,11 @@ Desktop keys use system encryption. Web keys stay in memory until refresh and re
 
 For image-capable models, enable **Model supports image input** in settings. The assistant can inspect numbered current, top and focused board views and resolve image pixels into NAV candidates. Leave this off for text-only models: local polygon geometry, heights, connections and relative positions remain available. Screenshots cover only the board, use a temporary camera and are not retained in model history across turns. Image recognition and imported geometry do not validate CS2 cover, line of sight or utility coverage.
 
-## Version 1.20.4
+## Version 1.21.2
 
-- See the current Demo filename in the 3D view.
-- Remove imported map models and interface icons individually.
-- Improve voice playback continuity and reduce overly bright world models.
+- Use in-app dialogs for room codes, confirmations and notices; getpos remains available when automatic copying fails.
+- Keep the local board until a room synchronizes, and stop repeated failed connections with a clear message.
+- Open external links in the system browser.
 - See the [release notes](CHANGELOG.md) for details.
 
 ## Highlights
@@ -102,7 +102,7 @@ Play CS2 clips recorded with `record <name>` and `stop`, including practice sess
 
 ![Collaboration panel](docs/img/collaboration.png)
 
-- Create or join a six-character Yjs WebSocket room.
+- Create or join a six-character Yjs WebSocket room. Enter the code in the in-app dialog; joining keeps the local board visible until synchronization completes. If repeated connection attempts fail, leave and rejoin after checking the connection.
 - Synchronize player markers, imported utility, custom utility, brushes, frame order, and active frames.
 - Player markers carry a character model and AK47 and use generated adjective-fruit names; drag to move, use `Ctrl` to adjust yaw, `Shift` to adjust pitch, double-click to toggle crouch/stand, and select `T` or `CT` directly in the player list.
 - Frames contain players, imported utility, custom utility, trajectories, and brushes. Camera state and camera presets remain archive-level data.
@@ -218,7 +218,7 @@ Use Git, Node.js and Go to build. Both native components use Go with CGO disable
 
 #### GitHub Actions
 
-Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `v1.18.0` tag pointing at the version commit, or run **Actions → Release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
+Commit the workflows under `.github/workflows/` along with the release changes. CI checks pull requests and pushes to `main`/`master`. To build a release, push an existing or newly created `vX.Y.Z` tag pointing at the version commit, or run **Actions → Release → Run workflow** with that existing tag (manual dispatch requires the workflow on the default branch). The tag, package/lockfile versions and changelog must agree.
 
 Release first validates the tag, versions, behavior and web build, then builds macOS Apple Silicon, Windows x64 and Android in parallel. After all builds and package inspections succeed, it uploads three packages plus `SHA256SUMS.txt` and `SHA256SUMS-mobile.txt` to one **draft Release**. Intel Mac and iOS are excluded from release builds. **Mobile preview** runs only manually (Android by default; iOS or both can be selected), uploads Actions artifacts and does not publish a Release. Version tags trigger only Release. Reruns update only a draft for the same commit; published releases are never overwritten. Check installation before selecting **Publish release** on GitHub.
 

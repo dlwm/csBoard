@@ -79,9 +79,17 @@ test('remote frame updates do not echo; disposal releases presence and document'
     remote.getMap('room').set('frameOrder', ['a']);
   });
   Y.applyUpdate(doc, Y.encodeStateAsUpdate(remote));
+  // Receiving document data is not the provider's completed handshake.
+  // Keep the local scene until the room has synchronized successfully.
+  assert.equal(activeFrameIdRef.current, null);
+  assert.equal(calls.length, 0);
+  handlers.get('sync')(true);
   assert.equal(activeFrameIdRef.current, 'a');
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].slice(1), [false, null, true]);
+  doc.getMap('activeFrame').set('id', 'local-edit');
+  assert.equal(activeFrameIdRef.current, 'a');
+  assert.equal(calls.length, 1);
   dispose();
   assert.equal(destroyed, true);
   assert.equal(doc.isDestroyed, true);
