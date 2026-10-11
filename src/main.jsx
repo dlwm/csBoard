@@ -991,7 +991,7 @@ function App() {
     setTutorialStep(index);
     if (item.panel && activePanel !== item.panel) switchMainPanel(item.panel);
     if (['model', 'floors'].includes(item.id)) setBoardViewMode('3d');
-    if (['utility-events', 'recommendations'].includes(item.id)) setDemoViewFlags(current => ({ ...current, analysisMetric: 'utility' }));
+    if (['utility-events', 'recommendations'].includes(item.id)) setDemoViewFlags(current => ({ ...current, analysisMetric: 'utility', heatStyle: 'points' }));
     if (['recommendations', 'notes', 'getpos', 'players', 'drawing', 'camera-slots', 'floors'].includes(item.id)) setLeftSidebarOpen(true);
     if (['analysis', 'utility-events', 'collab'].includes(item.id)) setRightSidebarOpen(true);
     if (item.id === 'import' && !demoData) void openTutorialExample();

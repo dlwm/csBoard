@@ -41,7 +41,7 @@ export default function AnalysisControls({ language, translate, flags, setFlags,
       <div className="analysis-mode-tabs analysis-type-tabs">
         <button type="button" className={flags.analysisMetric === 'area' ? 'selected' : ''} onClick={() => { onStopPlayback(); setFlags((current) => ({ ...current, analysisMetric: 'area', heatStyle: 'global' })); }}>{text('区域时间', 'AREA TIME', 'ВРЕМЯ В ЗОНАХ')}</button>
         <button type="button" className={flags.analysisMetric === 'kd' ? 'selected' : ''} onClick={() => setFlags((current) => ({ ...current, analysisMetric: 'kd' }))}>{text('KD 事件', 'KD EVENTS', 'KD-СОБЫТИЯ')}</button>
-        <button type="button" className={flags.analysisMetric === 'utility' ? 'selected' : ''} onClick={() => setFlags((current) => ({ ...current, analysisMetric: 'utility' }))}>{text('道具事件', 'UTILITY', 'ГРАНАТЫ')}</button>
+        <button type="button" className={flags.analysisMetric === 'utility' ? 'selected' : ''} onClick={() => setFlags((current) => ({ ...current, analysisMetric: 'utility', heatStyle: 'points' }))}>{text('道具事件', 'UTILITY', 'ГРАНАТЫ')}</button>
       </div>
     </section>
     <section className="analysis-control-section analysis-economy-filter">
