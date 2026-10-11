@@ -1,5 +1,6 @@
 import { preferences } from '../platform/preferences.js';
 import { normalizeAiConfig, readChatResponse } from '../../shared/ai-protocol.js';
+import { resolveHttpServiceUrl } from '../app/serviceUrls.js';
 
 const KEY = 'csboard-ai-preferences';
 export function createAiTransport(bridge, backendUrl) {
@@ -35,8 +36,11 @@ export function createAiTransport(bridge, backendUrl) {
       return { endpoint: config.endpoint, model: config.model, imageInput: config.imageInput, hasKey: Boolean(apiKey) };
     },
     async complete(config, payload, { signal, onDelta }) {
+      let endpoint;
+      try { endpoint = resolveHttpServiceUrl(backendUrl); }
+      catch { throw new Error('No AI proxy server is configured for this app.'); }
       signal = AbortSignal.any([signal, AbortSignal.timeout(120_000)]);
-      const response = await fetch(backendUrl, { method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config: { ...config, apiKey }, payload }) });
+      const response = await fetch(endpoint, { method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config: { ...config, apiKey }, payload }) });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(error.error || `AI proxy returned HTTP ${response.status}`);

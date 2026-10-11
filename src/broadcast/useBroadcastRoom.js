@@ -1,21 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Y from 'yjs';
-import { WebsocketProvider } from 'y-websocket';
+import { createRoomProvider, roomConnectionMessage } from '../collaboration/roomProvider.js';
 import { collaborationUrl } from '../app/config.js';
 import { uploadBroadcast, downloadBroadcast } from './transfer.js';
 
 const createRoomCode = () => Array.from(crypto.getRandomValues(new Uint8Array(3)), value => value.toString(16).padStart(2, '0')).join('').toUpperCase();
 
 // Broadcast rooms transfer one immutable archive; they do not share editable scene state.
-export default function useBroadcastRoom({ onArchiveReceived }) {
+export default function useBroadcastRoom({ onArchiveReceived, language }) {
   const receiveRef = useRef(onArchiveReceived);
   const seedRef = useRef(null);
   const processedRef = useRef('');
+  const languageRef = useRef(language);
   const [session, setSession] = useState({ code: '', owner: false, status: '', error: '' });
   const [download, setDownload] = useState(null);
   receiveRef.current = onArchiveReceived;
+  languageRef.current = language;
 
   const open = (archive) => {
+    try { collaborationUrl(); }
+    catch { setSession({ code: '', owner: false, status: 'failed', error: roomConnectionMessage(language, 'configuration') }); return; }
     seedRef.current = archive;
     processedRef.current = '';
     setSession({ code: createRoomCode(), owner: true, status: 'connecting', error: '' });
@@ -23,6 +27,8 @@ export default function useBroadcastRoom({ onArchiveReceived }) {
   const join = (value) => {
     const code = String(value || '').trim().toUpperCase();
     if (!/^[0-9A-F]{6}$/.test(code)) return false;
+    try { collaborationUrl(); }
+    catch { setSession({ code: '', owner: false, status: 'failed', error: roomConnectionMessage(language, 'configuration') }); return false; }
     seedRef.current = null;
     processedRef.current = '';
     setDownload({ progress: 0, status: 'connecting' });
@@ -33,8 +39,20 @@ export default function useBroadcastRoom({ onArchiveReceived }) {
 
   useEffect(() => {
     if (!session.code) return undefined;
+    let endpoint;
+    try { endpoint = collaborationUrl(); }
+    catch {
+      setSession(current => ({ ...current, status: 'failed', error: roomConnectionMessage(language, 'configuration') }));
+      setDownload(null);
+      return undefined;
+    }
     const doc = new Y.Doc();
-    const provider = new WebsocketProvider(collaborationUrl(), session.code, doc);
+    const connection = createRoomProvider(endpoint, session.code, doc, () => {
+      controller.abort();
+      setSession(current => ({ ...current, status: 'failed', error: roomConnectionMessage(languageRef.current) }));
+      setDownload(null);
+    });
+    const provider = connection.provider;
     const room = doc.getMap('broadcast-room');
     const controller = new AbortController();
     const transferState = {};
@@ -104,7 +122,7 @@ export default function useBroadcastRoom({ onArchiveReceived }) {
         doc.transact(() => { room.set('transfer', manifest); room.set('ready', true); });
         setSession(current => ({ ...current, status: 'connected', error: '' }));
       } catch (error) {
-        if (!disposed) {
+        if (!disposed && !controller.signal.aborted) {
           room.set('transferError', error.message);
           setSession(current => ({ ...current, status: 'failed', error: error.message }));
         }
@@ -115,11 +133,13 @@ export default function useBroadcastRoom({ onArchiveReceived }) {
     room.observe(observe);
     provider.on('status', ({ status }) => setSession((current) => current.code === session.code ? { ...current, status } : current));
     provider.on('sync', (synced) => { if (synced) { publish(); receive(); } });
+    connection.start();
     return () => {
       disposed = true;
       controller.abort();
       if (session.owner && room.get('ready') === true) room.set('closed', true);
       room.unobserve(observe);
+      connection.dispose();
       provider.destroy();
       doc.destroy();
     };

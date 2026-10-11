@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { buildFeatures } from './features.js';
 import { fontScalePlugin } from './fontScale.js';
@@ -12,6 +12,11 @@ const packageVersion = `v${JSON.parse(fs.readFileSync(path.join(projectRoot, 'pa
 const buildVersion = String(process.env.VITE_BUILD_VERSION || packageVersion).trim();
 
 export default defineConfig(({ mode }) => {
+  // Native shells serve assets locally, but use the deployed collaboration
+  // backend. Reuse production settings unless a shell-specific env overrides.
+  // 原生壳的本地资源服务不提供协作；正式环境配置为默认，壳专用配置优先。
+  const serviceEnv = ['desktop', 'mobile'].includes(mode)
+    ? { ...loadEnv('production', projectRoot, 'VITE_'), ...loadEnv(mode, projectRoot, 'VITE_') } : null;
   const features = buildFeatures(projectRoot, mode);
   const disabledAi = path.join(projectRoot, 'src/platform/disabledAi.js');
   const outputDirectory = mode === 'desktop' ? 'build/renderer' : mode === 'mobile' ? 'build/mobile/web' : 'dist';
@@ -28,6 +33,10 @@ export default defineConfig(({ mode }) => {
       ],
     },
     define: {
+      ...(serviceEnv ? {
+        'import.meta.env.VITE_BACKEND_BASE_URL': JSON.stringify(serviceEnv.VITE_BACKEND_BASE_URL || ''),
+        'import.meta.env.VITE_OSS_BASE_URL': JSON.stringify(serviceEnv.VITE_OSS_BASE_URL || ''),
+      } : {}),
       'import.meta.env.CSBOARD_AI_ENABLED': JSON.stringify(features.ai),
       'import.meta.env.CSBOARD_PARSER_ENGINE': JSON.stringify(features.parser),
       'import.meta.env.CSBOARD_APP_SHELL': JSON.stringify(mode === 'mobile' ? 'capacitor' : 'auto'),

@@ -1,6 +1,7 @@
 import { preferences } from '../platform/preferences.js';
+import { backendServiceUrl } from './serviceUrls.js';
 
-import { OSS_BASE, BACKEND_BASE } from './buildConfig.js';
+import { OSS_BASE } from './buildConfig.js';
 export { AI_ENABLED, PARSER_ENGINE, AI_CHAT_URL } from './buildConfig.js';
 const USE_LOCAL_MAPS = import.meta.env?.DEV || import.meta.env?.VITE_USE_LOCAL_MAPS === 'true';
 
@@ -56,10 +57,7 @@ export function loadViewPreferences() {
 }
 
 export function collaborationUrl() {
-  const url = new URL(BACKEND_BASE || location.origin, location.origin);
+  const url = backendServiceUrl('rooms');
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  url.pathname = '/rooms';
-  url.search = '';
-  url.hash = '';
   return url.toString().replace(/\/$/, '');
 }

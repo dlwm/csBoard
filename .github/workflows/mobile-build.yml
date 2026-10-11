@@ -68,6 +68,9 @@ jobs:
       run:
         shell: bash
     env:
+      # Public service URLs; configure repository Actions variables.
+      VITE_BACKEND_BASE_URL: ${{ vars.VITE_BACKEND_BASE_URL }}
+      VITE_OSS_BASE_URL: ${{ vars.VITE_OSS_BASE_URL }}
       CSBOARD_PARSER_ENGINE: ${{ inputs.parser || 'native' }}
       CSBOARD_AI_ENABLED: 'false'
     steps:

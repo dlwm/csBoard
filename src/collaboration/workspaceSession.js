@@ -54,8 +54,8 @@ export function createWorkspaceSession(getPorts) {
     if (!/^[0-9A-F]{6}$/.test(code)) return;
     suspended = { archiveId: archives.active(), ...frames.read() };
     archives.select(null);
-    frames.replace([], null);
-    scene.get()?.clearWorkspaceState?.();
+    // Keep the local board until the server sends a synchronized workspace.
+    // 握手失败时不清空画布；远端首次同步成功后再替换，退出可恢复本地存档。
     room.start(code, false);
     effects.notify('joining', code);
   };

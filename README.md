@@ -199,6 +199,8 @@ make workers-build
 
 `make build` uses local `/maps` resources and same-origin APIs. `make build-remote` uses `VITE_OSS_BASE_URL` and `VITE_BACKEND_BASE_URL`; the frontend Worker invokes this remote build.
 
+Desktop and mobile builds reuse the public service URLs in `.env.production.local`; `.env.desktop.local` and `.env.mobile.local` can override them. Native asset servers do not host collaboration: set an absolute `VITE_BACKEND_BASE_URL`. Release workflows read the repository Actions variables `VITE_BACKEND_BASE_URL` and `VITE_OSS_BASE_URL`. These are public addresses, not API keys.
+
 Electron release builds (`make desktop-build-mac-arm64` / `make desktop-build-win-x64`) do not include map models. Open **Resources** in the desktop header to import multiple SVG icons and GLB maps, in batches if needed. The completeness list reports every supported filename; missing icons retain the default UI, and missing models use NAV without model controls or OSS downloads. Files are stored in the application's user-data directory. Matching names replace previous imports only after validation. Save your work, then select **Reload and apply**. Map imports remove textures and use one simplified display while preserving geometry and object hierarchy; selected originals stay unchanged. Previously imported textured maps are converted on first use. See [resource-pack instructions](docs/ai/references/resource-packs.en.md).
 
 Unpackaged development runs may read `.local/official/maps`; `make desktop-prepare ARGS=--local-models` creates an explicit local-test package containing these models. Ordinary release packaging never includes `.local/official` or `.local/official/maps`. Web builds retain their existing local/OSS model behavior.

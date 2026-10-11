@@ -80,8 +80,9 @@ import WorkspacePopover from './components/workspace/WorkspacePopover.jsx';
 import { availableWorkspaceMenus, workspaceMenu, workspaceMenuLayout } from './components/workspace/menuRegistry.js';
 import './styles/input.css';
 import useRoomConnection from './collaboration/useRoomConnection.js';
+import { roomConnectionMessage } from './collaboration/roomProvider.js';
 import { localeForLanguage, localize, normalizeLanguage, translate } from './i18n.js';
-import { AI_ENABLED, ANALYSIS_HEAT_DATA_EVENT, IS_DEVELOPMENT_RUNTIME, loadViewPreferences, MAP_LABELS_ZH, MAPS, MODEL_VIEW_RANGE_EVENT, VIEW_PREFERENCES_KEY } from './app/config.js';
+import { collaborationUrl, AI_ENABLED, ANALYSIS_HEAT_DATA_EVENT, IS_DEVELOPMENT_RUNTIME, loadViewPreferences, MAP_LABELS_ZH, MAPS, MODEL_VIEW_RANGE_EVENT, VIEW_PREFERENCES_KEY } from './app/config.js';
 import { generateClientName, generatedClientNames } from './app/clientIdentity.js';
 import useUtilityNotes from './utility/useUtilityNotes.js';
 import { UTILITY_NOTES_VERSION } from './utility/noteSchema.js';
@@ -372,6 +373,7 @@ function App() {
   const recordingFolders = useArchiveFolders('recordings', () => setRoomNotice(t('utilityStorageFailed')));
   const replayEntries = useMemo(() => replayCatalogue(demoLibraryEntries, savedRecordings), [demoLibraryEntries, savedRecordings]);
   const broadcastRoom = useBroadcastRoom({
+    language,
     onArchiveReceived: async (archive, isCancelled) => {
       if (isCancelled?.() || activePanelRef.current !== 'demo') return;
       archive = normalizeRecording(archive);
@@ -819,7 +821,7 @@ function App() {
   const openSaveArchiveModal = (includeDemo = false) => { const selectedId = !includeDemo && activeArchiveId ? activeArchiveId : ''; setSaveArchiveMode('select'); setSaveArchiveIncludeDemo(includeDemo); setSaveArchiveSelected(selectedId); setSaveArchiveFolderId(workspaceFolders.state.items[selectedId]?.folderId || ROOT_FOLDER_ID); setSaveArchiveName(''); setSaveArchiveModal(true); };
   const openOverwriteArchiveModal = (archiveId) => { setSaveArchiveMode('overwrite'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(archiveId); setSaveArchiveFolderId(workspaceFolders.state.items[archiveId]?.folderId || ROOT_FOLDER_ID); setSaveArchiveName(''); setSaveArchiveModal(true); };
   const openNewArchiveModal = () => { setSaveArchiveMode('new'); setSaveArchiveIncludeDemo(false); setSaveArchiveSelected(''); setSaveArchiveFolderId(ROOT_FOLDER_ID); setSaveArchiveName(''); setSaveArchiveModal(true); };
-  const { openRoom, leaveRoom, joinRoom, restoreWorkspaceArchive: restoreKnownWorkspaceArchive, onReady: restoreReadyBoard } = useWorkspaceSession(() => ({
+  const { openRoom: openConfiguredRoom, leaveRoom, joinRoom: joinConfiguredRoom, restoreWorkspaceArchive: restoreKnownWorkspaceArchive, onReady: restoreReadyBoard } = useWorkspaceSession(() => ({
     scene: {
       get: () => boardRef.current,
       attach: (board) => { boardRef.current = board; },
@@ -861,6 +863,15 @@ function App() {
       },
     },
   }));
+  const canConnectRoom = () => {
+    try { collaborationUrl(); return true; }
+    catch { setRoomStatus(roomConnectionMessage(language, 'configuration')); return false; }
+  };
+  const openRoom = () => { if (canConnectRoom()) openConfiguredRoom(); };
+  const joinRoom = code => {
+    if (!canConnectRoom()) return false;
+    joinConfiguredRoom(code); return true;
+  };
   useEffect(() => {
     if (!roomNotice) return;
     void dialogs.alert(roomNotice);

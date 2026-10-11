@@ -199,6 +199,8 @@ make workers-build
 
 `make build` 使用本地 `/maps` 和同源 API；`make build-remote` 使用 `VITE_OSS_BASE_URL` 与 `VITE_BACKEND_BASE_URL`，前端 Worker 会调用该远程构建。
 
+桌面与移动构建复用 `.env.production.local` 中的公共服务地址，`.env.desktop.local` 与 `.env.mobile.local` 可分别覆盖。原生壳的本地资源服务不提供协作，需要为 `VITE_BACKEND_BASE_URL` 配置绝对地址。Release 工作流读取仓库 Actions Variables 中的 `VITE_BACKEND_BASE_URL` 和 `VITE_OSS_BASE_URL`；这里放公共地址，不放 API Key。
+
 Electron 正式版使用 `make desktop-build-mac-arm64` 或 `make desktop-build-win-x64` 构建，不携带地图模型。用户可从右上角“资源包”多选 SVG 图标和 GLB 模型导入，支持分批补齐及逐文件完整度检测；缺失图标沿用默认 UI，缺失模型使用 NAV 并隐藏模型操作，不自动访问 OSS。导入文件保存在应用用户数据目录，同名文件仅在验证通过后覆盖。先保存工作，再点击“重新加载并应用”。地图导入时移除贴图，统一简洁显示，保留几何、坐标与对象层级，不修改选中的原文件。旧的带贴图导入模型会在首次使用时自动转换。详见[资源包说明](ai/references/resource-packs.zh.md)。
 
 未打包的开发启动可读取 `.local/official/maps`；`make desktop-prepare ARGS=--local-models` 专门构建带本地模型的测试包。正式构建不包含 `.local/official` 或 `.local/official/maps`；网页版保留现有本地/OSS 模型逻辑。

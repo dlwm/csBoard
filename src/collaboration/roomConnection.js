@@ -46,6 +46,7 @@ export function connectRoom({ doc, provider, roomCode, getPorts }) {
     let appliedRevision = -1;
     const tr = (key, values) => translate(getPorts().context().language, key, values);
     const apply = (_event, transaction) => {
+      if (!synced) return;
       if (transaction?.local) return;
       if (room.get('closed')) { getPorts().events.notice(tr('roomDestroyed')); getPorts().leave(); return; }
       const revision = Number(room.get('revision') || 0);
@@ -70,10 +71,11 @@ export function connectRoom({ doc, provider, roomCode, getPorts }) {
         publishRoomFrames(doc, getPorts().frames.read().frames, getPorts().frames.read().activeFrameId, seed);
         getPorts().seed.clear();
       }
-      apply();
+      applyFrames(); applyBrushes(); apply();
     });
     room.observe(apply); points.observe(apply); paths.observe(apply); utilities.observe(apply); grenades.observe(apply); apply();
     const applyFrames = (_event, transaction) => {
+      if (!synced) return;
       if (transaction?.local) return;
       const order = room.get('frameOrder') || [];
       const orderIndex = new Map(order.map((id, index) => [id, index]));

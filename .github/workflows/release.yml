@@ -76,6 +76,9 @@ jobs:
     env:
       # mac.identity='-' explicitly signs ad-hoc without paid credentials.
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # Public service URLs; configure repository Actions variables.
+      VITE_BACKEND_BASE_URL: ${{ vars.VITE_BACKEND_BASE_URL }}
+      VITE_OSS_BASE_URL: ${{ vars.VITE_OSS_BASE_URL }}
       CSBOARD_NATIVE_TARGET: ${{ matrix.native }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
