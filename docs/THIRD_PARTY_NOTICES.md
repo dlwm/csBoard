@@ -13,8 +13,9 @@ terms and is outside the GPL grant unless explicitly licensed otherwise.
 
 | Component | License |
 | --- | --- |
-| React / React DOM, Three.js / three-mesh-bvh | MIT |
+| React / React DOM, Three.js / three-mesh-bvh / meshoptimizer | MIT |
 | react-markdown / remark-gfm | MIT |
+| polygon-clipping / splaytree | MIT; robust-predicates: Unlicense |
 | Yjs / y-websocket / y-protocols / lib0, ws | MIT |
 | Electron | MIT and bundled component licenses |
 | [Source 2 Viewer / ValveResourceFormat](https://github.com/ValveResourceFormat/ValveResourceFormat) | MIT; desktop converter includes its license and attribution |
@@ -41,6 +42,13 @@ The following copyright notices share the MIT terms reproduced below.
 opus-decoder / @wasm-audio-decoders/common / simple-yenc
 Copyright 2021-2026 Ethan Halsall
 
+polygon-clipping
+Copyright (c) 2018 Mike Fogel <mike@fogel.ca>
+Copyright (c) 2016 Alexander Milevski <info@w8r.name>
+
+splaytree
+Copyright (c) 2019 Alexander Milevski <info@w8r.name>
+
 react-markdown
 Copyright (c) Espen Hovlandsdal
 
@@ -55,6 +63,9 @@ Copyright (c) Meta Platforms, Inc. and affiliates.
 
 three 0.185.1
 Copyright © 2010-2026 three.js authors
+
+meshoptimizer
+Copyright (C) 2016-2026 Arseny Kapoulkine (arseny.kapoulkine@gmail.com)
 
 three-mesh-bvh 0.9.14
 Copyright (c) 2018 Garrett Johnson
@@ -297,4 +308,33 @@ Copyright (C) 2002-2013 Mark Adler, all rights reserved
   3. This notice may not be removed or altered from any source distribution.
 
   Mark Adler    madler@alumni.caltech.edu
+```
+
+## robust-predicates
+
+```text
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <http://unlicense.org>
 ```

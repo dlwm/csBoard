@@ -2,6 +2,31 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.21.0] - 2026-10-11
+
+### Added
+
+- Switch the board to a top-down 2D view with zoom, rotation and side-by-side floors; choose plain maps with key regions or colored callout maps.
+- Filter Demo voices by all players, T or CT, distinguish players with persistent base colors, and display smoke's remaining time.
+- Show competitive spawn points, team buy zones and A/B sites; snap players to spawn points or added utility origins.
+- Display utility landing callouts and sort saved throws by landing location.
+- Configure model simplification separately for monitor, first-person and free-camera views, with a recommended value of 60.
+- Clear local data from Web settings, with typed confirmation for data and cache cleanup.
+
+### Changed
+
+- Organize settings into one scrollable page with section navigation and Tick sampling for future Demo imports.
+- Use compact player direction markers in 2D, reveal more map labels when zooming in, and keep model controls in 3D views.
+- Reuse simplified models when switching views and display live processing progress.
+- Simplify collaboration utility controls and allow dragging utility origins.
+
+### Fixed
+
+- Preserve map region boundaries and ground height, join connected surfaces without bridging disconnected ground, and correct depth occlusion.
+- Align 2D map regions and keep labels and smoke timers on the correct floor.
+- Prevent collaboration frame and model controls from overflowing or stacking incorrectly after opening a room.
+- Allow settings sliders to reach both endpoints and accurately display their values.
+
 ## [1.20.10] - 2026-10-09
 
 ### Changed
