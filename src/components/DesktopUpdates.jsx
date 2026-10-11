@@ -1,3 +1,4 @@
+import { useAppDialogs } from './AppDialogs.jsx';
 import { useState } from 'react';
 import MarkdownContent from './MarkdownContent.jsx';
 import { selectReleaseNotes } from '../../shared/release-notes.js';
@@ -6,6 +7,7 @@ import { getPlatform } from '../platform/index.js';
 import useDesktopUpdateState from './useDesktopUpdateState.js';
 
 export default function DesktopUpdates({ language, working }) {
+  const dialogs = useAppDialogs(language);
   const { api, state, error: statusError } = useDesktopUpdateState();
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
@@ -50,8 +52,8 @@ export default function DesktopUpdates({ language, working }) {
       <button disabled={!state?.enabled || busy || pending} onClick={() => run(() => api.check())}>{text('检查更新', 'Check for updates', 'Проверить обновления')}</button>
       {state?.latestVersion && ['available', 'error'].includes(phase) && <button disabled={pending || !state.enabled} onClick={() => run(() => api.download())}>{text('下载更新', 'Download update', 'Загрузить обновление')}</button>}
       {phase === 'downloading' && <button onClick={() => { setError(''); api.cancel().catch(error => setError(error.message)); }}>{text('取消下载', 'Cancel download', 'Отменить загрузку')}</button>}
-      {phase === 'ready' && <button disabled={pending || working} onClick={() => {
-        if (state.platform !== 'darwin' && !window.confirm(text('应用将退出并打开安装向导，请先保存当前编辑内容。继续？', 'The app will close and open the installer. Save your edits first. Continue?', 'Приложение закроется и запустит установщик. Сохраните изменения. Продолжить?'))) return;
+      {phase === 'ready' && <button disabled={pending || working} onClick={async () => {
+        if (state.platform !== 'darwin' && !await dialogs.confirm(text('应用将退出并打开安装向导，请先保存当前编辑内容。继续？', 'The app will close and open the installer. Save your edits first. Continue?', 'Приложение закроется и запустит установщик. Сохраните изменения. Продолжить?'))) return;
         run(async () => { await getPlatform().preferences.flush(); await api.install(); });
       }}>{state.platform === 'darwin' ? text('打开更新安装包', 'Open update package', 'Открыть пакет обновления') : text('退出并安装更新', 'Quit and install update', 'Выйти и установить')}</button>}
     </div>

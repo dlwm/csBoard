@@ -552,3 +552,6 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 .map-style-controls button:hover,.map-style-controls button:focus-visible{--tab-border:var(--accent);color:var(--accent);outline:none}
 .board-shell.is-mobile .map-preview-stack:has(.map-style-controls){width:120px;flex:none}
 .map-camera-heading{fill:var(--accent);stroke:#101815;stroke-width:.7}
+
+
+.app-dialog{color:var(--text,#b3c5b1);max-height:calc(100dvh - 32px);overflow:auto}.app-dialog::backdrop{background:rgba(5,9,8,.6)}.app-dialog p{font-size:12px;line-height:1.6;white-space:pre-wrap}.app-dialog textarea{width:100%;min-height:90px;resize:vertical;background:#0d1512;color:#b3c5b1;border:1px solid #354238;padding:10px;font:12px var(--font-mono)}

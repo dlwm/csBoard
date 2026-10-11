@@ -1,9 +1,11 @@
+import { useAppDialogs } from '../components/AppDialogs.jsx';
 import { useRef, useState } from 'react';
 import { localize } from '../i18n.js';
 import { toolDisplay } from './toolLabels.js';
 import { DEFAULT_COMPRESSION } from './contextCompression.js';
 
 export default function AiSessionManager({ language, sessions, busy, selectSession, toolDefinitions, runWorkflow, onError }) {
+  const dialogs = useAppDialogs(language);
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
   const [tab, setTab] = useState('memory'); const [importing, setImporting] = useState(false);
   const fileRef = useRef(null); const busyRef = useRef(busy); busyRef.current = busy;
@@ -30,7 +32,7 @@ export default function AiSessionManager({ language, sessions, busy, selectSessi
           {active.workflow.map((step, index) => <div className="ai-workflow-step" key={step.id}><div><b>{index + 1}</b><input aria-label={text('步骤名称', 'Step name', 'Название шага')} maxLength={120} value={step.name} onChange={event => updateStep(step.id, { name: event.target.value })} /><button type="button" disabled={blocked || index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" disabled={blocked || index === active.workflow.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" onClick={() => sessions.patch(session => ({ ...session, workflow: session.workflow.filter(item => item.id !== step.id) }))}>{text('删除', 'Remove', 'Удалить')}</button></div><textarea rows={3} maxLength={6000} value={step.prompt} aria-label={text('步骤指令', 'Step instruction', 'Инструкция')} onChange={event => updateStep(step.id, { prompt: event.target.value })} /><details><summary>{text('允许工具', 'Allowed tools', 'Доступные инструменты')} · {step.tools.length}</summary><div className="ai-workflow-tools">{toolDefinitions.map(tool => <label key={tool.function.name} title={toolDisplay(tool.function.name, language).description}><input type="checkbox" checked={step.tools.includes(tool.function.name)} onChange={event => updateStep(step.id, { tools: event.target.checked ? [...step.tools, tool.function.name] : step.tools.filter(name => name !== tool.function.name) })} /><span>{toolDisplay(tool.function.name, language).label}</span><code className="ai-tool-id">{tool.function.name}</code></label>)}</div></details></div>)}
           <div className="ai-session-tabs"><button type="button" disabled={blocked || active.workflow.length >= 24} onClick={() => sessions.patch(session => ({ ...session, workflow: [...session.workflow, { id: crypto.randomUUID(), name: '', prompt: '', tools: ['get_board_state', 'get_session_memory'] }] }))}>{text('添加步骤', 'Add step', 'Добавить шаг')}</button><button type="button" disabled={blocked || !active.workflow.length || active.workflow.some(step => !step.prompt.trim()) || !active.snapshot?.enabled} onClick={runWorkflow}>{text('执行工作流', 'Run workflow', 'Запустить')}</button></div>
         </>}
-        <button type="button" className="ai-session-delete" onClick={() => { if (window.confirm(text('删除当前会话及其记忆、工作流？画布不受影响。', 'Delete this session, memory and workflow? The board is unaffected.', 'Удалить диалог, память и процесс? Доска не изменится.'))) sessions.remove(); }}>{text('删除此会话', 'Delete session', 'Удалить диалог')}</button>
+        <button type="button" className="ai-session-delete" onClick={async () => { if (await dialogs.confirm(text('删除当前会话及其记忆、工作流？画布不受影响。', 'Delete this session, memory and workflow? The board is unaffected.', 'Удалить диалог, память и процесс? Доска не изменится.'))) sessions.remove(); }}>{text('删除此会话', 'Delete session', 'Удалить диалог')}</button>
       </fieldset>
     </details>
     {sessions.storageError && <p className="ai-error" role="alert">{text('会话保存失败：', 'Session storage failed: ', 'Ошибка сохранения: ')}{sessions.storageError}</p>}

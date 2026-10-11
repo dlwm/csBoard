@@ -1,3 +1,4 @@
+import { useAppDialogs } from './AppDialogs.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import catalog from '../resources/catalog.json';
@@ -9,6 +10,7 @@ import GameResourceImport from './GameResourceImport.jsx';
 import ModelObjectTree from './ModelObjectTree.jsx';
 
 export default function ResourcePackModal({ language, onClose }) {
+  const dialogs = useAppDialogs(language);
   const ref = useRef(null);
   const mounted = useRef(false);
   const [status, setStatus] = useState(null);
@@ -50,7 +52,7 @@ export default function ResourcePackModal({ language, onClose }) {
     finally { if (mounted.current) setBusy(false); }
   };
   const removeResource = async key => {
-    if (!window.confirm(text(`移除 ${key}？重新加载后将使用默认图标或 NAV 地图。`, `Remove ${key}? Reload to use the default icon or NAV map.`, `Удалить ${key}? После перезагрузки будет использован стандартный значок или NAV.`))) return;
+    if (!await dialogs.confirm(text(`移除 ${key}？重新加载后将使用默认图标或 NAV 地图。`, `Remove ${key}? Reload to use the default icon or NAV map.`, `Удалить ${key}? После перезагрузки будет использован стандартный значок или NAV.`))) return;
     setBusy(true); setError('');
     try {
       const result = await resources.remove(kind, key);
@@ -67,8 +69,8 @@ export default function ResourcePackModal({ language, onClose }) {
   }), [keys, kind, status, query, filter]);
   const installedCount = keys.filter(key => status?.[kind]?.[key]).length;
   const succeeded = results.filter(item => item.ok).length;
-  const reload = () => {
-    if (window.confirm(text('重新加载以应用资源？请先保存未保存的协作内容。', 'Reload to apply resources? Save unsaved collaboration work first.', 'Перезагрузить для применения? Сначала сохраните совместную работу.'))) location.reload();
+  const reload = async () => {
+    if (await dialogs.confirm(text('重新加载以应用资源？请先保存未保存的协作内容。', 'Reload to apply resources? Save unsaved collaboration work first.', 'Перезагрузить для применения? Сначала сохраните совместную работу.'))) location.reload();
   };
   return createPortal(<dialog ref={ref} className="resource-pack-dialog" onClose={onClose} onCancel={event => { if (busy) event.preventDefault(); }} onKeyDown={event => event.stopPropagation()} aria-labelledby="resource-pack-title">
     <header className="resource-pack-header">

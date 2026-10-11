@@ -1,3 +1,4 @@
+import { useAppDialogs } from './AppDialogs.jsx';
 import { useState } from 'react';
 import { localize } from '../i18n.js';
 import { folderChildren, folderOptions, ROOT_FOLDER_ID } from '../app/archiveFolders.js';
@@ -12,6 +13,7 @@ export function FolderSelect({ state, value, onChange, language }) {
 }
 
 export default function ArchiveFolderTree({ state, items, language, onCreate, onDelete, onMove, renderItem, emptyLabel, toolbarActions, compareItems }) {
+  const dialogs = useAppDialogs(language);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState(ROOT_FOLDER_ID);
@@ -55,8 +57,8 @@ export default function ArchiveFolderTree({ state, items, language, onCreate, on
     if (!name.trim()) return;
     if (await onCreate(name, parentId)) { setName(''); setParentId(ROOT_FOLDER_ID); setCreating(false); }
   };
-  const deleteFolder = (id) => {
-    if (!window.confirm(label(language, '删除文件夹？里面的内容会移到上一级，不会删除存档。', 'Delete folder? Its contents will move to the parent without deleting archives.', 'Удалить папку? Содержимое переместится на уровень выше, архивы сохранятся.'))) return;
+  const deleteFolder = async (id) => {
+    if (!await dialogs.confirm(label(language, '删除文件夹？里面的内容会移到上一级，不会删除存档。', 'Delete folder? Its contents will move to the parent without deleting archives.', 'Удалить папку? Содержимое переместится на уровень выше, архивы сохранятся.'))) return;
     onDelete(id);
   };
   const children = (parent, depth, ancestors = new Set()) => {
