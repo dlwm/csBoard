@@ -2,6 +2,47 @@ import polygonClipping from 'polygon-clipping';
 import * as THREE from 'three';
 import { clipToVolume, groundHeight, insideVolume } from './placeGeometry.js';
 
+// Nearly coincident clip intersections can form cyclic sweep predecessors in
+// polygon-clipping. Normalize geometry before union rather than patching the
+// library or changing its recursion limit. Units below are Source units.
+// 裁切浮点误差会产生近重合边与零面积碎片；合并前规整坐标，避免扫描线循环。
+const FOOTPRINT_PRECISIONS = [.001, .01, .1];
+function normalizedFootprints(polygons, precision) {
+  const keys = new Set(), result = [];
+  for (const polygon of polygons) {
+    const ring = [];
+    for (const point of polygon[0]) {
+      if (!point.every(Number.isFinite)) continue;
+      const next = point.map(value => Math.round(value / precision) * precision);
+      if (!ring.length || next.some((value, i) => value !== ring.at(-1)[i])) ring.push(next);
+    }
+    if (ring.length > 1 && ring[0].every((value, i) => value === ring.at(-1)[i])) ring.pop();
+    const area = ring.reduce((sum, p, i) => { const q = ring[(i + 1) % ring.length]; return sum + p[0] * q[1] - q[0] * p[1]; }, 0);
+    if (ring.length < 3 || Math.abs(area) <= precision * precision) continue;
+    if (area < 0) ring.reverse();
+    // Same footprint at multiple height probes only needs to participate once.
+    const first = ring.reduce((best, point, i) => point[0] < ring[best][0] || (point[0] === ring[best][0] && point[1] < ring[best][1]) ? i : best, 0);
+    const ordered = [...ring.slice(first), ...ring.slice(0, first)], key = JSON.stringify(ordered);
+    if (keys.has(key)) continue;
+    keys.add(key); result.push([ordered]);
+  }
+  return result;
+}
+function unionFootprints(polygons) {
+  let lastError;
+  for (const precision of FOOTPRINT_PRECISIONS) {
+    const normalized = normalizedFootprints(polygons, precision);
+    if (!normalized.length) return [];
+    try { return polygonClipping.union(...normalized); }
+    catch (error) { lastError = error; }
+  }
+  // Retain real clipped surfaces if an unusual union still fails. Never bridge
+  // disconnected terrain or let display geometry crash the workspace.
+  // 极端情况保留各个有效地面片段，不跨空隙补面，也不让显示计算中断工作区。
+  console.warn('Map footprint union failed; retaining individual surfaces:', lastError.message);
+  return normalizedFootprints(polygons, FOOTPRINT_PRECISIONS[0]).map(polygon => polygon.map(ring => [...ring, ring[0]]));
+}
+
 // Preserve the terrain-clipped shape, including concavities and real holes.
 // 包点/购买区保留真实不规则轮廓；只合并地面分块，不取凸包或完整体积截面。
 export function triggerRegionSurfaces(region, areas, spawns=[]) {
@@ -27,7 +68,7 @@ export function triggerRegionSurfaces(region, areas, spawns=[]) {
       pieces.push([polygon.map(([x,y])=>[x,y])]);
     }
     if(!pieces.length) continue;
-    for(const polygon of polygonClipping.union(...pieces)) {
+    for(const polygon of unionFootprints(pieces)) {
       const rings=polygon.map(ring=>ring.slice(0,-1));
       const flat=rings.flat(),to2d=ring=>ring.map(p=>new THREE.Vector2(...p));
       for(const indices of THREE.ShapeUtils.triangulateShape(to2d(rings[0]),rings.slice(1).map(to2d)))
@@ -59,7 +100,7 @@ function competitiveBuyVolumes(volumes,spawns,areas) {
   // Keep adjoining parts of the same primary purchase zone (e.g. Mirage's
   // end caps), but exclude disconnected mode-specific pools without a start.
   let changed=true;
-  while(changed) { changed=false;for(const part of parts) if(!part.selected && part.footprint.length>=3 && parts.some(other=>other.selected && other.footprint.length>=3 && polygonClipping.union([part.footprint],[other.footprint]).length===1)) {part.selected=true;changed=true;} }
+  while(changed) { changed=false;for(const part of parts) if(!part.selected && part.footprint.length>=3 && parts.some(other=>other.selected && other.footprint.length>=3 && unionFootprints([[part.footprint],[other.footprint]]).length===1)) {part.selected=true;changed=true;} }
   return parts.filter(part=>part.selected).map(part=>({...part.volume,hulls:[part.hull]}));
 }
 
@@ -113,7 +154,7 @@ export function mergeRegionSurfaces(polygons,areas=[]) {
     const records=group.map(points=>({points,ring:points.map(p=>[snap(p[0]),snap(p[1])])})).filter(record=>record.ring.length>=3 && Math.abs(record.ring.reduce((sum,p,i)=>{const q=record.ring[(i+1)%record.ring.length];return sum+p[0]*q[1]-q[0]*p[1];},0))>.01);
     if(!records.length)continue;
     const vertices=records.flatMap(record=>record.points);
-    const union=polygonClipping.union(...records.map(record=>[record.ring]));
+    const union=unionFootprints(records.map(record=>[record.ring]));
     const heightAt=([x,y])=>{
       // Return a real surface height, never the mean between overlapping floors.
       let nearest=vertices[0],distance=Infinity;

@@ -56,7 +56,7 @@ export function createMapMarkers({scene,navData,mapName,floorState,getModelCente
     return centers.reduce((a,b)=>Math.hypot(...a.map((v,i)=>v-mean[i]))<Math.hypot(...b.map((v,i)=>v-mean[i]))?a:b);
   }
   function build(kind,locale) {
-    const group=new THREE.Group(); root.add(group); groups.set(kind,group);
+    const group=new THREE.Group(); group.name=`map-region-${kind}`; root.add(group); groups.set(kind,group);
     const selected=regions.filter(region=>['spawns','places'].includes(kind)?false:region.kind=== (kind==='bombsites'?'bombsite':'buyzone'));
     for(const region of selected) {
       const color=region.kind==='bombsite'?'#ee6262':region.team==='T'?'#ffa954':'#65b5ff';
@@ -109,11 +109,16 @@ export function createMapMarkers({scene,navData,mapName,floorState,getModelCente
         });
         if(!records.length) continue;
         const geometry=new THREE.BufferGeometry(); geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
-        const mesh=new THREE.InstancedMesh(geometry,new THREE.MeshBasicMaterial({color:team==='T'?'#ffa954':'#65b5ff',side:THREE.DoubleSide,transparent:true,opacity:.95,depthTest:true,depthWrite:false}),records.length);
+        const mesh=new THREE.InstancedMesh(geometry,new THREE.MeshBasicMaterial({color:team==='T'?'#ffa954':'#65b5ff',side:THREE.DoubleSide,transparent:true,opacity:.35,depthTest:true,depthWrite:false}),records.length);
         mesh.renderOrder=5; mesh.frustumCulled=false; group.add(mesh); spawnBatches.push({mesh,records});
       }
     }
     enableObjectFloorFade(group,floorState);
+    if(kind==='bombsites' || kind==='buyzones') {
+      const materials=new Set();
+      group.traverse(object=>{for(const material of [object.material].flat()) if(material) materials.add(material);});
+      group.userData.regionMaterials=[...materials].map(material=>({material,opacity:material.opacity}));
+    }
   }
   function disposeGroup(group) {
     const geometries=new Set(),materials=new Set(),textures=new Set();
@@ -123,9 +128,24 @@ export function createMapMarkers({scene,navData,mapName,floorState,getModelCente
   return {
     update(options,locale='en',camera,viewportHeight=800) {
       if(language!==locale) { for(const group of groups.values()) disposeGroup(group); groups.clear(); labels.length=0; spawnBatches.length=0; glows.length=0; language=locale; }
+      // NAV is an independent ground reference. Without it, zones fade with
+      // the actual rendered model; preserve their base fill/outline/halo style.
+      // NAV 开启时正常展示；关闭时区域整体强度乘以模型透明度，模型隐藏则区域隐藏。
+      const zoneOpacity=options?.planView || options?.navVisible!==false ? 1
+        : options?.modelVisible && Number.isFinite(options?.modelOpacity) ? Math.max(0,Math.min(1,options.modelOpacity)) : 0;
       for(const kind of ['spawns','bombsites','buyzones']) {
-        if(!groups.has(kind)) build(kind,locale);
-        if(groups.has(kind)) groups.get(kind).visible=true;
+        const visible=kind==='spawns' ? Boolean(options?.showSpawns) : zoneOpacity>0;
+        if(visible && !groups.has(kind)) build(kind,locale);
+        const group=groups.get(kind);
+        if(!group)continue;
+        group.visible=visible;
+        if(kind!=='spawns' && group.userData.zoneOpacity!==zoneOpacity) {
+          group.userData.zoneOpacity=zoneOpacity;
+          for(const {material,opacity} of group.userData.regionMaterials) {
+            material.opacity=opacity*zoneOpacity;
+            if(material.uniforms?.uOpacity) material.uniforms.uOpacity.value=zoneOpacity;
+          }
+        }
       }
       const showPlaces=Boolean(options?.planView && options?.style==='places');
       if(showPlaces && !groups.has('places'))build('places',locale);
@@ -140,7 +160,7 @@ export function createMapMarkers({scene,navData,mapName,floorState,getModelCente
             world.copy(record.center).sub(center);
             const perPixel=camera.isOrthographicCamera ? (camera.top-camera.bottom)/camera.zoom/Math.max(1,viewportHeight) :
               2*Math.max(.1,world.clone().sub(camera.position).dot(direction))*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))/Math.max(1,viewportHeight);
-            const factor=Math.max(1,perPixel*6/.3);
+            const factor=Math.max(1,perPixel*4/.3);
             matrix.compose(record.center,record.rotation,sizing.set(factor,1,factor)); mesh.setMatrixAt(i,matrix);
           }); mesh.instanceMatrix.needsUpdate=true;
         }

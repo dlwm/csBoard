@@ -278,7 +278,7 @@ export default function ThreeBoard(inputProps) {
     const planHeadings=createPlanPlayerHeadings(()=>[...pointsRef.current.filter(point=>point.userData.collabPlayer),...demoMarkers.values()],floorFadeRef.current);
     const planViews=createPlanViewRenderer({renderer,scene,camera,mapName,getModelCenter:()=>modelCenter,onFloor:floor=>{
       updateFloorFadeState(floorFadeRef.current,mapName,camera.planView ? floor || activePlanFloor : mapFloorRef.current,modelCenter.y,navData);
-      mapMarkerScene.update({planView:camera.planView,style:monitorPropsRef.current.map2dStyle},mapMarkerLanguageRef.current,camera,mount.clientHeight);planHeadings.update(camera.planView);
+      updateMapMarkers();planHeadings.update(camera.planView);
     }});
     const smokeCountdown = createSmokeCountdownOverlay({ mount, camera, floorFadeRef, getViewport: point=>planViews.viewportForPoint(point), getModelCenter: () => modelCenter,
       getState: () => ({ enabled: smokeTimersEnabledRef.current && Boolean(demoSnapshotRef.current), events: demoGrenadesRef.current, tick: demoTickRef.current, tickRate: demoSourceRef.current?.tickRate }) });
@@ -1408,6 +1408,8 @@ export default function ThreeBoard(inputProps) {
       camera.updateProjectionMatrix();
     }
     const mapMarkerScene = createMapMarkers({scene,navData,mapName,floorState:floorFadeRef.current,getModelCenter:()=>modelCenter});
+    const updateMapMarkers = () => mapMarkerScene.update({planView:camera.planView,style:monitorPropsRef.current.map2dStyle,showSpawns:monitorPropsRef.current.showSpawnMarkers,
+      navVisible:Boolean(nav?.group.visible && nav.mesh.visible),modelVisible:Boolean(worldModel?.visible),modelOpacity:modelOpacityRef.current},mapMarkerLanguageRef.current,camera,mount.clientHeight);
     let disposed = false;
     let lastModelProgressAt = 0;
     const resetToDefault = (normalReset) => {
@@ -1910,7 +1912,7 @@ export default function ThreeBoard(inputProps) {
           });
         });
       }
-      mapMarkerScene.update({planView:camera.planView,style:monitorPropsRef.current.map2dStyle},mapMarkerLanguageRef.current,camera,mount.clientHeight);
+      updateMapMarkers();
       planHeadings.update(camera.planView);
       if (!planViews.render() && !demoMonitorRenderer.render(now)) renderer.render(scene, camera);
       smokeCountdown.update(now);

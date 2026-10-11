@@ -18,18 +18,18 @@ export function createRegionGlow(edges, floorState, color='#ffe7a0') {
   const geometry=new THREE.BufferGeometry(); geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setAttribute('aRise',new THREE.Float32BufferAttribute(rises,1)); geometry.setAttribute('aAlong',new THREE.Float32BufferAttribute(along,1));
   const material=new THREE.ShaderMaterial({
-    uniforms:{uTime:{value:0},uHeight:{value:height},uColor:{value:new THREE.Color(color)},uFloor:{value:floorState}},
+    uniforms:{uTime:{value:0},uHeight:{value:height},uColor:{value:new THREE.Color(color)},uFloor:{value:floorState},uOpacity:{value:1}},
     transparent:true,depthTest:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,toneMapped:false,
     vertexShader:`attribute float aRise; attribute float aAlong; uniform float uHeight;
       varying float vRise; varying float vAlong; varying float vGroundY;
       void main(){ vRise=aRise; vAlong=aAlong; vec4 world=modelMatrix*vec4(position,1.);
         vGroundY=world.y-aRise*uHeight; gl_Position=projectionMatrix*viewMatrix*world; }`,
-    fragmentShader:`uniform float uTime; uniform vec3 uColor; uniform vec4 uFloor;
+    fragmentShader:`uniform float uTime; uniform float uOpacity; uniform vec3 uColor; uniform vec4 uFloor;
       varying float vRise; varying float vAlong; varying float vGroundY;
       void main(){ if(uFloor.w>.5 && (vGroundY<uFloor.x || vGroundY>uFloor.y)) discard;
         float ray=pow(.5+.5*sin(vAlong*1.1-uTime*.18),3.);
         float fade=pow(max(0.,1.-vRise),2.8);
-        float alpha=fade*(.12+.06*ray);
+        float alpha=fade*(.12+.06*ray)*uOpacity;
         if(alpha<.003) discard;
         vec3 glow=mix(uColor,vec3(1.),.7*exp(-vRise*5.));
         gl_FragColor=vec4(glow,alpha);
