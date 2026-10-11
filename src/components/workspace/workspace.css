@@ -171,3 +171,12 @@
 .replay-sharing>div { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 25; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 230px; max-width: calc(100vw - 32px); padding: 12px; border: 1px solid var(--workspace-divider); background: #101815; }
 .replay-sharing form { display: flex; gap: 6px; }.replay-sharing input { min-width: 0; width: 130px; border: 1px solid var(--workspace-divider); background: #0b1110; color: inherit; padding: 6px; font: inherit; }
 .replay-sharing p { flex-basis: 100%; margin: 0; color: #ffb6ab; overflow-wrap: anywhere; }
+
+/* Frame controls participate in the same responsive bottom-bar contract. */
+.workspace-frame .workspace-bottom-bar .collab-frame-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.workspace-frame .workspace-bottom-bar .collab-frame-timeline { flex: 1 1 180px; width: auto; max-width: none; min-width: 0; overflow-x: auto; }
+.workspace-frame .workspace-bottom-bar .collab-frame-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+
+.workspace-frame .workspace-bottom-bar .model-visual-controls { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px; max-width: 100%; margin: 0; }
+.workspace-frame .workspace-bottom-bar .model-opacity { min-width: 0; max-width: 100%; box-sizing: border-box; white-space: nowrap; }
+.workspace-frame .workspace-bottom-bar .model-opacity input { min-width: 0; max-width: 88px; }
