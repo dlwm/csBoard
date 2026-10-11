@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
@@ -20,6 +20,13 @@ const mimeTypes = {
 let mainWindow = null
 let resourceStore = null
 let nativeServices = null
+
+function openBrowserLink(value) {
+  let url
+  try { url = new URL(value) } catch { return }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return
+  shell.openExternal(url.href).catch(error => console.warn('Unable to open browser link:', error.message))
+}
 
 
 function isFileInside(root, filePath) {
@@ -55,6 +62,9 @@ function startDesktopServer() {
       'Content-Type': mimeTypes[path.extname(filePath)] || 'application/octet-stream',
       'Origin-Agent-Cluster': '?1',
       'X-Content-Type-Options': 'nosniff',
+      // Allow bundled scripts and WASM, without JavaScript eval. Dynamic style,
+      // SVG/texture blobs and configurable collaboration endpoints are needed.
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
       ...(resource ? { 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" } : {}),
     })
     if (request.method === 'HEAD') response.end()
@@ -153,6 +163,17 @@ app.whenReady().then(async () => {
   })
 
   mainWindow.on('closed', () => { aiService?.cancelAll(); mainWindow = null })
+  // External links use the system browser. Keep the privileged renderer on its
+  // local entry page, and never create a child window inheriting its preload.
+  // 外链交给系统浏览器，应用窗口不跳到外站，也不派生继承原生桥的子窗口。
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => { openBrowserLink(url); return { action: 'deny' } })
+  mainWindow.webContents.on('will-navigate', (event, value) => {
+    let url
+    try { url = new URL(value) } catch { event.preventDefault(); return }
+    if (url.origin === `http://${DESKTOP_HOST}:${DESKTOP_PORT}` && ['/', '/index.html'].includes(url.pathname)) return
+    event.preventDefault()
+    openBrowserLink(value)
+  })
   mainWindow.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) aiService?.cancelAll() })
   for (const name of ['minimize', 'restore', 'hide', 'show']) mainWindow.on(name, () => {
     if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('desktop:presentation', mainWindow.isVisible() && !mainWindow.isMinimized())
