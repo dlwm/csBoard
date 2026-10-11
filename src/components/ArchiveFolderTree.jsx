@@ -11,7 +11,7 @@ export function FolderSelect({ state, value, onChange, language }) {
   </select>;
 }
 
-export default function ArchiveFolderTree({ state, items, language, onCreate, onDelete, onMove, renderItem, emptyLabel, toolbarActions }) {
+export default function ArchiveFolderTree({ state, items, language, onCreate, onDelete, onMove, renderItem, emptyLabel, toolbarActions, compareItems }) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState(ROOT_FOLDER_ID);
@@ -59,7 +59,10 @@ export default function ArchiveFolderTree({ state, items, language, onCreate, on
     if (!window.confirm(label(language, '删除文件夹？里面的内容会移到上一级，不会删除存档。', 'Delete folder? Its contents will move to the parent without deleting archives.', 'Удалить папку? Содержимое переместится на уровень выше, архивы сохранятся.'))) return;
     onDelete(id);
   };
-  const children = (parent, depth, ancestors = new Set()) => folderChildren(state, items, parent).map((entry) => {
+  const children = (parent, depth, ancestors = new Set()) => {
+    const entries=folderChildren(state, items, parent);
+    if(compareItems) entries.sort((a,b)=>a.type!==b.type ? (a.type==='folder' ? -1 : 1) : a.type==='item' ? compareItems(a.value,b.value) : a.order-b.order);
+    return entries.map((entry) => {
     if (entry.type === 'item') return <div key={`item-${entry.id}`} className={`folder-tree-item${dropTarget === `item:${entry.id}` ? ' drop-target' : ''}`} style={{ '--folder-depth': depth }} draggable onDragStart={(event) => startDrag(event, 'item', entry.id)} onDragOver={(event) => allowDrop(event, 'item', entry.id)} onDragLeave={() => setDropTarget('')} onDrop={(event) => drop(event, 'item', entry.id)}>{renderItem(entry.value)}</div>;
     if (ancestors.has(entry.id)) return null;
     const closed = collapsed.has(entry.id);
@@ -72,6 +75,7 @@ export default function ArchiveFolderTree({ state, items, language, onCreate, on
       {!closed && children(entry.id, depth + 1, new Set([...ancestors, entry.id]))}
     </div>;
   });
+  };
 
   return <div className="folder-tree">
     <div className="folder-tree-heading"><strong>{label(language, '目录', 'Folders', 'Папки')}</strong><div className="folder-tree-actions">{toolbarActions}<button type="button" onClick={() => setCreating(true)}>＋ {label(language, '新建文件夹', 'New folder', 'Новая папка')}</button></div></div>

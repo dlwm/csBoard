@@ -76,6 +76,13 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
       trajectory.userData.collabUtilityTrajectoryPoints = points;
       utility.add(trajectory);
     }
+    const startMarker=new THREE.Mesh(new THREE.RingGeometry(.12,.2,24),new THREE.MeshBasicMaterial({color:'#bce865',side:THREE.DoubleSide,depthTest:true,depthWrite:false}));
+    startMarker.rotation.x=-Math.PI/2; startMarker.position.y=.12; startMarker.renderOrder=6;
+    const hitDisk=new THREE.Mesh(new THREE.CircleGeometry(.2,24),new THREE.MeshBasicMaterial({color:'#bce865',transparent:true,opacity:.12,side:THREE.DoubleSide,depthTest:true,depthWrite:false}));
+    hitDisk.position.z=-.001;hitDisk.renderOrder=6;startMarker.add(hitDisk);
+    startMarker.userData.collabUtilityOrigin=true; utility.add(startMarker);
+    enableObjectFloorFade(startMarker,floorFadeRef.current);
+    utility.userData.pointId=itemId;
     utility.userData.collabUtility = true;
     utility.userData.collabUtilityId = itemId;
     utility.userData.noteId = note?.id;
@@ -85,6 +92,8 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     utility.userData.collabUtilityEffect = effect;
     utility.userData.utilityEffectPosition = resolvedEffectPosition.toArray();
     utility.userData.utilityProjectiles = projectiles.map((record) => ({ ...record }));
+    utility.userData.utilityPreviewSnapshots = (note?.replay?.snapshots || []).filter((_, index, rows) => index === rows.length - 1 || index % Math.max(1, Math.ceil(rows.length / 512)) === 0);
+    utility.userData.utilityPreviewEvents = note?.replay?.events || [];
     utility.userData.utilityTickRate = Number(note?.replay?.tickRate) || 64;
     utility.userData.utilityThrowTick = Number(note?.replay?.throwTick);
     utility.userData.utilityEffectTick = Number(note?.replay?.effectTick);
@@ -201,7 +210,7 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
       const note = notes.find((candidate) => candidate.id === item.noteId);
       // Persisted metadata keeps utilities usable even if the source note was deleted locally.
       const embeddedNote = item.sourceNote || {};
-      const sourceNote = { ...embeddedNote, ...(note || {}), name: note?.name || item.noteName || '', summary: note?.summary || item.noteSummary || '', grenadeType: note?.grenadeType || embeddedNote.grenadeType || item.kind, replay: { tickRate: item.tickRate, throwTick: item.throwTick, effectTick: item.effectTick, endTick: item.endTick, ...(embeddedNote.replay || {}), ...(note?.replay || {}), projectiles: item.projectiles || note?.replay?.projectiles || embeddedNote.replay?.projectiles || [], smokeVoxelFrames: item.smokeVoxelFrame ? [item.smokeVoxelFrame] : note?.replay?.smokeVoxelFrames || embeddedNote.replay?.smokeVoxelFrames || [], infernoFrames: item.infernoFrame ? [item.infernoFrame] : note?.replay?.infernoFrames || embeddedNote.replay?.infernoFrames || [] } };
+      const sourceNote = { ...embeddedNote, ...(note || {}), name: note?.name || item.noteName || '', summary: note?.summary || item.noteSummary || '', grenadeType: note?.grenadeType || embeddedNote.grenadeType || item.kind, replay: { snapshots: item.previewSnapshots || [], events: item.previewEvents || [], tickRate: item.tickRate, throwTick: item.throwTick, effectTick: item.effectTick, endTick: item.endTick, ...(embeddedNote.replay || {}), ...(note?.replay || {}), projectiles: item.projectiles || note?.replay?.projectiles || embeddedNote.replay?.projectiles || [], smokeVoxelFrames: item.smokeVoxelFrame ? [item.smokeVoxelFrame] : note?.replay?.smokeVoxelFrames || embeddedNote.replay?.smokeVoxelFrames || [], infernoFrames: item.infernoFrame ? [item.infernoFrame] : note?.replay?.infernoFrames || embeddedNote.replay?.infernoFrames || [] } };
       const utility = create(sourceNote, item.id, item.kind, origin, item.effectPosition);
       utility.userData.anonymousUtility = item.anonymous === true;
       utility.userData.sourceNote = item.anonymous === true ? {
@@ -302,6 +311,8 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     position: utility.position.toArray(),
     effectPosition: utility.userData.utilityEffectPosition,
     projectiles: utility.userData.utilityProjectiles || [],
+    previewSnapshots: utility.userData.utilityPreviewSnapshots,
+    previewEvents: utility.userData.utilityPreviewEvents,
     tickRate: utility.userData.utilityTickRate,
     throwTick: Number.isFinite(utility.userData.utilityThrowTick) ? utility.userData.utilityThrowTick : undefined,
     effectTick: Number.isFinite(utility.userData.utilityEffectTick) ? utility.userData.utilityEffectTick : undefined,
@@ -313,10 +324,18 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     sourceNote: utility.userData.anonymousUtility === true ? compactAnonymousSourceNote(utility.userData.sourceNote) : undefined,
   }));
 
+  const noteFor = (utility) => utility ? {
+    id: utility.userData.collabUtilityId, name: utility.userData.noteName, grenadeType: utility.userData.utilityKind,
+    replay: { snapshots: utility.userData.utilityPreviewSnapshots || [], events: utility.userData.utilityPreviewEvents || [],
+      projectiles: utility.userData.utilityProjectiles || [], smokeVoxelFrames: utility.userData.utilitySmokeVoxelFrame ? [utility.userData.utilitySmokeVoxelFrame] : [],
+      infernoFrames: utility.userData.utilityInfernoFrame ? [utility.userData.utilityInfernoFrame] : [], tickRate: utility.userData.utilityTickRate,
+      throwTick: utility.userData.utilityThrowTick, effectTick: utility.userData.utilityEffectTick, endTick: utility.userData.utilityEndTick },
+  } : null;
+
   const dispose = () => {
     clear();
     scene.remove(group);
   };
 
-  return { add, remove, promote, clear, preview, focus, clearPreview, restore, play, update, serialize, serializeAnonymous, setVisible: (visible) => { group.visible = visible !== false; }, dispose };
+  return { getOriginAnchors:()=>utilities.map(item=>({id:`utility-origin:${item.userData.collabUtilityId}`,position:item.getWorldPosition(new THREE.Vector3()).toArray()})), getOriginMarkers:()=>utilities.flatMap(item=>item.children.filter(child=>child.userData.collabUtilityOrigin)), add, remove, promote, clear, preview, focus, clearPreview, restore, play, update, serialize, serializeAnonymous, setVisible: (visible) => { group.visible = visible !== false; }, dispose };
 }

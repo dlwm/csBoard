@@ -24,13 +24,13 @@ export default function useRadarOverlay({ activePanel, radarSource, boardRef, ma
     };
     const camera = project(radarScene.position);
     const cameraTarget = project(radarScene.target, false);
-    const cameraAngle = Math.atan2(cameraTarget.y - camera.y, cameraTarget.x - camera.x) * 180 / Math.PI;
+    const cameraAngle = radarScene.planView ? (radarScene.planRotation || 0)*180/Math.PI-90 : Math.atan2(cameraTarget.y - camera.y, cameraTarget.x - camera.x) * 180 / Math.PI;
     const source = radarSource === undefined ? activePanel === 'collab' ? 'collab' : activePanel === 'demo' || activePanel === 'broadcast' ? 'demo' : null : radarSource;
     const players = (radarScene.players || []).filter((player) => player.source === source).map((player) => {
       const position = project(player.position);
       const target = project(player.target, false);
       return { ...player, ...position, angle: Math.atan2(target.y - position.y, target.x - position.x) * 180 / Math.PI };
     });
-    return { camera: { ...camera, angle: cameraAngle }, players };
+    return { camera: { ...camera, angle: cameraAngle, planView:Boolean(radarScene.planView) }, players };
   }, [activePanel, radarSource, radarScene]);
 }

@@ -23,7 +23,7 @@ export default function useUtilityReplayRecovery({ active, mapName, compute, lan
       const live = notesRef.current.find(item => item.id === note.id);
       if (!live) return;
       const updated = { ...live, position: recorded.position, angles: recorded.angles, startPlace: recorded.startPlace,
-        throwPlace: recorded.throwPlace, behavior: recorded.behavior, replay: recorded.replay, demoSource: recorded.demoSource };
+        throwPlace: recorded.throwPlace, landingPlace: recorded.landingPlace, landingPosition: recorded.landingPosition, landingRegionId: recorded.landingRegionId, landingPlaceSource: recorded.landingPlaceSource, behavior: recorded.behavior, replay: recorded.replay, demoSource: recorded.demoSource };
       const saved = await ports.current.persist(notesRef.current.map(item => item.id === updated.id ? updated : item));
       request.signal.throwIfAborted();
       setStatus(saved ? null : { note: updated, firstPerson, message: localize(language, { zh: '回放记录已更新，但保存失败。', en: 'Replay updated, but saving failed.', ru: 'Повтор обновлён, но не сохранён.' }) });

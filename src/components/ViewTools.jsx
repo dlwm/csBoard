@@ -1,3 +1,4 @@
+import { getMapPlaceRegions } from '../data/mapPlaceData.js';
 import { preferences } from '../platform/preferences.js';
 import { useEffect, useId, useState } from 'react';
 import { localize } from '../i18n.js';
@@ -9,7 +10,7 @@ function RadarOverlay({ activePanel, radarSource, boardRef, mapName, navData }) 
   if (!radarOverlay) return null;
   return <svg className="map-radar-overlay" viewBox="0 0 100 100" aria-hidden="true">
     {radarOverlay.players.map((player) => <g className={`map-player-base side-${player.team.toLowerCase()}`} key={`${player.source}-${player.id}`} transform={`translate(${player.x} ${player.y}) rotate(${player.angle})`}><circle r="3.1" /><path d="M2.2 0 5.2-1.6 5.2 1.6Z" /></g>)}
-    <g className="map-camera-marker" transform={`translate(${radarOverlay.camera.x} ${radarOverlay.camera.y}) rotate(${radarOverlay.camera.angle})`}><path className="map-camera-fan" d="M0 0 23-10A25 25 0 0 1 23 10Z" /><circle r="2.2" /></g>
+    <g className="map-camera-marker" transform={`translate(${radarOverlay.camera.x} ${radarOverlay.camera.y}) rotate(${radarOverlay.camera.angle})`}>{radarOverlay.camera.planView ? <path className="map-camera-heading" d="M2.5-2.5 6 0 2.5 2.5Z" /> : <path className="map-camera-fan" d="M0 0 23-10A25 25 0 0 1 23 10Z" />}<circle r="2.2" /></g>
   </svg>;
 }
 
@@ -17,7 +18,7 @@ const BRUSH_COLORS = ['#a5e0ff', '#ff6b6b', '#7cf29c', '#ffd166', '#ffffff', '#c
 const BRUSH_WIDTHS = [2, 3, 5, 8];
 
 // Shared camera, radar-floor and drawing controls; mobile collapses the surface.
-export default function ViewTools({ mobile = false, touchDrawingEnabled = false, setTouchDrawingEnabled, activePanel, radarSource, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
+export default function ViewTools({ boardViewMode, map2dStyle, setMap2dStyle, mobile = false, touchDrawingEnabled = false, setTouchDrawingEnabled, activePanel, radarSource, mapName, navData, activeCameraSlot, boardRef, brushColor, brushWidth, cameraSlotState, currentLayerUrl, currentMapLayers, cycleMapFloor, eraserEnabled, floorOptions, language, map2dLayer, modelFloor, selectMapFloor, setBrushColor, setBrushWidth, setEraserEnabled, t }) {
   const [open, setOpen] = useState(false);
   const [savingCamera, setSavingCamera] = useState(false);
   const contentId = useId();
@@ -33,18 +34,21 @@ export default function ViewTools({ mobile = false, touchDrawingEnabled = false,
     {mobile && <button type="button" className="mobile-view-tools-toggle" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen(value => !value)}>{text('地图 / 机位', 'Map / Cameras', 'Карта / Камеры')}{touchDrawingEnabled && <small>{text('绘图', 'Draw', 'Рисование')}</small>} <span aria-hidden="true">{open ? '−' : '+'}</span></button>}
     {(!mobile || open) && <div id={contentId} className="view-tools-content">
     <div className="view-tools-top">
+      <div className="map-preview-stack">
       {currentMapLayers.length ? <button type="button" className="map-preview-slot" aria-label={localize(language, { zh: '切换地图层级', en: 'Switch map floor', ru: 'Переключить этаж карты' })} onClick={cycleMapFloor}>
         <img src={currentLayerUrl} alt="" />
         <RadarOverlay radarSource={radarSource} activePanel={activePanel} boardRef={boardRef} mapName={mapName} navData={navData} />
         {currentMapLayers.length > 1 && <span>{currentMapLayers[map2dLayer]?.id === 'lower' ? t('lowerFloor') : t('upperFloor')}</span>}
       </button> : <div className="map-preview-slot map-preview-empty" aria-hidden="true" />}
+    {getMapPlaceRegions(navData,mapName).some(region=>region.kind==='place') && <div className="map-style-controls" role="group" aria-label={text('二维地图样式','2D map style','Вид 2D-карты')}>{[['plain',text('纯地图','Map','Карта')],['places',text('点位地图','Callouts','Позиции')]].map(([value,label])=><button type="button" key={value} aria-pressed={map2dStyle===value} onClick={()=>setMap2dStyle(value)}><span>{label}</span></button>)}</div>}
+      </div>
       <div className="camera-slots">
         <span>{t('cameraPositions')}</span>
         {cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved && !(mobile && savingCamera)} className={activeCameraSlot === index ? 'active' : ''} aria-label={text(`${savingCamera ? '保存' : '恢复'}机位 ${index + 1}`, `${savingCamera ? 'Save' : 'Restore'} camera ${index + 1}`, `${savingCamera ? 'Сохранить' : 'Восстановить'} камеру ${index + 1}`)} onClick={() => {
           if (mobile && savingCamera) { boardRef.current?.commands?.execute('camera.save', { slot: index }); setSavingCamera(false); }
           else boardRef.current?.commands?.execute('camera.restore', { slot: index });
         }}>{index === 9 ? 0 : index + 1}</button>)}
-        <div className="floor-controls">{floorOptions.map(([floor, label]) => <button type="button" key={floor} className={modelFloor === floor ? 'active' : ''} onClick={() => selectMapFloor(floor)}>{label}</button>)}</div>
+        {boardViewMode !== '2d' && <div className="floor-controls">{floorOptions.map(([floor, label]) => <button type="button" key={floor} className={modelFloor === floor ? 'active' : ''} onClick={() => selectMapFloor(floor)}>{label}</button>)}</div>}
         {mobile && <button type="button" className="camera-save-toggle" aria-pressed={savingCamera} onClick={() => setSavingCamera(value => !value)}>{savingCamera ? text('选择保存位置', 'Choose a slot', 'Выберите слот') : text('保存机位', 'Save camera', 'Сохранить камеру')}</button>}
         <button type="button" className="camera-reset" onClick={() => boardRef.current?.commands?.execute('camera.reset')}>{t('resetView')}</button>
       </div>

@@ -245,7 +245,7 @@ export default function createDemoPlayerSceneUpdater({
           const labelWorldPosition = marker.localToWorld(nameLabel.position.clone());
           const viewDepth = Math.max(0.1, -labelWorldPosition.applyMatrix4(camera.matrixWorldInverse).z);
           const viewportHeight = Math.max(1, renderer.domElement.clientHeight);
-          const worldHeight = 2 * viewDepth * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (36 / viewportHeight);
+          const worldHeight = (camera.isOrthographicCamera ? (camera.top-camera.bottom)/camera.zoom : 2 * viewDepth * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) * (36 / viewportHeight);
           const parentScale = marker.getWorldScale(new THREE.Vector3());
           const localHeight = worldHeight / Math.max(0.001, parentScale.y);
           nameLabel.scale.set(localHeight * (512 / 96), localHeight, 1);

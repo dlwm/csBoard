@@ -1,3 +1,16 @@
+import { createModelSimplification } from './modelSimplification.js';
+import { modelQualityContext } from '../settings/modelQuality.js';
+import { createSmokeCountdownOverlay } from './smokeCountdownOverlay.js';
+import './boardOverlays.css';
+import { getMapPlaceAnnotations } from '../data/mapPlaceData.js';
+import { competitiveSpawnPoints } from '../data/competitiveSpawns.js';
+import { nearestBoardSnap } from './boardSnap.js';
+import { createMapMarkers } from './mapMarkers.js';
+import { createPlanViewRenderer } from './planViewRenderer.js';
+import { createPlanPlayerHeadings } from './planPlayerHeading.js';
+import { NAV_FLOOR_BOUNDARIES } from '../data/navTopView.js';
+import { BoardCamera, createBoardProjectionController } from './boardCamera.js';
+import { playerBaseColor } from './playerColors.js';
 import { isMapModelOverlay } from '../../shared/map-model-materials.js';
 import { AI_ENABLED } from '../app/config.js';
 import { startRenderLoop } from './renderLoop.js';
@@ -67,7 +80,12 @@ export default function ThreeBoard(inputProps) {
   touchDrawingEnabledRef.current = props.touchDrawingEnabled !== false;
   const { mapName, navData, showGrid, showModel, modelOpacity, modelViewMode, demoProjectiles, analysisRounds, deletePointId, pointUpdate, onCameraSlots, onReady } = props;
   const mountRef = useRef(null);
+  const mapMarkerLanguageRef = useRef(inputProps.language); mapMarkerLanguageRef.current=inputProps.language;
   const requestModelRef = useRef(null);
+  const boardViewModeRef = useRef(inputProps.boardViewMode);
+  boardViewModeRef.current = inputProps.boardViewMode;
+  const smokeTimersEnabledRef = useRef(inputProps.smokeTimersEnabled);
+  smokeTimersEnabledRef.current = inputProps.smokeTimersEnabled;
   const utilityPlayingNoteIdRef = useRef(props.utilityPlayingNoteId);
   utilityPlayingNoteIdRef.current = props.utilityPlayingNoteId;
   const utilityReplayDisplayRef = useRef(props.utilityReplayDisplay);
@@ -92,6 +110,7 @@ export default function ThreeBoard(inputProps) {
   const [error, setError] = useState('');
   const modelOpacityRef = useRef(modelOpacity);
   modelOpacityRef.current = modelOpacity;
+  mapFloorRef.current=inputProps.mapFloor ?? mapFloorRef.current;
   updateFloorFadeState(floorFadeRef.current, mapName, mapFloorRef.current, modelCenterYRef.current, navData);
   useEffect(() => {
     demoProjectileGroupsRef.current = groupDemoProjectiles(demoProjectiles);
@@ -110,6 +129,8 @@ export default function ThreeBoard(inputProps) {
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return undefined;
+    const setSimplificationStatus = status => monitorPropsRef.current.onModelSimplificationStatus?.(status);
+    setSimplificationStatus(null);
     let renderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -125,6 +146,8 @@ export default function ThreeBoard(inputProps) {
     let frameTween = null;
     const collisionMeshes = [];
     let worldModel;
+    let modelSimplification;
+    let requestedSimplification=0,simplificationRequest=0,pendingSimplification=0,simplificationChangedAt=0,modelQualitySuspended=false;
     const isInteractiveFloorPoint = (point) => floorVisibilityAtY(point.y, floorFadeRef.current) > 0.05;
     const firstInteractiveFloorHit = (hits) => hits.find((hit) => isInteractiveFloorPoint(hit.point));
     const aimRaycaster = new THREE.Raycaster();
@@ -215,6 +238,7 @@ export default function ThreeBoard(inputProps) {
       floorFadeRef,
       aimRaycaster,
       getModelCenter: () => modelCenter,
+      getDemoId: () => demoSourceRef.current?.fileName,
       getCamera: () => camera,
       getRenderer: () => renderer,
       getCollisionMeshes: () => collisionMeshes,
@@ -226,7 +250,7 @@ export default function ThreeBoard(inputProps) {
       getModelCenter: () => modelCenter,
       getNav: () => nav,
     });
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+    const camera = new BoardCamera(38, 1, 0.1, 200);
     camera.position.set(17, 23, 25);
     const demoPovEquipment = new THREE.Group();
     demoPovEquipment.layers.set(1);
@@ -245,6 +269,19 @@ export default function ThreeBoard(inputProps) {
     camera.add(povThrownUtility);
     scene.add(camera);
     const controls = new OrbitControls(camera, renderer.domElement);
+    const boardProjection = createBoardProjectionController(camera, controls,()=>{
+      if(!nav)return null;const dimensions=nav.bounds.getSize(new THREE.Vector3());
+      const aspect=(mount.clientWidth/(NAV_FLOOR_BOUNDARIES[mapName]!=null?2:1))/Math.max(1,mount.clientHeight);
+      return {span:Math.max(dimensions.x,dimensions.z/aspect)*1.08,target:nav.center.clone().sub(modelCenter)};
+    });
+    let activePlanFloor='main';
+    const planHeadings=createPlanPlayerHeadings(()=>[...pointsRef.current.filter(point=>point.userData.collabPlayer),...demoMarkers.values()],floorFadeRef.current);
+    const planViews=createPlanViewRenderer({renderer,scene,camera,mapName,getModelCenter:()=>modelCenter,onFloor:floor=>{
+      updateFloorFadeState(floorFadeRef.current,mapName,camera.planView ? floor || activePlanFloor : mapFloorRef.current,modelCenter.y,navData);
+      mapMarkerScene.update({planView:camera.planView,style:monitorPropsRef.current.map2dStyle},mapMarkerLanguageRef.current,camera,mount.clientHeight);planHeadings.update(camera.planView);
+    }});
+    const smokeCountdown = createSmokeCountdownOverlay({ mount, camera, floorFadeRef, getViewport: point=>planViews.viewportForPoint(point), getModelCenter: () => modelCenter,
+      getState: () => ({ enabled: smokeTimersEnabledRef.current && Boolean(demoSnapshotRef.current), events: demoGrenadesRef.current, tick: demoTickRef.current, tickRate: demoSourceRef.current?.tickRate }) });
     let utilityPlaybackCameraActive = false;
     let utilityProjectileCameraActive = false;
     const utilityFollowDirection = new THREE.Vector3(0, 0, 1);
@@ -383,13 +420,10 @@ export default function ThreeBoard(inputProps) {
       return Math.hypot(dx, dy);
     };
     const strokeWorldPoints = (line) => {
-      const width = renderer.domElement.clientWidth || 1;
-      const height = renderer.domElement.clientHeight || 1;
       const worldPoints = line.userData.worldPoints;
       const world = new THREE.Vector3();
       const project = (w) => {
-        const projected = w.clone().project(camera);
-        return new THREE.Vector2((projected.x * 0.5 + 0.5) * width, (-projected.y * 0.5 + 0.5) * height);
+        const projected=planViews.screen(w);return new THREE.Vector2(projected.x,projected.y);
       };
       if (worldPoints && worldPoints.length) return worldPoints.map(project);
       const positions = line.geometry.attributes.position?.array;
@@ -432,8 +466,8 @@ export default function ThreeBoard(inputProps) {
       return true;
     };
     const eraseAtPointer = (ndcPointer) => {
-      const screenX = (ndcPointer.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
-      const screenY = (-ndcPointer.y * 0.5 + 0.5) * renderer.domElement.clientHeight;
+      const layout=planViews.layout(),view=layout.views.find(item=>item.floor===activePlanFloor)||layout.views[0];
+      const screenX=view.x+(ndcPointer.x*.5+.5)*view.width,screenY=(-ndcPointer.y*.5+.5)*view.height;
       const pointerScreen = new THREE.Vector2(screenX, screenY);
       if (eraserLastPointer && pointerScreen.distanceTo(eraserLastPointer) < 6) return;
       const start = eraserLastPointer ? eraserLastPointer.clone() : pointerScreen.clone();
@@ -448,6 +482,26 @@ export default function ThreeBoard(inputProps) {
       const targets = [nav?.mesh].filter(Boolean);
       const hit = firstInteractiveFloorHit(raycaster.intersectObjects(targets, true));
       return hit?.point.clone() || null;
+    };
+    const spawnStarts=competitiveSpawnPoints(getMapPlaceAnnotations(navData,mapName).spawnPoints);
+    const snapBoardPosition = (position,player=null,bypass=false,{allowOccupied=false,includeUtilityOrigins=true}={}) => {
+      if(bypass || !pointPlacementEnabledRef.current || !collabEditingEnabledRef.current) {
+        if(player) player.userData.boardSnapId=null;
+        return position;
+      }
+      const source=[(position.z+modelCenter.z)/.0254,(position.x+modelCenter.x)/.0254,(position.y+modelCenter.y)/.0254];
+      const utilityOrigins=includeUtilityOrigins ? collabUtilityScene.getOriginAnchors().map(anchor=>({
+        id:anchor.id,kind:'utility_origin',position:[(anchor.position[2]+modelCenter.z)/.0254,(anchor.position[0]+modelCenter.x)/.0254,(anchor.position[1]+modelCenter.y)/.0254],
+      })) : [];
+      const targets=[...utilityOrigins,...spawnStarts.map(spawn=>({...spawn,kind:'spawn'}))];
+      const snapped=nearestBoardSnap(targets,source,{
+        previousId:player?.userData.boardSnapId || null,
+        accept:spawn=>spawn.kind==='utility_origin' || allowOccupied || !pointsRef.current.some(other=>other!==player && other.userData.collabPlayer &&
+          Math.hypot(other.position.x-(spawn.position[1]*.0254-modelCenter.x),other.position.z-(spawn.position[0]*.0254-modelCenter.z))<.15 &&
+          Math.abs(other.position.y-(spawn.position[2]*.0254-modelCenter.y))<.15),
+      });
+      if(player) player.userData.boardSnapId=snapped?.id || null;
+      return snapped ? new THREE.Vector3(snapped.position[1]*.0254-modelCenter.x,snapped.position[2]*.0254-modelCenter.y,snapped.position[0]*.0254-modelCenter.z) : position;
     };
     const pointerToAim = (pointer, height) => {
       raycaster.setFromCamera(pointer, camera);
@@ -466,7 +520,7 @@ export default function ThreeBoard(inputProps) {
           if (!existing.has(candidate)) { name = candidate; break; }
         }
         if (!name) return null;
-        const player = createCollabPlayer({ position, id, name, team, weapon: 'ak47' });
+        const player = createCollabPlayer({ position, id, name, team, weapon: 'ak47', baseColor: playerBaseColor(existing.size) });
         const flat = direction.clone(); flat.y = 0;
         if (flat.lengthSq()) player.rotation.y = Math.atan2(-flat.x, -flat.z);
         updateCollabPlayerAim(player, collisionMeshes, aimRaycaster, collisionStateVersion());
@@ -498,8 +552,9 @@ export default function ThreeBoard(inputProps) {
       }
     };
     const pointerPosition = (event) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      return new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+      const result=planViews.pointer(event);
+      if(camera.planView && result.floor){activePlanFloor=result.floor;updateFloorFadeState(floorFadeRef.current,mapName,activePlanFloor,modelCenter.y,navData);}
+      return result.point;
     };
     const collabUtilityScene = createCollabUtilitySceneController({
       scene,
@@ -544,7 +599,7 @@ export default function ThreeBoard(inputProps) {
       controls.enabled = false;
     };
     const previewCollabUtility = (note) => {
-      if (note) transitionToCollabFocus(collabUtilityScene.preview(note));
+      if (note) { collabUtilityScene.preview(note); }
     };
     // Existing anonymous frame utilities only need camera focus; rendering a second preview would overlap them.
     const focusCollabUtility = (itemId) => transitionToCollabFocus(collabUtilityScene.focus(itemId));
@@ -589,7 +644,7 @@ export default function ThreeBoard(inputProps) {
       }
       collabUtilityPreviewCamera = null;
     };
-    const getCollabPlayers = () => pointsRef.current.filter((point) => point.userData.collabPlayer && point.userData.pointId).map((point) => ({ id: point.userData.pointId, name: point.userData.playerName, team: point.userData.team, position: point.position.toArray(), rotationY: point.rotation.y, pitch: point.userData.collabPitch || 0 }));
+    const getCollabPlayers = () => pointsRef.current.filter((point) => point.userData.collabPlayer && point.userData.pointId).map((point) => ({ id: point.userData.pointId, name: point.userData.playerName, team: point.userData.team, baseColor: point.userData.baseColor, position: point.position.toArray(), rotationY: point.rotation.y, pitch: point.userData.collabPitch || 0 }));
     const renamePlayerPoint = (pointId, name) => {
       const point = pointsRef.current.find((item) => item.userData.pointId === pointId && item.userData.collabPlayer);
       if (point) { pushCollabHistory(); renameCollabPlayer(point, name); notifyCollabEdit(); }
@@ -647,7 +702,7 @@ export default function ThreeBoard(inputProps) {
       camera,
       controls,
       onSlotsChange: onCameraSlots,
-      isPersistenceBlocked: () => utilityPlaybackCameraActive || demoDirectorCameraActive,
+      isPersistenceBlocked: () => camera.planView || utilityPlaybackCameraActive || demoDirectorCameraActive,
       getViewRange: () => modelRange.value,
       onRestoreViewRange: restoreModelViewRange,
       onRestoreSlot: (saved) => {
@@ -686,7 +741,7 @@ export default function ThreeBoard(inputProps) {
       grenadeEffects.splice(0).forEach((effect) => { scene.remove(effect); disposeGrenadeEffect(effect); });
       clearCollabUtilities();
       (snap.points || []).forEach((item) => {
-        const point = createCollabPlayer({ position: new THREE.Vector3().fromArray(item.position || [0, 0, 0]), id: item.id, name: item.name || randomPlayerName(), team: item.team || 'T', crouched: Boolean(item.crouched), pitch: item.pitch || 0, weapon: item.weapon || 'ak47' });
+        const point = createCollabPlayer({ position: new THREE.Vector3().fromArray(item.position || [0, 0, 0]), id: item.id, name: item.name || randomPlayerName(), team: item.team || 'T', crouched: Boolean(item.crouched), pitch: item.pitch || 0, weapon: item.weapon || 'ak47', baseColor: item.baseColor || playerBaseColor(pointsRef.current.length, item.id) });
         point.rotation.y = item.rotationY || 0;
         point.userData.pointId = item.id;
         updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionStateVersion());
@@ -743,7 +798,7 @@ export default function ThreeBoard(inputProps) {
     };
     collabHistoryRef.current = { push: pushCollabHistory, undo: undoCollab, redo: redoCollab };
     const getWorkspaceState = ({ includeDemo = false } = {}) => {
-      const points = pointsRef.current.filter((point) => point.userData.pointId).map((point) => ({ id: point.userData.pointId, position: point.position.toArray(), rotationY: point.rotation.y, team: point.userData.team, type: point.userData.type, rayLength: point.children.find((child) => child.userData.aimRay)?.scale.z || 0.05, aimTarget: point.userData.aimTarget?.position.toArray() || [0, 0, -0.05], kind: point.userData.collabPlayer ? 'player' : undefined, name: point.userData.playerName || undefined, weapon: point.userData.collabPlayer ? (point.userData.weapon || 'ak47') : undefined, crouched: point.userData.collabPlayer ? Boolean(point.userData.crouched) : undefined, pitch: point.userData.collabPlayer ? (point.userData.collabPitch || 0) : undefined }));
+      const points = pointsRef.current.filter((point) => point.userData.pointId).map((point) => ({ id: point.userData.pointId, position: point.position.toArray(), rotationY: point.rotation.y, team: point.userData.team, type: point.userData.type, rayLength: point.children.find((child) => child.userData.aimRay)?.scale.z || 0.05, aimTarget: point.userData.aimTarget?.position.toArray() || [0, 0, -0.05], baseColor: point.userData.baseColor, kind: point.userData.collabPlayer ? 'player' : undefined, name: point.userData.playerName || undefined, weapon: point.userData.collabPlayer ? (point.userData.weapon || 'ak47') : undefined, crouched: point.userData.collabPlayer ? Boolean(point.userData.crouched) : undefined, pitch: point.userData.collabPlayer ? (point.userData.collabPitch || 0) : undefined }));
       const grenades = grenadeEffects.map((effect, index) => ({ id: effect.userData.grenadeId || `grenade-${index}`, type: effect.userData.grenadeEffect, position: effect.position.toArray(), range: effect.userData.grenadeRange || effect.scale.x || 1 }));
       const collabUtilities = collabUtilityScene.serialize();
       if (includeDemo) {
@@ -751,7 +806,7 @@ export default function ThreeBoard(inputProps) {
           const pitch = THREE.MathUtils.degToRad(player.pitch || 0);
           const rayLength = 5.25;
           const aimTarget = new THREE.Vector3(0, 0, -rayLength).applyEuler(new THREE.Euler(-pitch, 0, 0)).add(new THREE.Vector3(0, 0.15, 0));
-          points.push({ id: `demo-${demoSnapshotRef.current.tick}-${player.steamid || player.name}`, position: [player.position.x - modelCenter.x, player.position.y - modelCenter.y + 0.16, player.position.z - modelCenter.z], rotationY: Math.atan2(-Math.sin(THREE.MathUtils.degToRad(player.yaw || 0)), -Math.cos(THREE.MathUtils.degToRad(player.yaw || 0))), team: player.team === 3 ? 'CT' : 'T', type: 'T', rayLength, aimTarget: aimTarget.toArray(), source: 'demo', playerName: player.name });
+          points.push({ id: `demo-${demoSnapshotRef.current.tick}-${player.steamid || player.name}`, position: [player.position.x - modelCenter.x, player.position.y - modelCenter.y + 0.16, player.position.z - modelCenter.z], rotationY: Math.atan2(-Math.sin(THREE.MathUtils.degToRad(player.yaw || 0)), -Math.cos(THREE.MathUtils.degToRad(player.yaw || 0))), team: player.team === 3 ? 'CT' : 'T', type: 'T', rayLength, aimTarget: aimTarget.toArray(), source: 'demo', baseColor: demoMarkers.get(String(player.steamid || player.name))?.userData.baseColor, playerName: player.name });
         });
         demoGrenadesRef.current.filter(isEffectStartEvent).forEach((event) => {
           const tick = demoSnapshotRef.current?.tick || 0;
@@ -826,7 +881,7 @@ export default function ThreeBoard(inputProps) {
       (saved.points || []).forEach((item) => {
         let point;
         if (item.kind === 'player') {
-          point = createCollabPlayer({ position: new THREE.Vector3().fromArray(item.position || [0, 0, 0]), id: item.id, name: item.name || randomPlayerName(), team: item.team || 'T', crouched: Boolean(item.crouched), pitch: item.pitch || 0, weapon: item.weapon || 'ak47' });
+          point = createCollabPlayer({ position: new THREE.Vector3().fromArray(item.position || [0, 0, 0]), id: item.id, name: item.name || randomPlayerName(), team: item.team || 'T', crouched: Boolean(item.crouched), pitch: item.pitch || 0, weapon: item.weapon || 'ak47', baseColor: item.baseColor || playerBaseColor(pointsRef.current.length, item.id) });
           point.rotation.y = item.rotationY || 0;
           updateCollabPlayerAim(point, collisionMeshes, aimRaycaster, collisionStateVersion());
           if (item.crouched) setCollabPlayerCrouch(point, true);
@@ -914,6 +969,7 @@ export default function ThreeBoard(inputProps) {
       controls.enabled = false;
         placementStartPointer = pointerCurrent.clone();
         placementOrigin = pointerToSurface(pointerCurrent);
+        if(placementOrigin) placementOrigin=snapBoardPosition(placementOrigin,null,event.altKey);
         if (placementOrigin) {
            previewPoint = createPlacedObject(placementOrigin, new THREE.Vector3(0, 0, 1), null, 0.05);
            if (!previewPoint.userData.collabPlayer) {
@@ -988,8 +1044,8 @@ export default function ThreeBoard(inputProps) {
         const analysisUtilityHit = raycaster.intersectObjects([...deathHeatScene.heatObjects.values()], true).find((candidate) => candidate.object.userData.analysisUtilityId && isInteractiveFloorPoint(candidate.point));
         if (analysisUtilityHit) {
           const marker = analysisUtilityHit.object;
-          const projected = marker.getWorldPosition(new THREE.Vector3()).project(camera);
-          analysisUtilitySelectRef.current?.(marker.userData.analysisUtilityId, { x: (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth, y: (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight });
+          const projected=planViews.screen(marker.getWorldPosition(new THREE.Vector3()));
+          analysisUtilitySelectRef.current?.(marker.userData.analysisUtilityId, projected);
           return;
         }
         const demoGrenadeHit = raycaster.intersectObjects([...demoGrenadeScene.objects.values()], true).find((candidate) => isInteractiveFloorPoint(candidate.point) && (() => {
@@ -1002,8 +1058,8 @@ export default function ThreeBoard(inputProps) {
         if (demoGrenadeOwner) {
           // Inferno's merged geometry uses absolute projected vertices while its
           // owner group stays at the scene origin, so anchor actions to the hit.
-          const projected = demoGrenadeHit.point.clone().project(camera);
-          demoGrenadeSelectRef.current?.(demoGrenadeOwner.userData.demoGrenadeSegmentId, { x: (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth, y: (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight });
+          const projected=planViews.screen(demoGrenadeHit.point);
+          demoGrenadeSelectRef.current?.(demoGrenadeOwner.userData.demoGrenadeSegmentId, projected);
           return;
         }
       }
@@ -1035,7 +1091,7 @@ export default function ThreeBoard(inputProps) {
       }
       if (event.button === 0 && !placing) {
         raycaster.setFromCamera(pointerCurrent, camera);
-        const hit = firstInteractiveFloorHit(raycaster.intersectObjects(pointsRef.current, true))?.object;
+        const hit = firstInteractiveFloorHit(raycaster.intersectObjects([...pointsRef.current,...collabUtilityScene.getOriginMarkers()], true))?.object;
         if (hit) {
           let pointOwner = hit;
           while (pointOwner?.parent && !pointOwner.userData.pointId && !pointOwner.userData.collabPlayer) pointOwner = pointOwner.parent;
@@ -1048,7 +1104,7 @@ export default function ThreeBoard(inputProps) {
             controls.enabled = false;
             pointPointerBaseRotation = pointPointerTarget.rotation.y;
             pointPointerBasePitch = pointPointerTarget.userData.collabPitch || 0;
-            pointPointerSnapshot = pointPointerTarget.userData.collabPlayer ? collabSnapshot() : null;
+            pointPointerSnapshot = (pointPointerTarget.userData.collabPlayer || pointPointerTarget.userData.collabUtility) ? collabSnapshot() : null;
             const aimTarget = pointPointerTarget.userData.aimTarget;
             const targetY = aimTarget?.position.y ?? 0.15;
             const targetZ = aimTarget?.position.z ?? -0.05;
@@ -1083,18 +1139,15 @@ export default function ThreeBoard(inputProps) {
       let demoOwner = demoHit;
       while (demoOwner && !demoOwner.userData.playerName) demoOwner = demoOwner.parent;
       hoveredDemoPlayerRef.current = demoOwner?.userData.playerName || null;
-      const viewportWidth = renderer.domElement.clientWidth || 1;
-      const viewportHeight = renderer.domElement.clientHeight || 1;
-      const pointerX = (pointerCurrent.x * 0.5 + 0.5) * viewportWidth;
-      const pointerY = (-pointerCurrent.y * 0.5 + 0.5) * viewportHeight;
+      const rect=renderer.domElement.getBoundingClientRect();
+      const pointerX=event.clientX-rect.left,pointerY=event.clientY-rect.top;
       let nearbyMarker = null;
       let nearbyDistance = 22;
       deathHeatScene.heatObjects.forEach((marker) => {
         if (!marker.visible || !marker.userData.analysisUtilityId) return;
-        const projected = marker.getWorldPosition(new THREE.Vector3()).project(camera);
+        const projected = planViews.screen(marker.getWorldPosition(new THREE.Vector3()));
         if (projected.z < -1 || projected.z > 1) return;
-        const screenX = (projected.x * 0.5 + 0.5) * viewportWidth;
-        const screenY = (-projected.y * 0.5 + 0.5) * viewportHeight;
+        const screenX=projected.x,screenY=projected.y;
         const distance = Math.hypot(screenX - pointerX, screenY - pointerY);
         if (distance <= nearbyDistance) { nearbyDistance = distance; nearbyMarker = { marker, screenX, screenY }; }
       });
@@ -1115,8 +1168,8 @@ export default function ThreeBoard(inputProps) {
         let utilityOwner = utilityHit?.object;
         while (utilityOwner && !utilityOwner.userData.utilityPositionKey) utilityOwner = utilityOwner.parent;
         if (utilityOwner) {
-          const projected = utilityOwner.position.clone().project(camera);
-          utilityHoverRef.current?.({ key: utilityOwner.userData.utilityPositionKey, entries: utilityOwner.userData.utilityEntries, x: (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth, y: (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight });
+          const projected=planViews.screen(utilityOwner.getWorldPosition(new THREE.Vector3()));
+          utilityHoverRef.current?.({ key: utilityOwner.userData.utilityPositionKey, entries: utilityOwner.userData.utilityEntries, x:projected.x,y:projected.y });
         } else utilityHoverRef.current?.(null);
       }
       focusScreen.set(pointerCurrent.x * 0.5 + 0.5, pointerCurrent.y * 0.5 + 0.5);
@@ -1188,7 +1241,7 @@ export default function ThreeBoard(inputProps) {
           pointPointerMoved = true;
           const targetPosition = pointerToSurface(pointerCurrent);
           if (targetPosition) {
-            pointPointerTarget.position.copy(targetPosition).add(new THREE.Vector3(0, 0.002, 0));
+            pointPointerTarget.position.copy((isCollabPlayer || pointPointerTarget.userData.collabUtility) ? snapBoardPosition(targetPosition,pointPointerTarget,event.altKey,{allowOccupied:!isCollabPlayer,includeUtilityOrigins:Boolean(isCollabPlayer)}) : targetPosition).add(new THREE.Vector3(0, 0.002, 0));
             if (isCollabPlayer) { pointPointerTarget.userData.aimCollisionVersion = -1; updateCollabPlayerAim(pointPointerTarget, collisionMeshes, aimRaycaster, collisionStateVersion()); }
           }
         } else if (isCollabPlayer && (pressedKeys.has('control') || event.pointerType === 'touch' && touchEditModeRef.current === 'aim')) {
@@ -1280,11 +1333,11 @@ export default function ThreeBoard(inputProps) {
           lastClickTime = now;
           lastClickId = targetId;
         }
-      } else if (isCollabPlayer && moved) {
+      } else if ((isCollabPlayer || pointPointerTarget.userData.collabUtility) && moved) {
         if (pointPointerSnapshot) pushCollabHistory(pointPointerSnapshot);
         notifyCollabEdit();
-      } else if (!isCollabPlayer) {
-        if (performance.now() - pointPointerTime < 450 && distance < 0.03) { const projected = pointPointerTarget.position.clone().project(camera); pointSelectRef.current?.(targetId, { x: (projected.x * 0.5 + 0.5) * renderer.domElement.clientWidth, y: (-projected.y * 0.5 + 0.5) * renderer.domElement.clientHeight }); }
+      } else if (!isCollabPlayer && !pointPointerTarget.userData.collabUtility) {
+        if (performance.now() - pointPointerTime < 450 && distance < 0.03) { const projected=planViews.screen(pointPointerTarget.getWorldPosition(new THREE.Vector3())); pointSelectRef.current?.(targetId, projected); }
       }
       pointPointerTarget = null;
       pointPointerSnapshot = null;
@@ -1354,6 +1407,7 @@ export default function ThreeBoard(inputProps) {
       camera.far = Math.max(nav.size * 4, 200);
       camera.updateProjectionMatrix();
     }
+    const mapMarkerScene = createMapMarkers({scene,navData,mapName,floorState:floorFadeRef.current,getModelCenter:()=>modelCenter});
     let disposed = false;
     let lastModelProgressAt = 0;
     const resetToDefault = (normalReset) => {
@@ -1374,7 +1428,7 @@ export default function ThreeBoard(inputProps) {
     const publishBoardReady = (ready) => {
       if (ready && boardReady) return;
       boardReady = ready;
-      onReady({ commands: boardCommands, ready, reset: () => resetToDefault(defaultCameraReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+      onReady({ commands: boardCommands, ready, reset: () => resetToDefault(defaultCameraReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, previewImportedUtility: id => transitionToCollabFocus(collabUtilityScene.focus(id)), focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
     };
     const loadWorldModel = (loadedModel) => {
       if (disposed) { disposeMapModel(loadedModel); return; }
@@ -1425,7 +1479,8 @@ export default function ThreeBoard(inputProps) {
       });
       const batches = createStaticMapBatches(worldModel, renderer, (getHost().mobile ? 16 : 64) * 1024 ** 2);
       const applyVisibility = worldModel.userData.applyObjectVisibility;
-      if (applyVisibility) worldModel.userData.applyObjectVisibility = record => { applyVisibility(record); batches.syncVisibility(); };
+      modelSimplification=createModelSimplification(worldModel,batches,()=>applyVisibility?.(modelVisibility(mapName)));requestedSimplification=0;
+      if (applyVisibility) worldModel.userData.applyObjectVisibility = record => { applyVisibility(record); modelSimplification.applyHidden(); batches.syncVisibility(); };
       worldModel.userData.disposeRenderBatches = batches.clear;
       materialRuntime.apply();
       if (mapName !== TUTORIAL_MAP_ID) batches.rebuild();
@@ -1468,7 +1523,7 @@ export default function ThreeBoard(inputProps) {
     };
     let modelRequested = false;
     const requestModel = () => {
-      if (disposed || modelRequested || !modelVisibilityRef.current) return;
+      if (disposed || modelRequested || !modelVisibilityRef.current || boardViewModeRef.current === "2d") return;
       modelRequested = true;
       lastModelProgressAt = 0;
       modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: 0, total: 0 });
@@ -1512,7 +1567,7 @@ export default function ThreeBoard(inputProps) {
       controls.update();
       cameraState.restoreCurrent();
       cameraState.enablePersistence();
-      const normalReset = () => { camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
+      const normalReset = () => { if(boardProjection.reset())return; camera.position.set(distance * 0.68, distance * 0.9, distance); controls.target.set(0, 0, 0); controls.update(); };
       defaultCameraReset = normalReset;
     }
     // NAV initialization already restored the saved target; do not overwrite it.
@@ -1562,10 +1617,10 @@ export default function ThreeBoard(inputProps) {
       const elapsed = Math.min((now - lastMoveTime) / 1000, 0.05);
       lastMoveTime = now;
       const forward = new THREE.Vector3();
-      camera.getWorldDirection(forward);
+      if(camera.planView)forward.copy(camera.up);else camera.getWorldDirection(forward);
       forward.y = 0;
       forward.normalize();
-      const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
       const movement = new THREE.Vector3();
       if (pressedKeys.has('w')) movement.add(forward);
       if (pressedKeys.has('s')) movement.sub(forward);
@@ -1573,7 +1628,7 @@ export default function ThreeBoard(inputProps) {
       if (pressedKeys.has('a')) movement.sub(right);
       if (movement.lengthSq() === 0) return;
       cameraState.clearActiveSlot();
-      movement.normalize().multiplyScalar(elapsed * (pressedKeys.has('shift') ? 51 : 18));
+      movement.normalize().multiplyScalar(elapsed * (pressedKeys.has('shift') ? 51 : 18)/(camera.planView?camera.zoom:1));
       camera.position.add(movement);
       controls.target.add(movement);
     };
@@ -1584,14 +1639,33 @@ export default function ThreeBoard(inputProps) {
         if (!target?.visible) return;
         const worldPosition = target.getWorldPosition(new THREE.Vector3());
         const viewDepth = Math.max(0.1, -worldPosition.applyMatrix4(camera.matrixWorldInverse).z);
-         const worldDiameter = 2 * viewDepth * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (4 / viewportHeight);
+         const worldDiameter = camera.isOrthographicCamera ? (camera.top - camera.bottom) / camera.zoom * (4 / viewportHeight) : 2 * viewDepth * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (4 / viewportHeight);
         const parentScale = target.parent?.getWorldScale(new THREE.Vector3()) || new THREE.Vector3(1, 1, 1);
         target.scale.set(worldDiameter / Math.max(0.001, parentScale.x * 0.2), worldDiameter / Math.max(0.001, parentScale.y * 0.2), worldDiameter / Math.max(0.001, parentScale.z * 0.2));
       });
     };
     let lastFloorMaterialScan = 0;
     const brushResolution = new THREE.Vector2();
+    let lastExperimentFrame=0;
     const animate = (now) => {
+      const inPlan=boardViewModeRef.current==='2d';
+      if(inPlan && !modelQualitySuspended){modelQualitySuspended=true;modelSimplification?.cancel();requestedSimplification=NaN;simplificationRequest++;setSimplificationStatus(null);}
+      if(!inPlan)modelQualitySuspended=false;
+      const context=modelQualityContext({monitor:demoCameraModeRef.current==='monitor',firstPerson:Boolean(utilityFirstPersonRef.current?.player || demoInEyePlayerRef.current)});
+      const amount=monitorPropsRef.current.modelQuality?.[context] || 0;
+      if(amount!==pendingSimplification){pendingSimplification=amount;simplificationChangedAt=now;}
+      if(!inPlan && modelSimplification && amount!==requestedSimplification && now-simplificationChangedAt>=250) {
+        requestedSimplification=amount;const request=++simplificationRequest;
+        setSimplificationStatus({percent:0});
+        modelSimplification.apply({simplify:amount},progress=>{if(!disposed && request===simplificationRequest)setSimplificationStatus(progress);})
+          .then(()=>{if(!disposed && request===simplificationRequest)setSimplificationStatus(null);})
+          .catch(error=>{if(!disposed && request===simplificationRequest)setSimplificationStatus({error:error.message});});
+      }
+      // Expensive maps must not spend every yield redrawing thousands of objects
+      // while simplifying. Keep DOM progress responsive, restore normal FPS after.
+      // 计算时临时降至 5 FPS，避免让出线程后又被全图渲染抢占；结束即恢复。
+      if(modelSimplification?.busy && now-lastExperimentFrame<200)return;
+      lastExperimentFrame=now;
       if (disposed) return;
       if (cameraTransition) {
         cameraTransition.elapsed += 16.67;
@@ -1791,6 +1865,12 @@ export default function ThreeBoard(inputProps) {
         demoDirectorEventKey = '';
       }
       if (!povPlayer) demoPovEquipment.visible = false;
+      boardProjection.update(boardViewModeRef.current === "2d");
+      planViews.syncAspect();
+      updateFloorFadeState(floorFadeRef.current,mapName,camera.planView && NAV_FLOOR_BOUNDARIES[mapName]!=null ? activePlanFloor : mapFloorRef.current,modelCenter.y,navData);
+      if (worldModel) worldModel.visible = modelVisibilityRef.current && !camera.planView;
+      if (camera.planView) { demoPovEquipment.visible = false; povThrownUtility.visible = false; }
+
       camera.updateMatrixWorld();
       updateDemoPlayers();
       deathHeatScene.updateDeaths();
@@ -1830,10 +1910,13 @@ export default function ThreeBoard(inputProps) {
           });
         });
       }
-      if (!demoMonitorRenderer.render(now)) renderer.render(scene, camera);
+      mapMarkerScene.update({planView:camera.planView,style:monitorPropsRef.current.map2dStyle},mapMarkerLanguageRef.current,camera,mount.clientHeight);
+      planHeadings.update(camera.planView);
+      if (!planViews.render() && !demoMonitorRenderer.render(now)) renderer.render(scene, camera);
+      smokeCountdown.update(now);
     };
     const stopRenderLoop = startRenderLoop(animate);
-     return () => { disposed = true; if (requestModelRef.current === requestModel) requestModelRef.current = null; unsubscribeObjectVisibility(); stopRenderLoop(); releaseMapCollisionIndex(collisionMeshes); demoMonitorRenderer.dispose(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { scene.remove(worldModel); disposeMapModel(worldModel); } renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; setSimplificationStatus(null); if (requestModelRef.current === requestModel) requestModelRef.current = null; unsubscribeObjectVisibility(); stopRenderLoop(); releaseMapCollisionIndex(collisionMeshes); demoMonitorRenderer.dispose(); planHeadings.dispose(); mapMarkerScene.dispose(); smokeCountdown.dispose(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { modelSimplification?.dispose(); scene.remove(worldModel); disposeMapModel(worldModel); } renderer.dispose(); mount.removeChild(renderer.domElement); };
   }, [mapName]);
 
   useEffect(() => {
@@ -1890,7 +1973,7 @@ export default function ThreeBoard(inputProps) {
 
   useEffect(() => {
     modelVisibilityRef.current = showModel;
-    if (showModel) requestModelRef.current?.();
+    if (showModel && inputProps.boardViewMode !== "2d") requestModelRef.current?.();
     if (modelRef.current) modelRef.current.visible = showModel;
     if (modelRef.current && modelBasePositionRef.current) modelRef.current.position.y = modelBasePositionRef.current.y + (modelViewMode === 0 ? -0.12 : 0);
      if (navFocusRef.current) navFocusRef.current.value = 0;
@@ -1903,11 +1986,11 @@ export default function ThreeBoard(inputProps) {
        navMesh.renderOrder = 1;
      }
         if (modelRef.current) modelRef.current.traverse((object) => { if (!object.material) return; const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { material.opacity = modelOpacity; material.depthWrite = true; }); });
-    }, [showModel, modelOpacity, modelViewMode]);
+    }, [showModel, modelOpacity, modelViewMode, inputProps.boardViewMode]);
 
   // Demo POV owns its animated HUD crosshair; this simpler one is only for utility replay.
   const utilityCrosshairVisible = Boolean(props.utilityFirstPerson?.player);
-  return <div ref={(node) => { mountRef.current = node; }} className="three-board">{props.collabEditingEnabled && <div className="touch-edit-tools" role="group" aria-label={localize(props.language, { zh: '触控编辑', en: 'Touch editing', ru: 'Сенсорное редактирование' })}>{[
+  return <div ref={(node) => { mountRef.current = node; }} className="three-board">{inputProps.boardViewMode==='2d' && NAV_FLOOR_BOUNDARIES[mapName]!=null && <div className="plan-floor-labels" aria-hidden="true"><span>{localize(props.language,{zh:'上层',en:'Upper floor',ru:'Верхний этаж'})}</span><span>{localize(props.language,{zh:'下层',en:'Lower floor',ru:'Нижний этаж'})}</span></div>}{props.collabEditingEnabled && <div className="touch-edit-tools" role="group" aria-label={localize(props.language, { zh: '触控编辑', en: 'Touch editing', ru: 'Сенсорное редактирование' })}>{[
     ['move', { zh: '移动', en: 'Move', ru: 'Переместить' }],
     ['aim', { zh: '朝向', en: 'Aim', ru: 'Направление' }],
     ['pitch', { zh: '俯仰', en: 'Pitch', ru: 'Наклон' }],

@@ -14,7 +14,7 @@ VERSION ?=
 	desktop-start desktop-dev desktop-prepare desktop-build-mac-arm64 \
 	desktop-build-mac-x64 desktop-build-win-x64 native-build \
 	mobile-prepare mobile-open mobile-build version version-sync version-check \
-	resources nav-data map-export workers-build wrangler docker
+	resources nav-data nav-labels map-places map-export workers-build wrangler docker
 
 help:
 	@printf '%s\n' \
@@ -40,6 +40,8 @@ help:
 		'  dev-workers / workers-build Run Workers locally / bundle without publishing' \
 		'  deploy                      Authorize and deploy Workers' \
 		'  wrangler ARGS="whoami"       Run the installed Wrangler CLI' \
+		'  nav-labels                   Paint NAV regions and save place names' \
+		'  map-places                   Import map place/spawn entities from local VPKs' \
 		'  resources / nav-data / map-export  Prepare map resources' \
 		'  docker                       Build and start Docker services' \
 		'Container management: docker compose -f config/docker/compose.yml down/logs/ps'
@@ -128,3 +130,9 @@ workers-build:
 docker:
 	@version="$$(scripts/resolve-build-version.sh)" && \
 	BUILD_VERSION="$$version" $(COMPOSE) up --build -d
+
+nav-labels:
+	$(NODE) scripts/nav-labels.js
+
+map-places:
+	$(NODE) scripts/import-map-places.js $(ARGS)

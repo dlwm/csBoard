@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import { buildNavTopViewLayers } from '../data/navTopView.js';
 
 // Keep 2D radar floors and 3D model clipping synchronized through the shared floor event.
-export default function useMapFloorControls({ map2dLayer, mapName, modelFloor, navData, setMap2dLayer, setModelFloor, t }) {
+export default function useMapFloorControls({ map2dLayer, map2dStyle, mapName, modelFloor, navData, setMap2dLayer, setModelFloor, t }) {
   const initialMapRef = useRef(true);
-  const layers = useMemo(() => buildNavTopViewLayers(navData, mapName), [mapName, navData]);
+  const layers = useMemo(() => buildNavTopViewLayers(navData, mapName, {style:map2dStyle}), [mapName, navData, map2dStyle]);
 
   useEffect(() => {
     if (initialMapRef.current) {

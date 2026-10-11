@@ -1,3 +1,4 @@
+import { withUtilityLandingPlace } from '../utility/landingPlace.js';
 import { findNavPath, listNavAreas } from '../data/navQueries.js';
 import { spatialObservation } from './spatialObservation.js';
 import { createMapLocations } from '../data/mapLocations.js';
@@ -17,8 +18,8 @@ const definitions = [
   ['resolve_view_point', 'Resolve a pixel from a recent inspect_board_view to NAV triangle intersections. Requires unchanged frame revision. Multiple floors may overlap; inspect all candidates and select explicit Z. Returns Source positions for edits; areaId placement instead uses the NAV polygon center. Does not prove visibility or gameplay reachability.', object({ viewId: string, pixel: { type: 'array', items: { type: 'number', minimum: 0 }, minItems: 2, maxItems: 2 }, floor: { type: 'string', enum: ['main', 'lower', 'all'] } }, ['viewId', 'pixel'])],
   ['inspect_spatial_context', 'Read local 3D NAV geometry without image input: explicit height ranges, nearby polygon bounds, raw directed connections and their height differences, plus relative player/utility positions. Specify a known location or existing player. Distances use Source game units; no pathfinding or cover validation.', object({ playerId: string, location, radius: { type: 'number', minimum: 128, maximum: 2048 }, limit: { type: 'integer', minimum: 1, maximum: 24 } })],
   ['get_board_state', 'Read map, current frame, revision, players, effects and annotations. Positions use Source game units [X,Y,Z]; angles use degrees. Read before editing.', object()],
-  ['get_map_context', 'Read offline map references and coordinate conventions. Overview labels are approximate XY, not region boundaries. Inspect height alternatives. Grid cells are omitted unless includeGrid is true; grid names are not callouts. Use list_map_places for the complete paged name catalog.', object({ includeGrid: { type: 'boolean' } })],
-  ['list_map_places', 'List indexed place names, aliases, reference IDs and floors without NAV geometry. Read once before name lookups; paginate using nextOffset. This is not a complete callout map. Missing names must not trigger repeated synonym probes or guessed coordinates.', object({ offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 80 } })],
+  ['get_map_context', 'Read offline map references and coordinate conventions. Developer-named regions use NAV polygon membership; overview labels remain approximate XY, not region boundaries. Inspect height alternatives. Grid cells are omitted unless includeGrid is true; grid names are not callouts. Use list_map_places for the complete paged name catalog.', object({ includeGrid: { type: 'boolean' } })],
+  ['list_map_places', 'List indexed place names, aliases, reference IDs and floors without NAV geometry, including developer-painted NAV regions and T/CT spawn regions or exact marked spawn points when available. Check source: game_spawn_entity comes from map entities with raw origin, ground projection, priority and enabled defaults; developer_annotation is manual. Buy zones are distinct from spawn regions. Read once before name lookups; paginate using nextOffset. This is not a complete callout map. Missing names must not trigger repeated synonym probes or guessed coordinates.', object({ offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 80 } })],
   ['find_map_locations', 'Find NAV positions by indexed name, locationId (including grid:main:C4), single areaId, or near a known Source position. Choose only one of query/locationId/areaId. Near returns sorted 3D and XY distances. Default limit 8; grid lists are opt-in via includeGrid. Unknown names return empty matches and available names: stop probing synonyms. At most 6 searches per conversation turn.', object({ query: { type: 'string', maxLength: 120 }, locationId: string, floor: { type: 'string', enum: ['main', 'lower'] }, areaId: { type: 'integer' }, near: vector, limit: { type: 'integer', minimum: 1, maximum: 30 }, includeGrid: { type: 'boolean' } })],
   ['list_nav_areas', 'List NAV polygons whose bounds overlap a Source XYZ bounding box, with vertices, heights and directed neighbors. Page with nextOffset. This is geometric overlap, not cover or validated reachable space.', object({ bounds: object({ min: vector, max: vector }, ['min', 'max']), offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 24 } }, ['bounds'])],
   ['find_nav_path', 'Read a directed NAV adjacency path between two known area IDs in one query. Returns area sequence and polygon geometry. Fewest polygon hops, not shortest walk distance; crouch/jump/ladders, timings and dynamic obstructions are not validated.', object({ fromAreaId: { type: 'integer' }, toAreaId: { type: 'integer' }, limit: { type: 'integer', minimum: 1, maximum: 64 } }, ['fromAreaId', 'toAreaId'])],
@@ -251,19 +252,20 @@ export function createTacticalTools(getPorts) {
     }
     if (name === 'search_utilities') {
       const query = (input.query || '').trim().toLowerCase();
-      const allNotes = s.ports.notes(); const mapNotes = allNotes.filter(note => note.mapName === s.context.mapName);
-      const matches = mapNotes.filter(note => [note.name, note.summary, note.grenadeType, note.startPlace, note.throwPlace, note.thrower].filter(Boolean).join(' ').toLowerCase().includes(query));
+      const allNotes = s.ports.notes(); const mapNotes = allNotes.filter(note => note.mapName === s.context.mapName).map(withUtilityLandingPlace);
+      const matches = mapNotes.filter(note => [note.name, note.summary, note.grenadeType, note.startPlace, note.throwPlace, note.landingPlace, note.thrower].filter(Boolean).join(' ').toLowerCase().includes(query));
       const offset = input.offset || 0; const limit = input.limit || 40;
       const storage = s.ports.notesStatus?.() || { status: 'unknown' };
       return { total: matches.length, query, offset, limit, returnedCount: matches.slice(offset, offset + limit).length, mapName: s.context.mapName, scope: 'local saved throw library; not shared automatically with collaboration room', libraryStatus: storage.status, totalLibraryNotes: allNotes.length, totalMapNotes: mapNotes.length, activeFrameImportedUtilities: s.workspace.collabUtilities.length, emptyReason: matches.length ? null : storage.status === 'loading' ? 'library_loading' : storage.status === 'error' ? 'library_storage_error' : !allNotes.length ? 'local_library_empty' : !mapNotes.length ? 'no_notes_for_current_map' : 'query_has_no_matches', nextOffset: offset + limit < matches.length ? offset + limit : null,
         notes: matches.slice(offset, offset + limit).map(note => ({ id: note.id, name: note.name, summary: note.summary, kind: note.grenadeType,
-          startPlace: note.startPlace || '', throwPlace: note.throwPlace || '', thrower: note.thrower || '',
+          startPlace: note.startPlace || '', throwPlace: note.throwPlace || '', landingPlace: note.landingPlace || '', landingPosition: note.landingPosition || null, thrower: note.thrower || '',
           position: note.position, hasRecordedReplay: Boolean(note.replay),
         })),
       };
     }
     if (name === 'get_utility_details') {
-      const note = s.ports.notes().find(note => note.id === input.noteId && note.mapName === s.context.mapName);
+      const rawNote = s.ports.notes().find(note => note.id === input.noteId && note.mapName === s.context.mapName);
+      const note = rawNote ? withUtilityLandingPlace(rawNote) : null;
       if (!note) throw new Error('Saved throw not found on this map');
       const replay = note.replay;
       const events = Array.isArray(replay?.events) ? replay.events : [];
@@ -278,7 +280,7 @@ export function createTacticalTools(getPorts) {
       return {
         id: note.id, mapName: note.mapName, name: note.name, summary: note.summary, kind: note.grenadeType,
         coordinateSystem: 'Source [X,Y,Z], game units; seconds derived from recorded relative ticks',
-        startPlace: note.startPlace || '', throwPlace: note.throwPlace || '',
+        startPlace: note.startPlace || '', throwPlace: note.throwPlace || '', landingPlace: note.landingPlace || '', landingPosition: note.landingPosition || null,
         startPosition: Array.isArray(note.position) && note.position.length === 3 ? point(note.position) : null,
         releasePosition: point([throwEvent?.user_X, throwEvent?.user_Y, throwEvent?.user_Z]),
         observedEffect: effectEvent ? { event: effectEvent.event_name, tick: Number.isFinite(effectEvent.tick) ? effectEvent.tick : null, position: point([effectEvent.x, effectEvent.y, effectEvent.z]) } : null,
@@ -289,7 +291,8 @@ export function createTacticalTools(getPorts) {
     }
     if (name === 'import_utility') {
       if (input.frameId !== s.context.frameId) throw new Error('Switch to the target frame and reread its revision before importing');
-      const note = s.ports.notes().find(note => note.id === input.noteId && note.mapName === s.context.mapName);
+      const rawNote = s.ports.notes().find(note => note.id === input.noteId && note.mapName === s.context.mapName);
+      const note = rawNote ? withUtilityLandingPlace(rawNote) : null;
       if (!note) throw new Error('Saved throw not found on this map');
       s.ports.edit(() => { s.ports.commands.execute('utility.add', { note }); s.ports.flush(); });
       return { frameId: s.context.frameId, revision: state().revision, utilities: summary(state()).utilities };

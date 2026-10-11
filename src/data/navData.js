@@ -1,5 +1,8 @@
 // Loads committed NAV data from the frontend bundle without any runtime request.
-const rawModules = import.meta.glob('./nav/*.json', { eager: true, import: 'default', query: '?raw' });
+// Plain Node consumers do not have Vite's bundled resource registry.
+let rawModules = {};
+try { rawModules = import.meta.glob('./nav/*.json', { eager: true, import: 'default', query: '?raw' }); }
+catch (error) { if (!(error instanceof TypeError)) throw error; }
 const rawByMap = Object.fromEntries(Object.entries(rawModules).map(([file, raw]) => [file.split('/').at(-1).replace(/\.json$/, ''), raw]));
 const parsedByMap = new Map();
 

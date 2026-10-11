@@ -92,7 +92,6 @@
 .workspace-frame .demo-panel .demo-source-controls { flex: 0 1 auto; }
 .workspace-frame .demo-panel .demo-controls-row { flex: 1 1 auto; }
 .workspace-frame .demo-controls-row .demo-view-options, .workspace-frame .demo-controls-row .demo-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.workspace-frame .demo-panel .demo-parse-settings { position: relative; inset: auto; margin: 0; flex: none; align-self: center; }
 .workspace-frame .demo-panel .demo-playback-controls:not(:has(button, input)) { display: none; }
 .workspace-frame .utility-bottom-controls { display: flex; flex-direction: column; align-items: stretch; flex: 1 1 100%; gap: 8px; }
 .workspace-frame .utility-bottom-playback { order: 0; width: 100%; }

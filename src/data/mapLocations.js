@@ -1,5 +1,7 @@
 import { navAreaGeometry } from './navQueries.js';
 import landmarks from './mapLandmarks.json';
+import { getMapPlaceAnnotations } from './mapPlaceData.js';
+import { polygonTouchesBrush } from './mapPlaceRegions.js';
 import { NAV_FLOOR_BOUNDARIES } from './navTopView.js';
 import { squareRadarBounds } from './radarBounds.js';
 
@@ -58,7 +60,31 @@ const nearestArea = (areas, position) => {
 
 export function createMapLocations(nav, mapName, notes = []) {
   const g = geometry(nav, mapName);
-  const anchors = [];
+  const { regions, spawnPoints, sourceInfo } = getMapPlaceAnnotations(nav, mapName);
+  const anchors = regions.map(region => {
+    const candidates = region.areaIds.map(id => g.byId.get(id)).filter(Boolean);
+    return { id: `region:${region.id}`, name: region.name, aliases: [...new Set([region.name, ...region.aliases, ...(placeAliases[normalize(region.name)] || []),
+      ...Object.values(markerAliases).filter(names=>names.some(name=>normalize(name) === normalize(region.name))).flat()])],
+      source: region.source, kind: region.kind, ...(region.team ? {team:region.team} : {}), precision: 'named_nav_region', candidates,
+      heightAmbiguous: new Set(candidates.map(area => area.floor)).size > 1,
+      warning: (region.source==='game_spawn_nav_cells' ? 'Unconfirmed spawn region: only NAV cells occupied by game spawn entities; inspect and refine. ' : '') + 'Named NAV polygons, not verified cover or visibility. Annotations may cover only part of the map.' };
+  });
+  for (const spawn of spawnPoints) {
+    const area = g.byId.get(spawn.areaId); if (!area) continue;
+    anchors.push({ id:`spawn:${spawn.id}`, name:spawn.name, aliases:[spawn.name,...spawn.aliases],
+      kind:'spawn_point', team:spawn.team, yaw:spawn.yaw, regionId:spawn.regionId ? `region:${spawn.regionId}` : null,
+      source:spawn.source, precision:spawn.source === 'game_spawn_entity' ? 'game_spawn_ground_projection' : 'annotated_nav_point', position:spawn.position,
+      ...(spawn.source === 'game_spawn_entity' ? {entityOrigin:spawn.entityOrigin,priority:spawn.priority,enabled:spawn.enabled,entityId:spawn.entityId} : {}),
+      candidates:[{...area,position:spawn.position,locationId:`spawn:${spawn.id}`,precision:spawn.source === 'game_spawn_entity' ? 'game_spawn_ground_projection' : 'annotated_nav_point',source:spawn.source,team:spawn.team,yaw:spawn.yaw,
+        ...(spawn.source === 'game_spawn_entity' ? {entityOrigin:spawn.entityOrigin,priority:spawn.priority,enabled:spawn.enabled} : {})}],
+      heightAmbiguous:false, warning:spawn.source === 'game_spawn_entity' ? 'Ground projection of a map spawn entity. entityOrigin preserves the raw coordinate; priority/enabled are map defaults, not runtime guarantees.' : 'Manually marked ground position, not an automatically verified game spawn entity.' });
+  }
+  // Keep complete membership internally, but bound geometry returned to the agent.
+  const publicAnchor = (anchor, limit = 6, near = null) => {
+    const candidates = near ? [...anchor.candidates].sort((a, b) =>
+      Math.hypot(...a.position.map((v, i) => v - near[i])) - Math.hypot(...b.position.map((v, i) => v - near[i]))) : anchor.candidates;
+    return { ...anchor, candidates: candidates.slice(0, limit), totalCandidates: candidates.length, candidatesTruncated: candidates.length > limit };
+  };
   for (const [key, xy] of Object.entries(landmarks.maps[mapName]?.markers || {})) {
     const closest = g.areas.map(area => ({ area, distance: horizontalDistance(area.position, xy) })).sort((a, b) => a.distance - b.distance);
     // The overview has no Z. Retain nearby height alternatives instead of choosing a roof or tunnel silently.
@@ -103,21 +129,27 @@ export function createMapLocations(nav, mapName, notes = []) {
     const nearest = nearestArea(g.areas, position);
     if (!nearest) return null;
     return { floor: nearest.floor, grid: nearest.grid, areaId: nearest.areaId, navOffset: Math.hypot(...nearest.position.map((v, i) => v - position[i])),
+      namedRegions: anchors.filter(a => a.precision === 'named_nav_region' && a.candidates.some(c =>
+        position[2] >= c.bounds.min[2] - 32 && position[2] <= c.bounds.max[2] + 96 &&
+        polygonTouchesBrush(c.polygon.map(([x,y,z]) => ({x,y,z})), position[0], position[1], 0)))
+        .map(a => ({ id: a.id, name: a.name, source: a.source, precision: a.precision })),
       nearbyNamedAnchors: anchors.filter(a => a.candidates.some(c => Math.abs(c.position[2] - position[2]) < 96 && horizontalDistance(c.position, position) <= 256)).slice(0, 6).map(a => ({ id: a.id, name: a.name, source: a.source, precision: a.precision })) };
   };
   const catalog = new Map();
   for (const anchor of anchors) {
     const key = normalize(anchor.name);
-    const entry = catalog.get(key) || { name: anchor.name, aliases: [], locationIds: [], floors: [], sources: [], precisions: [] };
+    const entry = catalog.get(key) || { name: anchor.name, aliases: [], locationIds: [], floors: [], sources: [], precisions: [], kinds: [], teams: [] };
     entry.aliases = [...new Set([...entry.aliases, ...anchor.aliases])];
     entry.locationIds.push(anchor.id);
     entry.floors = [...new Set([...entry.floors, ...anchor.candidates.map(c => c.floor)])];
+    entry.kinds = [...new Set([...entry.kinds, anchor.kind || 'reference_anchor'])];
+    entry.teams = [...new Set([...entry.teams, ...(anchor.team ? [anchor.team] : [])])];
     entry.sources = [...new Set([...entry.sources, anchor.source])];
     entry.precisions = [...new Set([...entry.precisions, anchor.precision])];
     catalog.set(key, entry);
   }
   const namedPlaces = [...catalog.values()];
-  const coverage = { completeCallouts: false, namedRegions: 0, namedPlaces: namedPlaces.length, radarAnchors: anchors.filter(anchor => anchor.source === 'radar_overview_marker').length, observedAnchors: anchors.filter(anchor => anchor.source === 'saved_place_name').length, navPolygonsAvailable: g.areas.length > 0 };
+  const coverage = { completeCallouts: false, namedRegions: regions.filter(r=>r.kind==='place').length, buyZones: regions.filter(r=>r.kind==='buyzone').length, spawnRegions: regions.filter(r=>r.kind === 'spawn_region').length, spawnPoints: spawnPoints.length, namedPlaces: namedPlaces.length, radarAnchors: anchors.filter(anchor => anchor.source === 'radar_overview_marker').length, observedAnchors: anchors.filter(anchor => anchor.source === 'saved_place_name').length, navPolygonsAvailable: g.areas.length > 0 };
   const listPlaces = ({ offset = 0, limit = 40 } = {}) => ({ mapName, total: namedPlaces.length, offset, coverage,
     nextOffset: offset + limit < namedPlaces.length ? offset + limit : null, places: namedPlaces.slice(offset, offset + limit),
     scope: 'Indexed reference names only; not a complete callout map. Grid cells are excluded.' });
@@ -125,7 +157,8 @@ export function createMapLocations(nav, mapName, notes = []) {
     query = query.trim();
     const mode = areaId != null ? 'area' : locationId ? 'reference' : query ? 'name' : near ? 'near' : 'overview';
     const effectiveQuery = normalize(query);
-    const exact = effectiveQuery ? anchors.filter(a => [a.id, a.name, ...a.aliases].some(name => normalize(name) === effectiveQuery)) : [];
+    let exact = effectiveQuery ? anchors.filter(a => [a.id, a.name, ...a.aliases].some(name => normalize(name) === effectiveQuery)) : [];
+    if (exact.some(a=>a.precision === 'named_nav_region')) exact=exact.filter(a=>a.source !== 'radar_overview_marker');
     let named = effectiveQuery ? (exact.length ? exact : anchors.filter(a => matches(a, query))) : [];
     let grid = effectiveQuery ? g.cells.filter(c => normalize(c.id).includes(effectiveQuery) || normalize(c.name).includes(effectiveQuery)) : [];
     if (locationId) {
@@ -142,6 +175,11 @@ export function createMapLocations(nav, mapName, notes = []) {
     if (locationId || query) {
       const ids = new Set([...named.flatMap(a => a.candidates.map(c => c.areaId)), ...grid.flatMap(c => c.areaIds)]);
       selected = selected.filter(a => ids.has(a.areaId));
+      // Exact spawn positions must not be replaced with the NAV area's centroid.
+      const exactPoints = named.filter(a => a.kind === 'spawn_point').flatMap(a => a.candidates);
+      const regionIds = new Set(named.filter(a => a.kind !== 'spawn_point').flatMap(a => a.candidates.map(c=>c.areaId)));
+      selected = selected.filter(a => !exactPoints.some(p=>p.areaId === a.areaId) || regionIds.has(a.areaId));
+      selected.push(...exactPoints);
     }
     if (areaId != null) selected = selected.filter(a => a.areaId === areaId);
     if (floor) selected = selected.filter(a => a.floor === floor);
@@ -156,7 +194,7 @@ export function createMapLocations(nav, mapName, notes = []) {
     const available = unknownName || unknownReference ? namedPlaces.slice(0, 40).map(({ name, aliases, locationIds }) => ({ name, aliases, locationIds })) : [];
     if (includeGrid && !query && !locationId) { const ids = new Set(selected.slice(0, limit).map(a => a.areaId)); grid = g.cells.filter(c => c.areaIds.some(id => ids.has(id))); }
     return { mapName, mode, appliedFilter: { query, locationId: locationId || null, areaId: areaId ?? null, near: near || null, floor: floor || null, limit, includeGrid },
-      namedMatches: named.slice(0, limit), gridMatches: includeGrid ? grid.slice(0, limit).map(({ areaIds, areaCount, ...cell }) => ({ ...cell, kind: 'geometric_grid_not_callout' })) : [],
+      namedMatches: named.slice(0, limit).map(a => publicAnchor(a, Math.min(6, limit), near)), gridMatches: includeGrid ? grid.slice(0, limit).map(({ areaIds, areaCount, ...cell }) => ({ ...cell, kind: 'geometric_grid_not_callout' })) : [],
       locations: selected.slice(0, limit).map(area => ({ ...area, ...(near ? { distance: Math.hypot(...area.position.map((v, i) => v - near[i])), distanceXY: horizontalDistance(area.position, near), distanceUnit: 'Source game units' } : {}) })),
       totalNamedMatches: named.length, totalGridMatches: grid.length, totalLocations, unknownName, unknownReference,
       status: selected.length ? 'matched' : 'no_match', reason: unknownName ? 'name_not_indexed' : unknownReference ? 'reference_not_indexed' : !selected.length ? 'no_nav_candidates_for_filter' : null,
@@ -164,7 +202,7 @@ export function createMapLocations(nav, mapName, notes = []) {
       guidance: unknownName || unknownReference ? 'Not indexed. Use availableNames or list_map_places once; do not keep trying synonyms or invent coordinates.' : null };
   };
   return { describe, search, listPlaces, overview: ({ includeGrid = false } = {}) => ({ mapName, coordinateSystem: 'Source [X,Y,Z], game units',
-    coverage, bounds: g.bounds, grid: { columns: 'A–H in increasing Source X', rows: '1–8 in decreasing Source Y', kind: 'geometric_grid_not_callout', layers: [...new Set(g.areas.map(a => a.floor))], totalCells: g.cells.length, cells: includeGrid ? g.cells.map(({ areaIds, areaCount, ...cell }) => cell) : [] },
-    namedAnchors: anchors.slice(0, 8), totalNamedAnchors: anchors.length, namedAnchorsTruncated: anchors.length > 8, namedPlacesTotal: namedPlaces.length, namedPlacesTool: 'list_map_places', source: mapLocationSource,
-    warnings: ['Grid cells are geometric references, not official callouts.', 'Overview anchors have approximate XY and no authoritative Z; choose an explicit NAV area after inspecting candidates.', 'No region polygons, path times, cover or visibility validation.'] }) };
+    coverage, annotationSource: sourceInfo || null, bounds: g.bounds, grid: { columns: 'A–H in increasing Source X', rows: '1–8 in decreasing Source Y', kind: 'geometric_grid_not_callout', layers: [...new Set(g.areas.map(a => a.floor))], totalCells: g.cells.length, cells: includeGrid ? g.cells.map(({ areaIds, areaCount, ...cell }) => cell) : [] },
+    namedAnchors: anchors.slice(0, 8).map(a => publicAnchor(a)), totalNamedAnchors: anchors.length, namedAnchorsTruncated: anchors.length > 8, namedPlacesTotal: namedPlaces.length, namedPlacesTool: 'list_map_places', source: mapLocationSource,
+    warnings: ['Grid cells are geometric references, not official callouts.', 'Overview anchors have approximate XY and no authoritative Z; choose an explicit NAV area after inspecting candidates.', regions.length ? 'Named regions use NAV polygon membership; coverage may be partial. No cover, visibility or path-time validation.' : 'No named region annotations yet; no cover, visibility or path-time validation.'] }) };
 }

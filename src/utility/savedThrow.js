@@ -1,5 +1,6 @@
 import { utilityReplayStart } from '../demo/grenades.js';
 import { effectEndTick } from '../demo/effectLifetime.js';
+import { withUtilityLandingPlace } from './landingPlace.js';
 import { UTILITY_REPLAY_VERSION } from './replaySchema.js';
 
 // Convert one parsed projectile segment into the portable utility-note schema.
@@ -71,5 +72,5 @@ export function buildSavedThrowNote({ mapName, segment, source = {}, unknownLabe
     infernoFrames,
     events: [{ event_name: 'grenade_thrown', tick: segment.throwTick - replayStartTick, weapon: segment.throwEvent.weapon, user_name: throwerName, user_steamid: segment.throwEvent.user_steamid, user_X: segment.throwEvent.user_X, user_Y: segment.throwEvent.user_Y, user_Z: segment.throwEvent.user_Z }, ...(segment.landing ? [{ event_name: segment.landing.event_name, tick: segment.effectTick - replayStartTick, entityid: segment.landing.entityid, user_steamid: segment.landing.user_steamid, x: segment.landing.x, y: segment.landing.y, z: segment.landing.z }] : [])],
   };
-  return { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, position: position.map(Number), angles, name: `${throwerName} · ${segment.kind.toUpperCase()}`, summary: behaviorText, source: 'demo', grenadeType: segment.kind, thrower: throwerName, startPlace, throwPlace, demoSource: { demoId: source.demoId || null, fileName: source.fileName || 'Demo', round: source.round || null, tick: segment.throwTick, map: mapName }, behavior, replay, createdAt: new Date().toISOString() };
+  return withUtilityLandingPlace({ id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, mapName, position: position.map(Number), angles, name: `${throwerName} · ${segment.kind.toUpperCase()}`, summary: behaviorText, source: 'demo', grenadeType: segment.kind, thrower: throwerName, startPlace, throwPlace, demoSource: { demoId: source.demoId || null, fileName: source.fileName || 'Demo', round: source.round || null, tick: segment.throwTick, map: mapName }, behavior, replay, createdAt: new Date().toISOString() });
 }

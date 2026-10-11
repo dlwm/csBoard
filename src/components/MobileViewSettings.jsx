@@ -2,13 +2,12 @@ import { useId, useRef } from 'react';
 import { localize } from '../i18n.js';
 import { ModelControlsPortal } from './Portals.jsx';
 import ModelLoadIndicator from './ModelLoadIndicator.jsx';
-import { DEMO_SAMPLE_RATES } from '../demo/DemoParseSettings.jsx';
 
 // A modal keeps touch settings out of the timeline while preserving keyboard focus.
 export default function MobileViewSettings({ slot, language, t, showGrid, setShowGrid,
   trackpadDetection, setTrackpadDetection, showNav, setShowNav, hasNav, hasModel,
   modelOpacity, onModelOpacity, modelViewRange, setModelViewRange, selectedMode,
-  modeOptions, onModelMode, modelLoadState, sampleRate, setSampleRate, canParse, onReset }) {
+  modeOptions, onModelMode, modelLoadState, onReset }) {
   const dialog = useRef(null);
   const titleId = useId();
   const text = (zh, en, ru) => localize(language, { zh, en, ru });
@@ -30,7 +29,6 @@ export default function MobileViewSettings({ slot, language, t, showGrid, setSho
           <label><span>{t('viewRange')}</span><input type="range" min="0" max="1" step="0.01" value={modelViewRange} onChange={event => setModelViewRange(Number(event.target.value))} /><output>{Math.round(modelViewRange * 100)}%</output></label>
           <label><span>{text('模型视图', 'Model view', 'Вид модели')}</span><select value={selectedMode} onChange={event => onModelMode(Number(event.target.value))}>{modeOptions.map(mode => <option key={mode.value} value={mode.value}>{mode.label}</option>)}</select></label>
         </section>}
-        {canParse && <section className="mobile-sampling-settings"><label><span>{text('回放采样率', 'Replay sample rate', 'Частота сэмплов повтора')}</span><select value={sampleRate} onChange={event => setSampleRate(Number(event.target.value))}>{DEMO_SAMPLE_RATES.map(rate => <option key={rate} value={rate}>{rate}/s</option>)}</select></label><p>{text('仅影响之后导入的 Demo；高采样率需要更多时间和内存。', 'Applies to future Demo imports. Higher rates require more time and memory.', 'Для следующих импортов Demo. Высокая частота требует больше времени и памяти.')}</p></section>}
       </div>
     </dialog>
   </>;

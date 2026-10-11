@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 
 // Anchor menus inside the visible workspace, including narrow/short windows.
 // 菜单跟随触发器，按工作区与可视窗口交集限制位置；空间不足时内部滚动。
-export default function useAnchoredMenuPosition(open, anchorRef) {
+export default function useAnchoredMenuPosition(open, anchorRef, preferredWidth=250) {
   const menuRef = useRef(null);
   const [style, setStyle] = useState(null);
   useLayoutEffect(() => {
@@ -23,7 +23,7 @@ export default function useAnchoredMenuPosition(open, anchorRef) {
         bottom: Math.min(screen.bottom, area.bottom) - 8,
       };
       const rect = anchor.getBoundingClientRect();
-      const width = Math.max(1, Math.min(250, bounds.right - bounds.left));
+      const width = Math.max(1, Math.min(preferredWidth, bounds.right - bounds.left));
       const above = Math.max(0, rect.top - bounds.top - 8);
       const below = Math.max(0, bounds.bottom - rect.bottom - 8);
       const up = above >= below;
@@ -50,6 +50,6 @@ export default function useAnchoredMenuPosition(open, anchorRef) {
       window.visualViewport?.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('scroll', update);
     };
-  }, [open, anchorRef]);
+  }, [open, anchorRef, preferredWidth]);
   return { menuRef, style };
 }

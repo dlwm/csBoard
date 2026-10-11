@@ -26,7 +26,8 @@ export default function createCameraInputController({
   let wrappedDragX = 0;
   let wrappedDragY = 0;
   let dragGeneration = 0;
-  let downEvent;
+  let downEvent,lastNativePosition;
+  const touchPoints=new Map();let touchAngle;
   const fallbackEvents = new WeakSet();
 
   const positionCursor = () => {
@@ -34,12 +35,12 @@ export default function createCameraInputController({
   };
 
   const endDrag = (exitPointerLock = true) => {
-    const wasWrapped = wrappedDragActive || wrappedDragRequested;
+    const wasWrapped = wrappedDragActive || wrappedDragRequested || dragActive && camera.planView;
     dragGeneration += 1;
     downEvent = null;
     dragActive = false;
     wrappedDragRequested = false;
-    if (!wrappedDragActive) return wasWrapped;
+    if (!wrappedDragActive) {if(camera.planView && canEnableControls())controls.enabled=true;return wasWrapped;}
     wrappedDragActive = false;
     cursor.hidden = true;
     element.style.cursor = '';
@@ -51,6 +52,7 @@ export default function createCameraInputController({
   const fallbackToNativeDrag = () => {
     wrappedDragRequested = false;
     wrappedDragDenied = true;
+    if(camera.planView){controls.enabled=false;return;}
     const generation = dragGeneration;
     const saved = downEvent;
     // Replay only a still-held drag whose original OrbitControls down was
@@ -66,8 +68,12 @@ export default function createCameraInputController({
 
   const beginDrag = (event) => {
     if (fallbackEvents.has(event)) return false;
-    if (event.button !== 1 || event.pointerType === 'touch' || typeof element.requestPointerLock !== 'function') return false;
+    if (event.button !== 1 || event.pointerType === 'touch') return false;
+    if(camera.planView && typeof element.requestPointerLock !== 'function'){dragActive=true;controls.enabled=false;lastNativePosition=[event.clientX,event.clientY];return true;}
+    if(typeof element.requestPointerLock !== 'function')return false;
     dragActive = true;
+    lastNativePosition=[event.clientX,event.clientY];
+    if(camera.planView)controls.enabled=false;
     wrappedDragRequested = true;
     wrappedDragDenied = false;
     const generation = ++dragGeneration;
@@ -90,7 +96,7 @@ export default function createCameraInputController({
 
   const continueDrag = (event) => {
     if (dragActive && !(event.buttons & 4)) endDrag();
-    return wrappedDragActive || wrappedDragRequested;
+    return wrappedDragActive || wrappedDragRequested || dragActive && camera.planView;
   };
 
   const onWrappedDragMove = (event) => {
@@ -103,8 +109,10 @@ export default function createCameraInputController({
     wrappedDragY = ((wrappedDragY + event.movementY) % height + height) % height;
     positionCursor();
     onManualInteraction();
-    if (event.shiftKey || event.ctrlKey || event.metaKey) {
-      if (controls.enablePan) controls.pan(event.movementX * controls.panSpeed, event.movementY * controls.panSpeed);
+    if (camera.planView && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+      camera.planRotation=(camera.planRotation || 0)+event.movementX*.006;
+    } else if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      if (controls.enablePan) controls.pan(event.movementX * controls.panSpeed*(camera.planView?element.clientWidth/Math.max(1,camera.userData.planViewportWidth || element.clientWidth):1), event.movementY * controls.panSpeed);
     } else if (controls.enableRotate) {
       const radiansPerPixel = 2 * Math.PI * controls.rotateSpeed / height;
       controls.rotateLeft(event.movementX * radiansPerPixel);
@@ -112,6 +120,15 @@ export default function createCameraInputController({
     }
   };
 
+  const onNativePlanMove=event=>{
+    if(!dragActive || !camera.planView || wrappedDragActive || wrappedDragRequested)return;
+    if(!(event.buttons & 4)){endDrag();return;}
+    const dx=event.clientX-lastNativePosition[0],dy=event.clientY-lastNativePosition[1];lastNativePosition=[event.clientX,event.clientY];
+    onManualInteraction();if(event.shiftKey || event.ctrlKey || event.metaKey)controls.pan(dx*controls.panSpeed*element.clientWidth/Math.max(1,camera.userData.planViewportWidth || element.clientWidth),dy*controls.panSpeed);else camera.planRotation=(camera.planRotation || 0)+dx*.006;
+  };
+  const touchDown=event=>{if(event.pointerType==='touch')touchPoints.set(event.pointerId,[event.clientX,event.clientY]);};
+  const touchMove=event=>{if(!touchPoints.has(event.pointerId))return;touchPoints.set(event.pointerId,[event.clientX,event.clientY]);if(camera.planView && touchPoints.size===2){const [a,b]=[...touchPoints.values()],angle=Math.atan2(b[1]-a[1],b[0]-a[0]);if(touchAngle!=null)camera.planRotation=(camera.planRotation || 0)+Math.atan2(Math.sin(angle-touchAngle),Math.cos(angle-touchAngle));touchAngle=angle;}};
+  const touchUp=event=>{touchPoints.delete(event.pointerId);touchAngle=undefined;};
   const onPointerLockChange = () => {
     if (wrappedDragRequested && dragActive && document.pointerLockElement === element) {
       wrappedDragRequested = false;
@@ -154,19 +171,22 @@ export default function createCameraInputController({
     }
     const isTrackpad = gesture.mode === 'trackpad';
     const isTrackpadPinch = gesture.mode === 'pinch';
-    if (event.shiftKey && isTrackpad) {
+    if(camera.planView && event.altKey) {
+      camera.planRotation=(camera.planRotation || 0)+(deltaX || deltaY)*.003;
+    } else if (event.shiftKey && isTrackpad || camera.planView && isTrackpad && !event.ctrlKey) {
       const forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
       const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
       const up = new THREE.Vector3().crossVectors(right, forward).normalize();
-      const pan = right.multiplyScalar(deltaX).add(up.multiplyScalar(-deltaY)).multiplyScalar(offset.length() * 0.0015);
+      const pan = right.multiplyScalar(deltaX).add(up.multiplyScalar(-deltaY)).multiplyScalar(camera.planView ? camera.planSpan/camera.zoom/Math.max(1,element.clientHeight) : offset.length()*.0015);
       camera.position.add(pan);
       controls.target.add(pan);
     } else if (event.ctrlKey || !isTrackpad) {
       const zoomSensitivity = isTrackpadPinch ? 0.0045 : 0.0015;
-      const distance = THREE.MathUtils.clamp(offset.length() * Math.exp(deltaY * zoomSensitivity), controls.minDistance, controls.maxDistance);
+      if(camera.planView){camera.zoom=THREE.MathUtils.clamp(camera.zoom*Math.exp(-deltaY*zoomSensitivity),.1,20);camera.updateProjectionMatrix();}
+      else { const distance = THREE.MathUtils.clamp(offset.length() * Math.exp(deltaY * zoomSensitivity), controls.minDistance, controls.maxDistance);
       offset.setLength(distance);
-      camera.position.copy(controls.target).add(offset);
+      camera.position.copy(controls.target).add(offset); }
     } else {
       spherical.theta += deltaX * 0.003;
       spherical.phi = THREE.MathUtils.clamp(spherical.phi + deltaY * 0.003, 0.1, Math.PI * 0.49);
@@ -182,6 +202,8 @@ export default function createCameraInputController({
     mount.appendChild(cursor);
     // This controller owns wheel/trackpad input; OrbitControls owns touch zoom.
     element.addEventListener('wheel', onWheel, { passive: false, capture: true });
+    document.addEventListener('mousemove', onNativePlanMove, {signal:abortController.signal});
+    element.addEventListener('pointerdown',touchDown,{capture:true,signal:abortController.signal});element.addEventListener('pointermove',touchMove,{capture:true,signal:abortController.signal});element.addEventListener('pointerup',touchUp,{signal:abortController.signal});element.addEventListener('pointercancel',touchUp,{signal:abortController.signal});
     document.addEventListener('mousemove', onWrappedDragMove, { signal: abortController.signal });
     document.addEventListener('mouseup', (event) => { if (event.button === 1) endDrag(); }, { signal: abortController.signal });
     document.addEventListener('pointerlockchange', onPointerLockChange, { signal: abortController.signal });

@@ -21,6 +21,7 @@ export default function buildRadarCameraState({ camera, controls, snapshot, coll
     source: 'collab',
   }));
   return {
+    planView:Boolean(camera.planView),planZoom:camera.zoom,planRotation:camera.planRotation || 0,
     position: camera.position.toArray(),
     target: controls.target.toArray(),
     players: [...demoPlayers, ...collabPlayers],
