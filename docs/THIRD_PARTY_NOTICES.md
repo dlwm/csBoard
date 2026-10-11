@@ -46,6 +46,9 @@ polygon-clipping
 Copyright (c) 2018 Mike Fogel <mike@fogel.ca>
 Copyright (c) 2016 Alexander Milevski <info@w8r.name>
 
+fflate 0.8.2 (bundled with Three.js)
+Copyright (c) 2023 Arjun Barrett
+
 splaytree
 Copyright (c) 2019 Alexander Milevski <info@w8r.name>
 

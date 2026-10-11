@@ -4,7 +4,6 @@
 
 Demos, analysis caches, archives, utility notes and chat sessions are stored on your device; local replay, analysis and editing do not require uploading them to a server. Multiplayer collaboration and shared replays connect to a server and transmit the shared content. Optional AI requests send the supplied conversation context to the configured service; remote resources and update downloads also use the network.
 
-
 ## Operation assistant
 
 **Experimental feature.**
@@ -22,7 +21,6 @@ For image-capable models, enable **Model supports image input** in settings. The
 ## Highlights
 
 ### Round Replay
-
 
 
 - Import one Demo or select multiple Demo parts and merge them into one match.
@@ -44,7 +42,6 @@ For image-capable models, enable **Model supports image input** in settings. The
 ### Tactical Editing
 
 
-
 - Place T or CT tactical points directly on surfaces (Collaboration panel only).
 - Draw freehand brush strokes on the ground in round replay / analysis / utility panels, with undo/redo.
 - Edit point team, symbol type, direction, aim length, and vertical angle.
@@ -55,7 +52,6 @@ For image-capable models, enable **Model supports image input** in settings. The
 - Organize local archives in a draggable folder tree; folder deletion moves entries to the parent.
 
 ### Utility Notes
-
 
 
 - Save map-specific utility setups from pasted `getpos` output or Demo throws.
@@ -69,7 +65,6 @@ For image-capable models, enable **Model supports image input** in settings. The
 ### Demo Analysis
 
 
-
 - Lazily load Analysis payloads, aggregated players, and per-round utility trajectories only after opening the Analysis page. Search and select multiple players through prefix, substring, or ordered-character fuzzy matching, with removable colored chips and an explicit loading state.
 - Select recent or specific parsed Demos available to any selected player, then filter rounds by T/CT side and each player's own/opponent economy classes.
 - Switch between Area Time, KD Events, and Utility Events while keeping shared path playback, timeline scrubbing, and stepping controls.
@@ -80,7 +75,6 @@ For image-capable models, enable **Model supports image input** in settings. The
 - Sample heatmaps by NAV height to prevent cross-floor bleeding and adjust planar spread from 2 to 24 metres. Expensive heat recomputation occurs only after releasing the slider.
 
 ### Collaboration
-
 
 
 - Create or join a six-character Yjs WebSocket room.
@@ -98,7 +92,7 @@ For image-capable models, enable **Model supports image input** in settings. The
 - Load CS2 data for supported maps (from cloud storage, parsed in the browser) and constrain tactical editing to reachable surfaces.
 - Render GLB map geometry loaded from cloud storage with configurable opacity; when layer selection is active, geometry starts fading 50 game units beyond the map's axis-aligned square boundary and becomes fully transparent across the next 20 units.
 - Switch between mouse-lens and camera-lens model views, with camera lens selected by default.
-- Show Nuke, Train, Vertigo, and Training Ground as full, upper, or lower 3D floors with binary NAV-bounded clipping. Other maps expose a toggleable playable-layer range that removes obstructing rooftop geometry; players, utility, trajectories, and manual editing follow the active range.
+- Show Nuke, Train, and Vertigo as full, upper, or lower 3D floors with binary NAV-bounded clipping. Other maps expose a toggleable playable-layer range that removes obstructing rooftop geometry; players, utility, trajectories, and manual editing follow the active range.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
 - Build the 2D overview directly from bundled NAV geometry, with synchronized upper/lower views on layered maps.
@@ -116,7 +110,6 @@ For image-capable models, enable **Model supports image input** in settings. The
 ### Mobile / H5
 
 
-
 - Use a dedicated mobile layout with a 4:3 Three.js viewport above the operation panels.
 - Rotate with one finger; use two fingers to zoom and pan.
 - Select camera presets from a cyclic iPhone-style semicircular dial overlaid on the bottom of the 3D viewport.
@@ -128,7 +121,6 @@ For image-capable models, enable **Model supports image input** in settings. The
 
 The repository includes files for:
 
-- Training Ground (built-in two-level tutorial map with lower streets and linked rooftops; no external resources required)
 - Ancient
 - Anubis
 - Cache
@@ -142,9 +134,7 @@ The repository includes files for:
 
 Parsed NAV data for every supported map is committed and bundled into the frontend for offline use. GLB map models are intentionally not committed; run `make resources` when local source `.nav` and `.glb` files are needed under `.local/official/maps/<map>/`. Remote web builds load GLB from cloud storage; desktop releases use user-imported model resources.
 
-Training Ground is available only in Utility Notes and Collaboration. Switching to Round Replay or Analysis automatically returns to Dust II.
-
-First-time visitors are asked whether to open the tutorial, which starts directly in the Training Ground Collaboration practice frame. For local testing, Vite DEV or `localhost`, `127.0.0.1`, and `::1` environments repeat the prompt every third visit and show that trigger condition in small text inside the dialog. The tutorial map includes synchronized upper and lower NAV top views.
+First-time visitors can start an operation guide in the actual workspace. Click ? in the upper-right of the main view to restart, or hover for quick controls. The guide adapts to touch devices and the features available in mobile H5. A compact built-in replay example includes round 22 of falcons-vs-vitality-m3-dust2 and real utility throws; no raw Demo import is needed.
 
 ## Controls
 

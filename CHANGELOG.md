@@ -2,6 +2,25 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [1.21.1] - 2026-10-11
+
+### Added
+
+- Introduce an interactive operation guide covering camera controls, replay, utility recommendations, saved throws and collaboration, with touch instructions and restart from the help button.
+- Include a compact real replay example that opens round 22 of Falcons vs Vitality on Dust2.
+
+### Changed
+
+- Replace the training map with guidance on the regular workspace; select TeSeS for the analysis introduction and all players for the recommendation exercise.
+- Make spawn markers subtler and show them only in analysis and collaboration, without markers on the minimap.
+- Keep buy zones and bomb sites visible with NAV ground; when NAV is hidden, match the model's visibility and opacity.
+- Open utility events in position mode by default, while retaining the heatmap option.
+
+### Fixed
+
+- Prevent callout maps from crashing on irregular region boundaries.
+- Keep camera controls accessible during the mobile guide.
+
 ## [1.21.0] - 2026-10-11
 
 ### Added

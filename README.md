@@ -26,7 +26,6 @@ Desktop keys use system encryption. Web keys stay in memory until refresh and re
 
 For image-capable models, enable **Model supports image input** in settings. The assistant can inspect numbered current, top and focused board views and resolve image pixels into NAV candidates. Leave this off for text-only models: local polygon geometry, heights, connections and relative positions remain available. Screenshots cover only the board, use a temporary camera and are not retained in model history across turns. Image recognition and imported geometry do not validate CS2 cover, line of sight or utility coverage.
 
-
 ## Version 1.20.4
 
 - See the current Demo filename in the 3D view.
@@ -118,7 +117,7 @@ Play CS2 clips recorded with `record <name>` and `stop`, including practice sess
 - Load CS2 data for supported maps (from cloud storage, parsed in the browser) and constrain tactical editing to reachable surfaces.
 - Render GLB map geometry loaded from cloud storage with configurable opacity; when layer selection is active, geometry starts fading 50 game units beyond the map's axis-aligned square boundary and becomes fully transparent across the next 20 units.
 - Switch between mouse-lens and camera-lens model views, with camera lens selected by default.
-- Show Nuke, Train, Vertigo, and Training Ground as full, upper, or lower 3D floors with binary NAV-bounded clipping. Other maps expose a toggleable playable-layer range that removes obstructing rooftop geometry; players, utility, trajectories, and manual editing follow the active range.
+- Show Nuke, Train, and Vertigo as full, upper, or lower 3D floors with binary NAV-bounded clipping. Other maps expose a toggleable playable-layer range that removes obstructing rooftop geometry; players, utility, trajectories, and manual editing follow the active range.
 - Use `three-mesh-bvh` for efficient nearest-wall line-of-sight queries.
 - Report GLB download/processing failures and retain NAV-based camera framing, collision, and surface editing when a model is unavailable.
 - Build the 2D overview directly from bundled NAV geometry, with synchronized upper/lower views on layered maps.
@@ -147,7 +146,6 @@ Play CS2 clips recorded with `record <name>` and `stop`, including practice sess
 
 The repository includes files for:
 
-- Training Ground (built-in two-level tutorial map with lower streets and linked rooftops; no external resources required)
 - Ancient
 - Anubis
 - Cache
@@ -161,9 +159,7 @@ The repository includes files for:
 
 Parsed NAV data for every supported map is committed and bundled into the frontend for offline use. GLB map models are intentionally not committed; run `make resources` when local source `.nav` and `.glb` files are needed under `.local/official/maps/<map>/`. Remote web builds load GLB from cloud storage; desktop releases use user-imported model resources.
 
-Training Ground is available only in Utility Notes and Collaboration. Switching to Match Replay or Analysis automatically returns to Dust II.
-
-First-time visitors are asked whether to open the tutorial, which starts directly in the Training Ground Collaboration practice frame. For local testing, Vite DEV or `localhost`, `127.0.0.1`, and `::1` environments repeat the prompt every third visit and show that trigger condition in small text inside the dialog. The tutorial map includes synchronized upper and lower NAV top views.
+First-time visitors can start an operation guide in the actual workspace. Click ? in the upper-right of the main view to restart, or hover for quick controls. The guide adapts to touch devices and the features available in mobile H5. A compact built-in replay example includes round 22 of falcons-vs-vitality-m3-dust2 and real utility throws; no raw Demo import is needed.
 
 ## Getting Started
 
@@ -238,7 +234,6 @@ Desktop → Appearance adjusts interface text size from 80% to 150%, saves it au
 
 Desktop → Storage & backups shows database, cache and resource usage, supports manual least-recently-used cache cleanup, and creates verified backup folders. Restore replaces native data and imported resources on restart while retaining the previous directories. Original Demo files, browser preferences and unsaved work are not included. Background tasks are bounded and cancellable; automatic sleep prevention is optional for the current session.
 
-
 To run the Node.js Runtime in Docker, place the GLB models under `.local/official/maps/<map>/` and run `make docker`. Compose mounts that directory read-only at `/app/.local/official/maps`; set `BUILD_VERSION` only when overriding the default `v1.18.0` image version.
 
 ## Controls
@@ -303,7 +298,6 @@ The GLB bucket must send `Access-Control-Allow-Origin` headers. `src/navParser.j
 Map extraction tools and raw game resources remain local-only. Do not commit VPK files, extracted game assets, Demo files, or GLB models.
 
 ## Architecture
-
 
 - React and Vite for the application shell and UI.
 - Feature-scoped Analysis components and calculations under `src/analysis/`; Demo domain logic and HUD under `src/demo/`; shared UI under `src/components/`; Three.js helpers under `src/three/`; utility-note logic under `src/utility/`; and reusable cross-panel DOM behavior under `src/hooks/`.

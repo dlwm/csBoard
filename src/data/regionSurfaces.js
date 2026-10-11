@@ -29,7 +29,13 @@ function normalizedFootprints(polygons, precision) {
   return result;
 }
 function unionFootprints(polygons) {
+  // Keep exact terrain intersections whenever the sweep succeeds. Rounding a
+  // valid clipped triangle can push its vertices outside a thin trigger or
+  // split a shared edge on a slope. Quantization is only an error recovery.
+  // 正常裁切保留精确坐标；仅在合并报错时规整，避免越过薄触发区或切断坡面共边。
   let lastError;
+  try { return polygonClipping.union(...polygons); }
+  catch (error) { lastError = error; }
   for (const precision of FOOTPRINT_PRECISIONS) {
     const normalized = normalizedFootprints(polygons, precision);
     if (!normalized.length) return [];
