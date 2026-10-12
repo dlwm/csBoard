@@ -117,7 +117,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
-    "cs2-demo-format": "https://codeload.github.com/dlwm/cs2-demo-format/tar.gz/aea485d8163e1b0caa729157cf2f137159a94ff0",
+    "cs2-demo-format": "https://codeload.github.com/dlwm/cs2-demo-format/tar.gz/64a9debe1bb7cf978513a35ab3a042c25a40b1f9",
     "electron": "^44.2.0",
     "electron-builder": "^26.15.3",
     "sharp": "0.35.2",
