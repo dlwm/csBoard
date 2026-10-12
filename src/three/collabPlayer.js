@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { firstMapCollisionHit } from './mapCollisionIndex.js';
-import { createPlayerPawn } from './playerPawn.js';
+import { createPlayerPawn } from '../../packages/viewer/src/three/playerPawn.js';
 import { playerBaseColor, validPlayerBaseColor } from './playerColors.js';
 import { createWeaponModel } from './weaponModel.js';
 

@@ -1,115 +1,46 @@
+import { createVoicePlaybackController } from '../../../packages/viewer/src/playback/voiceController.js';
+import { createWebAudioVoiceDriver } from '../../../packages/viewer/src/audio/webAudioDriver.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useVoiceSettings, voiceAudioContext } from './settings.js';
+import { getVoiceSettings, setVoiceSettings, useVoiceSettings, voiceAudioContext } from './settings.js';
+import { createVoiceDecoder } from './createVoiceDecoder.js';
+import { attachVoiceRuntime, publishVoiceRuntime } from './runtime.js';
 
 const EMPTY = [];
-export default function useDemoVoicePlayback({ frames = EMPTY, tick, tickRate = 64, playing, enabled, summary, players = EMPTY }) {
-  const { muted, volume, side } = useVoiceSettings();
-  const [decoded, setDecoded] = useState(null);
-  const [status, setStatus] = useState('');
-  const runtime = useRef({ sources: new Set(), anchor: null, gain: null, index: 0 });
-  const audible = enabled && !muted && volume > 0;
-  const stop = () => {
-    const state = runtime.current;
-    for (const source of state.sources) { source.onended = null; try { source.stop(); } catch { /* already ended */ } source.disconnect(); }
-    state.sources.clear(); state.anchor = null;
-  };
+export default function useDemoVoicePlayback({ frames = EMPTY, tick, tickRate = 64, playing, enabled, summary, players = EMPTY, seekRevision = 0 }) {
+  const settings = useVoiceSettings(), [state, setState] = useState(null), runtime = useRef(null), current = useRef(null), lastSeek = useRef(null);
+  current.current = { tick, playing, enabled, summary, players };
+  const neutralFrames = useMemo(() => frames.map(frame => ({ tick: frame.tick,
+    playerId: frame.steamid && frame.steamid !== '0' ? String(frame.steamid) : frame.name || 'unknown-speaker',
+    durationSeconds: frame.duration, codec: 'opus', dataBase64: frame.data,
+    producerFields: { csboard: { name: frame.name, team: frame.team } },
+  })), [frames]);
   useEffect(() => {
-    setDecoded(null); setStatus(''); stop();
-    if (!audible) return undefined;
-    if (!frames.length) { setStatus(summary?.skipped ? 'unsupported' : summary?.frames === 0 ? 'empty' : ''); return undefined; }
-    setStatus('loading');
-    let cancelled = false;
-    const worker = new Worker(new URL('./decodeWorker.js', import.meta.url), { type: 'module' });
-    worker.onmessage = ({ data }) => {
-      if (cancelled) return;
-      if (data.error) { setStatus('error'); return; }
-      setDecoded({ frames, clips: data.clips });
-      setStatus(data.limited || summary?.limited ? 'limited' : data.skipped || summary?.skipped ? 'partial' : '');
-      worker.terminate();
-    };
-    worker.onerror = () => { if (!cancelled) setStatus('error'); worker.terminate(); };
-    worker.postMessage({ frames, tickRate });
-    return () => { cancelled = true; worker.terminate(); };
-  }, [frames, tickRate, audible, summary]);
-  const playerTeams = useRef(new Map());
-  playerTeams.current = new Map(players.flatMap(player => [[String(player.steamid), player.team], [player.name, player.team]]));
-  const currentTick = useRef(tick);
-  currentTick.current = tick;
+    const driver = createWebAudioVoiceDriver({ getContext: voiceAudioContext }), decoder = createVoiceDecoder();
+    const controller = createVoicePlaybackController({ driver,
+      decode: (rows, options) => { const metadata = current.current.summary; return decoder(rows, options).then(result => ({ ...result, limited: result.limited || metadata?.limited, skipped: (result.skipped || 0) + (metadata?.skipped ? 1 : 0) })); },
+      resolveSide: id => current.current.players.find(player => String(player.steamid) === id || player.name === id)?.team,
+      emit: (type, value) => { setState(value); publishVoiceRuntime(type, value); },
+    });
+    runtime.current = controller;
+    const detach = attachVoiceRuntime({ controller, configure: changes => {
+      const next = setVoiceSettings(changes);
+      controller.configure({ ...next, enabled: current.current.enabled && next.enabled });
+    } });
+    setState(controller.getState());
+    return () => { detach(); controller.dispose(); driver.dispose(); if (runtime.current === controller) runtime.current = null; };
+  }, []);
   useEffect(() => {
-    const context = voiceAudioContext();
-    const state = runtime.current;
-    if (!context || !audible || !playing || decoded?.frames !== frames) { stop(); return undefined; }
-    if (!state.gain) { state.gain = context.createGain(); state.gain.connect(context.destination); }
-    const seek = () => {
-      stop();
-      // One clock for the entire playback, with a small startup buffer. Never
-      // calculate each packet's start against a newly rendered UI frame.
-      // 整段播放共用音频时钟，预留 40ms 启动缓冲，避免界面帧抖动造成包间断续。
-      state.anchor = { tick: currentTick.current, time: context.currentTime + 0.04 };
-      const next = decoded.clips.findIndex(clip => clip.tick + clip.samples.length / clip.sampleRate * tickRate > currentTick.current);
-      state.index = next < 0 ? decoded.clips.length : next;
-    };
-    seek();
-    const schedule = () => {
-      const anchor = state.anchor;
-      if (!anchor) return;
-      while (state.index < decoded.clips.length) {
-        const clip = decoded.clips[state.index];
-        const start = anchor.time + (clip.tick - anchor.tick) / tickRate;
-        if (start > context.currentTime + 0.8) break;
-        state.index++;
-        // New caches carry the side at the packet tick. Older caches use the
-        // active round roster; unknown speakers are only audible in All mode.
-        // 新数据使用语音发生时的阵营，旧缓存回退到当前回合人员；未知仅在全部模式播放。
-        const team = clip.team || playerTeams.current.get(clip.id) || playerTeams.current.get(clip.name);
-        if (side !== "all" && team !== (side === "T" ? 2 : 3)) continue;
-        const offset = Math.max(0, context.currentTime - start);
-        if (offset >= clip.samples.length / clip.sampleRate) continue;
-        const buffer = context.createBuffer(1, clip.samples.length, clip.sampleRate);
-        buffer.copyToChannel(clip.samples, 0);
-        const source = context.createBufferSource(); source.buffer = buffer; source.connect(state.gain);
-        state.sources.add(source);
-        source.onended = () => { state.sources.delete(source); source.disconnect(); };
-        source.start(Math.max(context.currentTime, start), offset);
-      }
-    };
-    schedule();
-    // Independent of React/3D paints; Web Audio owns all queued start times.
-    // 调度不依赖 React/3D 刷新，暂停和跳转仍立即取消已排队声音。
-    const timer = setInterval(schedule, 25);
-    state.seek = seek;
-    return () => { clearInterval(timer); state.seek = null; stop(); };
-  }, [decoded, frames, tickRate, playing, audible, side]);
+    const capability = frames.length ? 'available' : summary?.skipped ? 'unsupported' : summary?.frames === 0 ? 'empty' : 'unknown';
+    runtime.current.setTracks(neutralFrames, { tickRate, status: capability });
+  }, [neutralFrames, tickRate, summary?.skipped, summary?.limited, summary?.frames]);
   useEffect(() => {
-    const context = voiceAudioContext();
-    const state = runtime.current;
-    if (context && state.anchor) {
-      const expected = state.anchor.tick + Math.max(0, context.currentTime - state.anchor.time) * tickRate;
-      // Normal paint delays must not restart audio. Only a real timeline jump
-      // or prolonged clock drift requires resynchronization.
-      // 普通刷新延迟不重启声音；明显跳转或长期漂移才重新同步。
-      if (Math.abs(expected - tick) > tickRate * 0.25) state.seek?.();
-    }
-  }, [tick, tickRate]);
+    runtime.current.configure({ ...settings, enabled: enabled && settings.enabled });
+  }, [settings, enabled]);
   useEffect(() => {
-    const context = voiceAudioContext();
-    if (context && runtime.current.gain) runtime.current.gain.gain.setTargetAtTime(volume, context.currentTime, 0.01);
-  }, [volume, decoded, audible]);
-  useEffect(() => () => { stop(); runtime.current.gain?.disconnect(); }, []);
-  const speakingIds = useMemo(() => {
-    const ids = new Set();
-    if (enabled && playing) {
-      // A packet is at most 120 ms. Search a short window, not the entire round.
-      // Opus 包最长 120 毫秒，通过二分定位小窗口，避免每次画帧扫描全回合。
-      let low = 0, high = frames.length;
-      const start = tick - tickRate * 0.24;
-      while (low < high) { const middle = (low + high) >>> 1; if (frames[middle].tick < start) low = middle + 1; else high = middle; }
-      for (let index = low; index < frames.length && frames[index].tick <= tick; index++) {
-        const frame = frames[index];
-        if (frame.tick + (frame.duration + 0.12) * tickRate >= tick) { if (frame.steamid !== '0') ids.add(frame.steamid); if (frame.name) ids.add(frame.name); }
-      }
-    }
-    return ids;
-  }, [frames, tick, tickRate, enabled, playing]);
-  return { speakingIds, status: enabled ? status : '' };
+    runtime.current.sync({ tick, playing, speed: 1, discontinuity: lastSeek.current !== seekRevision });
+    lastSeek.current = seekRevision;
+  }, [tick, playing, seekRevision]);
+  const speakingIds = useMemo(() => new Set(state?.speakingIds || []), [state?.speakingIds]);
+  const displayStatus = ['loading', 'empty', 'unsupported', 'partial', 'limited', 'error'].includes(state?.status) ? state.status : '';
+  return { speakingIds, status: enabled && settings.enabled && !settings.muted && settings.volume > 0 ? displayStatus : '' };
 }

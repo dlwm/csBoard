@@ -1,0 +1,48 @@
+{
+  "name": "@csboard/viewer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Experimental reusable CSBoard viewer core and Three.js primitives",
+  "license": "GPL-3.0-only",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./core": {
+      "types": "./src/core/controller.d.ts",
+      "import": "./src/core/controller.js"
+    },
+    "./three": "./src/three/viewport.js",
+    "./data": {
+      "types": "./src/data/replaySource.d.ts",
+      "import": "./src/data/replaySource.js"
+    },
+    "./playback": {
+      "types": "./src/playback/index.d.ts",
+      "import": "./src/playback/index.js"
+    },
+    "./resources": {
+      "types": "./src/resources/index.d.ts",
+      "import": "./src/resources/index.js"
+    },
+    "./overlays": {
+      "types": "./src/overlays/index.d.ts",
+      "import": "./src/overlays/index.js"
+    },
+    "./audio": {
+      "types": "./src/audio/index.d.ts",
+      "import": "./src/audio/index.js"
+    }
+  },
+  "peerDependencies": {
+    "three": "^0.185.1",
+    "three-mesh-bvh": "^0.9.14"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ]
+}

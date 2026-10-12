@@ -1,5 +1,8 @@
+import CombatOverlay from './CombatOverlay.jsx';
+import { getDemoPlayerTimeline, demoPlayerId } from './playerTimeline.js';
+import { delayedPlayerHealth, flashPresentation } from '../../packages/viewer/src/playback/playerTimeline.js';
+import { describeDemoPlayer } from './playerPresentation.js';
 // Demo playback HUD: kill feed, team rosters, and first-person status.
-import * as THREE from 'three';
 import SpeakerIcon from '../components/SpeakerIcon.jsx';
 import { useLayoutEffect, useRef } from 'react';
 import { KillIcon, RawIcon, RosterIcon, RosterWeaponIcon, grenadeIconKey } from '../components/CsIcons.jsx';
@@ -12,7 +15,7 @@ function playerGrenadeIcons(inventory, noGrenadesLabel, hasC4 = false) {
   (inventory || []).forEach((item) => {
     const rawName = typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item;
     const key = grenadeIconKey(rawName);
-    if (key) counts.set(key, (counts.get(key) || 0) + 1);
+    if (key) counts.set(key, (counts.get(key) || 0) + (Number.isInteger(item?.count) && item.count > 0 ? item.count : 1));
   });
   if (hasC4) counts.set('c4', 1);
   if (!counts.size) return noGrenadesLabel;
@@ -43,53 +46,49 @@ export function DemoDataWarning({ warnings, translate }) {
 
 export function DemoRoster({ side, players, events, tick, round, tickRate, povPlayerId, onPlayerPov, noGrenadesLabel, speakingIds, speakingLabel }) {
   const snapshots = demoRosterRuntime.snapshots;
+  const timeline = getDemoPlayerTimeline(snapshots, events, tickRate);
   const selectedPovId = povPlayerId ?? demoPovRuntime.playerId;
   const selectPov = onPlayerPov || demoPovRuntime.toggle;
   return <div className={`team-roster team-roster-${side.toLowerCase()}`}><span>{side} SIDE</span>{players.map((player) => {
-    const recentHurt = [...events].reverse().find((event) => event.event_name === 'player_hurt' && event.tick <= tick && tick - event.tick <= tickRate * 1.6 && demoEventPlayerMatches(event, player));
+    const id = demoPlayerId(player);
+    const recentHurt = timeline.latest(id, 'player_hurt', tick, 1.6);
     const hurtAge = recentHurt ? (tick - recentHurt.tick) / tickRate : Infinity;
-    const hurtStartHealth = Math.min(100, Math.max(Number(player.health) || 0, Number(recentHurt?.health ?? player.health) + Number(recentHurt?.dmg_health || 0)));
-    const delayedHealth = hurtAge <= 1 ? hurtStartHealth : THREE.MathUtils.lerp(hurtStartHealth, Number(player.health) || 0, THREE.MathUtils.smoothstep(THREE.MathUtils.clamp((hurtAge - 1) / 0.6, 0, 1), 0, 1));
-    const recentPurchases = events.filter((event) => event.event_name === 'item_purchase' && event.tick <= tick && tick - event.tick <= tickRate * 1.5 && demoEventPlayerMatches(event, player));
-    const openingSpend = tick <= round.startTick + tickRate * 1.5 ? events.filter((event) => event.event_name === 'item_purchase' && event.tick >= (round.freezeStartTick ?? round.startTick) && event.tick <= round.startTick && demoEventPlayerMatches(event, player)).reduce((sum, event) => sum + (event.was_sold ? -1 : 1) * Math.abs(Number(event.cost) || 0), 0) : 0;
-    const purchaseDelta = recentPurchases.reduce((sum, event) => sum + (event.was_sold ? 1 : -1) * Math.abs(Number(event.cost) || 0), 0) || (openingSpend ? -openingSpend : 0);
+    const delayedHealth = delayedPlayerHealth(player.health, recentHurt, hurtAge) ?? 0;
+    const purchases = timeline.purchasesAt(id, tick, { startTick: round.startTick, freezeStartTick: round.freezeStartTick ?? round.startTick });
+    const purchaseDelta = purchases.delta;
     const balanceChange = recentPlayerBalanceChange(snapshots, player, tick, tickRate);
     const moneyDelta = balanceChange?.delta || purchaseDelta;
-    const moneyKey = balanceChange ? `balance-${balanceChange.tick}-${balanceChange.delta}` : recentPurchases.map((event) => event.tick).join('-') || (openingSpend ? `opening-${round.round}` : 'none');
-    const flashDuration = Math.max(0, Number(player.flashDuration) || 0);
-    const flashStrength = Number(player.flashMaxAlpha) > 0 ? Number(player.flashMaxAlpha) / 255 : flashDuration > 0 ? 1 : 0;
-    const flashProgress = flashDuration / Math.max(0.01, Number(player.flashInitialDuration) || flashDuration);
-    const flashOpacity = Math.min(0.3, flashStrength * 0.3) * THREE.MathUtils.smoothstep(THREE.MathUtils.clamp(flashProgress, 0, 1), 0, 1);
-    const health = Math.max(0, Number(player.health) || 0);
+    const moneyKey = balanceChange ? `balance-${balanceChange.tick}-${balanceChange.delta}` : purchases.ticks.join('-') || (purchases.opening ? `opening-${round.round}` : 'none');
+    const flash = flashPresentation({ remaining: player.flashDuration, initial: player.flashInitialDuration, maxAlpha: player.flashMaxAlpha });
+    const flashOpacity = (flash.opacity ?? 0) * .3;
+    const presentation = describeDemoPlayer(player);
+    const health = presentation.health ?? 0;
     const reload = demoPlayerReload(demoRosterRuntime.reloads, player, tick);
     const playerId = String(player.steamid || player.name);
-    const canSelectPov = health > 0 && player.hasPosition !== false;
+    const canSelectPov = health > 0 && presentation.hasPosition;
     const speaking = speakingIds?.has(playerId) || speakingIds?.has(player.name);
     return <div className={`roster-player${health > 0 ? '' : ' dead'}${speaking ? ' speaking' : ''}${selectedPovId === playerId ? ' pov-selected' : ''}`} key={playerId} role="button" tabIndex={canSelectPov ? 0 : -1} onClick={(event) => { event.currentTarget.blur(); if (canSelectPov) selectPov?.(player); }} onKeyDown={(event) => { if (canSelectPov && event.key === 'Enter') { event.preventDefault(); selectPov?.(player); } }}>
       <div className="roster-health-track"><i style={{ width: `${delayedHealth}%` }} /><span style={{ width: `${health}%` }} /></div>
       <strong><span className="roster-name">{player.name}</span>{speaking && <span className="roster-speaking" role="img" aria-label={speakingLabel} title={speakingLabel}><SpeakerIcon /></span>}</strong><b>{health} HP</b>
-      {health > 0 && <div className="roster-equipment"><span className="roster-armor">{player.armor > 0 && <><RosterIcon type={player.hasHelmet ? 'armorHelmet' : 'armor'} /><i>{player.armor}</i></>}</span>{player.hasDefuser && <RosterIcon type="defuser" />}</div>}
-      <div className="roster-money"><span>${Math.max(0, Number(player.balance) || 0)}</span>{moneyDelta !== 0 && <i key={moneyKey} className={moneyDelta > 0 ? 'gain' : 'spend'}>{moneyDelta > 0 ? '+' : ''}{moneyDelta}$</i>}</div>
-      {health > 0 && <><small>{playerGrenadeIcons(player.inventory, noGrenadesLabel, player.hasC4)}</small><em><RosterWeaponIcon weapon={player.activeWeapon} side={player.side} />{player.activeWeaponAmmo != null && <span className="roster-ammo">{player.activeWeaponAmmo}</span>}</em></>}
+      {health > 0 && presentation.equipmentVisible && <div className="roster-equipment"><span className="roster-armor">{presentation.armor > 0 && <><RosterIcon type={presentation.helmet ? 'armorHelmet' : 'armor'} /><i>{presentation.armor}</i></>}</span>{presentation.defuseKit && <RosterIcon type="defuser" />}</div>}
+      <div className="roster-money"><span>${presentation.money ?? 0}</span>{moneyDelta !== 0 && <i key={moneyKey} className={moneyDelta > 0 ? 'gain' : 'spend'}>{moneyDelta > 0 ? '+' : ''}{moneyDelta}$</i>}</div>
+      {health > 0 && presentation.equipmentVisible && <><small>{playerGrenadeIcons(presentation.inventory, noGrenadesLabel, presentation.hasBomb)}</small><em><RosterWeaponIcon weapon={presentation.weapon?.name} side={side} />{presentation.weapon?.ammo != null && <span className="roster-ammo">{presentation.weapon.ammo}</span>}</em></>}
       {health > 0 && reload && <span className="roster-reload" style={{ '--reload-progress': `${reload.progress * 100}%` }}><i />RELOAD</span>}
       {flashOpacity > 0 && <span className="roster-flash" style={{ opacity: flashOpacity }} />}
     </div>;
   })}</div>;
 }
 
-export function DemoPovHud({ player, firing, hurt, minimal = false }) {
+export function DemoPovHud({ player, firing, hurt, hurtAgeSeconds = null, minimal = false }) {
   if (!player) return null;
-  const weapon = String(player.activeWeapon || '-').replace(/^weapon_/, '').toUpperCase();
+  const presentation = describeDemoPlayer(player);
+  const weapon = String(presentation.weapon?.name || '-').replace(/^weapon_/, '').toUpperCase();
   const weaponKind = demoWeaponKind(player.activeWeapon);
-  const flashDuration = Math.max(0, Number(player.flashDuration) || 0);
-  const flashProgress = flashDuration / Math.max(0.01, Number(player.flashInitialDuration) || flashDuration);
-  const flashStrength = Number(player.flashMaxAlpha) > 0 ? THREE.MathUtils.clamp(Number(player.flashMaxAlpha) / 255, 0, 1) : flashDuration > 0 ? 1 : 0;
-  const flashOpacity = flashStrength * THREE.MathUtils.smoothstep(THREE.MathUtils.clamp(flashProgress, 0, 1), 0, 1);
+  const flashOpacity = flashPresentation({ remaining: player.flashDuration, initial: player.flashInitialDuration, maxAlpha: player.flashMaxAlpha }).opacity ?? 0;
   return <div className={`demo-pov-hud pov-kind-${weaponKind}${firing ? ' firing' : ''}${player.scoped ? ' scoped' : ''}`}>
     <div className="demo-pov-crosshair" aria-hidden="true"><i /><i /></div>
-    {!minimal && Number(player.health) > 0 && <div className="demo-pov-weapon"><small>POV · {player.name}</small><div><KillIcon type="weapon" weapon={player.activeWeapon} side={player.side} /><strong>{weapon}</strong>{player.activeWeaponAmmo != null && <b>{player.activeWeaponAmmo}</b>}</div></div>}
-    {hurt && <div className="demo-pov-hurt" />}
-    {flashOpacity > 0 && <div className="demo-pov-flash" style={{ opacity: flashOpacity }} />}
+    {!minimal && presentation.alive === true && <div className="demo-pov-weapon"><small>POV · {player.name}</small><div><KillIcon type="weapon" weapon={player.activeWeapon} side={player.side} /><strong>{weapon}</strong>{presentation.weapon?.ammo != null && <b>{presentation.weapon.ammo}</b>}</div></div>}
+    <CombatOverlay active alive={presentation.alive} hurt={hurt} hurtAgeSeconds={hurtAgeSeconds} flashOpacity={flashOpacity} />
   </div>;
 }
 

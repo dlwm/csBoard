@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MAP_SCALE = 0.0254;
@@ -9,8 +10,8 @@ export function createNavMesh(navData, focusScreen, focusEnabled, viewportSize) 
   const areas = Object.values(navData.areas);
   const bounds = new THREE.Box3();
   const heights = areas.flatMap((area) => area.corners.map((point) => point.z));
-  const minHeight = Math.min(...heights);
-  const maxHeight = Math.max(...heights);
+  const minHeight = heights.reduce((min, height) => Math.min(min, height), Infinity);
+  const maxHeight = heights.reduce((max, height) => Math.max(max, height), -Infinity);
   const color = new THREE.Color();
   const lowColor = new THREE.Color('#101827');
   const highColor = new THREE.Color('#68717d');
@@ -38,7 +39,10 @@ export function createNavMesh(navData, focusScreen, focusEnabled, viewportSize) 
   sourceGeometry.dispose();
   geometry.computeVertexNormals();
   // Fire projection and heat markers raycast the NAV surface repeatedly.
-  geometry.computeBoundsTree?.();
+  if (geometry.getAttribute('position').count >= 3) {
+    geometry.computeBoundsTree?.();
+    if (!geometry.boundsTree) geometry.boundsTree = new MeshBVH(geometry);
+  }
   const meshMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0, side: THREE.DoubleSide, transparent: true, opacity: 1, depthTest: true, depthWrite: true, alphaTest: 0 });
   meshMaterial.onBeforeCompile = (shader) => {
     shader.uniforms.focusEnabled = focusEnabled;
@@ -54,6 +58,7 @@ export function createNavMesh(navData, focusScreen, focusEnabled, viewportSize) 
   };
   meshMaterial.customProgramCacheKey = () => 'nav-focus-fade-v1';
   const mesh = new THREE.Mesh(geometry, meshMaterial);
+  mesh.raycast = acceleratedRaycast;
   mesh.renderOrder = 1;
   const group = new THREE.Group();
   group.add(mesh);

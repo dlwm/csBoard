@@ -1,0 +1,6 @@
+export interface ResourceProgress { loaded: number; total: number; phase?: string }
+export interface ResourceLease<T = unknown> { value: T; dispose(): void }
+export interface ResourceLoader<T = unknown> { load(key: string, options: { signal: AbortSignal; onProgress(progress: ResourceProgress): void }): Promise<ResourceLease<T>> }
+export interface ResourceState { key: string; status: 'idle' | 'loading' | 'ready' | 'cancelled' | 'error'; phase: string | null; loaded: number; total: number; error: { code: string; message: string } | null }
+export function createResourceController<T>(options: { loader: ResourceLoader<T>; onReady?: (key: string, value: T) => void; onRelease?: (key: string, value: T) => void; onState?: (state: ResourceState) => void; onObserverError?: (error: unknown) => void }): { getState(): ResourceState[]; get(key: string): T | null; ensure(key: string): Promise<T>; cancel(key: string): void; unload(key: string): void; dispose(): void };
+export function createGltfResourceLoader(options: { resolve: (key: string) => string[] | Promise<string[]>; fetch?: typeof globalThis.fetch; createLoader?: () => { parseAsync(data: ArrayBuffer, path: string): Promise<unknown> }; maxBytes?: number }): ResourceLoader;

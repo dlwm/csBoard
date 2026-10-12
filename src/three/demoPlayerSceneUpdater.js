@@ -1,7 +1,8 @@
+import { flashPresentation, weaponAnimation } from '../../packages/viewer/src/playback/playerTimeline.js';
 import * as THREE from 'three';
 import { firstMapCollisionHit } from './mapCollisionIndex.js';
 import { playerBaseColor } from './playerColors.js';
-import { createPlayerPawn } from './playerPawn.js';
+import { createPlayerPawn } from '../../packages/viewer/src/three/playerPawn.js';
 import { createWeaponModel, updateWeaponModel, isFirearm } from './weaponModel.js';
 import { createTacticalPoint, updateTacticalPoint } from './tacticalPoint.js';
 import { demoEquipmentKind, demoEventPlayerMatches, demoPlayerReload } from '../demo/playerState.js';
@@ -189,14 +190,14 @@ export default function createDemoPlayerSceneUpdater({
       }
       marker.position.set(player.position.x - modelCenter.x, player.position.y - modelCenter.y + 0.16, player.position.z - modelCenter.z);
        updateTacticalPoint(marker, displaySide, 'T');
-        const recentHurt = [...demoHurtsRef.current].reverse().find((event) => demoEventPlayerMatches(event, player) && demoTickRef.current >= event.tick && demoTickRef.current - event.tick < 10);
-        const hitGroup = recentHurt?.hitgroup ?? recentHurt?.hit_group;
+        const timeline = demoRosterRuntime.timeline;
+        const indexedHurt = timeline?.latest(playerId, 'player_hurt', demoTickRef.current, .15625);
+        const recentHurt = timeline ? indexedHurt && demoTickRef.current - indexedHurt.tick < timeline.tickRate * .15625 ? indexedHurt : null
+          : [...demoHurtsRef.current].reverse().find(event => demoEventPlayerMatches(event, player) && demoTickRef.current >= event.tick && demoTickRef.current - event.tick < 10);
+        const hitGroup = recentHurt?.hitGroup ?? recentHurt?.hitgroup ?? recentHurt?.hit_group;
         const headshotHurt = Number(hitGroup) === 1 || String(hitGroup || '').toLowerCase() === 'head';
         const sideColor = displaySide === 'CT' ? '#5da9ff' : '#ffb347';
-        const flashDuration = Math.max(0, Number(player.flashDuration) || 0);
-        const flashProgress = flashDuration / Math.max(0.01, Number(player.flashInitialDuration) || flashDuration);
-        const flashStrength = Number(player.flashMaxAlpha) > 0 ? THREE.MathUtils.clamp(Number(player.flashMaxAlpha) / 255, 0, 1) : flashDuration > 0 ? 1 : 0;
-        const headFlash = flashStrength * THREE.MathUtils.smoothstep(THREE.MathUtils.clamp(flashProgress, 0, 1), 0, 1) * 0.82;
+        const headFlash = (flashPresentation({ remaining: player.flashDuration, initial: player.flashInitialDuration, maxAlpha: player.flashMaxAlpha }).opacity ?? 0) * .82;
         marker.userData.demoBodyMaterial?.color.set(recentHurt ? '#ff352f' : sideColor);
         marker.userData.demoHeadMaterial?.color.set(recentHurt && headshotHurt ? '#ff352f' : sideColor).lerp(demoFlashedHeadColor, recentHurt && headshotHurt ? 0 : headFlash);
       const direction = new THREE.Vector3(Math.sin(THREE.MathUtils.degToRad(player.yaw || 0)), 0, Math.cos(THREE.MathUtils.degToRad(player.yaw || 0)));
@@ -217,7 +218,7 @@ export default function createDemoPlayerSceneUpdater({
            const defusing = Boolean(player.defusing);
            const weaponKind = demoEquipmentKind(player.activeWeapon);
            const reload = demoPlayerReload(demoRosterRuntime.reloads, player, demoTickRef.current);
-           const reloadDrop = reload && !['melee', 'c4'].includes(weaponKind) && !weaponKind.startsWith('utility-') ? Math.sin(reload.progress * Math.PI) : 0;
+           const reloadDrop = weaponAnimation(reload, false, weaponKind).reloadDrop;
            equipment.position.y = 0.72 - duckAmount * 0.28 - reloadDrop * 0.36;
            equipment.rotation.x = reloadDrop * 0.72;
            equipment.children.forEach((child) => {
