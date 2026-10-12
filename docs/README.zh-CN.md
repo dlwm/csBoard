@@ -348,3 +348,5 @@ Copyright (C) 2026 Colvin Chen。CSBoard 原创源代码与文档采用 [GNU GPL
 - 对界面、脚本和 AI 提供统一的操作 API、查询与事件订阅。
 
 以上为计划，尚未作为当前版本的库能力发布。
+
+当前改造分支的实现与限制：[Demo 数据格式接入](demo-format.md)。

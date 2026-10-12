@@ -15,6 +15,7 @@ terms and is outside the GPL grant unless explicitly licensed otherwise.
 | --- | --- |
 | React / React DOM, Three.js / three-mesh-bvh / meshoptimizer | MIT |
 | react-markdown / remark-gfm | MIT |
+| cs2-demo-format, Ajv, JSZip (MIT option), fflate | MIT |
 | polygon-clipping / splaytree | MIT; robust-predicates: Unlicense |
 | Yjs / y-websocket / y-protocols / lib0, ws | MIT |
 | Electron | MIT and bundled component licenses |
@@ -39,6 +40,18 @@ Go modules and `native/parser/source.json`.
 The following copyright notices share the MIT terms reproduced below.
 
 ```text
+cs2-demo-format
+Copyright (c) 2026 Xinyu Du
+
+Ajv
+Copyright (c) 2015-2021 Evgeny Poberezkin
+
+JSZip
+Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso
+
+fflate 0.8.3
+Copyright (c) 2026 Arjun Barrett
+
 opus-decoder / @wasm-audio-decoders/common / simple-yenc
 Copyright 2021-2026 Ethan Halsall
 

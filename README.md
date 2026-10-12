@@ -347,3 +347,5 @@ See the [phased roadmap](ROADMAP.md) and [proposed library contracts](docs/libra
 - Publish shared operation APIs and events for application UI, scripts and AI.
 
 These are planned milestones, not features already available in the current release.
+
+Current development branch: [Demo format integration and compatibility](docs/demo-format.md).
