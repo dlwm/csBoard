@@ -1,11 +1,12 @@
-// Both transports use the same query and missing-value conventions.
+// Private Go wire client: request names and row/column encoding stay below the session API.
+// Go 私有协议客户端；上层应用只依赖 ParserEngine / ParserSession。
 function parserValue(value) {
   if (value === null) return undefined;
   if (value && typeof value === 'object') for (const key of Object.keys(value)) value[key] = parserValue(value[key]);
   return value;
 }
 
-export function createGoParserAdapter({ init, openSources, request, compactTicks = false }) {
+export function createGoProtocolClient({ init, openSources, request, compactTicks = false }) {
   const call = async (method, part, args = {}) => parserValue(await request(method, { part: part.part, ...args }));
   return {
     init, openSources,

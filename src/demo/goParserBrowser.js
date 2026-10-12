@@ -1,4 +1,4 @@
-import { createGoParserAdapter } from './goParserAdapter.js';
+import { createGoParserEngine } from './parsers/goEngine.js';
 
 let ready;
 let goRuntime, runtimeFailure, stderr = '';
@@ -38,7 +38,8 @@ function result(encoded, method) {
 
 export function createBrowserGoParser() {
   let sources;
-  return createGoParserAdapter({
+  return createGoParserEngine({
+    execution: 'wasm',
     compactTicks: true,
     init: initialize,
     openSources: async data => {

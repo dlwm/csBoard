@@ -3,7 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createNativeClient } from '../electron/native-client.js';
 import { createDemoParser } from '../src/demo/parserRuntime.js';
-import { createGoParserAdapter } from '../src/demo/goParserAdapter.js';
+import { createGoParserEngine } from '../src/demo/parsers/goEngine.js';
 import { encodeStoredValue } from '../shared/storage-codec.js';
 
 const argv = process.argv.slice(2);
@@ -29,7 +29,7 @@ try {
   await native.ready();
   await native.request('configure', { threads });
   const parse = createDemoParser({
-    ...createGoParserAdapter({
+    engine: createGoParserEngine({ execution: 'process',
       init: async () => null,
       openSources: () => native.request('source', { paths: [path.resolve(file)] }),
       request: async (method, args) => { const result = await native.request(method, args); sampleMemory(); return result; },

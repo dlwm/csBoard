@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGoParserAdapter } from '../src/demo/goParserAdapter.js';
+import { createGoProtocolClient } from '../src/demo/parsers/goProtocol.js';
 
 test('Go transports use the same prepared query protocol and missing-value convention', async () => {
   const calls = [];
   const sources = [{ part: 2, byteLength: 100 }];
-  const adapter = createGoParserAdapter({ init: async () => 'ready', openSources: async () => sources,
+  const adapter = createGoProtocolClient({ init: async () => 'ready', openSources: async () => sources,
     request: async (method, args) => { calls.push({ method, args }); return [{ tick: 10, steamid: '76561198000000001', health: null, inventory: ['AK-47'], nested: { X: 1, Y: null } }]; },
   });
   assert.equal(await adapter.init(), 'ready');
@@ -25,7 +25,7 @@ test('Go transports use the same prepared query protocol and missing-value conve
 
 test('Go parser failures reach the import caller', async () => {
   const error = new Error('source changed');
-  const adapter = createGoParserAdapter({ init: async () => null, openSources: async () => [], request: async () => { throw error; } });
+  const adapter = createGoProtocolClient({ init: async () => null, openSources: async () => [], request: async () => { throw error; } });
   await assert.rejects(adapter.parseHeader({ part: 0 }), error);
   await assert.rejects(adapter.parseGrenades({ part: 0 }, []), error);
 });

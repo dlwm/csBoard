@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createNativeClient } from '../electron/native-client.js';
-import { createGoParserAdapter } from '../src/demo/goParserAdapter.js';
+import { createGoParserEngine } from '../src/demo/parsers/goEngine.js';
 import { createDemoParser } from '../src/demo/parserRuntime.js';
 import { encodeStoredValue, decodeStoredValue } from '../shared/storage-codec.js';
 import { buildAnalysisDataset } from '../src/analysis/buildAnalysisDataset.js';
@@ -22,8 +22,8 @@ else {
   const parser = createNativeClient(binary, [], { env: { ...process.env, GOMEMLIMIT: '2147483648' }, timeoutMs: 30 * 60_000 });
   try {
     await parser.ready(); await parser.request('configure', { threads: 4 });
-    const adapter = createGoParserAdapter({ compactTicks: true, init: async () => null, openSources: () => parser.request('source', { paths: [source] }), request: (method, args) => parser.request(method, args) });
-    await createDemoParser({ ...adapter, parseVoice: undefined, postMessage: async message => {
+    const engine = createGoParserEngine({ execution: 'process', compactTicks: true, init: async () => null, openSources: () => parser.request('source', { paths: [source] }), request: (method, args) => parser.request(method, args) }, { includeVoice: false });
+    await createDemoParser({ engine, postMessage: async message => {
       if (message.type === 'round') await fs.writeFile(`${staging}/round-${message.data.round}.json`, encodeStoredValue(message.data));
       if (message.type === 'loaded') { data = message.data; await fs.writeFile(`${staging}/loaded.json`, encodeStoredValue(data)); }
       if (message.type === 'error') throw Error(message.message);

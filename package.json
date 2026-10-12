@@ -98,6 +98,9 @@
     "@fontsource/dm-mono": "^5.3.0",
     "@fontsource/space-grotesk": "^5.3.0",
     "@vitejs/plugin-react": "latest",
+    "ajv": "^8.20.0",
+    "fflate": "^0.8.3",
+    "jszip": "^3.10.2",
     "lib0": "^0.2.114",
     "opus-decoder": "^0.7.12",
     "polygon-clipping": "^0.15.7",
@@ -114,10 +117,12 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
+    "cs2-demo-format": "https://codeload.github.com/dlwm/cs2-demo-format/tar.gz/aea485d8163e1b0caa729157cf2f137159a94ff0",
     "electron": "^44.2.0",
     "electron-builder": "^26.15.3",
     "sharp": "0.35.2",
     "vite": "latest",
-    "wrangler": "^4.37.1"
+    "wrangler": "^4.37.1",
+    "zod-to-json-schema": "^3.25.2"
   }
 }
