@@ -1,21 +1,26 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseAppVersion } from '../../shared/app-version.js';
 
 // package.json is authoritative; all platform versions are derived copies.
 export function syncAppVersion(root, { check = false, version: requestedVersion } = {}) {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const originalVersion = pkg.version;
   pkg.version = requestedVersion ?? originalVersion;
-  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(pkg.version)) {
-    throw new Error('Application version must be numeric major.minor.patch');
-  }
-  const parts = pkg.version.split('.').map(Number);
-  const buildNumber = parts[0] * 1_000_000 + parts[1] * 1000 + parts[2];
-  if (parts.some(part => part >= 1000) || buildNumber < 1 || buildNumber > 2_100_000_000) {
-    throw new Error('Application version cannot be represented as a mobile build number');
-  }
+  const parsed = parseAppVersion(pkg.version);
+  if (!parsed) throw new Error('Use major.minor.patch or major.minor.patch-alpha|beta|rc.N');
+  const parts = parsed.numbers;
+  const baseNumber = parts[0] * 1_000_000 + parts[1] * 1000 + parts[2];
+  // Retain legacy numbering; prerelease iterations use a persisted monotonic
+  // counter so alpha → beta → stable never reuses a native build number.
+  // 保留旧编号；预发布启用 package.json 中的独立计数器，阶段切换也递增。
+  const counter = pkg.mobileBuildNumber;
+  if (counter !== undefined && (!Number.isSafeInteger(counter) || counter < 1)) throw new Error('Invalid mobileBuildNumber');
+  const buildNumber = counter === undefined ? baseNumber : pkg.version === originalVersion ? counter : Math.max(baseNumber, counter + 1);
+  if (parts.some(part => part >= 1000) || buildNumber < 1 || buildNumber > 2_100_000_000) throw new Error('Application version cannot be represented as a mobile build number');
+  if (parsed.stage || counter !== undefined) pkg.mobileBuildNumber = buildNumber;
   const changes = [];
-  if (pkg.version !== originalVersion) {
+  if (pkg.version !== originalVersion || pkg.mobileBuildNumber !== counter) {
     changes.push({ file: path.join(root, 'package.json'), text: JSON.stringify(pkg, null, 2) + '\n' });
   }
   const lockPath = path.join(root, 'package-lock.json');
@@ -32,7 +37,7 @@ export function syncAppVersion(root, { check = false, version: requestedVersion 
       [/\bversionCode \d+/g, `versionCode ${buildNumber}`, 1],
     ]],
     ['native/ios/App/App.xcodeproj/project.pbxproj', [
-      [/\bMARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${pkg.version};`, 2],
+      [/\bMARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${parsed.core};`, 2],
       [/\bCURRENT_PROJECT_VERSION = [^;]+;/g, `CURRENT_PROJECT_VERSION = ${buildNumber};`, 2],
     ]],
   ];

@@ -1,3 +1,4 @@
+import { parseAppVersion, compareAppVersions } from '../shared/app-version.js';
 import { ipcMain, net, shell } from 'electron';
 import fs from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
@@ -10,13 +11,8 @@ import { parseReleaseNotes } from '../shared/release-notes.js';
 const REPOSITORY = 'dlwm/csBoard';
 const API = `https://api.github.com/repos/${REPOSITORY}/releases?per_page=100`;
 const MAX_PACKAGE = 4 * 1024 ** 3;
-const versionParts = version => /^\d+\.\d+\.\d+$/.test(version || '') ? version.split('.').map(Number) : null;
-const compareVersions = (a, b) => {
-  const left = versionParts(a), right = versionParts(b);
-  if (!left || !right) return 0;
-  for (let i = 0; i < 3; i++) if (left[i] !== right[i]) return left[i] > right[i] ? 1 : -1;
-  return 0;
-};
+const versionParts = parseAppVersion;
+const compareVersions = compareAppVersions;
 const coded = (code, message) => Object.assign(new Error(message), { code });
 
 // Use the release's existing SHA256SUMS.txt, so all desktop architectures share
@@ -41,7 +37,7 @@ export function registerUpdateService({ app, authorize, getWindow, isBusy }) {
   }).catch(() => {}).then(async () => {
     if (!state.enabled) return;
     for (const name of await fs.readdir(root).catch(() => [])) {
-      const match = name.match(/^CSBoard-(\d+\.\d+\.\d+)-(mac|win)-(arm64|x64)\.(dmg|exe)(\.part)?$/);
+      const match = name.match(/^CSBoard-(\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?)-(mac|win)-(arm64|x64)\.(dmg|exe)(\.part)?$/);
       if (match && (match[5] || compareVersions(match[1], state.currentVersion) <= 0)) await fs.rm(path.join(root, name), { force: true }).catch(() => {});
     }
   });
@@ -76,7 +72,7 @@ export function registerUpdateService({ app, authorize, getWindow, isBusy }) {
       // GitHub's "latest" flag may stay on an older release. Select the highest
       // published stable version; drafts and prereleases never become updates.
       // 按稳定版本号选择，而非依赖 latest 标志；排除草稿与预发布版本。
-      const release = releases.filter(item => !item.draft && !item.prerelease && versionParts(item.tag_name?.replace(/^v/, ''))).sort((a, b) => compareVersions(b.tag_name.replace(/^v/, ''), a.tag_name.replace(/^v/, '')))[0];
+      const release = releases.filter(item => !item.draft && !item.prerelease && versionParts(item.tag_name?.replace(/^v/, '')) && !versionParts(item.tag_name.replace(/^v/, '')).stage).sort((a, b) => compareVersions(b.tag_name.replace(/^v/, ''), a.tag_name.replace(/^v/, '')))[0];
       if (!release || compareVersions(release.tag_name.replace(/^v/, ''), state.currentVersion) <= 0) {
         if (!downloaded) selected = null;
         emit({ phase: downloaded ? 'ready' : 'current', ...(downloaded ? {} : { latestVersion: null, notes: null, notesByLanguage: null }), checkedAt: Date.now() }); return snapshot();
@@ -108,7 +104,7 @@ export function registerUpdateService({ app, authorize, getWindow, isBusy }) {
     try {
       await fs.mkdir(root, { recursive: true });
       // Remove only files owned by this updater, retaining its preferences.
-      for (const name of await fs.readdir(root)) if (/^CSBoard-\d+\.\d+\.\d+-(mac|win)-(arm64|x64)\.(dmg|exe)(\.part)?$/.test(name)) await fs.rm(path.join(root, name), { force: true });
+      for (const name of await fs.readdir(root)) if (/^CSBoard-\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?-(mac|win)-(arm64|x64)\.(dmg|exe)(\.part)?$/.test(name)) await fs.rm(path.join(root, name), { force: true });
       const response = await net.fetch(release.url, { signal: request.signal });
       if (!response.ok || !response.body) throw coded('network', `Download returned HTTP ${response.status}`);
       const hash = createHash('sha256'); let received = 0, lastSent = 0;

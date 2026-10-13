@@ -2,14 +2,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import readline from 'node:readline/promises';
+import { parseAppVersion } from '../shared/app-version.js';
 import { syncAppVersion } from './lib/app-version.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const bumps = ['major', 'minor', 'patch'];
 
 function bumpedVersion(current, bump) {
-  if (!bumps.includes(bump)) throw new Error('BUMP must be major, minor or patch');
-  const parts = current.split('.').map(Number);
+  if (bump === 'prerelease') {
+    const parsed = parseAppVersion(current);
+    if (!parsed?.stage) throw new Error('Start a prerelease with VERSION=x.y.z-alpha.1');
+    return `${parsed.core}-${parsed.stage}.${parsed.serial + 1}`;
+  }
+  if (!bumps.includes(bump)) throw new Error('BUMP must be major, minor, patch or prerelease');
+  const parts = parseAppVersion(current).numbers.slice();
   const index = bumps.indexOf(bump);
   parts[index] += 1;
   for (let i = index + 1; i < parts.length; i++) parts[i] = 0;
@@ -31,15 +37,18 @@ async function main() {
       console.log(`1. 大版本 / Major → ${bumpedVersion(current, 'major')}`);
       console.log(`2. 次版本 / Minor → ${bumpedVersion(current, 'minor')}`);
       console.log(`3. 补丁版本 / Patch → ${bumpedVersion(current, 'patch')}`);
-      console.log('4. 自定义 / Custom\n0. 取消 / Cancel');
+      console.log('4. 自定义 / Custom');
+      const prerelease = Boolean(parseAppVersion(current)?.stage);
+      if (prerelease) console.log(`5. 预发布序号 / Next prerelease → ${bumpedVersion(current, 'prerelease')}`);
+      console.log('0. 取消 / Cancel');
       let choice;
       do {
         choice = (await prompt.question('请选择 / Select [0–4]: ')).trim();
-      } while (!['0', '1', '2', '3', '4'].includes(choice));
+      } while (![...['0', '1', '2', '3', '4'], ...(prerelease ? ['5'] : [])].includes(choice));
       if (choice === '0') { console.log('已取消 / Cancelled'); return; }
       version = choice === '4'
-        ? (await prompt.question('版本号 / Version (major.minor.patch): ')).trim()
-        : bumpedVersion(current, bumps[Number(choice) - 1]);
+        ? (await prompt.question('版本号 / Version (major.minor.patch[-alpha|beta|rc.N]): ')).trim()
+        : bumpedVersion(current, choice === '5' ? 'prerelease' : bumps[Number(choice) - 1]);
     } finally { prompt.close(); }
   }
   // The shared synchronizer validates every destination before writing versions.

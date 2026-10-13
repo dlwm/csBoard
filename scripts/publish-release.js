@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { parseAppVersion } from '../shared/app-version.js';
 import { formatReleaseNotes } from '../shared/release-notes.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -56,7 +57,7 @@ export async function publishDraft({ repository, token, tag, commit, notes, note
   if ((recordedCommit && recordedCommit !== commit) || (targetCommit && targetCommit !== commit)) {
     throw new Error(`Draft ${tag} belongs to another commit: draft=${recordedCommit || targetCommit}, build=${commit} (${release.html_url}). Use a new version tag, or remove the obsolete unpublished draft before rebuilding; do not mix assets from different commits.`);
   }
-  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notesByLanguage ? formatReleaseNotes(notesByLanguage) : notes}\n\nmacOS apps are ad-hoc signed, without Apple notarization; Gatekeeper may require manual approval or removal of the app quarantine attribute. Windows installers are unsigned. Android APKs use a development signature. SHA-256 checksums are attached separately for desktop and mobile assets.\n\n<!-- csboard-release-commit: ${commit} -->`, draft: true, make_latest: 'false' };
+  const payload = { tag_name: tag, target_commitish: commit, name: `CSBoard ${tag.slice(1)}`, body: `${notesByLanguage ? formatReleaseNotes(notesByLanguage) : notes}\n\nmacOS apps are ad-hoc signed, without Apple notarization; Gatekeeper may require manual approval or removal of the app quarantine attribute. Windows installers are unsigned. Android APKs use a development signature. SHA-256 checksums are attached separately for desktop and mobile assets.\n\n<!-- csboard-release-commit: ${commit} -->`, draft: true, prerelease: Boolean(parseAppVersion(tag.slice(1))?.stage), make_latest: 'false' };
   release = await api(`${base}/releases${release ? `/${release.id}` : ''}`, release ? 'PATCH' : 'POST', payload);
   const upload = new URL(release.upload_url.split('{')[0]);
   if (upload.origin !== 'https://uploads.github.com') throw new Error('Unexpected GitHub upload endpoint');

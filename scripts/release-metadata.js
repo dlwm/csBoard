@@ -1,10 +1,11 @@
 import fs from 'node:fs/promises';
+import { parseAppVersion } from '../shared/app-version.js';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export function releaseMetadata(tag, pkg, lock, changelog) {
-  if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error('Expected an existing vMAJOR.MINOR.PATCH tag');
+  if (!tag?.startsWith('v') || !parseAppVersion(tag.slice(1))) throw new Error('Expected vMAJOR.MINOR.PATCH[-alpha|beta|rc.N]');
   const version = tag.slice(1);
   if (pkg.version !== version || lock.version !== version || lock.packages?.['']?.version !== version) {
     throw new Error(`Tag and package/lockfile versions differ: tag=${tag}, package=${pkg.version}, lock=${lock.version}, lock root=${lock.packages?.['']?.version}. Update versions before creating the release tag; rerunning the old tag uses the same old files.`);
