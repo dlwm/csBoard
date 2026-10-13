@@ -1,6 +1,6 @@
 import { createNativeClient } from './native-client.js';
 import { createDemoParser } from '../src/demo/parserRuntime.js';
-import { createGoParserAdapter } from '../src/demo/goParserAdapter.js';
+import { createGoParserEngine } from '../src/demo/parsers/goEngine.js';
 import { encodeStoredValue } from '../shared/storage-codec.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -52,7 +52,8 @@ process.parentPort.on('message', async ({ data }) => {
     const parserInfo = await parser.ready();
     await parser.request('configure', { threads: data.allocation?.threads || 1 });
     const parse = createDemoParser({
-      ...createGoParserAdapter({
+      engine: createGoParserEngine({
+        execution: 'process', sourceRevision: parserInfo.sourceRevision,
         compactTicks: true,
         init: async () => null,
         openSources: () => parser.request('source', { paths: job.paths }),
@@ -76,7 +77,7 @@ process.parentPort.on('message', async ({ data }) => {
           reportMemory();
           const { analysisRows, ...data } = message.data;
           const now = new Date().toISOString();
-          const metadata = { id: job.cacheId, fileName: job.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate, kind: data.demo.kind, sourceBytes: data.demo.bytes, dataBytes: message.estimatedBytes, analysisBytes: data.analysisBytes, createdAt: now, updatedAt: now, parserRevision: `go-${parserInfo.sourceRevision || 'local'}-adapter-1` };
+          const metadata = { id: job.cacheId, fileName: job.fileName, map: data.demo.map, rounds: data.rounds.length, sampleRate: data.demo.sampleRate, kind: data.demo.kind, sourceBytes: data.demo.bytes, dataBytes: message.estimatedBytes, analysisBytes: data.analysisBytes, createdAt: now, updatedAt: now, parserRevision: `go-${parserInfo.sourceRevision || 'local'}-adapter-2` };
           metadata.analysisIndexVersion = 1;
           metadata.cacheSchemaVersion = data.cacheSchemaVersion;
           metadata.analysisPlayerNames = [...new Set((analysisRows || []).flatMap(row => row.players.map(player => player.name).filter(Boolean)))];

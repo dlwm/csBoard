@@ -1,13 +1,34 @@
 import { projectileStartsNewLifecycle } from './grenades.js';
 import { DEMO_CACHE_SCHEMA_VERSION } from './cacheSchema.js';
 import { matchCompatibility, recordingSegments, NON_STANDARD_DEMO, RECORDING_KIND } from './recordings.js';
-import { appendChangedInfernoFrame } from './infernoFrames.js';
-import { smokeVoxelFramesFromRow } from './smokeVoxels.js';
+import { ParserError } from './parsers/session.js';
+import { eventToRuntime } from './parsers/eventObservation.js';
+import { buildRounds } from './roundTimeline.js';
 
 // Each task owns its parser state; both Web Workers and desktop jobs use this contract.
-export function createDemoParser({ init, parseEvents, parseGrenades, iterateGrenades, parseHeader, parseVoice, parseTicks, prepareTicks, releaseTicks, openSources, postMessage }) {
-let parserReady;
-let wasmInstance;
+export function createDemoParser({ engine, postMessage }) {
+let session;
+const parserInfo = engine.info;
+const openSources = async data => {
+  if (!session || data.buffers || data.buffer || data.sources) {
+    await session?.dispose();
+    session = await engine.open(data);
+  }
+  return session.parts;
+};
+const parseHeader = async part => {
+  const metadata = await session.getMetadata({ partId: part.id });
+  if (metadata.tickRate !== 64) throw new ParserError('unsupported_tickrate', 'The current replay pipeline requires a 64-tick source');
+  return metadata;
+};
+const parseVoice = async part => {
+  if (!session.capabilities.voice?.supported) return null;
+  const frames = [], summary = { skipped: 0, limited: false };
+  for await (const batch of session.readVoice({ partId: part.id })) {
+    frames.push(...batch.frames); summary.skipped += batch.summary?.skipped || 0; summary.limited ||= Boolean(batch.summary?.limited);
+  }
+  return { frames, summary };
+};
 let demoBytes;
 let demoParts = [];
 let partOffsets = [];
@@ -18,24 +39,11 @@ let allProjectiles = [];
 let allSmokeVoxelFrames = [];
 let allInfernoFrames = [];
 let allVoiceFrames = [];
-let activeWeaponNamesByPart = [];
 let equippedWeaponsByPlayer = new Map();
 let currentPhase = 'idle';
 let phaseStartedAt = 0;
 const CACHE_SCHEMA_VERSION = DEMO_CACHE_SCHEMA_VERSION;
-const ACTIVE_WEAPON_HANDLE_PROP = 'CCSPlayerPawn.CCSPlayer_WeaponServices.m_hActiveWeapon';
-// Some GOTV demos retain the player controller but lose its pawn association.
-// These controller fields keep the roster/state truthful even when coordinates cannot be recovered.
-const CONTROLLER_TEAM_PROP = 'CCSPlayerController.m_iTeamNum';
-const CONTROLLER_PENDING_TEAM_PROP = 'CCSPlayerController.m_iPendingTeamNum';
-const CONTROLLER_HEALTH_PROP = 'CCSPlayerController.m_iPawnHealth';
-const CONTROLLER_ALIVE_PROP = 'CCSPlayerController.m_bPawnIsAlive';
-const controllerFallbackProps = [CONTROLLER_TEAM_PROP, CONTROLLER_PENDING_TEAM_PROP, CONTROLLER_HEALTH_PROP, CONTROLLER_ALIVE_PROP];
-const GRENADE_ENTITY_PROPS = ['Grenade.m_flThrowStrength', 'Grenade.m_bJumpThrow', 'Grenade.m_fThrowTime', 'Grenade.m_vInitialVelocity', 'Grenade.m_vSmokeDetonationPos', 'Grenade.m_VoxelFrameData', 'Grenade.m_nVoxelFrameDataSize', 'Grenade.m_nVoxelUpdate', 'Grenade.m_firePositions', 'Grenade.m_bFireIsBurning', 'Grenade.m_BurnNormal', 'Grenade.m_fireCount', 'Grenade.m_nFireLifetime'];
-const eventNames = ['round_start', 'round_freeze_end', 'round_end', 'player_death', 'player_hurt', 'player_blind', 'weapon_fire', 'weapon_reload', 'fire_bullets', 'item_equip', 'item_pickup', 'item_purchase', 'hltv_fixed', 'hltv_chase', 'grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate', 'bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused'];
-const replayProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'user_id', 'team_rounds_total', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'inventory', 'armor_value', 'has_helmet', 'has_defuser', 'flash_duration', 'flash_max_alpha', 'is_scoped', 'is_walking', 'active_weapon_ammo', 'is_alive', 'is_defusing', 'balance', 'cash_spent_this_round', 'round_start_equip_value', 'current_equip_value', ...controllerFallbackProps];
-const analysisProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'is_alive', ...controllerFallbackProps];
-const throwProps = ['X', 'Y', 'Z', 'health', 'team_num', 'pitch', 'yaw', 'duck_amount', 'is_airborne', 'is_walking', 'FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'JUMP', 'WALK', 'grenade_pin_pulled', 'grenade_throw_strength', 'active_weapon_name', ACTIVE_WEAPON_HANDLE_PROP, 'has_defuser', 'last_place_name', ...controllerFallbackProps];
+const replayProfile = 'replay', analysisProfile = 'analysis', preparationProfile = 'preparation';
 // Bound the JSON bridge response, not the number of ticks scanned by Go.
 // 512 ticks × players × properties keeps temporary maps/JSON/string copies
 // manageable below wasm32's 4 GiB ceiling, including long throw preparations.
@@ -80,9 +88,8 @@ const parseProgressStages = [
 ];
 
 function memoryDiagnostics() {
-  const memory = wasmInstance?.memory;
   return {
-    wasmPages: memory?.buffer?.byteLength ? memory.buffer.byteLength / 65536 : null,
+    wasmPages: session?.diagnostics().wasmPages ?? null,
     jsHeap: globalThis.performance?.memory ? { used: globalThis.performance.memory.usedJSHeapSize, total: globalThis.performance.memory.totalJSHeapSize } : null,
   };
 }
@@ -92,6 +99,8 @@ function describeError(error) {
     name: error?.name || 'Error',
     message: error?.message || String(error),
     stack: error?.stack || null,
+    code: error?.code || null,
+    details: error?.details || null,
   };
 }
 
@@ -124,8 +133,9 @@ function toPlainObject(value) {
 }
 
 async function parsePartEvents(part) {
-  const parsed = await parseEvents(part, eventNames, ['X', 'Y', 'Z', 'pitch', 'yaw', 'team_num']);
-  return Object.values(parsed || {}).map(toPlainObject).map(normalizeEvent);
+  const events = [];
+  for await (const batch of session.readEvents({ partId: part.id })) events.push(...batch.map(event => normalizeEvent(eventToRuntime(event))));
+  return events;
 }
 
 function grenadeWeaponName(type = '') {
@@ -141,38 +151,12 @@ async function parsePartGrenades(part, recoverHeldGrenades) {
   const projectiles = [];
   const smokeVoxelFrames = [];
   const infernoFrames = [];
-  const latestInfernoByEntity = new Map();
   const throwStates = new Map();
-  const lastProjectileByEntity = new Map();
-  // CInferno is a non-projectile world entity. Always request this class; the
-  // patched parser already collapses held weapons to changed throw-time rows.
-  const rows = iterateGrenades ? iterateGrenades(part, GRENADE_ENTITY_PROPS) : await parseGrenades(part, GRENADE_ENTITY_PROPS, true) || [];
-  for await (const value of rows) {
-    const row = toPlainObject(value);
-    const readProp = (name) => row[name] ?? row[`Grenade.${name}`];
-    if (String(row.grenade_type || '').includes('Inferno')) {
-      appendChangedInfernoFrame(infernoFrames, latestInfernoByEntity, row, readProp);
-      continue;
-    }
-    if (String(row.grenade_type || '') === 'CSmokeGrenadeProjectile') {
-      smokeVoxelFrames.push(...smokeVoxelFramesFromRow(row, readProp));
-    }
-    if (String(row.grenade_type || '').includes('Projectile')) {
-      if (row.x != null && row.y != null && row.z != null) {
-        const entityId = row.entity_id ?? row.grenade_entity_id;
-        const previous = lastProjectileByEntity.get(entityId);
-        const startsLifecycle = projectileStartsNewLifecycle(row, previous);
-        const projectile = { ...row };
-        GRENADE_ENTITY_PROPS.forEach((prop) => { delete projectile[prop]; delete projectile[prop.split('.').at(-1)]; });
-        const initialVelocity = readProp('m_vInitialVelocity');
-        projectiles.push({ ...projectile, entity_id: entityId, thrower_steamid: String(row.thrower_steamid ?? row.steamid ?? ''), thrower_name: row.thrower_name ?? row.name ?? '', ...(startsLifecycle && initialVelocity ? { initial_velocity: initialVelocity } : {}) });
-        lastProjectileByEntity.set(entityId, row);
-      }
-      continue;
-    }
-    if (!recoverHeldGrenades || !(Number(readProp('m_fThrowTime')) > 0)) continue;
-    const steamid = String(row.thrower_steamid ?? row.steamid ?? '');
-    throwStates.set(`${row.tick}:${steamid}:${grenadeWeaponName(row.grenade_type)}`, { strength: readProp('m_flThrowStrength'), jumpThrow: readProp('m_bJumpThrow'), throwTime: readProp('m_fThrowTime') });
+  if (session.capabilities.utilities?.supported) for await (const observation of session.readUtilities({ partId: part.id })) {
+    if (observation.kind === 'projectile') projectiles.push(observation.frame);
+    else if (observation.kind === 'smoke') smokeVoxelFrames.push(observation.frame);
+    else if (observation.kind === 'fire') infernoFrames.push(observation.frame);
+    else if (observation.kind === 'throw' && recoverHeldGrenades) throwStates.set(`${observation.tick}:${observation.steamid}:${grenadeWeaponName(observation.type)}`, observation.state);
   }
   return { projectiles, smokeVoxelFrames, infernoFrames, throwStates };
 }
@@ -221,35 +205,12 @@ function inferProjectileThrows(projectiles, events, throwStates) {
   return throws;
 }
 
-async function parseTicksBatched(part, props, ticks, players = null, onBatch = null) {
+async function parseTicksBatched(part, profile, ticks, players = null, onBatch = null) {
   const rows = [];
-  for (let start = 0; start < ticks.length; start += PARSE_TICK_BATCH_SIZE) {
-    const batch = new Int32Array(ticks.slice(start, start + PARSE_TICK_BATCH_SIZE));
-    const batchRows = await parseTicks(part, props, batch, players, false);
-    for (const row of batchRows) rows.push(toPlainObject(row));
-    onBatch?.();
+  for await (const batch of session.readFrames({ partId: part.id, profile, ticks, players, batchSize: PARSE_TICK_BATCH_SIZE })) {
+    rows.push(...batch); onBatch?.();
   }
   return rows;
-}
-
-async function buildActiveWeaponNames(part, events) {
-  const fires = events.filter((event) => event.event_name === 'weapon_fire' && event.user_steamid && event.weapon);
-  if (!fires.length) return new Map();
-  const ticks = [...new Set(fires.map((event) => event.tick))].sort((left, right) => left - right);
-  const players = [...new Set(fires.map((event) => String(event.user_steamid)))];
-  const fireByPlayerTick = new Map(fires.map((event) => [`${event.tick}:${event.user_steamid}`, event]));
-  const names = new Map();
-  (await parseTicksBatched(part, [ACTIVE_WEAPON_HANDLE_PROP], ticks, players)).forEach((row) => {
-    const event = fireByPlayerTick.get(`${row.tick}:${row.steamid}`);
-    const handle = row[ACTIVE_WEAPON_HANDLE_PROP];
-    if (event && handle != null) names.set(String(handle), event.weapon);
-  });
-  return names;
-}
-
-function restoreActiveWeapon(row, names) {
-  if (!row.active_weapon_name) row.active_weapon_name = names.get(String(row[ACTIVE_WEAPON_HANDLE_PROP])) || '';
-  return row;
 }
 
 async function findPartOffsets(parts) {
@@ -270,19 +231,6 @@ async function findPartOffsets(parts) {
 }
 
 const includesPartTick = (tick, index) => index === 0 ? tick >= 0 : tick > partSkips[index];
-
-function buildRounds(events) {
-  const starts = events.filter((event) => event.event_name === 'round_start');
-  const ends = events.filter((event) => event.event_name === 'round_end');
-  return starts.map((start, index) => {
-    const nextStart = starts[index + 1];
-    const playableStart = events.find((event) => event.event_name === 'round_freeze_end' && event.tick > start.tick && (!nextStart || event.tick < nextStart.tick));
-    const startTick = playableStart?.tick ?? start.tick;
-    const end = ends.find((candidate) => candidate.tick > startTick && (!nextStart || candidate.tick < nextStart.tick));
-    const bufferedEnd = end ? end.tick + 192 : startTick;
-    return { sourceRound: start.round ?? null, freezeStartTick: start.tick, startTick, endTick: nextStart ? Math.min(bufferedEnd, nextStart.tick - 1) : bufferedEnd, winner: end?.winner ?? null, reason: end?.reason ?? null, timeSeconds: startTick / 64 };
-  }).filter((round) => round.endTick > round.startTick).map((round, index) => ({ ...round, round: index + 1 }));
-}
 
 function fallbackInventoryWeapon(inventory) {
   const names = (inventory || []).map((item) => String(item || '')).filter(Boolean);
@@ -319,53 +267,26 @@ function restoreEquippedWeapons(snapshots) {
   return snapshots;
 }
 
-function normalizeRows(rows, round) {
+function normalizeRows(rows) {
   const snapshots = new Map();
-  rows.forEach((row) => {
-    row = toPlainObject(row);
-    if (!snapshots.has(row.tick)) snapshots.set(row.tick, new Map());
-    const inventory = Array.isArray(row.inventory) ? row.inventory.map((item) => String(typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item)).filter(Boolean) : [];
-    const parsedTeam = Number(row.team_num ?? row[CONTROLLER_TEAM_PROP] ?? row[CONTROLLER_PENDING_TEAM_PROP]);
-    const team = Number.isFinite(parsedTeam) ? parsedTeam : null;
-    const parsedHealth = Number(row.health ?? row[CONTROLLER_HEALTH_PROP]);
-    const health = Number.isFinite(parsedHealth) ? parsedHealth : null;
-    const rawPosition = [row.X, row.Y, row.Z];
-    const hasPosition = rawPosition.every((value) => value != null && value !== '' && Number.isFinite(Number(value)));
-    const numericPosition = rawPosition.map(Number);
-    // `is_alive` defaults to false when pawn lookup fails; only override it for that failure mode.
-    const alive = hasPosition
-      ? row.is_alive ?? row[CONTROLLER_ALIVE_PROP] ?? (health != null && health > 0)
-      : row[CONTROLLER_ALIVE_PROP] ?? row.is_alive ?? (health != null && health > 0);
-    snapshots.get(row.tick).set(String(row.steamid || row.name), {
-      name: row.name, steamid: row.steamid, userId: row.user_id ?? null,
-      team, side: team === 2 ? 'T' : team === 3 ? 'CT' : '', health, armor: row.armor_value ?? 0,
-      hasHelmet: Boolean(row.has_helmet), hasDefuser: Boolean(row.has_defuser), pitch: row.pitch ?? 0, yaw: row.yaw ?? 0,
-      duckAmount: row.duck_amount ?? 0, isAirborne: Boolean(row.is_airborne), movement: ['FORWARD', 'BACK', 'LEFT', 'RIGHT'].filter((key) => Boolean(row[key])),
-      grenadePinPulled: typeof row.grenade_pin_pulled === 'boolean' ? row.grenade_pin_pulled : null, grenadeThrowStrength: Number.isFinite(row.grenade_throw_strength) ? row.grenade_throw_strength : null,
-      jump: typeof row.JUMP === 'boolean' ? row.JUMP : null, walking: Boolean(row.WALK || row.is_walking), inputAvailable: ['FIRE', 'RIGHTCLICK', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'JUMP'].some(key => typeof row[key] === 'boolean'), fire: Boolean(row.FIRE), secondaryFire: Boolean(row.RIGHTCLICK),
-      flashDuration: row.flash_duration ?? 0, flashMaxAlpha: row.flash_max_alpha ?? 0, scoped: Boolean(row.is_scoped),
-      placeName: row.last_place_name || '', activeWeaponAmmo: row.active_weapon_ammo ?? null, alive: Boolean(alive),
-      defusing: Boolean(row.is_defusing), balance: row.balance ?? null,
-      cashSpentThisRound: row.cash_spent_this_round ?? null, roundStartEquipValue: row.round_start_equip_value ?? null, currentEquipValue: row.current_equip_value ?? null,
-      score: row.team_rounds_total ?? 0,
-       activeWeapon: row.active_weapon_name || '', inventory,
-      hasC4: inventory.some((item) => String(typeof item === 'object' && item ? item.name || item.weapon_name || item.weapon || item.item_name || '' : item).toLowerCase().includes('c4')),
-      // Keep a stable position shape for consumers, but never render/analyse the zero fallback.
-      hasPosition,
-      raw: { x: hasPosition ? numericPosition[0] : null, y: hasPosition ? numericPosition[1] : null, z: hasPosition ? numericPosition[2] : null },
-      position: { x: hasPosition ? numericPosition[1] * 0.0254 : 0, y: hasPosition ? numericPosition[2] * 0.0254 : 0, z: hasPosition ? numericPosition[0] * 0.0254 : 0 },
+  for (const { tick, player } of rows) {
+    if (!snapshots.has(tick)) snapshots.set(tick, new Map());
+    // Only the application boundary converts Source coordinates to renderer metres.
+    // 渲染坐标不属于解析器；缺失位置仍以 hasPosition 标记，不能当作世界原点。
+    const raw = player.raw;
+    snapshots.get(tick).set(player.id || String(player.steamid || player.name), { ...player,
+      position: { x: player.hasPosition ? raw.y * .0254 : 0, y: player.hasPosition ? raw.z * .0254 : 0, z: player.hasPosition ? raw.x * .0254 : 0 },
     });
-  });
+  }
   return restoreEquippedWeapons([...snapshots.entries()].map(([tick, players]) => ({ tick, timeSeconds: tick / 64, players: [...players.values()] })));
 }
 
 return async (data) => {
   try {
+      if (data.type === 'dispose') { await session?.dispose(); session = null; demoParts = []; return; }
       if (data.type === 'source') {
         beginPhase('source');
-        parserReady ||= init();
-        wasmInstance ||= await parserReady;
-        demoParts = openSources ? await openSources(data) : (data.buffers || []).map((buffer) => new Uint8Array(buffer));
+        demoParts = await openSources(data);
         partOffsets = await findPartOffsets(demoParts);
         demoBytes = demoParts[0];
         postMessage({ type: 'sourceReady' });
@@ -374,16 +295,12 @@ return async (data) => {
       beginPhase('parser');
       postMessage({ type: 'progress', phase: 'load', completed: 0, total: 1, percent: 0 });
       postMessage({ type: 'status', message: '正在加载 Demo 解析器…' });
-      parserReady ||= init();
-      wasmInstance ||= await parserReady;
-       demoParts = openSources ? await openSources(data) : (data.buffers || [data.buffer]).map((buffer) => new Uint8Array(buffer));
+       demoParts = await openSources(data);
        partOffsets = await findPartOffsets(demoParts);
        demoBytes = demoParts[0];
-       const magic = openSources ? 'PBDEMS2\0' : new TextDecoder().decode(demoBytes.subarray(0, 8));
-      const infoOffset = openSources ? null : demoBytes.byteLength >= 12 ? new DataView(demoBytes.buffer, demoBytes.byteOffset, demoBytes.byteLength).getUint32(8, true) : null;
-      if (magic !== 'PBDEMS2\0') throw new Error(`invalid demo magic: ${JSON.stringify(magic)}`);
-       if (!openSources && (infoOffset == null || infoOffset < 16 || infoOffset >= demoBytes.byteLength)) throw new Error(`invalid demo FileInfo offset: ${infoOffset}`);
-       postMessage({ type: 'diagnostic', phase: 'input', data: { bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), parts: demoParts.length, magic, infoOffset, partOffsets, memory: memoryDiagnostics() } });
+       const magic = null; // Native/opaque sources do not expose raw header bytes here.
+       const infoOffset = null; // Source validation belongs to the parser driver/adapter.
+       postMessage({ type: 'diagnostic', phase: 'input', data: { bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), parts: demoParts.length, magic, infoOffset, sourceFormat: session.info.sourceFormat || 'unknown', validatedBy: session.info.id, partOffsets, memory: memoryDiagnostics() } });
        postMessage({ type: 'status', message: '正在读取 Demo Header…' });
        beginPhase('header');
        const headers = await Promise.all(demoParts.map(async part => toPlainObject(await parseHeader(part))));
@@ -393,7 +310,7 @@ return async (data) => {
          // Recording parts are independent clips; round overlap heuristics do
          // not apply. Keep the original tick coordinates within each clip.
          // 录制分片不依赖回合重叠，保留片段内部 tick 坐标。
-         partOffsets = headers.map((part, index) => index === 0 ? 0 : headers.slice(0, index).reduce((sum, h) => sum + Number(h.last_tick) + 1, 0));
+         partOffsets = headers.map((part, index) => index === 0 ? 0 : headers.slice(0, index).reduce((sum, h) => sum + Number(h.lastTick) + 1, 0));
          partSkips = headers.map(() => -1);
        }
        const matchRounds = buildRounds(partEvents.flatMap((events, index) => events.map(event => ({ ...event, tick: event.tick + partOffsets[index] }))));
@@ -411,10 +328,9 @@ return async (data) => {
             allProjectiles = projectilesByPart.flatMap((projectiles, index) => projectiles.filter((projectile) => includesPartTick(projectile.tick, index)).map((projectile) => ({ ...projectile, tick: projectile.tick + partOffsets[index] })));
             allSmokeVoxelFrames = grenadeDataByPart.flatMap((data, index) => data.smokeVoxelFrames.filter((frame) => includesPartTick(frame.tick, index)).map((frame) => ({ ...frame, tick: frame.tick + partOffsets[index] })));
             allInfernoFrames = grenadeDataByPart.flatMap((data, index) => data.infernoFrames.filter((frame) => includesPartTick(frame.tick, index)).map((frame) => ({ ...frame, tick: frame.tick + partOffsets[index] })));
-            if (!prepareTicks) activeWeaponNamesByPart = await Promise.all(demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index])));
         const sampleRate = [1, 2, 4, 8, 16, 32].includes(Number(data.sampleRate)) ? Number(data.sampleRate) : 8;
        const sampleStep = 64 / sampleRate;
-       const maxTick = Math.max(allEvents.at(-1)?.tick || 0, ...headers.map((header, index) => (Number(header.last_tick) || 0) + partOffsets[index]));
+       const maxTick = Math.max(allEvents.at(-1)?.tick || 0, ...headers.map((header, index) => (Number(header.lastTick) || 0) + partOffsets[index]));
        const rounds = recording ? recordingSegments(headers, partOffsets) : buildRounds(allEvents);
        const voiceParts = parseVoice ? await Promise.all(demoParts.map(part => parseVoice(part))) : [];
        allVoiceFrames = voiceParts.flatMap((voice, index) => (voice?.frames || []).filter(frame => includesPartTick(frame.tick, index)).map(frame => ({ ...frame, tick: frame.tick + partOffsets[index] }))).sort((a, b) => a.tick - b.tick);
@@ -439,7 +355,7 @@ return async (data) => {
               ticks.sort((a, b) => a - b);
               return demoParts.map((part, index) => {
                 const offset = partOffsets[index];
-                const localTicks = ticks.filter((tick) => tick >= offset && tick - offset <= (Number(headers[index].last_tick) || 1000000)).map((tick) => tick - offset);
+                const localTicks = ticks.filter((tick) => tick >= offset && tick - offset <= (Number(headers[index].lastTick) || 1000000)).map((tick) => tick - offset);
                  return { part, index, offset, localTicks };
               });
             });
@@ -448,20 +364,19 @@ return async (data) => {
               for (let tick = round.startTick; tick <= round.endTick; tick += 32) ticks.push(tick);
               return ticks;
             }))];
-            if (prepareTicks) {
-              const props = [...new Set([...replayProps, ...throwProps, ...analysisProps])];
+            if (session.prepareFrames) {
+              const profiles = [replayProfile, preparationProfile, analysisProfile];
               await Promise.all(demoParts.map(async (part, index) => {
                 const offset = partOffsets[index];
                 const ticks = [...new Set([
                   ...roundTickPlans.flatMap(plans => plans[index].localTicks),
                   ...throwPlans[index].localTicks,
                   ...partEvents[index].filter(event => event.event_name === 'weapon_fire').map(event => event.tick),
-                  ...analysisGlobalTicks.filter(tick => tick >= offset && tick - offset <= (Number(headers[index].last_tick) || 1000000)).map(tick => tick - offset),
+                  ...analysisGlobalTicks.filter(tick => tick >= offset && tick - offset <= (Number(headers[index].lastTick) || 1000000)).map(tick => tick - offset),
                 ])].sort((left, right) => left - right);
-                const prepared = await prepareTicks(part, props, ticks, throwPlans[index].throws);
-                throwPlans[index].localTicks = [...new Set([...throwPlans[index].localTicks, ...(prepared?.throwTicks || [])])].sort((a, b) => a - b);
+                const prepared = await session.prepareFrames({ partId: part.id, profiles, ticks, throws: throwPlans[index].throws });
+                throwPlans[index].localTicks = [...new Set([...throwPlans[index].localTicks, ...(prepared?.preparationTicks || [])])].sort((a, b) => a - b);
               }));
-              activeWeaponNamesByPart = await Promise.all(demoParts.map((part, index) => buildActiveWeaponNames(part, partEvents[index])));
             }
             const totalBatches = roundTickPlans.flat().reduce((sum, plan) => sum + Math.ceil(plan.localTicks.length / PARSE_TICK_BATCH_SIZE), 0) + throwPlans.reduce((sum, plan) => sum + (plan.throwers.length ? Math.ceil(plan.localTicks.length / PARSE_TICK_BATCH_SIZE) : 0), 0) + 1;
            let completedBatches = 0;
@@ -470,14 +385,14 @@ return async (data) => {
              completedBatches += 1;
              // The full position pass is the expensive stage; cached projections then
              // consume the remaining range. 阶段权重保持连续，不是虚构的计时进度。
-             const base = prepareTicks ? 85 : 0;
+             const base = session.prepareFrames ? 85 : 0;
              const percent = totalBatches ? base + completedBatches / totalBatches * (100 - base) : 100;
              const stageIndex = parseProgressStages.findLastIndex((stage) => percent >= stage.percent);
              const stage = parseProgressStages[Math.max(0, stageIndex)];
              postMessage({ type: 'progress', phase: 'ticks', completed: completedBatches, total: totalBatches, percent, stage: stageIndex !== progressStageIndex ? stage : null });
              progressStageIndex = stageIndex;
            };
-             const throwRows = (await Promise.all(throwPlans.map(async ({ part, index, offset, localTicks, throwers }) => localTicks.length && throwers.length ? (await parseTicksBatched(part, throwProps, localTicks, throwers, reportProgress)).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset })) : []))).flat();
+             const throwRows = (await Promise.all(throwPlans.map(async ({ part, index, offset, localTicks, throwers }) => localTicks.length && throwers.length ? (await parseTicksBatched(part, preparationProfile, localTicks, throwers, reportProgress)).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset })) : []))).flat();
             const throwSnapshots = normalizeRows(throwRows, 0);
             const playerNameSet = new Set();
             const playerPositionCoverage = new Map();
@@ -485,7 +400,7 @@ return async (data) => {
             let snapshotCount = 0;
             let estimatedBytes = throwSnapshots.length * 240 + allEvents.length * 256 + allProjectiles.length * 128 + estimateDataBytes(allSmokeVoxelFrames) + estimateDataBytes(allInfernoFrames) + estimateDataBytes(allVoiceFrames);
              for (const [roundIndex, round] of rounds.entries()) {
-                const rows = (await Promise.all(roundTickPlans[roundIndex].map(async ({ part, index, offset, localTicks }) => localTicks.length ? (await parseTicksBatched(part, replayProps, localTicks, null, reportProgress)).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset })) : []))).flat();
+                const rows = (await Promise.all(roundTickPlans[roundIndex].map(async ({ part, index, offset, localTicks }) => localTicks.length ? (await parseTicksBatched(part, replayProfile, localTicks, null, reportProgress)).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset })) : []))).flat();
               const snapshots = normalizeRows(rows, 0);
               snapshots.forEach((snapshot) => snapshot.players.forEach((player) => {
                 if (player.name) playerNameSet.add(player.name);
@@ -508,11 +423,11 @@ return async (data) => {
             const playerNames = [...playerNameSet].sort();
              const analysisRows = recording ? [] : (await Promise.all(demoParts.map(async (part, index) => {
               const offset = partOffsets[index];
-              const localTicks = [...new Set(analysisGlobalTicks)].filter((tick) => tick >= offset && tick - offset <= (Number(headers[index].last_tick) || 1000000)).map((tick) => tick - offset);
+              const localTicks = [...new Set(analysisGlobalTicks)].filter((tick) => tick >= offset && tick - offset <= (Number(headers[index].lastTick) || 1000000)).map((tick) => tick - offset);
               if (localTicks.length === 0) return [];
-               return (await parseTicksBatched(part, analysisProps, localTicks)).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset }));
+               return (await parseTicksBatched(part, analysisProfile, localTicks)).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset }));
             }))).flat();
-            if (releaseTicks) await Promise.all(demoParts.map(part => releaseTicks(part)));
+            await session.releasePreparedFrames?.();
             const analysis = normalizeRows(analysisRows, 0);
              // Report only players with no usable position in any gameplay sample; brief spawn/disconnect gaps are normal.
              const missingPositionPlayers = [...playerPositionCoverage.values()]
@@ -521,11 +436,19 @@ return async (data) => {
              const warnings = missingPositionPlayers.length ? [{ type: 'missing-player-position', players: missingPositionPlayers }] : [];
              postMessage({ type: 'diagnostic', phase: 'ticks', data: { elapsedMs: performance.now() - phaseStartedAt, throwSnapshots: throwSnapshots.length, snapshots: snapshotCount, analysis: analysis.length, memory: memoryDiagnostics() } });
             postMessage({ type: 'status', message: `Demo 已读取，${rounds.length} 个回合已全部就绪` });
+            const observedCounts = { replay: snapshotCount, inputs: throwSnapshots.filter(snapshot => snapshot.players.some(player => player.inputAvailable)).length,
+              projectiles: allProjectiles.length, smokeVoxels: allSmokeVoxelFrames.length, fireAreas: allInfernoFrames.length, voice: allVoiceFrames.length };
+            const formatCapabilities = Object.fromEntries(Object.entries(observedCounts).map(([key, count]) => {
+              const supported = session.capabilities[key === 'replay' ? 'frames' : key]?.supported;
+              return [key, count ? { status: 'available' } : supported === false ? { status: 'unavailable', reason: session.capabilities[key]?.reason || 'parser-does-not-support' }
+                : supported !== true ? { status: 'unknown', reason: 'parser-does-not-declare' }
+                : key === 'inputs' || key === 'voice' && voiceSummary.skipped > 0 ? { status: 'unknown', reason: 'no-readable-records' } : { status: 'empty' }];
+            }));
             allProjectiles = [];
             allSmokeVoxelFrames = [];
             allInfernoFrames = [];
             allVoiceFrames = [];
-             const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { kind: recording ? RECORDING_KIND : 'match', fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.map_name, patch: header.patch_version, guid: header.demo_version_guid || '', version: header.demo_version_name || '', demoFileStamp: header.demo_file_stamp || '', voice: voiceSummary, serverName: header.server_name || '', clientName: header.client_name || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, warnings, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
+             const result = { cacheSchemaVersion: CACHE_SCHEMA_VERSION, demo: { parserId: parserInfo.id, parser: session.info, formatCapabilities, kind: recording ? RECORDING_KIND : 'match', fileName: data.fileName, bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), map: header.mapName, patch: header.patch, guid: header.versionGuid || '', version: header.versionName || '', demoFileStamp: header.fileStamp || '', voice: voiceSummary, serverName: header.serverName || '', clientName: header.clientName || '', tickRate: 64, sampleRate, maxTick, durationSeconds: maxTick / 64, header: header.producerFields }, summary: { rounds: rounds.length, kills: allEvents.filter((event) => event.event_name === 'player_death').length, damageEvents: allEvents.filter((event) => event.event_name === 'player_hurt').length, shots: allEvents.filter((event) => event.event_name === 'fire_bullets').length, players: playerNames }, warnings, rounds, roundData, events: allEvents, players: playerNames, analysisRows: analysis, analysisBytes: estimateDataBytes(analysis) };
              await postMessage({ type: 'loaded', data: result, estimatedBytes });
      }
      if (data.type === 'analysis') {
@@ -539,14 +462,16 @@ return async (data) => {
          const offset = partOffsets[index];
          const localTicks = [...new Set(globalTicks)].filter((tick) => tick >= offset && tick - offset <= 1000000).map((tick) => tick - offset);
          if (localTicks.length === 0) return [];
-              return (await parseTicksBatched(part, analysisProps, localTicks)).map((plainRow) => ({ ...restoreActiveWeapon(plainRow, activeWeaponNamesByPart[index]), tick: plainRow.tick + offset }));
+              return (await parseTicksBatched(part, analysisProfile, localTicks)).map((plainRow) => ({ ...plainRow, tick: plainRow.tick + offset }));
        }))).flat();
         const normalized = normalizeRows(rows, 0);
         postMessage({ type: 'analysis', rows: normalized, estimatedBytes: estimateDataBytes(normalized) });
        postMessage({ type: 'status', message: '全场移动数据已就绪' });
      }
   } catch (error) {
-    await postMessage({ type: 'error', code: error.code, reason: error.reason, message: `${currentPhase}: ${error?.message || String(error)}`, diagnostic: { phase: currentPhase, elapsedMs: phaseStartedAt ? performance.now() - phaseStartedAt : null, error: describeError(error), memory: memoryDiagnostics(), bytes: demoBytes?.byteLength || null } });
+    const failureMemory = memoryDiagnostics();
+    await session?.dispose().catch(() => {}); session = null;
+    await postMessage({ type: 'error', code: error.code, reason: error.reason, message: `${currentPhase}: ${error?.message || String(error)}`, diagnostic: { phase: currentPhase, elapsedMs: phaseStartedAt ? performance.now() - phaseStartedAt : null, error: describeError(error), memory: failureMemory, bytes: demoBytes?.byteLength || null } });
   }
 };
 

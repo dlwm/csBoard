@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Standard replay viewer</title>
+  <style>
+    body { margin: 0; background: #141b24; color: #e4edf5; font: 14px system-ui; }
+    header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px; }
+    #viewport { height: 70vh; min-height: 320px; }
+    #controls { padding: 12px; }
+    #seek { width: min(60vw, 640px); }
+    #status { padding: 0 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <label>NAV JSON <input id="nav" type="file" accept=".json"></label>
+    <label>Replay package <input id="replay" type="file" accept=".cs2df,.zip"></label>
+    <button id="open">Open</button>
+    <button id="close" disabled>Close</button>
+  </header>
+  <p id="status" role="status">Choose a standard replay package and matching NAV JSON.</p>
+  <div id="viewport"></div>
+  <section id="controls" hidden>
+    <select id="segment" aria-label="Replay segment"></select>
+    <button id="play">Play / pause</button>
+    <input id="seek" type="range" step="1" aria-label="Replay tick">
+    <output id="tick"></output>
+  </section>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

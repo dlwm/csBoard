@@ -10,7 +10,10 @@ export function registerDataService({ app, authorize, storage, scheduler, root, 
   ipcMain.handle('data:run', (event, id, method, args) => {
     authorize(event); assertAvailable();
     const analysis = ['analysis.catalog', 'analysis.query', 'analysis.utility', 'analysis.utilityReplay', 'analysis.recommendations'].includes(method);
-    if ((!analysis && !['json.encode', 'json.decode', 'broadcast.encode', 'broadcast.decode'].includes(method)) || typeof id !== 'string' || !args
+    const format = ['format.import', 'format.export'].includes(method);
+    if ((!analysis && !format && !['json.encode', 'json.decode', 'broadcast.encode', 'broadcast.decode'].includes(method)) || typeof id !== 'string' || !args
+      || (method === 'format.import' && (!/^format\|[a-f0-9-]{36}$/.test(args.destinationId) || !(args.bytes instanceof Uint8Array) || args.bytes.byteLength > 256 * 1024 ** 2))
+      || (method === 'format.export' && (!Array.isArray(args.ids) || args.ids.length > 1 || !args.ids.every(value => typeof value === 'string') || (!args.ids.length && !args.inline?.data)))
       || (analysis && (!Array.isArray(args.ids) || !args.ids.every(value => typeof value === 'string')))
       || (['analysis.query', 'analysis.utility'].includes(method) && (!Array.isArray(args.players) || !args.players.every(value => typeof value === 'string')))
       || (method === 'analysis.recommendations' && (!Array.isArray(args.utilities) || args.utilities.length > 50000))
@@ -39,6 +42,13 @@ export function registerDataService({ app, authorize, storage, scheduler, root, 
           if (stopped) return;
           if (message.type === 'read') {
             try {
+              if (['cache.put', 'cache.putRound', 'cache.delete'].includes(message.method)) {
+                if (method !== 'format.import' || message.args?.id !== args.destinationId
+                  || (message.method === 'cache.putRound' && (!Number.isSafeInteger(message.args.round) || message.args.round < 1))) throw new Error('Invalid import write');
+                const result = await storage(message.method, message.args);
+                if (!stopped) worker.postMessage({ type: 'readResult', id: message.id, result, inline: true });
+                return;
+              }
               if (message.method === 'cache.list' && analysis) {
                 const result = await storage('cache.list', {}, { priority: 5 });
                 if (!stopped) worker.postMessage({ type: 'readResult', id: message.id, result, inline: true });
@@ -48,6 +58,8 @@ export function registerDataService({ app, authorize, storage, scheduler, root, 
               const reference = await storage('cache.reference', message.args, { priority: 5 });
               if (!stopped) worker.postMessage({ type: 'readResult', id: message.id, result: reference ? cacheBlobPath(root, reference.name) : null });
             } catch (error) { if (!stopped) worker.postMessage({ type: 'readResult', id: message.id, error: error.message }); }
+          } else if (message.type === 'progress') {
+            if (format && Number.isFinite(message.value?.percent) && !event.sender.isDestroyed()) event.sender.send('data:progress', { id, value: message.value });
           } else if (message.type === 'complete') finish(null, message.result);
           else if (message.type === 'error') finish(new Error(message.message));
         });

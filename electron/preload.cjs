@@ -75,6 +75,11 @@ contextBridge.exposeInMainWorld('csboardDesktop', {
     readCache: (id, round) => ipcRenderer.invoke('native:cache-read', id, round),
     runCompute: (id, method, args) => ipcRenderer.invoke('data:run', id, method, args),
     cancelCompute: id => ipcRenderer.invoke('data:cancel', id),
+    onComputeProgress: callback => {
+      const listener = (_event, value) => callback(value);
+      ipcRenderer.on('data:progress', listener);
+      return () => ipcRenderer.removeListener('data:progress', listener);
+    },
     storage: (method, args) => ipcRenderer.invoke('native:storage', method, args),
     chooseDemos: () => ipcRenderer.invoke('native:choose-demos'),
     startDemo: request => ipcRenderer.invoke('native:start-demo', request),

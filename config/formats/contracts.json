@@ -1,0 +1,3326 @@
+{
+  "source": {
+    "repository": "https://github.com/dlwm/cs2-demo-format",
+    "revision": "64a9debe1bb7cf978513a35ab3a042c25a40b1f9",
+    "draft": false,
+    "contractSha256": "15d25a6dad673d79d7c24d2ae0d396318a69a7019f109324c1db982dfe38fede"
+  },
+  "replayVersion": "cs2-demo-format/replay/0.1",
+  "schemas": {
+    "manifest": {
+      "$ref": "#/definitions/manifest",
+      "definitions": {
+        "manifest": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "string",
+              "const": "cs2-demo-format/3.0"
+            },
+            "exporter": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "version"
+              ],
+              "additionalProperties": false
+            },
+            "parser": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "version"
+              ],
+              "additionalProperties": false
+            },
+            "demo": {
+              "type": "object",
+              "properties": {
+                "hash": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-fA-F0-9]{64}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sourceFileName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "hash",
+                "sourceFileName"
+              ],
+              "additionalProperties": false
+            },
+            "mapName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tickrate": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "exportedAt": {
+              "type": "string",
+              "minLength": 1
+            },
+            "files": {
+              "type": "object",
+              "properties": {
+                "match": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "players": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "rounds": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "playerStats": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "playerEconomies": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "kills": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "damages": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "blinds": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "bombs": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "grenades": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clutches": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "shots": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "replay": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "duels": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "match",
+                "players",
+                "rounds",
+                "playerStats",
+                "playerEconomies",
+                "kills",
+                "damages",
+                "blinds",
+                "bombs",
+                "grenades",
+                "clutches"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "exporter",
+            "parser",
+            "demo",
+            "mapName",
+            "tickrate",
+            "exportedAt",
+            "files"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "match": {
+      "$ref": "#/definitions/match",
+      "definitions": {
+        "match": {
+          "type": "object",
+          "properties": {
+            "mapName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tickrate": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "durationSeconds": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "serverName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            },
+            "teamA": {
+              "type": "object",
+              "properties": {
+                "teamKey": {
+                  "type": "string",
+                  "enum": [
+                    "teamA",
+                    "teamB"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "score": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "teamKey",
+                "name",
+                "score"
+              ],
+              "additionalProperties": false
+            },
+            "teamB": {
+              "type": "object",
+              "properties": {
+                "teamKey": {
+                  "type": "string",
+                  "enum": [
+                    "teamA",
+                    "teamB"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "score": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "teamKey",
+                "name",
+                "score"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "mapName",
+            "tickrate",
+            "durationSeconds",
+            "serverName",
+            "source",
+            "teamA",
+            "teamB"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "players": {
+      "$ref": "#/definitions/players",
+      "definitions": {
+        "players": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "steamId64": {
+                "type": "string",
+                "pattern": "^\\d{17}$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "teamKey": {
+                "type": "string",
+                "enum": [
+                  "teamA",
+                  "teamB"
+                ]
+              }
+            },
+            "required": [
+              "steamId64",
+              "name",
+              "teamKey"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "rounds": {
+      "$ref": "#/definitions/rounds",
+      "definitions": {
+        "rounds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "startTick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "freezeEndTick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "endTick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "teamASide": {
+                "type": "string",
+                "enum": [
+                  "t",
+                  "ct"
+                ]
+              },
+              "teamBSide": {
+                "type": "string",
+                "enum": [
+                  "t",
+                  "ct"
+                ]
+              },
+              "teamAScoreBefore": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "teamBScoreBefore": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "teamAEconomy": {
+                "type": "string",
+                "enum": [
+                  "pistol",
+                  "eco",
+                  "semi",
+                  "force",
+                  "full"
+                ]
+              },
+              "teamBEconomy": {
+                "type": "string",
+                "enum": [
+                  "pistol",
+                  "eco",
+                  "semi",
+                  "force",
+                  "full"
+                ]
+              },
+              "winnerTeamKey": {
+                "type": "string",
+                "enum": [
+                  "teamA",
+                  "teamB"
+                ]
+              },
+              "winnerSide": {
+                "type": "string",
+                "enum": [
+                  "t",
+                  "ct"
+                ]
+              },
+              "endReason": {
+                "type": "string",
+                "enum": [
+                  "t_win",
+                  "ct_win",
+                  "target_bombed",
+                  "bomb_defused",
+                  "time_ran_out"
+                ]
+              }
+            },
+            "required": [
+              "roundNumber",
+              "startTick",
+              "freezeEndTick",
+              "endTick",
+              "teamASide",
+              "teamBSide",
+              "teamAScoreBefore",
+              "teamBScoreBefore",
+              "teamAEconomy",
+              "teamBEconomy",
+              "winnerTeamKey",
+              "winnerSide",
+              "endReason"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "playerStats": {
+      "$ref": "#/definitions/playerStats",
+      "definitions": {
+        "playerStats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "playerIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "rounds": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "kills": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "deaths": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "assists": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "damageHealth": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "damageArmor": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "adr": {
+                "type": "number",
+                "minimum": 0
+              },
+              "utilityDamage": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "averageUtilityDamagePerRound": {
+                "type": "number",
+                "minimum": 0
+              },
+              "headshotCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "firstKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "firstDeathCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tradeKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tradeDeathCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "kast": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "oneKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "twoKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "threeKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "fourKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "fiveKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsOneCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsOneWonCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsOneLostCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsTwoCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsTwoWonCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsTwoLostCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsThreeCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsThreeWonCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsThreeLostCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsFourCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsFourWonCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsFourLostCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsFiveCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsFiveWonCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "vsFiveLostCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "bombPlantCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "bombDefuseCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "wallbangKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "noScopeKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "collateralKillCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "kastRounds": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "flashAssistCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "enemyFlashDurationSeconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "teamFlashDurationSeconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "combatDeathCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "bombDeathCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "playerIndex",
+              "rounds",
+              "kills",
+              "deaths",
+              "assists",
+              "damageHealth",
+              "damageArmor",
+              "adr",
+              "utilityDamage",
+              "averageUtilityDamagePerRound",
+              "headshotCount",
+              "firstKillCount",
+              "firstDeathCount",
+              "tradeKillCount",
+              "tradeDeathCount",
+              "kast",
+              "oneKillCount",
+              "twoKillCount",
+              "threeKillCount",
+              "fourKillCount",
+              "fiveKillCount",
+              "vsOneCount",
+              "vsOneWonCount",
+              "vsOneLostCount",
+              "vsTwoCount",
+              "vsTwoWonCount",
+              "vsTwoLostCount",
+              "vsThreeCount",
+              "vsThreeWonCount",
+              "vsThreeLostCount",
+              "vsFourCount",
+              "vsFourWonCount",
+              "vsFourLostCount",
+              "vsFiveCount",
+              "vsFiveWonCount",
+              "vsFiveLostCount",
+              "bombPlantCount",
+              "bombDefuseCount",
+              "wallbangKillCount",
+              "noScopeKillCount",
+              "collateralKillCount",
+              "kastRounds",
+              "flashAssistCount",
+              "enemyFlashDurationSeconds",
+              "teamFlashDurationSeconds",
+              "combatDeathCount",
+              "bombDeathCount"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "playerEconomies": {
+      "$ref": "#/definitions/playerEconomies",
+      "definitions": {
+        "playerEconomies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "playerIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "startMoney": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "moneySpent": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "equipmentValue": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "pistol",
+                  "eco",
+                  "semi",
+                  "force",
+                  "full"
+                ]
+              },
+              "hasArmor": {
+                "type": "boolean"
+              },
+              "hasHelmet": {
+                "type": "boolean"
+              },
+              "hasDefuseKit": {
+                "type": "boolean"
+              },
+              "primaryWeapon": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "secondaryWeapon": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "grenadeCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "grenades": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "flashbang",
+                    "smoke",
+                    "molotov",
+                    "incendiary",
+                    "hegrenade",
+                    "decoy"
+                  ]
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "roundNumber",
+              "playerIndex",
+              "startMoney",
+              "moneySpent",
+              "equipmentValue",
+              "type",
+              "hasArmor",
+              "hasHelmet",
+              "hasDefuseKit",
+              "primaryWeapon",
+              "secondaryWeapon",
+              "grenadeCount"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "kills": {
+      "$ref": "#/definitions/kills",
+      "definitions": {
+        "kills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "tick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "killerIndex": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "victimIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "assisterIndex": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "flashAssisterIndex": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "weapon": {
+                "type": "string",
+                "minLength": 1
+              },
+              "killerActiveWeapon": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "victimActiveWeapon": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "headshot": {
+                "type": "boolean"
+              },
+              "flashAssist": {
+                "type": "boolean"
+              },
+              "tradeKill": {
+                "type": "boolean"
+              },
+              "tradeDeath": {
+                "type": "boolean"
+              },
+              "throughSmoke": {
+                "type": "boolean"
+              },
+              "noScope": {
+                "type": "boolean"
+              },
+              "penetratedObjects": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "killerPosition": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "integer"
+                      },
+                      "y": {
+                        "type": "integer"
+                      },
+                      "z": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "z"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "victimPosition": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  },
+                  "y": {
+                    "type": "integer"
+                  },
+                  "z": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "roundNumber",
+              "tick",
+              "killerIndex",
+              "victimIndex",
+              "assisterIndex",
+              "flashAssisterIndex",
+              "weapon",
+              "killerActiveWeapon",
+              "victimActiveWeapon",
+              "headshot",
+              "flashAssist",
+              "tradeKill",
+              "tradeDeath",
+              "throughSmoke",
+              "noScope",
+              "penetratedObjects",
+              "killerPosition",
+              "victimPosition"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "damages": {
+      "$ref": "#/definitions/damages",
+      "definitions": {
+        "damages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "tick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "attackerIndex": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "victimIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "weapon": {
+                "type": "string",
+                "minLength": 1
+              },
+              "hitgroup": {
+                "type": "string",
+                "enum": [
+                  "generic",
+                  "head",
+                  "chest",
+                  "stomach",
+                  "left_arm",
+                  "right_arm",
+                  "left_leg",
+                  "right_leg",
+                  "gear",
+                  "neck"
+                ]
+              },
+              "healthDamage": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "healthDamageRaw": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "armorDamage": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "victimHealthBefore": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "victimArmorAfter": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "attackerPosition": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "integer"
+                      },
+                      "y": {
+                        "type": "integer"
+                      },
+                      "z": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "z"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "victimPosition": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  },
+                  "y": {
+                    "type": "integer"
+                  },
+                  "z": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "roundNumber",
+              "tick",
+              "attackerIndex",
+              "victimIndex",
+              "weapon",
+              "hitgroup",
+              "healthDamage",
+              "healthDamageRaw",
+              "armorDamage",
+              "victimHealthBefore",
+              "victimArmorAfter",
+              "attackerPosition",
+              "victimPosition"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "blinds": {
+      "$ref": "#/definitions/blinds",
+      "definitions": {
+        "blinds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "tick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "flashId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "flasherIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "flashedIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "durationSeconds": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 6
+              }
+            },
+            "required": [
+              "roundNumber",
+              "tick",
+              "flashId",
+              "flasherIndex",
+              "flashedIndex",
+              "durationSeconds"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "bombs": {
+      "$ref": "#/definitions/bombs",
+      "definitions": {
+        "bombs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "tick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "plant_begin",
+                  "planted",
+                  "defuse_begin",
+                  "defused",
+                  "exploded",
+                  "dropped",
+                  "picked_up"
+                ]
+              },
+              "site": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "a",
+                      "b"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "actorIndex": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  },
+                  "y": {
+                    "type": "integer"
+                  },
+                  "z": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "roundNumber",
+              "tick",
+              "type",
+              "site",
+              "actorIndex",
+              "position"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "clutches": {
+      "$ref": "#/definitions/clutches",
+      "definitions": {
+        "clutches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "tick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "clutcherIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "opponentCount": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "won": {
+                "type": "boolean"
+              },
+              "survived": {
+                "type": "boolean"
+              },
+              "killCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              }
+            },
+            "required": [
+              "roundNumber",
+              "tick",
+              "clutcherIndex",
+              "opponentCount",
+              "won",
+              "survived",
+              "killCount"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "grenades": {
+      "$ref": "#/definitions/grenades",
+      "definitions": {
+        "grenades": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "roundNumber": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "grenadeId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "throwTick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "effectTick": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "destroyTick": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "grenade": {
+                "type": "string",
+                "enum": [
+                  "flashbang",
+                  "smoke",
+                  "molotov",
+                  "incendiary",
+                  "hegrenade",
+                  "decoy"
+                ]
+              },
+              "throwerIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "throwPosition": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  },
+                  "y": {
+                    "type": "integer"
+                  },
+                  "z": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "additionalProperties": false
+              },
+              "effectPosition": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "integer"
+                  },
+                  "y": {
+                    "type": "integer"
+                  },
+                  "z": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "roundNumber",
+              "grenadeId",
+              "throwTick",
+              "effectTick",
+              "destroyTick",
+              "grenade",
+              "throwerIndex",
+              "throwPosition",
+              "effectPosition"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "shots": {
+      "$ref": "#/definitions/shots",
+      "definitions": {
+        "shots": {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "coordScale": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "angleScale": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "coordScale",
+                "angleScale"
+              ],
+              "additionalProperties": false
+            },
+            "weaponDict": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "tracks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "roundNumber": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "playerIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "tick": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "weapon": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": -1
+                    }
+                  },
+                  "x": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "y": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "z": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "vx": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "vy": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "vz": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "yaw": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "pitch": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "required": [
+                  "roundNumber",
+                  "playerIndex",
+                  "tick",
+                  "weapon",
+                  "x",
+                  "y",
+                  "z",
+                  "vx",
+                  "vy",
+                  "vz",
+                  "yaw",
+                  "pitch"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "meta",
+            "weaponDict",
+            "tracks"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "replay": {
+      "$ref": "#/definitions/replay",
+      "definitions": {
+        "replay": {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "sampleRate": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "tickrate": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "coordScale": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "angleScale": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "sampleRate",
+                "tickrate",
+                "coordScale",
+                "angleScale"
+              ],
+              "additionalProperties": false
+            },
+            "weaponDict": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "placeDict": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rounds": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "roundNumber": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "startTick": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "tickStep": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "frameCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "players": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "playerIndex": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "x": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "y": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "z": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "yaw": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "pitch": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "hp": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "armor": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "money": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "equipValue": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "weapon": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": -1
+                          }
+                        },
+                        "place": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": -1
+                          }
+                        },
+                        "flash": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "flags": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "grenades": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "flashbang",
+                                "smoke",
+                                "molotov",
+                                "incendiary",
+                                "hegrenade",
+                                "decoy"
+                              ]
+                            }
+                          },
+                          "default": []
+                        }
+                      },
+                      "required": [
+                        "playerIndex",
+                        "x",
+                        "y",
+                        "z",
+                        "yaw",
+                        "pitch",
+                        "hp",
+                        "armor",
+                        "money",
+                        "equipValue",
+                        "weapon",
+                        "place",
+                        "flash",
+                        "flags"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "projectiles": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "grenade": {
+                          "type": "string",
+                          "enum": [
+                            "flashbang",
+                            "smoke",
+                            "molotov",
+                            "incendiary",
+                            "hegrenade",
+                            "decoy"
+                          ]
+                        },
+                        "throwerIndex": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "startTick": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "x": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "y": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "z": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        }
+                      },
+                      "required": [
+                        "grenade",
+                        "throwerIndex",
+                        "startTick",
+                        "x",
+                        "y",
+                        "z"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "roundNumber",
+                  "startTick",
+                  "tickStep",
+                  "frameCount",
+                  "players",
+                  "projectiles"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "meta",
+            "weaponDict",
+            "placeDict",
+            "rounds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "duels": {
+      "$ref": "#/definitions/duels",
+      "definitions": {
+        "duels": {
+          "type": "object",
+          "properties": {
+            "meta": {
+              "type": "object",
+              "properties": {
+                "tickrate": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "sampleRate": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "coordScale": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "angleScale": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "windowBeforeMs": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "windowAfterMs": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "tickrate",
+                "sampleRate",
+                "coordScale",
+                "angleScale",
+                "windowBeforeMs",
+                "windowAfterMs"
+              ],
+              "additionalProperties": false
+            },
+            "windows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "roundNumber": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "startTick": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "tickStep": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "frameCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "anchors": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "kill",
+                            "damage"
+                          ]
+                        },
+                        "tick": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "attackerIndex": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "victimIndex": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "tick",
+                        "attackerIndex",
+                        "victimIndex"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1
+                  },
+                  "players": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "playerIndex": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "x": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "y": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "z": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "yaw": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "pitch": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "hp": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "flash": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        }
+                      },
+                      "required": [
+                        "playerIndex",
+                        "x",
+                        "y",
+                        "z",
+                        "yaw",
+                        "pitch",
+                        "hp",
+                        "flash"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "roundNumber",
+                  "startTick",
+                  "tickStep",
+                  "frameCount",
+                  "anchors",
+                  "players"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "meta",
+            "windows"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "replayManifest": {
+      "$ref": "#/definitions/replayManifest",
+      "definitions": {
+        "replayManifest": {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "type": "string",
+              "const": "cs2-demo-format/replay/0.1"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "match",
+                "recording"
+              ]
+            },
+            "producer": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "version": {
+                  "$ref": "#/definitions/replayManifest/properties/producer/properties/name"
+                },
+                "parser": {
+                  "$ref": "#/definitions/replayManifest/properties/producer/properties/name"
+                }
+              },
+              "required": [
+                "name",
+                "version",
+                "parser"
+              ],
+              "additionalProperties": false
+            },
+            "mapName": {
+              "$ref": "#/definitions/replayManifest/properties/producer/properties/name"
+            },
+            "tickRate": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "sampleRate": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "coordinateSpace": {
+              "type": "string",
+              "const": "source2-world-units"
+            },
+            "capabilities": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "available",
+                      "empty",
+                      "unavailable",
+                      "unknown"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "files": {
+              "type": "object",
+              "properties": {
+                "metadata": {
+                  "$ref": "#/definitions/replayManifest/properties/producer/properties/name"
+                },
+                "players": {
+                  "$ref": "#/definitions/replayManifest/properties/producer/properties/name"
+                },
+                "events": {
+                  "$ref": "#/definitions/replayManifest/properties/producer/properties/name"
+                },
+                "analysis": {
+                  "$ref": "#/definitions/replayManifest/properties/producer/properties/name"
+                }
+              },
+              "required": [
+                "metadata",
+                "players",
+                "events"
+              ],
+              "additionalProperties": false
+            },
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/replayManifest/properties/producer/properties/name"
+                  },
+                  "file": {
+                    "$ref": "#/definitions/replayManifest/properties/producer/properties/name"
+                  },
+                  "startTick": {
+                    "type": "number"
+                  },
+                  "activeStartTick": {
+                    "$ref": "#/definitions/replayManifest/properties/segments/items/properties/startTick"
+                  },
+                  "endTick": {
+                    "$ref": "#/definitions/replayManifest/properties/segments/items/properties/startTick"
+                  },
+                  "sourceRound": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "file",
+                  "startTick",
+                  "activeStartTick",
+                  "endTick",
+                  "sourceRound"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "producer",
+            "mapName",
+            "tickRate",
+            "sampleRate",
+            "coordinateSpace",
+            "capabilities",
+            "files",
+            "segments"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "replayMetadata": {
+      "$ref": "#/definitions/replayMetadata",
+      "definitions": {
+        "replayMetadata": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "sourceFileName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "producerFields": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/definitions/replayMetadata/properties/producerFields/additionalProperties"
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {
+                      "$ref": "#/definitions/replayMetadata/properties/producerFields/additionalProperties"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "name",
+            "sourceFileName",
+            "producerFields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "replayPlayers": {
+      "$ref": "#/definitions/replayPlayers",
+      "definitions": {
+        "replayPlayers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "name": {
+                "type": "string"
+              },
+              "steamId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "producerFields": {
+                "type": "object",
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/replayPlayers/items/properties/producerFields/additionalProperties"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "$ref": "#/definitions/replayPlayers/items/properties/producerFields/additionalProperties"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "steamId",
+              "producerFields"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "replayEvents": {
+      "$ref": "#/definitions/replayEvents",
+      "definitions": {
+        "replayEvents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "type": {
+                "$ref": "#/definitions/replayEvents/items/properties/id"
+              },
+              "tick": {
+                "type": "number"
+              },
+              "actorId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/replayEvents/items/properties/id"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "targetId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/replayEvents/items/properties/id"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assistantId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/replayEvents/items/properties/id"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "position": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "weapon": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "damageHealth": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "producerFields": {
+                "type": "object",
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/replayEvents/items/properties/producerFields/additionalProperties"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "$ref": "#/definitions/replayEvents/items/properties/producerFields/additionalProperties"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "tick",
+              "actorId",
+              "targetId",
+              "assistantId",
+              "position",
+              "weapon",
+              "damageHealth",
+              "producerFields"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "replayFrames": {
+      "$ref": "#/definitions/replayFrames",
+      "definitions": {
+        "replayFrames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tick": {
+                "type": "number"
+              },
+              "players": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "playerId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "position": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "items": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "number"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "yaw": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "pitch": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "side": {
+                      "type": "string",
+                      "enum": [
+                        "T",
+                        "CT",
+                        "spectator",
+                        "unknown"
+                      ]
+                    },
+                    "health": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "alive": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "weapon": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "inventory": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "armor": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "helmet": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "defuseKit": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "hasBomb": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "ammo": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "crouchAmount": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "airborne": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "walking": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "flashDurationSeconds": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "scoped": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "money": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "placeName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "input": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "movement": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": [
+                                  "FORWARD",
+                                  "BACK",
+                                  "LEFT",
+                                  "RIGHT"
+                                ]
+                              }
+                            },
+                            "jump": {
+                              "type": [
+                                "boolean",
+                                "null"
+                              ]
+                            },
+                            "primaryFire": {
+                              "type": [
+                                "boolean",
+                                "null"
+                              ]
+                            },
+                            "secondaryFire": {
+                              "type": [
+                                "boolean",
+                                "null"
+                              ]
+                            },
+                            "walk": {
+                              "type": [
+                                "boolean",
+                                "null"
+                              ]
+                            },
+                            "pinPulled": {
+                              "type": [
+                                "boolean",
+                                "null"
+                              ]
+                            },
+                            "throwStrength": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "movement",
+                            "jump",
+                            "primaryFire",
+                            "secondaryFire",
+                            "walk",
+                            "pinPulled",
+                            "throwStrength"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "producerFields": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/definitions/replayFrames/items/properties/players/items/properties/producerFields/additionalProperties"
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": {
+                              "$ref": "#/definitions/replayFrames/items/properties/players/items/properties/producerFields/additionalProperties"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "playerId",
+                    "position",
+                    "yaw",
+                    "pitch",
+                    "side",
+                    "health",
+                    "alive",
+                    "weapon",
+                    "inventory",
+                    "armor",
+                    "helmet",
+                    "defuseKit",
+                    "hasBomb",
+                    "ammo",
+                    "crouchAmount",
+                    "airborne",
+                    "walking",
+                    "flashDurationSeconds",
+                    "scoped",
+                    "money",
+                    "placeName",
+                    "input",
+                    "producerFields"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "producerFields": {
+                "$ref": "#/definitions/replayFrames/items/properties/players/items/properties/producerFields"
+              }
+            },
+            "required": [
+              "tick",
+              "players",
+              "producerFields"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "replaySegment": {
+      "$ref": "#/definitions/replaySegment",
+      "definitions": {
+        "replaySegment": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "frames": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tick": {
+                    "type": "number"
+                  },
+                  "players": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "playerId": {
+                          "$ref": "#/definitions/replaySegment/properties/id"
+                        },
+                        "position": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "minItems": 3,
+                              "maxItems": 3,
+                              "items": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "yaw": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "pitch": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "side": {
+                          "type": "string",
+                          "enum": [
+                            "T",
+                            "CT",
+                            "spectator",
+                            "unknown"
+                          ]
+                        },
+                        "health": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "alive": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "weapon": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "inventory": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "armor": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "helmet": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "defuseKit": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "hasBomb": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "ammo": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "crouchAmount": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "airborne": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "walking": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "flashDurationSeconds": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "scoped": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "money": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "placeName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "input": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "movement": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "enum": [
+                                      "FORWARD",
+                                      "BACK",
+                                      "LEFT",
+                                      "RIGHT"
+                                    ]
+                                  }
+                                },
+                                "jump": {
+                                  "type": [
+                                    "boolean",
+                                    "null"
+                                  ]
+                                },
+                                "primaryFire": {
+                                  "type": [
+                                    "boolean",
+                                    "null"
+                                  ]
+                                },
+                                "secondaryFire": {
+                                  "type": [
+                                    "boolean",
+                                    "null"
+                                  ]
+                                },
+                                "walk": {
+                                  "type": [
+                                    "boolean",
+                                    "null"
+                                  ]
+                                },
+                                "pinPulled": {
+                                  "type": [
+                                    "boolean",
+                                    "null"
+                                  ]
+                                },
+                                "throwStrength": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "movement",
+                                "jump",
+                                "primaryFire",
+                                "secondaryFire",
+                                "walk",
+                                "pinPulled",
+                                "throwStrength"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "producerFields": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "anyOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/producerFields/additionalProperties"
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/producerFields/additionalProperties"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "playerId",
+                        "position",
+                        "yaw",
+                        "pitch",
+                        "side",
+                        "health",
+                        "alive",
+                        "weapon",
+                        "inventory",
+                        "armor",
+                        "helmet",
+                        "defuseKit",
+                        "hasBomb",
+                        "ammo",
+                        "crouchAmount",
+                        "airborne",
+                        "walking",
+                        "flashDurationSeconds",
+                        "scoped",
+                        "money",
+                        "placeName",
+                        "input",
+                        "producerFields"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "producerFields": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/producerFields"
+                  }
+                },
+                "required": [
+                  "tick",
+                  "players",
+                  "producerFields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "preparationFrames": {
+              "$ref": "#/definitions/replaySegment/properties/frames"
+            },
+            "projectiles": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tick": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/tick"
+                  },
+                  "position": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/position/anyOf/0"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "entityId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ownerId": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/definitions/replaySegment/properties/id"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "producerFields": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/producerFields"
+                  }
+                },
+                "required": [
+                  "tick",
+                  "position",
+                  "type",
+                  "entityId",
+                  "ownerId",
+                  "producerFields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "smokeFrames": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tick": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/tick"
+                  },
+                  "entityId": {
+                    "type": "string"
+                  },
+                  "origin": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/position/anyOf/0"
+                  },
+                  "sequence": {
+                    "type": "integer"
+                  },
+                  "voxels": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 32767
+                    }
+                  },
+                  "producerFields": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/producerFields"
+                  }
+                },
+                "required": [
+                  "tick",
+                  "entityId",
+                  "origin",
+                  "sequence",
+                  "voxels",
+                  "producerFields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "fireFrames": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tick": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/tick"
+                  },
+                  "entityId": {
+                    "type": "string"
+                  },
+                  "sequence": {
+                    "type": "integer"
+                  },
+                  "lifetime": {
+                    "type": "number"
+                  },
+                  "cells": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "producerFields": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/producerFields"
+                  }
+                },
+                "required": [
+                  "tick",
+                  "entityId",
+                  "sequence",
+                  "lifetime",
+                  "cells",
+                  "producerFields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "voiceFrames": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tick": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/tick"
+                  },
+                  "playerId": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/definitions/replaySegment/properties/id"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "durationSeconds": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "codec": {
+                    "type": "string",
+                    "const": "opus"
+                  },
+                  "dataBase64": {
+                    "type": "string"
+                  },
+                  "producerFields": {
+                    "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/producerFields"
+                  }
+                },
+                "required": [
+                  "tick",
+                  "playerId",
+                  "durationSeconds",
+                  "codec",
+                  "dataBase64",
+                  "producerFields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "producerFields": {
+              "$ref": "#/definitions/replaySegment/properties/frames/items/properties/players/items/properties/producerFields"
+            }
+          },
+          "required": [
+            "id",
+            "frames",
+            "preparationFrames",
+            "projectiles",
+            "smokeFrames",
+            "fireFrames",
+            "voiceFrames",
+            "producerFields"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+}

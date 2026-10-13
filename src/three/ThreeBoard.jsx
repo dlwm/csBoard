@@ -1,3 +1,13 @@
+import { createApplicationUtilityReferences } from '../collaboration/utilityReferenceAdapter.js';
+import { projectWorkspace } from '../collaboration/workspaceAdapter.js';
+import { configureVoiceRuntime, getVoiceRuntimeState, subscribeVoiceRuntime } from '../demo/voice/runtime.js';
+import { createDirectorCameraController } from '../../packages/viewer/src/three/directorController.js';
+import { createPlayerCameraController } from '../../packages/viewer/src/three/playerCamera.js';
+import { createCommandRegistry } from '../../packages/viewer/src/core/commandRegistry.js';
+import { ViewerError } from '../../packages/viewer/src/core/controller.js';
+import { getDemoDirectorRecord, demoCameraPlayerId, demoCameraPlayerPose } from '../demo/directorTimeline.js';
+import { weaponAnimation } from '../../packages/viewer/src/playback/playerTimeline.js';
+import { applyPlayerCamera } from '../../packages/viewer/src/three/playerCamera.js';
 import { createModelSimplification } from './modelSimplification.js';
 import { modelQualityContext } from '../settings/modelQuality.js';
 import { createSmokeCountdownOverlay } from './smokeCountdownOverlay.js';
@@ -9,9 +19,8 @@ import { createMapMarkers } from './mapMarkers.js';
 import { createPlanViewRenderer } from './planViewRenderer.js';
 import { createPlanPlayerHeadings } from './planPlayerHeading.js';
 import { NAV_FLOOR_BOUNDARIES } from '../data/navTopView.js';
-import { BoardCamera, createBoardProjectionController } from './boardCamera.js';
+import { createBoardProjectionController } from '../../packages/viewer/src/three/boardCamera.js';
 import { playerBaseColor } from './playerColors.js';
-import { isMapModelOverlay } from '../../shared/map-model-materials.js';
 import { AI_ENABLED } from '../app/config.js';
 import { startRenderLoop } from './renderLoop.js';
 import { getHost, getPlatform } from '../platform/index.js';
@@ -22,7 +31,7 @@ import { createTouchInputController } from './touchInputController.js';
 import { localize } from '../i18n.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
-import { createNavMesh } from './navMesh.js';
+import { createNavMesh } from '../../packages/viewer/src/three/navMesh.js';
 import { createZoneModel } from './zoneModel.js';
 import { createGhostMaterial, enableMapSquareFade } from './materials.js';
 import { createTacticalPoint, updateTacticalPoint } from './tacticalPoint.js';
@@ -51,16 +60,19 @@ import useThreeBoardRuntimeRefs from './useThreeBoardRuntimeRefs.js';
 import { createBrushLine, disposeBrushLine, serializeBrushLine, updateBrushLine } from './brushStroke.js';
 import { ANALYSIS_HEAT_DATA_EVENT, loadViewPreferences, MAP_MODEL_BASES, MAP_ZONE_MODELS_ENABLED, MODEL_VIEW_RANGE_EVENT, NAV_TOP_CAMERA_TARGET_MAPS } from '../app/config.js';
 import { mapModelSource, hasMapModel } from '../app/resourcePacks.js';
-import { createBoardCommands } from '../collaboration/boardCommands.js';
+import { createBoardCommands } from '../../packages/viewer/src/core/boardCommands.js';
+import { createViewerController } from '../../packages/viewer/src/core/controller.js';
+import { createThreeViewport } from '../../packages/viewer/src/three/viewport.js';
 import { isFirearm } from './weaponModel.js';
 import { replaySceneInputs } from '../demo/replaySceneInputs.js';
 import { buildSavedThrowNote } from '../utility/savedThrow.js';
 import { disposeMapModel } from './disposeMapModel.js';
 import { registerMapCollisionIndex, releaseMapCollisionIndex } from './mapCollisionIndex.js';
-import { createStaticMapBatches } from './staticMapBatches.js';
-import { cacheStaticMapTransforms, createMapMaterialRuntime } from './staticMapRuntime.js';
-import { bindMapObjectVisibility } from './mapObjectVisibility.js';
+import { cacheStaticMapTransforms } from './staticMapRuntime.js';
 import { modelVisibility, observeModelVisibility } from '../resources/modelVisibility.js';
+import { createMapDisplayController } from '../../packages/viewer/src/three/mapDisplay.js';
+import { createResourceController } from '../../packages/viewer/src/resources/controller.js';
+import { createGltfResourceLoader } from '../../packages/viewer/src/resources/gltfLoader.js';
 import { loadMapModel, removeImportedMapLights } from './mapModelLoader.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -70,6 +82,8 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 // Owns the imperative Three.js scene and exposes its workspace API to the React shell.
 export default function ThreeBoard(inputProps) {
   const props = replaySceneInputs(inputProps);
+  const utilityCommitRef = useRef(inputProps.onUtilityCommit);
+  utilityCommitRef.current = inputProps.onUtilityCommit;
   const monitorPropsRef = useRef(props);
   monitorPropsRef.current = props;
   const [touchEditMode, setTouchEditMode] = useState('move');
@@ -130,15 +144,15 @@ export default function ThreeBoard(inputProps) {
     if (!mount) return undefined;
     const setSimplificationStatus = status => monitorPropsRef.current.onModelSimplificationStatus?.(status);
     setSimplificationStatus(null);
-    let renderer;
+    let viewport;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      viewport = createThreeViewport({ container: mount, pixelRatioLimit: getHost().mobile ? 1.5 : 2, canvasLabel: '3D tactical map' });
     } catch {
       setError('当前浏览器不支持 WebGL，无法显示 3D 地图');
       return undefined;
     }
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#090d0d');
+    const { renderer, scene, camera } = viewport;
+    let viewerController;
     const demoPlayers = new THREE.Group();
     const demoMarkers = new Map();
     const demoMovementTrails = new Map();
@@ -246,10 +260,10 @@ export default function ThreeBoard(inputProps) {
     const c4Scene = createC4SceneController({
       scene,
       refs: { events: demoC4EventsRef, tick: demoTickRef, snapshots: demoSnapshotsRef },
+      getTickRate: () => demoSourceRef.current?.tickRate || 64,
       getModelCenter: () => modelCenter,
       getNav: () => nav,
     });
-    const camera = new BoardCamera(38, 1, 0.1, 200);
     camera.position.set(17, 23, 25);
     const demoPovEquipment = new THREE.Group();
     demoPovEquipment.layers.set(1);
@@ -286,7 +300,18 @@ export default function ThreeBoard(inputProps) {
     const utilityFollowDirection = new THREE.Vector3(0, 0, 1);
     let utilityReturnCamera = null;
     let demoDirectorCameraActive = false;
-    let demoDirectorEventKey = '';
+    const directorCamera = createDirectorCameraController({ camera, controls,
+      readEvent: mode => getDemoDirectorRecord(demoHltvEventsRef.current, demoTickRef.current, mode, demoSnapshotRef.current, modelCenter),
+      readPlayer: id => demoCameraPlayerPose(demoSnapshotRef.current?.players.find(player => demoCameraPlayerId(player) === id), modelCenter),
+      onState: state => viewerController?.notify('camera.director', state),
+    });
+    const replayPovCamera = createPlayerCameraController({ camera, controls,
+      readPose: id => {
+        const player = demoSnapshotRef.current?.players.find(player => demoCameraPlayerId(player) === id);
+        return demoCameraPlayerPose(player, modelCenter);
+      }, onState: state => viewerController?.notify('camera.follow', state),
+    });
+    let lastDirectorTick = null, lastDirectorSnapshots = null, lastDirectorSeek = null, lastReplaySource = null;
     let cameraTransition = null;
     controls.enableDamping = true;
     controls.dampingFactor = 0.07;
@@ -359,7 +384,8 @@ export default function ThreeBoard(inputProps) {
     let eraserChanged = false;
     const collabUndoStack = [];
     const collabRedoStack = [];
-    const notifyCollabEdit = () => onCollabEditRef.current?.();
+    let workspaceEpoch = 0;
+    const notifyCollabEdit = () => { workspaceEpoch++; viewerController?.notify('workspace.changed', {}, { origin: 'ui', changed: true }); onCollabEditRef.current?.(); };
     const createBrushStrokeLine = () => {
       const line = createBrushLine(brushStrokePoints, { color: brushColorRef.current, width: brushWidthRef.current });
       scene.add(line);
@@ -660,7 +686,7 @@ export default function ThreeBoard(inputProps) {
       collabUtilityScene.setVisible(visible);
       pointsRef.current.forEach((point) => { if (point.userData.collabPlayer) point.visible = visible !== false; });
     };
-    const setCollabEditingEnabled = (enabled) => { collabEditingEnabledRef.current = enabled === true; };
+    const setCollabEditingEnabled = (enabled) => { workspaceEpoch++; collabEditingEnabledRef.current = enabled === true; };
     const finalizeFrameTween = () => {
       if (frameTween) {
         frameTween.entries.forEach(({ point, to, toRot, toPitch }) => {
@@ -713,6 +739,7 @@ export default function ThreeBoard(inputProps) {
     const saveCameraSlot = cameraState.saveSlot;
     const restoreCameraSlot = cameraState.restoreSlot;
     const getCameraState = cameraState.getCameraState;
+    const getReplayCameraState = () => ({ ...getCameraState(), mode: camera.planView ? '2d' : '3d', director: directorCamera.getState(), follow: replayPovCamera.getState() });
     const cameraInput = createCameraInputController({
       renderer,
       camera,
@@ -796,10 +823,10 @@ export default function ThreeBoard(inputProps) {
       restoreCollabSnapshot(next);
     };
     collabHistoryRef.current = { push: pushCollabHistory, undo: undoCollab, redo: redoCollab };
-    const getWorkspaceState = ({ includeDemo = false } = {}) => {
+    const getWorkspaceState = ({ includeDemo = false, compactUtilities = false } = {}) => {
       const points = pointsRef.current.filter((point) => point.userData.pointId).map((point) => ({ id: point.userData.pointId, position: point.position.toArray(), rotationY: point.rotation.y, team: point.userData.team, type: point.userData.type, rayLength: point.children.find((child) => child.userData.aimRay)?.scale.z || 0.05, aimTarget: point.userData.aimTarget?.position.toArray() || [0, 0, -0.05], baseColor: point.userData.baseColor, kind: point.userData.collabPlayer ? 'player' : undefined, name: point.userData.playerName || undefined, weapon: point.userData.collabPlayer ? (point.userData.weapon || 'ak47') : undefined, crouched: point.userData.collabPlayer ? Boolean(point.userData.crouched) : undefined, pitch: point.userData.collabPlayer ? (point.userData.collabPitch || 0) : undefined }));
       const grenades = grenadeEffects.map((effect, index) => ({ id: effect.userData.grenadeId || `grenade-${index}`, type: effect.userData.grenadeEffect, position: effect.position.toArray(), range: effect.userData.grenadeRange || effect.scale.x || 1 }));
-      const collabUtilities = collabUtilityScene.serialize();
+      const collabUtilities = compactUtilities ? [] : collabUtilityScene.serialize();
       if (includeDemo) {
         (demoSnapshotRef.current?.players || []).filter((player) => player.health > 0 && player.hasPosition !== false && [player.position?.x, player.position?.y, player.position?.z].every(Number.isFinite)).forEach((player) => {
           const pitch = THREE.MathUtils.degToRad(player.pitch || 0);
@@ -868,8 +895,9 @@ export default function ThreeBoard(inputProps) {
       });
       brushApplyRemote = false;
     };
-    const restoreWorkspaceState = (saved, includeCurrentCamera = true) => {
+    const restoreWorkspaceState = (saved, includeCurrentCamera = true, { origin = 'host' } = {}) => {
       if (!saved) return;
+      workspaceEpoch++;
       collabUndoStack.length = 0;
       collabRedoStack.length = 0;
       pointsRef.current.forEach((point) => { point.parent?.remove(point); point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); }); });
@@ -931,6 +959,7 @@ export default function ThreeBoard(inputProps) {
         brushUndoStack.push(line);
       });
       if (includeCurrentCamera && saved.camera) { camera.position.fromArray(saved.camera.position); controls.target.fromArray(saved.camera.target); restoreModelViewRange(saved.camera.viewRange); controls.update(); }
+      viewerController?.notify('workspace.changed', { source: 'restore' }, { origin, changed: true });
     };
     const onKeyDown = (event) => {
       const tag = event.target?.tagName;
@@ -1373,11 +1402,6 @@ export default function ThreeBoard(inputProps) {
     const sun = new THREE.DirectionalLight('#fff3d1', 2.6);
     sun.position.set(12, 25, 10);
     scene.add(sun);
-    // Bound fill-rate and render-target memory on high-density phones/tablets.
-    const maxPixelRatio = getHost().mobile ? 1.5 : 2;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
-    renderer.domElement.setAttribute('aria-label', 'Dust II 3D tactical map');
-    mount.appendChild(renderer.domElement);
     cameraInput.attach(mount);
     const touchInput = createTouchInputController({
       element: renderer.domElement, down: onPointerDown, move: onPointerMove,
@@ -1412,26 +1436,86 @@ export default function ThreeBoard(inputProps) {
     let disposed = false;
     let lastModelProgressAt = 0;
     const resetToDefault = (normalReset) => {
+      if (directorCamera.getState().mode || replayPovCamera.getState().playerId) {
+        directorCamera.release(); replayPovCamera.release(); demoInEyePlayerRef.current = null; demoDirectorCameraActive = false;
+        demoCameraModeRef.current = 'manual'; demoCameraInterruptRef.current?.();
+      }
       clearBrushStrokes();
       camera.up.set(0, 1, 0);
       normalReset();
     };
     const initialReset = () => { camera.position.set(17, 23, 25); controls.target.set(0, 0, 0); controls.update(); };
     let defaultCameraReset = initialReset;
-    const boardCommands = createBoardCommands({
+    let modelResources;
+    const utilityReferences = createApplicationUtilityReferences({ getNotes: () => utilityNotesRef.current || [], mapName, toScene: gameToBoard, scene: collabUtilityScene,
+      isEditable: () => collabEditingEnabledRef.current, readGuard: () => workspaceEpoch, commit: action => utilityCommitRef.current ? utilityCommitRef.current(action) : action(), notify: (...args) => viewerController.notify(...args) });
+    const sceneCommands = createBoardCommands({
+      utilityReferences,
       isEditable: () => collabEditingEnabledRef.current,
+      onCameraChange: () => viewerController?.notify('camera.changed', getReplayCameraState(), { changed: true }),
+      replacePlayers: players => {
+        const current = collabSnapshot(), existing = new Map(current.points.map(p => [p.id, p]));
+        applyTacticalSnapshot({ ...current, points: players.map(p => ({ ...existing.get(p.id), ...p, kind: 'player' })) });
+        viewerController.notify('workspace.playersChanged', { players: projectWorkspace(getWorkspaceState()).players }, { changed: true });
+      },
       apply: applyTacticalSnapshot, clear: () => applyTacticalSnapshot({ points: [], grenades: [], brushStrokes: [], collabUtilities: [] }), undo: undoCollab, redo: redoCollab,
       rename: renamePlayerPoint, setTeam: (id, team) => renamePlayerPoint.setTeam(id, team), addUtility: addCollabUtility, removeUtility: removeCollabUtility,
       saveCamera: saveCameraSlot, restoreCamera: restoreCameraSlot, focusPlayer: focusCollabPlayer, focusPlacedUtility: focusCollabUtility,
       focusUtility: focusUtilityNote, endPreview: clearCollabUtilityPreview, resetCamera: () => resetToDefault(defaultCameraReset),
     });
     let boardReady = false;
+    const replayCommands = createCommandRegistry({
+      ...Object.fromEntries(sceneCommands.names.map(name => [name, (args, context) => sceneCommands.execute(name, args, context)])),
+      'voice.configure': args => { configureVoiceRuntime(args); viewerController.notify('voice.options', getVoiceRuntimeState(), { changed: true }); },
+      'camera.director': ({ mode }) => {
+        directorCamera.validate(mode);
+        if (!demoSnapshotRef.current) throw new ViewerError('not_ready', 'Load a replay before enabling the director');
+        if (utilityFirstPersonRef.current?.player || utilityProjectileFollowRef.current) throw new ViewerError('camera_busy', 'Finish utility playback before enabling the director');
+        replayPovCamera.release(); demoInEyePlayerRef.current = null; directorCamera.start(mode);
+        demoCameraModeRef.current = mode;
+        monitorPropsRef.current.onDemoCameraMode?.(mode);
+        viewerController.notify('camera.changed', getReplayCameraState(), { changed: true });
+      },
+      'camera.pov': ({ id }) => {
+        replayPovCamera.validate(id);
+        if (utilityFirstPersonRef.current?.player || utilityProjectileFollowRef.current) throw new ViewerError('camera_busy', 'Finish utility playback before selecting POV');
+        directorCamera.release(); replayPovCamera.follow(id);
+        demoCameraModeRef.current = 'manual';
+        demoInEyePlayerRef.current = demoSnapshotRef.current.players.find(player => demoCameraPlayerId(player) === id);
+        monitorPropsRef.current.onDemoPovPlayer?.(id);
+        viewerController.notify('camera.changed', getReplayCameraState(), { changed: true });
+      },
+      'camera.free': () => {
+        if (utilityFirstPersonRef.current?.player || utilityProjectileFollowRef.current) throw new ViewerError('camera_busy', 'Finish utility playback before restoring the free camera');
+        directorCamera.release(); replayPovCamera.release(); demoInEyePlayerRef.current = null; demoDirectorCameraActive = false;
+        demoCameraModeRef.current = 'manual'; demoCameraInterruptRef.current?.();
+        viewerController.notify('camera.changed', getReplayCameraState(), { changed: true });
+      },
+      'camera.mode': ({ mode }) => {
+        if (!['2d', '3d'].includes(mode)) throw new ViewerError('invalid_argument', 'Mode must be 2d or 3d');
+        if (mode === '2d') { directorCamera.release(); replayPovCamera.release(); demoDirectorCameraActive = false; demoCameraInterruptRef.current?.(); }
+        boardViewModeRef.current = mode; boardProjection.update(mode === '2d');
+        monitorPropsRef.current.onBoardViewMode?.(mode);
+        viewerController.notify('camera.changed', getReplayCameraState(), { changed: true });
+      },
+    });
+    viewerController = createViewerController({ commands: replayCommands, profile: 'application',
+      readUtilityCatalogue: (query, context) => utilityReferences.list(query, context),
+      readWorkspace: () => ({ ...projectWorkspace(getWorkspaceState({ compactUtilities: true }), { mapName, origin: modelCenter.toArray() }), utilities: collabUtilityScene.getPlacements() }),
+      readState: () => ({ ready: boardReady, mapName, workspace: getWorkspaceState(), camera: getReplayCameraState(), voice: getVoiceRuntimeState(),
+        resources: modelResources?.getState() || [], canUndo: collabUndoStack.length > 0, canRedo: collabRedoStack.length > 0,
+        coordinates: { space: 'scene-local', unit: 'metres', origin: modelCenter.toArray() } }),
+      readCapabilities: () => ({ utilityReferences: true, editing: collabEditingEnabledRef.current, camera: true, director: true, voice: Boolean(getVoiceRuntimeState()), firstPerson: true }),
+    });
+    const unsubscribeVoice = subscribeVoiceRuntime((type, value) => viewerController.notify(type, value));
+    const boardCommands = viewerController.commands;
     const publishBoardReady = (ready) => {
       if (ready && boardReady) return;
       boardReady = ready;
-      onReady({ commands: boardCommands, ready, reset: () => resetToDefault(defaultCameraReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, previewImportedUtility: id => transitionToCollabFocus(collabUtilityScene.focus(id)), focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
+      viewerController.notify('lifecycle.ready', { ready });
+      onReady({ viewer: viewerController, commands: boardCommands, ready, reset: () => resetToDefault(defaultCameraReset), saveCameraSlot, restoreCameraSlot, getWorkspaceState, applyTacticalSnapshot, gameToBoard, boardToGame, restoreWorkspaceState, clearWorkspaceState: () => restoreWorkspaceState({ points: [], paths: [] }), clearBrushStrokes, addCollabUtility, removeCollabUtility, promoteCollabUtility, clearCollabUtilities, previewCollabUtility, previewImportedUtility: id => transitionToCollabFocus(collabUtilityScene.focus(id)), focusCollabUtility, focusCollabPlayer, focusUtilityNote, clearCollabUtilityPreview, getCollabPlayers, renamePlayerPoint, smoothRestoreFrame, applyLiveBrushData, getCameraState, observeBoardView, resolveBoardViewPoint: observeBoardView?.resolvePoint, restoreCameraState: cameraState.restoreState, getRadarCameraState, finalizeFrameTween, setCollabVisible, setCollabEditingEnabled, undoCollab, redoCollab, canUndoCollab: () => collabUndoStack.length > 0, canRedoCollab: () => collabRedoStack.length > 0 });
     };
-    const loadWorldModel = (loadedModel) => {
+    const loadWorldModel = (loadedModel, gltf) => {
       if (disposed) { disposeMapModel(loadedModel); return; }
       worldModel = loadedModel;
       removeImportedMapLights(worldModel);
@@ -1459,29 +1543,23 @@ export default function ThreeBoard(inputProps) {
         controls.maxDistance = Math.max(modelSize * 2.2, 70);
         controls.update();
       };
-      worldModel.traverse((object) => {
-        if (!object.isMesh) return;
-        if (!object.geometry.boundsTree) object.geometry.computeBoundsTree();
-        collisionMeshes.push(object);
-        object.frustumCulled = true;
-        object.renderOrder = (Array.isArray(object.material) ? object.material : [object.material]).some(isMapModelOverlay) ? 4 : 3;
-         if (object.material) object.userData.sourceMapMaterial = object.material;
-
+      const display = createMapDisplayController({ gltf, renderer,
+        copyBudget: (getHost().mobile ? 16 : 64) * 1024 ** 2,
+        createMaterial: () => {
+          const material = createGhostMaterial(focusScreen, viewportSize, modelMode, modelRange);
+          material.opacity = modelOpacityRef.current;
+          enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current);
+          enableMaterialFloorFade(material, floorFadeRef.current);
+          return material;
+        },
       });
-      const materialRuntime = createMapMaterialRuntime(worldModel, () => {
-        const material = createGhostMaterial(focusScreen, viewportSize, modelMode, modelRange);
-        material.opacity = modelOpacityRef.current;
-        enableMapSquareFade(material, nav?.modelBoundary, floorFadeRef.current);
-        enableMaterialFloorFade(material, floorFadeRef.current);
-        return material;
-      });
-      const batches = createStaticMapBatches(worldModel, renderer, (getHost().mobile ? 16 : 64) * 1024 ** 2);
+      collisionMeshes.push(...display.collisions);
+      const batches = display.batches;
       const applyVisibility = worldModel.userData.applyObjectVisibility;
       modelSimplification=createModelSimplification(worldModel,batches,()=>applyVisibility?.(modelVisibility(mapName)));requestedSimplification=0;
       if (applyVisibility) worldModel.userData.applyObjectVisibility = record => { applyVisibility(record); modelSimplification.applyHidden(); batches.syncVisibility(); };
       worldModel.userData.disposeRenderBatches = batches.clear;
-      materialRuntime.apply();
-      batches.rebuild();
+      applyObjectVisibility();
       scene.add(worldModel);
       // Static map materials share the live floor uniform; initialize once, not every scan.
       worldModel.traverse((object) => {
@@ -1490,7 +1568,7 @@ export default function ThreeBoard(inputProps) {
       });
       if (MAP_ZONE_MODELS_ENABLED && !getPlatform().capabilities.resourceImport) {
         loadMapModel(new GLTFLoader(), MAP_MODEL_BASES, `${mapName}/${mapName}.zones.glb`, (gltf) => {
-          if (disposed || !worldModel) return;
+          if (disposed || !worldModel) { disposeMapModel(gltf.scene); return; }
           const zones = createZoneModel(gltf.scene, mapName);
           if (zones.children.length) {
             zones.position.copy(worldModel.position);
@@ -1520,25 +1598,31 @@ export default function ThreeBoard(inputProps) {
       modelLoadStateRef.current?.({ mapName, status: 'ready', loaded: 1, total: 1 });
     };
     let modelRequested = false;
+    modelResources = createResourceController({
+      loader: createGltfResourceLoader({ resolve: () => {
+        const source = mapModelSource(mapName, MAP_MODEL_BASES);
+        return (source.bases || []).filter(Boolean).map(base => `${base.replace(/\/$/, '')}/${source.file.replace(/^\/+/, '')}`);
+      }, maxBytes: (getHost().mobile ? 128 : 1024) * 1024 ** 2 }),
+      onReady: (_key, gltf) => loadWorldModel(gltf.scene, gltf),
+      onState: (state) => {
+        if (disposed) return;
+        viewerController.notify('resource.state', state);
+        if (state.status === 'loading') {
+          const now = performance.now();
+          if (now - lastModelProgressAt < 80 && (!state.total || state.loaded < state.total)) return;
+          lastModelProgressAt = now;
+          modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: state.loaded, total: state.total });
+        } else if (state.status === 'error') {
+          modelRequested = false;
+          modelLoadStateRef.current?.({ mapName, status: hasMapModel(mapName) ? 'error' : 'absent', loaded: 0, total: 0 });
+          if (hasMapModel(mapName)) console.info(`${mapName} visual model unavailable.`, state.error?.message);
+        }
+      },
+    });
     const requestModel = () => {
-      if (disposed || modelRequested || !modelVisibilityRef.current || boardViewModeRef.current === "2d") return;
-      modelRequested = true;
-      lastModelProgressAt = 0;
-      modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: 0, total: 0 });
-      loadMapModel(new GLTFLoader(), mapModelSource(mapName, MAP_MODEL_BASES).bases, mapModelSource(mapName, MAP_MODEL_BASES).file, (gltf) => { bindMapObjectVisibility(gltf); loadWorldModel(gltf.scene); }, (event) => {
-        if (disposed) return;
-        const now = performance.now();
-        if (now - lastModelProgressAt < 80 && (!event.total || event.loaded < event.total)) return;
-        lastModelProgressAt = now;
-        modelLoadStateRef.current?.({ mapName, status: 'loading', loaded: event.loaded || 0, total: event.total || 0 });
-      }, (loadError) => {
-        if (disposed) return;
-        modelRequested = false;
-        modelLoadStateRef.current?.({ mapName, status: hasMapModel(mapName) ? 'error' : 'absent', loaded: 0, total: 0 });
-        if (hasMapModel(mapName)) console.info(`${mapName} visual model unavailable.`, loadError.message);
-      }, ({ failedUrl, nextBase }) => {
-        console.info(`${mapName} packaged model unavailable at ${failedUrl}; trying ${nextBase}.`);
-      });
+      if (disposed || modelRequested || !modelVisibilityRef.current || boardViewModeRef.current === '2d') return;
+      modelRequested = true; lastModelProgressAt = 0;
+      modelResources.ensure('world-model').catch(() => {});
     };
     requestModelRef.current = requestModel;
     modelLoadStateRef.current?.({ mapName, status: 'idle', loaded: 0, total: 0 });
@@ -1594,21 +1678,11 @@ export default function ThreeBoard(inputProps) {
       getModelCenter: () => modelCenter,
       markers: demoMarkers,
       primaryOnlyObjects: [demoPovEquipment, povThrownUtility],
+      getPrimaryHiddenObjects: () => { const id = directorCamera.getState().playerId || replayPovCamera.getState().playerId; const marker = id && demoMarkers.get(id); return marker ? [marker] : []; },
     });
-    const resize = () => {
-      const { width, height } = mount.getBoundingClientRect();
-      if (width <= 0 || height <= 0) return;
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPixelRatio));
-      renderer.setSize(width, height, false);
-      renderer.getDrawingBufferSize(viewportSize);
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      demoMonitorRenderer.invalidateLayout();
-    };
-    resize();
-    const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(mount);
-    window.addEventListener('resize', resize);
+    const onViewportResize = () => { renderer.getDrawingBufferSize(viewportSize); demoMonitorRenderer.invalidateLayout(); };
+    const unsubscribeViewportResize = viewport.onResize(onViewportResize);
+    onViewportResize();
     let lastMoveTime = performance.now();
     const moveCamera = (now) => {
       const elapsed = Math.min((now - lastMoveTime) / 1000, 0.05);
@@ -1664,6 +1738,26 @@ export default function ThreeBoard(inputProps) {
       if(modelSimplification?.busy && now-lastExperimentFrame<200)return;
       lastExperimentFrame=now;
       if (disposed) return;
+      let requestedDirector = !inPlan && !utilityFirstPersonRef.current?.player && !utilityProjectileFollowRef.current && !demoInEyePlayerRef.current
+        && ['follow', 'fixed', 'chase'].includes(demoCameraModeRef.current) ? demoCameraModeRef.current : null;
+      if (directorCamera.getState().mode && !requestedDirector) {
+        directorCamera.release();
+        if (inPlan) demoCameraInterruptRef.current?.();
+      }
+      if (replayPovCamera.getState().playerId && (inPlan || !demoInEyePlayerRef.current || utilityFirstPersonRef.current?.player || utilityProjectileFollowRef.current)) {
+        replayPovCamera.release();
+        if (inPlan) demoCameraInterruptRef.current?.();
+      }
+      const sourceName = demoSourceRef.current?.fileName || null;
+      if (sourceName && lastReplaySource && sourceName !== lastReplaySource) {
+        directorCamera.release(); replayPovCamera.release(); demoInEyePlayerRef.current = null; requestedDirector = null;
+        demoCameraModeRef.current = 'manual'; demoCameraInterruptRef.current?.();
+      }
+      if (sourceName) lastReplaySource = sourceName;
+      const rate = demoSourceRef.current?.tickRate || 64;
+      if (lastDirectorSeek !== demoSourceRef.current?.seekRevision || lastDirectorSnapshots !== demoSnapshotsRef.current || (lastDirectorTick != null && (demoTickRef.current < lastDirectorTick || demoTickRef.current - lastDirectorTick > rate * .5))) directorCamera.invalidate();
+      lastDirectorSeek = demoSourceRef.current?.seekRevision; lastDirectorSnapshots = demoSnapshotsRef.current; lastDirectorTick = demoTickRef.current;
+      demoDirectorCameraActive = Boolean(directorCamera.getState().mode || replayPovCamera.getState().playerId);
       if (cameraTransition) {
         cameraTransition.elapsed += 16.67;
         const progress = THREE.MathUtils.smoothstep(Math.min(cameraTransition.elapsed / cameraTransition.duration, 1), 0, 1);
@@ -1689,13 +1783,17 @@ export default function ThreeBoard(inputProps) {
       } else if (collabFocusedPlayer) {
         // Hold the saved first-person view until the pointer leaves the list.
         controls.update();
-      } else {
+      } else if (!demoDirectorCameraActive) {
         moveCamera(now);
         controls.update();
       }
       const firstPerson = utilityFirstPersonRef.current;
       const projectileFollow = utilityProjectileFollowRef.current;
-      const manualPovPlayer = demoInEyePlayerRef.current;
+      const manualPovPlayer = inPlan ? null : demoInEyePlayerRef.current;
+      if (manualPovPlayer && !firstPerson && !projectileFollow) {
+        const id = demoCameraPlayerId(manualPovPlayer);
+        if (replayPovCamera.getState().playerId !== id) replayPovCamera.follow(id); else replayPovCamera.update();
+      }
       if (!firstPerson && !projectileFollow && utilityPlaybackCameraActive) {
         controls.enabled = true;
         // Restore the user's view only after both throw preview and projectile follow finish.
@@ -1710,23 +1808,21 @@ export default function ThreeBoard(inputProps) {
         utilityPlaybackCameraActive = false;
         utilityProjectileCameraActive = false;
       }
-      const povPlayer = firstPerson?.player || manualPovPlayer;
+      const directorRecord = requestedDirector ? getDemoDirectorRecord(demoHltvEventsRef.current, demoTickRef.current, requestedDirector, demoSnapshotRef.current, modelCenter) : null;
+      const directedPovPlayer = directorRecord?.inEye ? demoSnapshotRef.current?.players.find(player => demoCameraPlayerId(player) === directorRecord.targetId && player.hasPosition !== false) : null;
+      const povPlayer = firstPerson?.player || manualPovPlayer || directedPovPlayer;
       if (povPlayer) {
         if (firstPerson && !utilityPlaybackCameraActive) {
           utilityReturnCamera = { position: camera.position.clone(), target: controls.target.clone(), fov: camera.fov };
         }
-        const eye = new THREE.Vector3(povPlayer.position.x - modelCenter.x, povPlayer.position.y - modelCenter.y + 1.62 - (povPlayer.duckAmount || 0) * 0.34, povPlayer.position.z - modelCenter.z);
-        const direction = cs2AnglesToSceneDirection(povPlayer.pitch, povPlayer.yaw);
-        camera.position.copy(eye);
-        controls.target.copy(eye).add(direction.multiplyScalar(8));
-        camera.fov = !firstPerson && povPlayer.scoped ? 35 : 68;
-        camera.updateProjectionMatrix();
-        camera.lookAt(controls.target);
+        applyPlayerCamera(camera, {
+          position: [povPlayer.position.x - modelCenter.x, povPlayer.position.y - modelCenter.y, povPlayer.position.z - modelCenter.z],
+          pitch: povPlayer.pitch ?? 0, yaw: povPlayer.yaw ?? 0, crouchAmount: povPlayer.duckAmount,
+        }, { target: controls.target, scoped: !firstPerson && povPlayer.scoped });
         controls.enabled = false;
         // Utility POV has its own lifecycle and must not trigger Demo director cleanup on exit.
         if (firstPerson) {
           demoDirectorCameraActive = false;
-          demoDirectorEventKey = '';
         } else demoDirectorCameraActive = true;
         utilityPlaybackCameraActive = Boolean(firstPerson);
         if (firstPerson) utilityProjectileCameraActive = false;
@@ -1764,9 +1860,12 @@ export default function ThreeBoard(inputProps) {
           povThrownUtility.scale.setScalar(1.45);
           povThrownUtility.visible = povThrownUtility.children.length > 0;
         } else povThrownUtility.visible = false;
-        const firing = !firstPerson && demoFiresRef.current.some((event) => demoEventPlayerMatches(event, povPlayer) && demoTickRef.current >= event.tick && demoTickRef.current - event.tick < 8);
+        const playerTimeline = demoRosterRuntime.timeline;
+        const latestFire = playerTimeline?.latest(String(povPlayer.steamid || povPlayer.name), 'weapon_fire', demoTickRef.current, .125);
+        const firing = !firstPerson && (playerTimeline ? Boolean(latestFire && demoTickRef.current - latestFire.tick < playerTimeline.tickRate * .125)
+          : demoFiresRef.current.some(event => demoEventPlayerMatches(event, povPlayer) && demoTickRef.current >= event.tick && demoTickRef.current - event.tick < 8));
         const reload = !firstPerson ? demoPlayerReload(demoRosterRuntime.reloads, povPlayer, demoTickRef.current) : null;
-        const reloadDrop = reload && !['melee', 'c4'].includes(weaponKind) && !weaponKind.startsWith('utility-') ? Math.sin(reload.progress * Math.PI) : 0;
+        const reloadDrop = weaponAnimation(reload, firing, weaponKind).reloadDrop;
         demoPovEquipment.visible = firstPerson ? firstPerson.tick < firstPerson.throwTick : !throwing;
         demoPovEquipment.position.y = (firing ? -0.43 : -0.48) - reloadDrop * 0.56;
         demoPovEquipment.rotation.x = (firing ? -0.14 : -0.08) + reloadDrop * 0.68;
@@ -1797,70 +1896,12 @@ export default function ThreeBoard(inputProps) {
         utilityPlaybackCameraActive = true;
         utilityProjectileCameraActive = true;
         demoDirectorCameraActive = false;
-        demoDirectorEventKey = '';
       }
-      if (!povPlayer && demoCameraModeRef.current !== 'manual' && demoSnapshotRef.current) {
-        const tick = demoTickRef.current;
-        const eligible = demoHltvEventsRef.current.filter((event) => event.tick <= tick && (demoCameraModeRef.current === 'follow' || event.event_name === `hltv_${demoCameraModeRef.current}`));
-        const directorEvent = eligible.at(-1);
-        if (directorEvent) {
-          const eventKey = `${directorEvent.event_name}-${directorEvent.tick}`;
-          const eventChanged = eventKey !== demoDirectorEventKey;
-          const inertia = THREE.MathUtils.clamp(Number(directorEvent.inertia) || 0, 0, 1);
-          const positionBlend = eventChanged ? 0.1 : THREE.MathUtils.lerp(0.22, 0.06, inertia);
-          const targetBlend = eventChanged ? 0.13 : THREE.MathUtils.lerp(0.28, 0.08, inertia);
-          let desiredPosition = null;
-          let desiredTarget = null;
-          let desiredFov = 48;
-          if (directorEvent.event_name === 'hltv_fixed') {
-            const fixedPosition = new THREE.Vector3(Number(directorEvent.posy) * 0.0254 - modelCenter.x, Number(directorEvent.posz) * 0.0254 - modelCenter.y, Number(directorEvent.posx) * 0.0254 - modelCenter.z);
-            const direction = cs2AnglesToSceneDirection(Number(directorEvent.theta) || 0, Number(directorEvent.phi) || 0);
-            desiredPosition = fixedPosition;
-            desiredTarget = fixedPosition.clone().add(direction.multiplyScalar(8));
-            desiredFov = Number(directorEvent.fov) || 55;
-          } else {
-            const targetUserId = Number(directorEvent.target1);
-            const target = demoSnapshotRef.current.players.find((player) => Number(player.userId) === targetUserId) || demoSnapshotRef.current.players.find((player) => (Number(player.userId) & 0xff) === (targetUserId & 0xff));
-            if (target) {
-              const anchor = new THREE.Vector3(target.position.x - modelCenter.x, target.position.y - modelCenter.y + 1.1, target.position.z - modelCenter.z);
-              if (Number(directorEvent.ineye) > 0) {
-                desiredPosition = anchor.clone().add(new THREE.Vector3(0, 0.5 - (target.duckAmount || 0) * 0.34, 0));
-                desiredTarget = desiredPosition.clone().add(cs2AnglesToSceneDirection(target.pitch, target.yaw).multiplyScalar(8));
-                desiredFov = target.scoped ? 35 : 68;
-              } else {
-                const secondaryUserId = Number(directorEvent.target2);
-                const secondary = secondaryUserId !== 65535 ? demoSnapshotRef.current.players.find((player) => Number(player.userId) === secondaryUserId) || demoSnapshotRef.current.players.find((player) => (Number(player.userId) & 0xff) === (secondaryUserId & 0xff)) : null;
-                const secondaryAnchor = secondary ? new THREE.Vector3(secondary.position.x - modelCenter.x, secondary.position.y - modelCenter.y + 1.1, secondary.position.z - modelCenter.z) : null;
-                desiredTarget = secondaryAnchor ? anchor.clone().lerp(secondaryAnchor, 0.5) : anchor;
-                const pairDirection = secondaryAnchor?.clone().sub(anchor);
-                const baseYaw = pairDirection?.lengthSq() ? Math.atan2(pairDirection.x, pairDirection.z) : THREE.MathUtils.degToRad(Number(target.yaw) || 0);
-                const yaw = baseYaw + THREE.MathUtils.degToRad(Number(directorEvent.theta) || 0);
-                const pairDistance = secondaryAnchor ? anchor.distanceTo(secondaryAnchor) : 0;
-                const distance = Math.max(2.4, (Number(directorEvent.distance) || 112) * 0.0254, pairDistance * 1.15);
-                const height = Math.sin(THREE.MathUtils.degToRad(Number(directorEvent.phi) || 20)) * distance;
-                desiredPosition = desiredTarget.clone().add(new THREE.Vector3(-Math.sin(yaw) * distance, Math.max(0.8, height), -Math.cos(yaw) * distance));
-                desiredFov = THREE.MathUtils.clamp(48 + pairDistance * 1.3, 48, 72);
-              }
-            }
-          }
-          if (desiredPosition && desiredTarget) {
-            camera.position.lerp(desiredPosition, positionBlend);
-            controls.target.lerp(desiredTarget, targetBlend);
-            camera.fov = THREE.MathUtils.lerp(camera.fov, desiredFov, eventChanged ? 0.12 : 0.2);
-            camera.updateProjectionMatrix();
-            camera.lookAt(controls.target);
-            controls.enabled = false;
-            demoDirectorCameraActive = true;
-            demoDirectorEventKey = eventKey;
-          }
-        } else if (demoDirectorCameraActive) { controls.enabled = true; camera.fov = 38; camera.updateProjectionMatrix(); demoDirectorCameraActive = false; }
-      } else if (!povPlayer && demoDirectorCameraActive) {
-        controls.enabled = true;
-        camera.fov = 38;
-        camera.updateProjectionMatrix();
-        demoDirectorCameraActive = false;
-        demoDirectorEventKey = '';
+      if (requestedDirector && !firstPerson && !projectileFollow) {
+        if (directorCamera.getState().mode !== requestedDirector) directorCamera.start(requestedDirector);
+        directorCamera.update(now);
       }
+      demoDirectorCameraActive = Boolean(directorCamera.getState().mode || replayPovCamera.getState().playerId);
       if (!povPlayer) demoPovEquipment.visible = false;
       boardProjection.update(boardViewModeRef.current === "2d");
       planViews.syncAspect();
@@ -1909,11 +1950,16 @@ export default function ThreeBoard(inputProps) {
       }
       updateMapMarkers();
       planHeadings.update(camera.planView);
-      if (!planViews.render() && !demoMonitorRenderer.render(now)) renderer.render(scene, camera);
+      if (!planViews.render() && !demoMonitorRenderer.render(now)) {
+        const id = directorCamera.getState().playerId || replayPovCamera.getState().playerId;
+        const marker = id && demoMarkers.get(id), visible = marker?.visible;
+        if (marker) marker.visible = false;
+        try { renderer.render(scene, camera); } finally { if (marker) marker.visible = visible; }
+      }
       smokeCountdown.update(now);
     };
     const stopRenderLoop = startRenderLoop(animate);
-     return () => { disposed = true; setSimplificationStatus(null); if (requestModelRef.current === requestModel) requestModelRef.current = null; unsubscribeObjectVisibility(); stopRenderLoop(); releaseMapCollisionIndex(collisionMeshes); demoMonitorRenderer.dispose(); planHeadings.dispose(); mapMarkerScene.dispose(); smokeCountdown.dispose(); resizeObserver.disconnect(); window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { modelSimplification?.dispose(); scene.remove(worldModel); disposeMapModel(worldModel); } renderer.dispose(); mount.removeChild(renderer.domElement); };
+     return () => { disposed = true; unsubscribeVoice(); utilityReferences.dispose(); directorCamera.dispose(); replayPovCamera.dispose(); viewerController.dispose(); setSimplificationStatus(null); if (requestModelRef.current === requestModel) requestModelRef.current = null; unsubscribeObjectVisibility(); stopRenderLoop(); releaseMapCollisionIndex(collisionMeshes); demoMonitorRenderer.dispose(); planHeadings.dispose(); mapMarkerScene.dispose(); smokeCountdown.dispose(); unsubscribeViewportResize(); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); renderer.domElement.removeEventListener('pointerdown', touchInput.pointerDown, true); renderer.domElement.removeEventListener('pointermove', touchInput.pointerMove); renderer.domElement.removeEventListener('pointerup', touchInput.pointerUp); renderer.domElement.removeEventListener('pointercancel', touchInput.pointerCancel); renderer.domElement.removeEventListener('contextmenu', onContextMenu); cameraState.dispose(); cameraInput.dispose(); controls.dispose(); [...new Set([...grenadeEffects, grenadePreview, activeGrenade].filter(Boolean))].forEach(disposeGrenadeEffect); demoGrenadeScene.dispose(); [...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => point.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); pathLines.forEach((line) => { line.geometry.dispose(); line.material.dispose(); scene.remove(line); }); pathLines.length = 0; clearBrushStrokes(); clearCollabUtilities(); pointsRef.current = []; gridRef.current = null; modelRef.current = null; modelBasePositionRef.current = null; navFocusRef.current = null; navGroupRef.current = null; demoPlayersRef.current = null; demoMarkers.forEach((marker) => marker.traverse((object) => { object.geometry?.dispose(); object.material?.dispose(); })); demoMovementTrails.forEach((trail) => { trail.geometry.dispose(); trail.material.dispose(); scene.remove(trail); }); collabUtilityScene.dispose(); utilityNotesScene.dispose(); deathHeatScene.dispose(); c4Scene.dispose(); analysisScene.dispose(); if (nav) { nav.geometry.dispose(); nav.mesh.material.dispose(); nav.distanceField?.texture?.dispose(); } if (worldModel) { modelSimplification?.dispose(); scene.remove(worldModel); } modelResources.dispose(); viewport.dispose(); };
   }, [mapName]);
 
   useEffect(() => {

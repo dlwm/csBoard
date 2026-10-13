@@ -83,6 +83,7 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     startMarker.userData.collabUtilityOrigin=true; utility.add(startMarker);
     enableObjectFloorFade(startMarker,floorFadeRef.current);
     utility.userData.pointId=itemId;
+    utility.userData.utilityRenderOrigin = originPosition.toArray();
     utility.userData.collabUtility = true;
     utility.userData.collabUtilityId = itemId;
     utility.userData.noteId = note?.id;
@@ -175,16 +176,27 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     return { focus: point.toArray() };
   };
 
-  const add = (note, itemId) => {
+  const add = (note, itemId, placementPosition = null) => {
     if (!note || !editingRef.current) return undefined;
-    pushHistory();
     const origin = noteWorldPosition(note);
     const utility = create(note, itemId || `collab-util-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, undefined, origin);
-    utility.position.copy(origin);
+    utility.position.copy(placementPosition ? new THREE.Vector3().fromArray(placementPosition) : origin);
+    pushHistory();
     group.add(utility);
     utilities.push(utility);
     notifyEdit();
     return utility;
+  };
+
+  const getPlacements = () => utilities.map(utility => {
+    const origin = new THREE.Vector3().fromArray(utility.userData.utilityRenderOrigin || utility.position.toArray());
+    const effect = new THREE.Vector3().fromArray(utility.userData.utilityEffectPosition || origin.toArray()).add(utility.position).sub(origin);
+    return { id: utility.userData.collabUtilityId, referenceId: utility.userData.noteId ?? null, kind: utility.userData.utilityKind, position: utility.position.toArray(), effectPosition: effect.toArray() };
+  });
+  const move = ({ id, position }) => {
+    const utility = utilities.find(u => u.userData.collabUtilityId === id);
+    if (!utility || !editingRef.current) throw new Error('Utility editing is unavailable');
+    pushHistory(); utility.position.fromArray(position); notifyEdit(); return { id };
   };
 
   const remove = (itemId) => {
@@ -210,8 +222,9 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
       const note = notes.find((candidate) => candidate.id === item.noteId);
       // Persisted metadata keeps utilities usable even if the source note was deleted locally.
       const embeddedNote = item.sourceNote || {};
-      const sourceNote = { ...embeddedNote, ...(note || {}), name: note?.name || item.noteName || '', summary: note?.summary || item.noteSummary || '', grenadeType: note?.grenadeType || embeddedNote.grenadeType || item.kind, replay: { snapshots: item.previewSnapshots || [], events: item.previewEvents || [], tickRate: item.tickRate, throwTick: item.throwTick, effectTick: item.effectTick, endTick: item.endTick, ...(embeddedNote.replay || {}), ...(note?.replay || {}), projectiles: item.projectiles || note?.replay?.projectiles || embeddedNote.replay?.projectiles || [], smokeVoxelFrames: item.smokeVoxelFrame ? [item.smokeVoxelFrame] : note?.replay?.smokeVoxelFrames || embeddedNote.replay?.smokeVoxelFrames || [], infernoFrames: item.infernoFrame ? [item.infernoFrame] : note?.replay?.infernoFrames || embeddedNote.replay?.infernoFrames || [] } };
-      const utility = create(sourceNote, item.id, item.kind, origin, item.effectPosition);
+      const sourceNote = { ...embeddedNote, ...(note || {}), id: note?.id || item.noteId || undefined, name: note?.name || item.noteName || '', summary: note?.summary || item.noteSummary || '', grenadeType: note?.grenadeType || embeddedNote.grenadeType || item.kind, replay: { snapshots: item.previewSnapshots || [], events: item.previewEvents || [], tickRate: item.tickRate, throwTick: item.throwTick, effectTick: item.effectTick, endTick: item.endTick, ...(embeddedNote.replay || {}), ...(note?.replay || {}), projectiles: item.projectiles || note?.replay?.projectiles || embeddedNote.replay?.projectiles || [], smokeVoxelFrames: item.smokeVoxelFrame ? [item.smokeVoxelFrame] : note?.replay?.smokeVoxelFrames || embeddedNote.replay?.smokeVoxelFrames || [], infernoFrames: item.infernoFrame ? [item.infernoFrame] : note?.replay?.infernoFrames || embeddedNote.replay?.infernoFrames || [] } };
+      const renderOrigin = new THREE.Vector3().fromArray(item.renderOrigin || item.position || [0, 0, 0]);
+      const utility = create(sourceNote, item.id, item.kind, renderOrigin, item.effectPosition);
       utility.userData.anonymousUtility = item.anonymous === true;
       utility.userData.sourceNote = item.anonymous === true ? {
         ...embeddedNote,
@@ -309,6 +322,7 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     noteSummary: utility.userData.noteSummary,
     kind: utility.userData.utilityKind,
     position: utility.position.toArray(),
+    renderOrigin: utility.userData.utilityRenderOrigin,
     effectPosition: utility.userData.utilityEffectPosition,
     projectiles: utility.userData.utilityProjectiles || [],
     previewSnapshots: utility.userData.utilityPreviewSnapshots,
@@ -337,5 +351,5 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     scene.remove(group);
   };
 
-  return { getOriginAnchors:()=>utilities.map(item=>({id:`utility-origin:${item.userData.collabUtilityId}`,position:item.getWorldPosition(new THREE.Vector3()).toArray()})), getOriginMarkers:()=>utilities.flatMap(item=>item.children.filter(child=>child.userData.collabUtilityOrigin)), add, remove, promote, clear, preview, focus, clearPreview, restore, play, update, serialize, serializeAnonymous, setVisible: (visible) => { group.visible = visible !== false; }, dispose };
+  return { getPlacements, move, getOriginAnchors:()=>utilities.map(item=>({id:`utility-origin:${item.userData.collabUtilityId}`,position:item.getWorldPosition(new THREE.Vector3()).toArray()})), getOriginMarkers:()=>utilities.flatMap(item=>item.children.filter(child=>child.userData.collabUtilityOrigin)), add, remove, promote, clear, preview, focus, clearPreview, restore, play, update, serialize, serializeAnonymous, setVisible: (visible) => { group.visible = visible !== false; }, dispose };
 }

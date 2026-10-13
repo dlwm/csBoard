@@ -1,0 +1,32 @@
+# Minimal standard replay consumer
+
+This example imports only `@csboard/viewer` and `@csboard/viewer/format`. It needs no React, CSBoard panels, cache adapter, parser or server API.
+
+## Run from this repository
+
+1. Run `make viewer-example`.
+2. Serve `build/viewer-example` over HTTP, for example with `python3 -m http.server 8080 --directory build/viewer-example`.
+3. Open `http://localhost:8080/minimal/`.
+4. Choose the matching NAV JSON and a `cs2-demo-format/replay/0.1` ZIP (`.cs2df`), then click **Open**.
+
+The repository build resolves package names to the source package. The older example at `/` demonstrates additional CSBoard host adapters; this minimal example does not use them.
+
+## Use in another application
+
+The package is experimental/private and is not published to npm. Copy this example into your own Vite application and install the source package by local path, along with its peers:
+
+```sh
+npm install /absolute/path/to/csBoard/packages/viewer three@^0.185.1 three-mesh-bvh@^0.9.14
+```
+
+Use the same package-name imports in `main.js`; no CSBoard path alias is required. The package declares JSZip and Ajv dependencies for standard reading. NAV JSON must provide an `areas` object whose entries contain `corners: [{x,y,z}, …]` in Source coordinates; choose the NAV belonging to the package's map. The reader validates the replay package, but cannot verify the identity of an unlabeled NAV file.
+
+## Ownership and operations
+
+- `openReplayPackageSource(file, {signal})` validates the standard package and opens its data source. It does not reinterpret standard rows as application cache fields.
+- `createViewer({container, navData, mapName})` creates the renderer; `setDataSource(source)` lends it the opened source.
+- `source.listSegments()` populates the round selector. `replay.open`, `replay.play`, `replay.pause` and `replay.seek` all use `viewer.execute` and check its structured result.
+- `playback.*` events refresh the host's controls. Event callbacks are removed when the viewer is disposed.
+- On close or navigation, abort pending reads, dispose the viewer, then dispose the borrowed source.
+
+No GLB is required. Add optional model, equipment and voice drivers only when your application needs them. The example shows base rendering, not the full CSBoard combat UI or an audio player. v3 statistics packages are not full replay packages; missing tracks remain unknown/unsupported rather than fabricated. JSON is decoded per segment, not streamed row by row.

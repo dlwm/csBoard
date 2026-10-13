@@ -7,11 +7,15 @@ import { checkWorkspaceNode, checkWorkspaceStyles } from './check-workspace.js';
 // Enforce dependencies on parsed code, not text matches (comments and examples
 // must not become false violations). 依赖边界通过 AST 检查，忽略注释和示例字符串。
 const domainRoots = [
-  'src/analysis/queryService.js', 'src/app/serialization.js',
+  'packages/viewer/src/data/workspace.js', 'packages/viewer/src/core/utilityReferences.js', 'packages/viewer/src/core/contract.js', 'packages/viewer/src/core/toolAdapter.js',
+  'packages/viewer/src/playback/voiceController.js',
+  'packages/viewer/src/playback/voiceTimeline.js',
+  'packages/viewer/src/playback/combatOverlay.js',
+  'packages/viewer/src/resources/controller.js', 'packages/viewer/src/playback/controller.js', 'packages/viewer/src/playback/interpolation.js', 'packages/viewer/src/data/replaySource.js', 'src/demo/replayDataSource.js', 'packages/viewer/src/core/controller.js', 'src/analysis/queryService.js', 'src/app/serialization.js', 'src/formats/tasks.js', 'src/demo/parsers/session.js',
   'src/demo/savedRecordingRepository.js', 'src/demo/recordings.js', 'src/demo/playbackSessions.js', 'src/demo/library.js', 'src/demo/parserRuntime.js', 'src/demo/grenades.js',
   'src/analysis/buildAnalysisDataset.js', 'src/analysis/utilityRecommendations.js',
   'src/utility/savedThrow.js', 'src/utility/recordedThrowRepository.js',
-  'src/utility/recoverRecordedReplay.js', 'src/app/commandRegistry.js', 'src/collaboration/boardCommands.js',
+  'src/utility/recoverRecordedReplay.js', 'packages/viewer/src/core/commandRegistry.js', 'packages/viewer/src/core/boardCommands.js',
   'src/collaboration/archiveStore.js', 'src/collaboration/frameSession.js',
 ];
 const compositions = new Set(['src/entry.js', 'src/bootstrap.js']);
@@ -32,7 +36,7 @@ export function checkArchitecture(root) {
   function scan(folder) {
     for (const entry of fs.readdirSync(path.join(root, folder), { withFileTypes: true })) {
       const file = `${folder}/${entry.name}`;
-      if (entry.isDirectory()) scan(file);
+      if (entry.isDirectory() && !['node_modules', 'dist'].includes(entry.name)) scan(file);
       else if (/\.(js|jsx)$/.test(file)) {
         const source = fs.readFileSync(path.join(root, file), 'utf8');
         const ast = parseSync(file, source);
@@ -48,6 +52,8 @@ export function checkArchitecture(root) {
             const target = specifier.startsWith('.') ? normalize(path.resolve(root, path.dirname(file), specifier.split('?')[0])) : specifier;
             if (!/\.(js|jsx)$/.test(target) && specifier.startsWith('.')) return;
             dependencies.push({ target, node });
+            if (file.startsWith('packages/viewer/src/') && (/^(src|shared|electron)\//.test(target) || /^(react|react-dom|electron|@capacitor)(\/|$)/.test(target))) report(node, `Viewer cannot depend on host ${target}`);
+            if (/^packages\/viewer\/src\/(core|data|playback)\//.test(file) && (target.startsWith('packages/viewer/src/three/') || /^three(\/|$)/.test(target))) report(node, `Viewer core cannot depend on renderer ${target}`);
             if (specifier.startsWith('.') && !fs.existsSync(path.join(root, target))) report(node, `Missing module ${target}`);
             if (file.startsWith('shared/') && (target.startsWith('src/') || /^(react|electron|@capacitor)(\/|$)/.test(target))) report(node, `Shared protocol cannot depend on ${target}`);
             if (!file.startsWith('src/platform/') && file.startsWith('src/') && !compositions.has(file) && (infrastructure.test(target) || target === 'src/platform/createPlatform.js')) report(node, `Use public platform ports, not ${target}`);
@@ -60,7 +66,7 @@ export function checkArchitecture(root) {
       }
     }
   }
-  for (const folder of ['src', 'shared', 'electron']) scan(folder);
+  for (const folder of ['src', 'shared', 'electron', 'packages']) scan(folder);
   // Follow each pure business entry's complete import closure. An indirect UI
   // dependency violates the same boundary as a direct one. 核心边界检查传递依赖。
   for (const entry of domainRoots) {

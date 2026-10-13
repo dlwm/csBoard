@@ -1,5 +1,5 @@
 import { createDemoParser } from '../../../demo/parserRuntime.js';
-import { createGoParserAdapter } from '../../../demo/goParserAdapter.js';
+import { createGoParserEngine } from '../../../demo/parsers/goEngine.js';
 
 let sequence = 0;
 const pending = new Map();
@@ -9,7 +9,7 @@ const request = (method, args) => new Promise((resolve, reject) => {
   self.postMessage({ type: 'parser-request', id, method, args });
 });
 const parse = createDemoParser({
-  ...createGoParserAdapter({ init: async () => null, openSources: async data => data.sources, request }),
+  engine: createGoParserEngine({ execution: 'embedded', init: async () => null, openSources: async data => data.sources, request }),
   postMessage: message => self.postMessage(message),
 });
 self.onmessage = ({ data }) => {

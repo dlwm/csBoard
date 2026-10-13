@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { buildNavTopViewLayers } from '../src/data/navTopView.js';
 import { squareRadarBounds } from '../src/data/radarBounds.js';
-import { createPlayerPawn } from '../src/three/playerPawn.js';
+import { createPlayerPawn } from '../packages/viewer/src/three/playerPawn.js';
 import { createCollabPlayer, setCollabPlayerCrouch } from '../src/three/collabPlayer.js';
 
 test('non-square world extents preserve equal X/Y scale and center', () => {

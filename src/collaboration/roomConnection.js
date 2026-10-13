@@ -41,7 +41,7 @@ export function connectRoom({ doc, provider, roomCode, getPorts }) {
       const serialized = JSON.stringify(normalizedShared);
       if (serialized === appliedWorkspace) return;
       appliedWorkspace = serialized;
-      getPorts().scene()?.restoreWorkspaceState?.(normalizedShared, false);
+      getPorts().scene()?.restoreWorkspaceState?.(normalizedShared, false, { origin: 'remote' });
     };
     let appliedRevision = -1;
     const tr = (key, values) => translate(getPorts().context().language, key, values);

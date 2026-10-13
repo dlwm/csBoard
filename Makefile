@@ -14,7 +14,7 @@ VERSION ?=
 	desktop-start desktop-dev desktop-prepare desktop-build-mac-arm64 \
 	desktop-build-mac-x64 desktop-build-win-x64 native-build \
 	mobile-prepare mobile-open mobile-build version version-sync version-check \
-	resources nav-data nav-labels map-places map-export workers-build wrangler docker guide-example
+	resources nav-data nav-labels map-places map-export workers-build wrangler docker guide-example format-contracts viewer-example
 
 help:
 	@printf '%s\n' \
@@ -41,6 +41,8 @@ help:
 		'  deploy                      Authorize and deploy Workers' \
 		'  wrangler ARGS="whoami"       Run the installed Wrangler CLI' \
 		'  guide-example DEMO=path       Prepare the compact operation guide replay' \
+		'  format-contracts             Compile format validators; ARGS="--source .local/demo-format" to sync' \
+		'  viewer-example               Build the independent viewer example' \
 		'  nav-labels                   Paint NAV regions and save place names' \
 		'  map-places                   Import map place/spawn entities from local VPKs' \
 		'  resources / nav-data / map-export  Prepare map resources' \
@@ -140,3 +142,9 @@ map-places:
 
 guide-example:
 	$(NODE) scripts/build-guide-example.js $(if $(DEMO),"$(DEMO)",) $(ARGS)
+
+format-contracts:
+	$(NODE) scripts/sync-format-contracts.js $(ARGS)
+
+viewer-example:
+	$(NODE) node_modules/vite/bin/vite.js build --config packages/viewer/examples/vite.config.js $(ARGS)

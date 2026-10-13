@@ -1,31 +1,21 @@
+import { getDemoPlayerTimeline, demoPlayerId } from './playerTimeline.js';
 // Interpolates sparse Demo snapshots and converts CS2 angles into scene space.
 import * as THREE from 'three';
 
-export const lerpAngleDegrees = (from, to, amount) => from + (THREE.MathUtils.euclideanModulo(to - from + 180, 360) - 180) * amount;
+import { frameWindow, lerpAngleDegrees } from '../../packages/viewer/src/playback/interpolation.js';
+export { lerpAngleDegrees };
 
-export const cs2AnglesToSceneDirection = (pitchDegrees = 0, yawDegrees = 0) => {
-  const pitch = THREE.MathUtils.degToRad(pitchDegrees);
-  const yaw = THREE.MathUtils.degToRad(yawDegrees);
-  return new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).normalize();
-};
+export { cs2AnglesToSceneDirection } from '../../packages/viewer/src/three/playerCamera.js';
 
-export function interpolateDemoSnapshot(snapshots, tick) {
+export function interpolateDemoSnapshot(snapshots, tick, tickRate = 64) {
   if (!snapshots?.length) return null;
-  let before = snapshots[0];
-  let after = snapshots[snapshots.length - 1];
-  for (let index = 1; index < snapshots.length; index += 1) {
-    if (snapshots[index].tick >= tick) {
-      after = snapshots[index];
-      before = snapshots[index - 1];
-      break;
-    }
-  }
-  const amount = before.tick === after.tick ? 0 : THREE.MathUtils.clamp((tick - before.tick) / (after.tick - before.tick), 0, 1);
+  const { before, after, amount } = frameWindow(snapshots, tick);
+  const timeline = getDemoPlayerTimeline(snapshots, null, tickRate);
   const identity = player => String(player.steamid || player.name);
   const afterByName = new Map(after.players.map((player) => [identity(player), player]));
   return {
     tick,
-    timeSeconds: tick / 64,
+    timeSeconds: tick / tickRate,
     // Older caches may contain multiple FrameDone rows for the same player/tick.
     // Seeking replaces state; duplicate samples must not grow the roster.
     players: [...new Map((amount >= 1 ? after.players : before.players).map(player => [identity(player), player])).values()].map((player) => {
@@ -40,23 +30,12 @@ export function interpolateDemoSnapshot(snapshots, tick) {
       // movement paths. 人员死亡复活不补间，避免横穿地图的虚假移动。
       const discontinuity = Boolean(player.health <= 0 && next.health > 0) || Math.hypot((next.position?.x || 0) - (player.position?.x || 0), (next.position?.y || 0) - (player.position?.y || 0), (next.position?.z || 0) - (player.position?.z || 0)) > 12;
       const toPosition = !discontinuity && nextHasPosition ? next.position : fromPosition;
-      const flashPlayer = amount >= 1 ? next : player;
-      const flashSnapshot = amount >= 1 ? after : before;
-      const currentFlashDuration = Number(flashPlayer.flashDuration) || 0;
-      let flashStartTick = flashSnapshot.tick;
-      let flashInitialDuration = currentFlashDuration;
-      if (currentFlashDuration > 0) for (let index = snapshots.indexOf(flashSnapshot) - 1; index >= 0; index -= 1) {
-        const previous = snapshots[index].players.find((candidate) => candidate.name === player.name);
-        if (!previous || Number(previous.flashDuration) <= 0 || Math.abs(Number(previous.flashDuration) - currentFlashDuration) > 0.05) break;
-        flashStartTick = snapshots[index].tick;
-        flashInitialDuration = Math.max(flashInitialDuration, Number(previous.flashDuration) || 0);
-      }
-      const flashRemaining = currentFlashDuration > 0 ? Math.max(0, flashInitialDuration - (tick - flashStartTick) / 64) : 0;
+      const flash = timeline.flashAt(demoPlayerId(discrete), tick);
       return {
         ...discrete,
         health: amount < 0.5 ? player.health : next.health,
-        flashDuration: flashRemaining,
-        flashInitialDuration,
+        flashDuration: flash?.remaining ?? 0,
+        flashInitialDuration: flash?.initial ?? 0,
         flashMaxAlpha: THREE.MathUtils.lerp(Number(player.flashMaxAlpha) || 0, Number(next.flashMaxAlpha) || 0, amount),
         hasPosition,
         position: hasPosition ? {
