@@ -1,6 +1,6 @@
 module csboard/native/parser
 
-go 1.27.0
+go 1.27.2
 
 require github.com/markus-wa/demoinfocs-golang/v6 v6.0.0-alpha.0
 

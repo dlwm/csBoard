@@ -1,6 +1,6 @@
 module csboard/native/mobile
 
-go 1.27.0
+go 1.27.2
 
 require (
 	csboard/native/parser v0.0.0

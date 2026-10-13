@@ -1,6 +1,6 @@
 module csboard/native/storage
 
-go 1.27.0
+go 1.27.2
 
 require modernc.org/sqlite v1.60.1
 
