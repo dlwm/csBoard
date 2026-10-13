@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   behavior:
+    name: Behavior, contracts and Web build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -36,5 +37,53 @@ jobs:
         run: make install
       - name: Check versions, architecture, behavior and web build
         run: make check
+      - name: Build standalone viewer consumers
+        run: make viewer-example
       - name: Validate Workers with their real bundler (no deployment)
         run: make workers-build
+
+  desktop:
+    name: Packaged startup (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: mac-arm64
+          - runner: windows-2022
+            target: win-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: native/parser/go.mod
+          cache-dependency-path: |
+            native/parser/go.sum
+            native/storage/go.sum
+      - name: Install Make on Windows
+        if: runner.os == 'Windows'
+        run: choco install make --yes --no-progress
+      - run: make install
+      - name: Build directory package, inspect dependencies and start application
+        run: make desktop-check TARGET=${{ matrix.target }}
+      - name: Save startup screenshot and process diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-check-${{ matrix.target }}
+          path: build/qa/
+          if-no-files-found: ignore
+          retention-days: 7

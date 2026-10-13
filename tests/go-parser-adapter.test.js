@@ -29,3 +29,32 @@ test('Go parser failures reach the import caller', async () => {
   await assert.rejects(adapter.parseHeader({ part: 0 }), error);
   await assert.rejects(adapter.parseGrenades({ part: 0 }, []), error);
 });
+
+test('column and row transports produce identical ticks without turning missing values into zero', async () => {
+  const row = {tick:10,health:null,nested:{X:1,Y:null}};
+  const rows = createGoProtocolClient({request:async()=>structuredClone([row])});
+  const columns = createGoProtocolClient({compactTicks:true,request:async(method,args)=>{
+    assert.equal(args.format,'columns');
+    return {columns:['tick','health','nested'],rows:[[10,null,{X:1,Y:null}]]};
+  }});
+  assert.deepEqual(await columns.parseTicks({part:0},[],[10]),await rows.parseTicks({part:0},[],[10]));
+});
+
+test('malformed tick tables fail before partial replay rows reach callers', async () => {
+  for (const value of [{columns:['tick'],rows:[[10,20]]},{columns:['tick'],rows:[10]},{rows:[]}]) {
+    const client=createGoProtocolClient({request:async()=>value});
+    await assert.rejects(client.parseTicks({part:0},[],[]), /Invalid tick/);
+  }
+});
+
+test('grenade pagination yields all pages and rejects gaps, loops and truncation', async () => {
+  const pages=[{rows:[{id:'one'}],total:2,nextOffset:1},{rows:[{id:'two'}],total:2,nextOffset:null}];
+  const offsets=[];
+  const client=createGoProtocolClient({request:async(method,args)=>{offsets.push(args.offset);return structuredClone(pages.shift());}});
+  const values=[];for await(const row of client.iterateGrenades({part:0},[]))values.push(row.id);
+  assert.deepEqual(values,['one','two']);assert.deepEqual(offsets,[0,1]);
+  for(const page of [{rows:[{}],total:2,nextOffset:null},{rows:[{}],total:2,nextOffset:0},{rows:[{}],total:2,nextOffset:2},{rows:[],total:2,nextOffset:1}]) {
+    const broken=createGoProtocolClient({request:async()=>structuredClone(page)});
+    await assert.rejects(async()=>{for await(const row of broken.iterateGrenades({part:0},[])) void row;},/Incomplete grenade journal|Invalid grenade page/);
+  }
+});

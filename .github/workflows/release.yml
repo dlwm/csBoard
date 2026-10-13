@@ -102,13 +102,22 @@ jobs:
       - name: Prepare dependencies
         run: |
           make install
-      - name: Build native component and run behavioral tests
-        run: |
-          make test
+      - name: Test native storage on the target platform
+        run: make test TEST=tests/native-storage.test.js
       - name: Build installer
         run: make ${{ matrix.command }}
       - name: Inspect package signatures, files and packaged storage
         run: node scripts/check-desktop-package.js ${{ matrix.target }}
+      - name: Start the packaged application and verify renderer IPC
+        run: make desktop-smoke TARGET=${{ matrix.target }}
+      - name: Save desktop diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-diagnostics-${{ matrix.target }}
+          path: build/qa/
+          if-no-files-found: ignore
+          retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: installer-${{ matrix.target }}

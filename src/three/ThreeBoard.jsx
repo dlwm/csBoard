@@ -608,14 +608,23 @@ export default function ThreeBoard(inputProps) {
       if (!collabUtilityPreviewCamera) {
         collabUtilityPreviewCamera = { position: camera.position.clone(), target: controls.target.clone(), fov: camera.fov, modelMode: modelMode.value, modelRange: modelRange.value, modelVisible: modelVisibilityRef.current };
       }
-      // Focus previews temporarily expose nearby geometry with a tight camera lens,
+      // Focus previews temporarily expose nearby geometry with a camera lens,
       // without publishing or persisting the user's normal visualization settings.
       modelMode.value = 2;
-      modelRange.value = 0.2;
+      modelRange.value = 1;
       if (modelRef.current) modelRef.current.visible = true;
       const focus = new THREE.Vector3().fromArray(preview.focus);
       const originalOffset = collabUtilityPreviewCamera.position.clone().sub(collabUtilityPreviewCamera.target);
-      const distance = THREE.MathUtils.clamp(originalOffset.length(), 5.5, 13);
+      // Fit the effect's bounding sphere using the narrower viewport angle,
+      // then leave 60% extra space for surrounding cover and landing references.
+      // d = radius / sin(min(horizontalFov, verticalFov) / 2) * 1.6.
+      // 聚光灯不贴着烟体取景：按实际效果范围适配，并保留周围地形参照。
+      // 20–28 是常规预览距离；大范围效果允许更远，避免裁切。
+      const verticalHalfFov = THREE.MathUtils.degToRad(camera.fov) / 2;
+      const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * camera.aspect);
+      const radius = Number.isFinite(preview.radius) ? Math.max(0, preview.radius) : 0;
+      const fitDistance = radius / Math.sin(Math.max(0.05, Math.min(verticalHalfFov, horizontalHalfFov))) * 1.6;
+      const distance = Math.max(fitDistance, THREE.MathUtils.clamp(originalOffset.length(), 20, 28));
       const direction = originalOffset.lengthSq() > 0.001 ? originalOffset.normalize() : new THREE.Vector3(0.55, 0.72, 1).normalize();
       const toPosition = focus.clone().add(direction.multiplyScalar(distance));
       const orbitOffset = toPosition.clone().sub(focus);

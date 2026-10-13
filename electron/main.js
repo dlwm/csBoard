@@ -79,6 +79,13 @@ function startDesktopServer() {
   })
 }
 
+// CI starts the real packaged app with an isolated profile, never user data.
+// 启动验收必须显式启用并指定隔离目录，不借用用户存档或资源。
+if (process.argv.includes('--csboard-smoke-test')) {
+  if (!process.env.CSBOARD_SMOKE_PROFILE || !path.isAbsolute(process.env.CSBOARD_SMOKE_PROFILE)) throw new Error('Desktop smoke test requires an absolute isolated profile');
+  app.setPath('userData', process.env.CSBOARD_SMOKE_PROFILE)
+}
+
 app.setName('csBoard')
 // Keep the existing storage location when changing the displayed product name.
 const existingUserData = app.getPath('userData')
@@ -97,6 +104,7 @@ else app.on('second-instance', () => {
 })
 
 app.whenReady().then(async () => {
+  if (!app.isPackaged && process.env.CSBOARD_AUTOMATION === '1') app.dock?.hide()
   if (!hasSingleInstanceLock) return
   await applyPendingRestore(app.getPath('userData'))
   // Release packages never read .local/official/maps. Only an explicit local-test package
@@ -150,12 +158,13 @@ app.whenReady().then(async () => {
   if (!app.isPackaged) app.dock?.setIcon(path.join(__dirname, '../build/icons/icon.png'))
   mainWindow = new BrowserWindow({
     title: productName,
+    show: app.isPackaged || process.env.CSBOARD_AUTOMATION !== '1',
     icon: path.join(__dirname, '../build/icons/icon.png'),
     width: 1440,
     height: 900,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
-      additionalArguments: aiEnabled ? ['--csboard-ai-enabled'] : [],
+      additionalArguments: [...(aiEnabled ? ['--csboard-ai-enabled'] : []), ...(!app.isPackaged && process.env.CSBOARD_AUTOMATION === '1' ? ['--csboard-automation'] : [])],
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false,

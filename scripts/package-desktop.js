@@ -1,3 +1,4 @@
+import { checkDesktopModuleGraph } from './lib/desktop-module-graph.js';
 import { buildFeatures } from '../config/build/features.js';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -40,14 +41,19 @@ if (command === 'dev') {
   const platform = target.platform === 'darwin' ? Platform.MAC : Platform.WINDOWS;
   const localConfiguration = localModels ? (await import('../config/electron/local.cjs')).default : {};
   const baseConfiguration = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).build;
+  // Derive local runtime dependencies from parsed imports; library extraction
+  // must not rely on remembering every new path in a manual packaging list.
+  // 从入口递归收集主进程与 preload 的本地依赖，避免抽库后漏打包。
+  const runtimeFiles = checkDesktopModuleGraph(file => fs.readFileSync(path.join(root, file)), { aiEnabled: features.ai });
+  const files = [...new Set([...(localConfiguration.files || baseConfiguration.files), ...runtimeFiles])];
   const config = {
     ...baseConfiguration,
     ...localConfiguration,
     extends: null,
+    files: [...files, ...(!features.ai ? ['!electron/ai-service.js', '!shared/ai-protocol.js', '!shared/ai-providers.js'] : [])],
     extraResources: [...(localConfiguration.extraResources || baseConfiguration.extraResources), { from: resourceTool, to: 'resource-tool' }],
     ...(target.platform === 'darwin' ? { mac: { ...(localConfiguration.mac || baseConfiguration.mac), binaries: [...((localConfiguration.mac || baseConfiguration.mac).binaries || []), 'Contents/Resources/resource-tool/Source2Viewer-CLI'] } } : {}),
     extraMetadata: { ...localConfiguration.extraMetadata, csboardAiEnabled: features.ai, ...(localSource ? { csboardLocalParser: true } : {}) },
-    ...(!features.ai ? { files: [...(localConfiguration.files || JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).build.files), '!electron/ai-service.js', '!shared/ai-protocol.js', '!shared/ai-providers.js'] } : {}),
   };
   // An explicit file avoids electron-builder concatenating these fully resolved
   // resource arrays with package.json again (and copying read-only files twice).

@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Only business operations cross the bridge. Native paths stay in the main process.
 contextBridge.exposeInMainWorld('csboardDesktop', {
   isDesktop: true,
+  automation: process.argv.includes('--csboard-automation'),
   updates: {
     status: () => ipcRenderer.invoke('desktop:update-status'),
     check: () => ipcRenderer.invoke('desktop:update-check'),

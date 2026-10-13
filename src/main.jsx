@@ -21,7 +21,7 @@ import useUtilityRecommendations from './analysis/useUtilityRecommendations.js';
 import UtilityRecommendationsPanel from './analysis/UtilityRecommendationsPanel.jsx';
 import useAnalysisDataset from './analysis/useAnalysisDataset.js';
 import { startPlaybackClock } from './app/playbackClock.js';
-import { getPlatform } from './platform/index.js';
+import { getPlatform, getHost } from './platform/index.js';
 import useDemoRoundData from './demo/useDemoRoundData.js';
 import useWorkspaceSession from './collaboration/useWorkspaceSession.js';
 import { readRoomWorkspace, publishRoomArchive } from './collaboration/roomWorkspace.js';
@@ -664,6 +664,7 @@ function App() {
   };
   const onReady = (value) => {
     restoreReadyBoard(value);
+    getHost().automation?.attachViewer(value.viewer);
     boardReadyMapRef.current = mapName;
     const pending = pendingCameraRestoreRef.current;
     if (pending?.mapName !== mapName) return;

@@ -19,6 +19,7 @@
  * @property {Object|null} [resources]
  * @property {Object|null} [maintenance]
  * @property {Object|null} [presentation]
+ * @property {{attachViewer: Function}|null} [automation] Opt-in development capture transport.
  * @property {Object|null} [ai]
  */
 

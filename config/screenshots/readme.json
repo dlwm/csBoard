@@ -1,0 +1,632 @@
+{
+  "version": 1,
+  "width": 1600,
+  "height": 1000,
+  "setup": [
+    {
+      "action": "click",
+      "selector": ".language-switch",
+      "text": [
+        "中"
+      ],
+      "optional": true
+    },
+    {
+      "action": "wait",
+      "expression": "document.querySelector('.language-switch')?.textContent.trim() === 'EN'",
+      "label": "English interface"
+    },
+    {
+      "action": "click",
+      "text": [
+        "本地 Demo",
+        "Local Demo"
+      ],
+      "contains": true
+    },
+    {
+      "action": "click",
+      "selector": ".demo-cache-open",
+      "index": 0
+    },
+    {
+      "action": "wait",
+      "expression": "!!document.querySelector('.demo-timeline')",
+      "label": "round playback"
+    },
+    {
+      "action": "range",
+      "selector": ".demo-timeline",
+      "offset": 3200
+    },
+    {
+      "action": "click",
+      "selector": ".mode-picker > button",
+      "text": [
+        "MODEL OFF"
+      ],
+      "optional": true
+    },
+    {
+      "action": "click",
+      "selector": ".mode-list label",
+      "text": [
+        "CAMERA LENS"
+      ],
+      "optional": true
+    },
+    {
+      "action": "pause",
+      "ms": 3000
+    },
+    {
+      "action": "range",
+      "selector": ".model-opacity input",
+      "value": 0.5,
+      "optional": true
+    }
+  ],
+  "scenes": [
+    {
+      "file": "round-replay.png",
+      "description": "Dust2 round 22, recorded players, utility and timeline",
+      "ready": "document.body.innerText.includes('ROUND 22')",
+      "steps": []
+    },
+    {
+      "file": "round-monitors.png",
+      "description": "Simultaneous first-person replay monitors for the selected team",
+      "steps": [
+        {
+          "action": "range",
+          "selector": ".demo-timeline",
+          "offset": 2100
+        },
+        {
+          "action": "click",
+          "text": [
+            "Monitors"
+          ]
+        },
+        {
+          "action": "pause",
+          "ms": 2000
+        }
+      ],
+      "ready": "!!document.querySelector('.demo-monitor-toggle.selected')"
+    },
+    {
+      "file": "analysis.png",
+      "description": "Utility events and repeated-throw recommendations",
+      "steps": [
+        {
+          "action": "click",
+          "text": [
+            "Monitors"
+          ],
+          "optional": true
+        },
+        {
+          "action": "click",
+          "text": [
+            "数据分析",
+            "Demo Analysis",
+            "Analysis"
+          ]
+        },
+        {
+          "action": "wait",
+          "expression": "!!document.querySelector(\".analysis-player-combobox input:not(:disabled)\")"
+        },
+        {
+          "action": "focus",
+          "selector": ".analysis-player-combobox input"
+        },
+        {
+          "action": "repeat",
+          "count": 10,
+          "steps": [
+            {
+              "action": "click",
+              "selector": ".analysis-player-results button[aria-selected=\"false\"]"
+            }
+          ]
+        },
+        {
+          "action": "blur",
+          "selector": ".analysis-player-combobox input"
+        },
+        {
+          "action": "click",
+          "text": [
+            "道具事件",
+            "Utility Events",
+            "UTILITY"
+          ]
+        }
+      ],
+      "ready": "document.querySelectorAll(\".utility-recommendation-list article\").length > 0 && document.querySelector(\".utility-recommendations\").getAttribute(\"aria-busy\") === \"false\""
+    },
+    {
+      "file": "analysis-area.png",
+      "description": "Area time heatmap with middle-round phase selection",
+      "steps": [
+        {
+          "action": "click",
+          "text": [
+            "AREA TIME"
+          ],
+          "selector": ".analysis-type-tabs button"
+        },
+        {
+          "action": "click",
+          "text": [
+            "EARLY"
+          ],
+          "selector": ".analysis-area-phase-buttons button",
+          "contains": true
+        },
+        {
+          "action": "click",
+          "text": [
+            "POST-PLANT"
+          ],
+          "selector": ".analysis-area-phase-buttons button",
+          "contains": true
+        },
+        {
+          "action": "click",
+          "selector": ".mode-picker > button",
+          "text": [
+            "CAMERA LENS"
+          ],
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": ".mode-list label",
+          "text": [
+            "MODEL OFF"
+          ],
+          "optional": true
+        },
+        {
+          "action": "wait",
+          "expression": "document.querySelector('.analysis-panel')?.getAttribute('aria-busy') === 'false' && document.querySelector('.analysis-type-tabs button.selected')?.textContent === 'AREA TIME' && document.querySelectorAll('.analysis-area-phase-buttons button[aria-pressed=true]').length === 1"
+        },
+        {
+          "action": "click",
+          "selector": ".brush-swatch[aria-label=\"#ffd166\"]"
+        },
+        {
+          "action": "draw",
+          "points": [
+            [
+              660,
+              566
+            ],
+            [
+              668,
+              556
+            ],
+            [
+              679,
+              546
+            ],
+            [
+              691,
+              536
+            ],
+            [
+              704,
+              526
+            ]
+          ]
+        }
+      ],
+      "ready": "document.querySelector('.analysis-panel')?.getAttribute('aria-busy') === 'false' && document.querySelector('.analysis-type-tabs button.selected')?.textContent === 'AREA TIME' && document.querySelectorAll('.analysis-area-phase-buttons button[aria-pressed=true]').length === 1"
+    },
+    {
+      "file": "analysis-kd.png",
+      "description": "Kill and death event positions with CT-side and economy filters",
+      "steps": [
+        {
+          "action": "click",
+          "text": [
+            "KD EVENTS"
+          ],
+          "selector": ".analysis-type-tabs button"
+        },
+        {
+          "action": "click",
+          "text": [
+            "POSITIONS"
+          ],
+          "selector": ".analysis-mode-tabs button"
+        },
+        {
+          "action": "select",
+          "selector": ".analysis-side select",
+          "value": "CT"
+        },
+        {
+          "action": "range",
+          "selector": ".analysis-bottom-timeline input",
+          "fraction": 1
+        }
+      ],
+      "ready": "document.querySelector('.analysis-panel')?.getAttribute('aria-busy') === 'false' && document.querySelector('.analysis-type-tabs button.selected')?.textContent === 'KD EVENTS' && !!document.querySelector('.analysis-event-filters')"
+    },
+    {
+      "file": "analysis-focus.png",
+      "description": "Focus a repeated smoke group and inspect its recorded effect",
+      "steps": [
+        {
+          "action": "select",
+          "selector": ".analysis-side select",
+          "value": "ALL"
+        },
+        {
+          "action": "click",
+          "text": [
+            "UTILITY"
+          ],
+          "selector": ".analysis-type-tabs button"
+        },
+        {
+          "action": "wait",
+          "expression": "document.querySelectorAll('.utility-recommendation-list article').length >= 3 && document.querySelector('.utility-recommendations')?.getAttribute('aria-busy') === 'false'"
+        },
+        {
+          "action": "click",
+          "selector": ".mode-picker > button",
+          "text": [
+            "MODEL OFF"
+          ],
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": ".mode-list label",
+          "text": [
+            "CAMERA LENS"
+          ],
+          "optional": true
+        },
+        {
+          "action": "range",
+          "selector": ".model-opacity input",
+          "value": 0.5,
+          "optional": true
+        },
+        {
+          "action": "click",
+          "selector": ".recommendation-actions button:first-child",
+          "index": 1
+        },
+        {
+          "action": "hover",
+          "selector": ".utility-recommendation-list article",
+          "index": 1
+        }
+      ],
+      "ready": "document.querySelector('.utility-recommendations').getAttribute('aria-busy') === 'false'"
+    },
+    {
+      "file": "utility-notes.png",
+      "description": "Saved real throw library, recorded smoke preview and getpos details",
+      "steps": [
+        {
+          "action": "pointer",
+          "x": 600,
+          "y": 100
+        },
+        {
+          "action": "click",
+          "selector": ".recommendation-actions button:first-child",
+          "index": 1
+        },
+        {
+          "action": "click",
+          "selector": ".recommendation-actions button:nth-child(2)",
+          "index": 1
+        },
+        {
+          "action": "wait",
+          "expression": "/(已添加|Added)/.test(document.querySelectorAll(\".recommendation-actions button:nth-child(2)\")[1]?.textContent || \"\")",
+          "label": "saved recorded smoke"
+        },
+        {
+          "action": "click",
+          "selector": ".recommendation-actions button:nth-child(2)",
+          "index": 0
+        },
+        {
+          "action": "wait",
+          "expression": "/(已添加|Added)/.test(document.querySelectorAll(\".recommendation-actions button:nth-child(2)\")[0]?.textContent || \"\")"
+        },
+        {
+          "action": "click",
+          "selector": ".recommendation-actions button:nth-child(2)",
+          "index": 2
+        },
+        {
+          "action": "wait",
+          "expression": "/(已添加|Added)/.test(document.querySelectorAll(\".recommendation-actions button:nth-child(2)\")[2]?.textContent || \"\")"
+        },
+        {
+          "action": "click",
+          "text": [
+            "道具速记",
+            "Utility Notes"
+          ]
+        },
+        {
+          "action": "focus",
+          "selector": ".utility-folder-entry",
+          "text": [
+            "m0NESY"
+          ],
+          "contains": true
+        },
+        {
+          "action": "click",
+          "selector": ".utility-folder-entry",
+          "text": [
+            "m0NESY"
+          ],
+          "contains": true
+        },
+        {
+          "action": "pointer",
+          "x": 450,
+          "y": 200
+        }
+      ],
+      "ready": "!!document.querySelector(\".utility-detail-panel, .utility-detail\") || document.body.innerText.includes(\"GETPOS\")"
+    },
+    {
+      "file": "utility-first-person.png",
+      "description": "First-person practice with recorded throw inputs and playback timeline",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".utility-display-options input",
+          "index": 0
+        },
+        {
+          "action": "click",
+          "selector": ".utility-display-options input",
+          "index": 1
+        },
+        {
+          "action": "range",
+          "selector": ".model-opacity input",
+          "index": 1,
+          "value": 0,
+          "optional": true
+        },
+        {
+          "action": "focus",
+          "selector": ".utility-folder-entry",
+          "text": [
+            "flameZ"
+          ],
+          "contains": true
+        },
+        {
+          "action": "click",
+          "selector": ".utility-folder-entry",
+          "text": [
+            "flameZ"
+          ],
+          "contains": true
+        },
+        {
+          "action": "click",
+          "selector": ".utility-detail-actions button",
+          "text": [
+            "First-person"
+          ]
+        },
+        {
+          "action": "wait",
+          "expression": "!!document.querySelector('.utility-playback-timeline')"
+        },
+        {
+          "action": "range",
+          "selector": ".utility-playback-timeline",
+          "fraction": 0.03
+        },
+        {
+          "action": "pointer",
+          "x": 450,
+          "y": 200
+        }
+      ],
+      "ready": "!!document.querySelector('.utility-playback-timeline')"
+    },
+    {
+      "file": "collaboration.png",
+      "description": "Editable players and utility in a top-down tactical view, with two frames",
+      "steps": [
+        {
+          "action": "click",
+          "selector": ".utility-bottom-playback button[aria-label=\"Stop playback\"]",
+          "optional": true
+        },
+        {
+          "action": "click",
+          "text": [
+            "对局回放",
+            "Match Replay"
+          ]
+        },
+        {
+          "action": "wait",
+          "expression": "!!document.querySelector(\".demo-timeline\")"
+        },
+        {
+          "action": "range",
+          "selector": ".demo-timeline",
+          "offset": 2700
+        },
+        {
+          "action": "click",
+          "text": [
+            "保存当前帧",
+            "Save current frame",
+            "Save Frame"
+          ]
+        },
+        {
+          "action": "input",
+          "selector": ".save-archive-dialog input",
+          "value": "Dust2 · Round 22"
+        },
+        {
+          "action": "click",
+          "selector": ".save-archive-actions button:last-child"
+        },
+        {
+          "action": "wait",
+          "expression": "!document.querySelector(\".save-archive-dialog\")",
+          "label": "saved frame"
+        },
+        {
+          "action": "click",
+          "text": [
+            "协作面板",
+            "Collaboration"
+          ]
+        },
+        {
+          "action": "click",
+          "selector": ".archive-restore",
+          "text": [
+            "Dust2 · Round 22"
+          ],
+          "contains": true
+        },
+        {
+          "action": "click",
+          "text": [
+            "复制帧",
+            "Duplicate frame",
+            "Duplicate Frame"
+          ]
+        },
+        {
+          "action": "command",
+          "command": {
+            "type": "camera.mode",
+            "mode": "2d"
+          },
+          "expect": "window.csboardAutomation.getState().camera.mode === '2d'"
+        },
+        {
+          "action": "pause",
+          "ms": 500
+        },
+        {
+          "action": "click",
+          "selector": ".brush-swatch[aria-label=\"#a5e0ff\"]"
+        },
+        {
+          "action": "draw",
+          "points": [
+            [
+              832,
+              755
+            ],
+            [
+              842,
+              733
+            ],
+            [
+              853,
+              710
+            ],
+            [
+              866,
+              688
+            ],
+            [
+              884,
+              662
+            ]
+          ]
+        },
+        {
+          "action": "command",
+          "command": {
+            "type": "board.undo"
+          },
+          "expectDelta": {
+            "expression": "window.csboardAutomation.getState().workspace.brushStrokes.length",
+            "delta": -1
+          }
+        },
+        {
+          "action": "command",
+          "command": {
+            "type": "board.redo"
+          },
+          "expectDelta": {
+            "expression": "window.csboardAutomation.getState().workspace.brushStrokes.length",
+            "delta": 1
+          }
+        }
+      ],
+      "ready": "document.body.innerText.includes(\"m0NESY\") && document.querySelector(\".board-view-toggle\")?.textContent.trim() === \"2D\""
+    },
+    {
+      "file": "collaboration-live.png",
+      "description": "Two independent desktop clients collaborate and synchronize a frame edit",
+      "steps": [
+        {
+          "action": "collaborate"
+        },
+        {
+          "action": "command",
+          "command": {
+            "type": "camera.mode",
+            "mode": "3d"
+          },
+          "expect": "window.csboardAutomation.getState().camera.mode === '3d'"
+        },
+        {
+          "action": "wheel",
+          "deltaY": -150
+        },
+        {
+          "action": "pointer",
+          "x": 650,
+          "y": 100
+        },
+        {
+          "action": "key",
+          "key": "q",
+          "code": "KeyQ",
+          "keyCode": 81
+        },
+        {
+          "action": "wait",
+          "expression": "!!document.querySelector('.grenade-wheel')",
+          "label": "Q utility wheel"
+        }
+      ],
+      "ready": "document.querySelectorAll('.room-user-list > div').length === 2",
+      "after": [
+        {
+          "action": "key",
+          "key": "q",
+          "code": "KeyQ",
+          "keyCode": 81,
+          "up": true
+        }
+      ]
+    }
+  ],
+  "collaboration": true
+}

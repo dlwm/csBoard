@@ -163,7 +163,7 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     const effect = previewUtility.userData.collabUtilityEffect;
     const bounds = new THREE.Box3().setFromObject(effect);
     const focus = bounds.isEmpty() ? effect.getWorldPosition(new THREE.Vector3()) : bounds.getCenter(new THREE.Vector3());
-    return { focus: focus.toArray() };
+    return { focus: focus.toArray(), radius: bounds.isEmpty() ? 0 : bounds.getBoundingSphere(new THREE.Sphere()).radius };
   };
 
   const focus = (itemId) => {
@@ -173,7 +173,7 @@ export default function createCollabUtilitySceneController({ scene, navData, edi
     effect.updateMatrixWorld(true);
     const bounds = new THREE.Box3().setFromObject(effect);
     const point = bounds.isEmpty() ? effect.getWorldPosition(new THREE.Vector3()) : bounds.getCenter(new THREE.Vector3());
-    return { focus: point.toArray() };
+    return { focus: point.toArray(), radius: bounds.isEmpty() ? 0 : bounds.getBoundingSphere(new THREE.Sphere()).radius };
   };
 
   const add = (note, itemId, placementPosition = null) => {

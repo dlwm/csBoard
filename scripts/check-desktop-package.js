@@ -4,15 +4,14 @@ import os from 'node:os';
 import { once } from 'node:events';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { desktopPackagePaths } from './lib/desktop-paths.js';
+import { checkDesktopModuleGraph } from './lib/desktop-module-graph.js';
 import { createNativeClient } from '../electron/native-client.js';
 
 const require = createRequire(import.meta.url);
 const { extractFile, listPackage } = require('@electron/asar');
-const target = process.argv[2];
-const folders = { 'mac-arm64': 'mac-arm64/CSBoard.app/Contents/Resources', 'mac-x64': 'mac/CSBoard.app/Contents/Resources', 'win-x64': 'win-unpacked/resources' };
-if (!folders[target]) throw new Error('Expected mac-arm64, mac-x64 or win-x64');
-const resources = path.resolve('build/desktop', folders[target]);
-const archive = path.join(resources, 'app.asar');
+const metadata = JSON.parse(await fs.readFile('package.json', 'utf8'));
+const { target, resources, archive } = desktopPackagePaths(process.cwd(), metadata, process.argv[2]);
 // Verify sealed app contents and both native executables before publishing.
 // This checks signature integrity, not Developer ID trust or notarization.
 if (target.startsWith('mac-')) {
@@ -29,6 +28,8 @@ if (packaged.version !== pkg.version || packaged.csboardLocalModels || packaged.
 for (const file of ['electron/main.js', 'electron/preload.cjs', 'shared/record-keys.js', 'shared/storage-codec.js', 'shared/release-notes.js', 'LICENSE', 'docs/THIRD_PARTY_NOTICES.md', 'build/renderer/index.html', 'build/renderer/go-parser/parser.wasm', 'build/renderer/go-parser/wasm_exec.js', 'build/tasks/demo.js', 'build/tasks/data.js']) {
   extractFile(archive, path.join(...file.split('/')));
 }
+const modules = checkDesktopModuleGraph(file => extractFile(archive, file), { aiEnabled: packaged.csboardAiEnabled !== false });
+console.log(`Packaged desktop module graph OK: ${modules.length} files`);
 const features = JSON.parse(extractFile(archive, path.join('build', 'renderer', 'features.json')).toString());
 if (features.ai !== (packaged.csboardAiEnabled !== false)) throw new Error('Renderer and desktop AI features differ');
 const aiFiles = ['electron/ai-service.js', 'shared/ai-protocol.js', 'shared/ai-providers.js'];

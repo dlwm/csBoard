@@ -7,27 +7,33 @@ COMPOSE ?= $(DOCKER) compose -f config/docker/compose.yml
 ARGS ?=
 PLATFORM ?=
 BUMP ?=
+TEST ?= tests/*.test.js
+TARGET ?=
 VERSION ?=
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test check release-check dev dev-workers server deploy build build-remote \
-	desktop-start desktop-dev desktop-prepare desktop-build-mac-arm64 \
+.PHONY: help install lint test test-js check release-check dev dev-workers server deploy build build-remote \
+	desktop-start desktop-dev desk-dev desktop-prepare desktop-check desktop-smoke desktop-build-mac-arm64 \
 	desktop-build-mac-x64 desktop-build-win-x64 native-build \
 	mobile-prepare mobile-open mobile-build version version-sync version-check \
-	resources nav-data nav-labels map-places map-export workers-build wrangler docker guide-example format-contracts viewer-example
+	resources nav-data nav-labels map-places map-export workers-build wrangler docker guide-example format-contracts viewer-example readme-shots
 
 help:
 	@printf '%s\n' \
 		'CSBoard — make <command> [ARGS="extra flags"]' \
 		'  install                      Install locked dependencies' \
 		'  lint                         Check architecture boundaries' \
-		'  test                         Build storage and run behavioral tests' \
+		'  test                         Run behavior tests; TEST=tests/name.test.js selects files' \
+		'  test-js                      Run selected JS tests without rebuilding native storage' \
 		'  check                        Check versions, architecture, tests and web build' \
 		'  release-check                Run check and validate release notes' \
 		'  dev / server                 Build and serve / serve existing frontend' \
 		'  build / build-remote         Build local / remote frontend' \
 		'  desktop-prepare              Build the local desktop application' \
+		'  desktop-check                Build, inspect and launch the real packaged app' \
+		'  desktop-smoke                Launch-check an existing package in isolated storage' \
 		'  desktop-start / desktop-dev  Open existing app / build and debug' \
+		'  desk-dev                     Alias for desktop-dev' \
 		'  desktop-build-mac-arm64      Package Apple Silicon DMG (macOS)' \
 		'  desktop-build-mac-x64        Package Intel DMG (macOS)' \
 		'  desktop-build-win-x64        Package Windows amd64 installer (Windows)' \
@@ -43,6 +49,7 @@ help:
 		'  guide-example DEMO=path       Prepare the compact operation guide replay' \
 		'  format-contracts             Compile format validators; ARGS="--source .local/demo-format" to sync' \
 		'  viewer-example               Build the independent viewer example' \
+		'  readme-shots                 Capture desktop screenshot previews; optionally replace README images' \
 		'  nav-labels                   Paint NAV regions and save place names' \
 		'  map-places                   Import map place/spawn entities from local VPKs' \
 		'  resources / nav-data / map-export  Prepare map resources' \
@@ -57,8 +64,11 @@ lint:
 
 # Sequential recipes keep failures from starting later release checks.
 test: native-build
-	$(NODE) --test tests/*.test.js
+	$(NODE) --test $(ARGS) $(TEST)
 	go -C native/storage test ./...
+
+test-js:
+	$(NODE) --test $(ARGS) $(TEST)
 
 check:
 	$(MAKE) version-check
@@ -91,6 +101,15 @@ build-remote:
 
 desktop-start:
 	$(NODE) scripts/start-desktop.js $(ARGS)
+
+desktop-check: desktop-prepare
+	$(NODE) scripts/check-desktop-package.js $(TARGET)
+	$(MAKE) desktop-smoke TARGET="$(TARGET)"
+
+desktop-smoke:
+	$(NODE) scripts/smoke-desktop.js $(TARGET)
+
+desk-dev: desktop-dev
 
 desktop-dev desktop-prepare desktop-build-mac-arm64 desktop-build-mac-x64 desktop-build-win-x64:
 	$(NODE) scripts/package-desktop.js $(patsubst desktop-%,%,$(patsubst desktop-build-%,%,$@)) $(ARGS)
@@ -148,3 +167,6 @@ format-contracts:
 
 viewer-example:
 	$(NODE) node_modules/vite/bin/vite.js build --config packages/viewer/examples/vite.config.js $(ARGS)
+
+readme-shots: native-build
+	$(NODE) scripts/readme-screenshots.js --build $(ARGS)
