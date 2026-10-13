@@ -44,7 +44,7 @@ code = code.replace(/require\("(ajv\/dist\/runtime\/[^"\n]+)"\)\.default/g, (_, 
   return dependencies.get(module);
 });
 const imports = [...dependencies].map(([module, name]) => `import ${name}Module from '${module}.js';\nconst ${name} = ${name}Module.default || ${name}Module;`).join('\n');
-const output = path.join(root, 'src/formats/generated/validators.js');
+const output = path.join(root, 'packages/viewer/src/formats/generated/validators.js');
 await fs.mkdir(path.dirname(output), { recursive: true });
 await fs.writeFile(output, `// Generated from config/formats/contracts.json. Run make format-contracts; do not edit.\nexport const REPLAY_PROFILE_VERSION = ${JSON.stringify(snapshot.replayVersion)};\n${imports}\n${code}\n`);
 console.log(`Generated ${Object.keys(names).length} format validators; source ${snapshot.source.revision}${snapshot.source.draft ? ' (local draft)' : ''}`);

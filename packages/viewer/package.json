@@ -34,6 +34,10 @@
     "./audio": {
       "types": "./src/audio/index.d.ts",
       "import": "./src/audio/index.js"
+    },
+    "./format": {
+      "types": "./src/formats/index.d.ts",
+      "import": "./src/formats/index.js"
     }
   },
   "peerDependencies": {
@@ -43,6 +47,11 @@
   "files": [
     "src",
     "README.md",
-    "LICENSE"
-  ]
+    "LICENSE",
+    "examples/minimal"
+  ],
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "jszip": "^3.10.2"
+  }
 }

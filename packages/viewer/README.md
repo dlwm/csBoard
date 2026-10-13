@@ -92,3 +92,30 @@ The plain JavaScript example includes an expandable contract display and command
 
 
 Optional utility editing uses paired `utilitySource` and `createUtilityRenderer` ports. Query `getUtilityCatalogue()` for reference IDs, then execute `utility.place`, `utility.move` or `utility.remove`. The source returns borrowed asset leases; synchronous renderer commits copy/own their resources. Cancellation, map mismatches and workspace changes prevent late placement. The source remains host-owned, while the viewer disposes its renderer. Results contain placement IDs; `utility.placementsChanged` describes the resulting lightweight placements. The example's flash asset is explicitly illustrative, not a recorded lineup. Application legacy AI tools and transactions still require migration.
+
+## Open standard Demo data
+
+See the [minimal consumer](examples/minimal/README.md) for a complete vanilla JavaScript example with file selection, rounds, play/pause, seeking and cleanup. After `make viewer-example`, serve `build/viewer-example` and open `/minimal/`.
+
+The `./format` entry opens **`cs2-demo-format/replay/0.1`** ZIP packages directly. It reads standard rows; it does not translate them into CSBoard's private cache format. Parser adapters are only needed when producing standard data from a parser's own output.
+
+```js
+import { createViewer } from '@csboard/viewer';
+import { openReplayPackageSource } from '@csboard/viewer/format';
+
+const source = await openReplayPackageSource(file, { signal }); // File, Blob or bytes
+const viewer = createViewer({ container, navData, mapName: source.getMetadata().mapName });
+viewer.setDataSource(source);
+const segment = source.listSegments()[0];
+if (segment) {
+  const result = await viewer.execute({ type: 'replay.open', segmentId: segment.id });
+  if (result.status !== 'succeeded') console.error(result.error);
+}
+// When finished: detach/dispose the viewer before releasing its borrowed source.
+viewer.dispose();
+source.dispose();
+```
+
+The reader works independently of React, CSBoard storage and parser engines. Its dependencies are JSZip and precompiled Ajv validators; there is no runtime schema compilation. ZIP paths, schemas and size budgets are checked. Opening reads metadata and players; segment JSON and events are decompressed on demand, with cancellation. This is segment-level loading, not streaming a huge JSON file row by row. The format entry does not import Three.js.
+
+`cs2-demo-format/3.0` statistics packages are a different profile and are not accepted as complete playback packages. Applications may support them through their own migration adapter. NAV and optional map models remain host-provided; a replay package does not contain these assets. Missing optional tracks are reported through capabilities rather than invented data.

@@ -76,7 +76,7 @@ document.querySelector('#replay-file').onchange = async event => {
   input.disabled = true; status.textContent = '读取中…';
   let source;
   try {
-    const { openReplayPackageSource } = await import('../../../src/formats/packageReplaySource.js');
+    const { openReplayPackageSource } = await import('../src/formats/index.js');
     source = await openReplayPackageSource(await file.arrayBuffer());
     const metadata = source.getMetadata();
     if (metadata.mapName !== 'de_dust2') throw new Error('示例只注入了 de_dust2 NAV，请提供该地图的回放包');
