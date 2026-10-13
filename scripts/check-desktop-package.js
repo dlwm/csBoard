@@ -12,6 +12,9 @@ const require = createRequire(import.meta.url);
 const { extractFile, listPackage } = require('@electron/asar');
 const metadata = JSON.parse(await fs.readFile('package.json', 'utf8'));
 const { target, resources, archive } = desktopPackagePaths(process.cwd(), metadata, process.argv[2]);
+// The module graph uses POSIX paths; ASAR traverses with the host separator.
+// 依赖图保留统一的 / 路径；读取 ASAR 时转换，否则 Windows 会误报多层目录缺失。
+const readPackagedFile = file => extractFile(archive, path.join(...file.split('/')));
 // Verify sealed app contents and both native executables before publishing.
 // This checks signature integrity, not Developer ID trust or notarization.
 if (target.startsWith('mac-')) {
@@ -23,17 +26,17 @@ if (target.startsWith('mac-')) {
 }
 
 const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'));
-const packaged = JSON.parse(extractFile(archive, 'package.json').toString());
+const packaged = JSON.parse(readPackagedFile('package.json').toString());
 if (packaged.version !== pkg.version || packaged.csboardLocalModels || packaged.csboardLocalParser) throw new Error('Wrong packaged version or local-model test build');
 for (const file of ['electron/main.js', 'electron/preload.cjs', 'shared/record-keys.js', 'shared/storage-codec.js', 'shared/release-notes.js', 'LICENSE', 'docs/THIRD_PARTY_NOTICES.md', 'build/renderer/index.html', 'build/renderer/go-parser/parser.wasm', 'build/renderer/go-parser/wasm_exec.js', 'build/tasks/demo.js', 'build/tasks/data.js']) {
-  extractFile(archive, path.join(...file.split('/')));
+  readPackagedFile(file);
 }
-const modules = checkDesktopModuleGraph(file => extractFile(archive, file), { aiEnabled: packaged.csboardAiEnabled !== false });
+const modules = checkDesktopModuleGraph(readPackagedFile, { aiEnabled: packaged.csboardAiEnabled !== false });
 console.log(`Packaged desktop module graph OK: ${modules.length} files`);
-const features = JSON.parse(extractFile(archive, path.join('build', 'renderer', 'features.json')).toString());
+const features = JSON.parse(readPackagedFile('build/renderer/features.json').toString());
 if (features.ai !== (packaged.csboardAiEnabled !== false)) throw new Error('Renderer and desktop AI features differ');
 const aiFiles = ['electron/ai-service.js', 'shared/ai-protocol.js', 'shared/ai-providers.js'];
-if (packaged.csboardAiEnabled !== false) for (const file of aiFiles) extractFile(archive, path.join(...file.split('/')));
+if (packaged.csboardAiEnabled !== false) for (const file of aiFiles) readPackagedFile(file);
 const names = listPackage(archive).map(name => name.replaceAll(path.win32.sep, '/'));
 if (packaged.csboardAiEnabled === false && names.some(name => aiFiles.includes(name.replace(/^\//, '')))) throw new Error('AI files leaked into disabled package');
 if (names.some(name => /(^|\/)\.local(\/|$)|\.glb$/i.test(name))) throw new Error('Local resources leaked into app.asar');

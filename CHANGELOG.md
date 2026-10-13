@@ -2,6 +2,25 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [2.0.0-alpha.1] - 2026-10-14
+
+This is the first preview of CSBoard 2.0. Data exchange and viewer integration interfaces are experimental and may change before the stable release.
+
+### Added
+
+- Import and export processed replay packages for exchanging Demo data between tools.
+- Provide an experimental independent viewer with replay controls, player and utility editing, and operation events for other applications to integrate.
+
+### Changed
+
+- Share replay rendering and controls across the application and independent viewer, including players, recorded utility effects, voice and bomb status.
+- Keep more surrounding map context visible when previewing a utility with the spotlight.
+- Update desktop runtime and supporting components to improve stability and security.
+
+### Fixed
+
+- Include dependent viewer modules in desktop packages to prevent startup failures after installation.
+
 ## [1.21.2] - 2026-10-11
 
 ### Changed
