@@ -3,6 +3,7 @@ import { translate } from '../../i18n.js';
 import useResponsiveWorkspace from '../../hooks/useResponsiveWorkspace.js';
 import { WorkspaceSlots, WorkspaceTarget } from './WorkspaceSlots.jsx';
 import { WorkspaceBar, WorkspaceSidebar, WorkspaceMapBar, WorkspaceCorners } from './WorkspaceRegions.jsx';
+import './controls.css';
 import './workspace.css';
 
 function SidebarToggle({ side, open, onToggle, language }) {

@@ -1,3 +1,4 @@
+import { WorkspaceButton } from './workspace/WorkspaceControls.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { DialogFrame } from './AppDialogs.jsx';
 import { translate } from '../i18n.js';
@@ -24,8 +25,8 @@ function ConfirmDataCleanup({ language, description, onFinish }) {
     <form onSubmit={event => { event.preventDefault(); if (value === 'CLEAR') onFinish(true); }}>
       <h2 id="data-cleanup-title">{text("settings.confirmDataCleanup.confirmDataCleanup")}</h2>
       <p>{description}</p>
-      <label>{text("settings.confirmDataCleanup.typeClearToConfirm")}<input autoFocus autoComplete="off" spellCheck={false} value={value} onChange={event => setValue(event.target.value)} /></label>
-      <div className="desktop-manager-actions"><button type="button" onClick={() => onFinish(false)}>{text("settings.confirmDataCleanup.cancel")}</button><button type="submit" disabled={value !== 'CLEAR'}>{text("settings.confirmDataCleanup.confirmCleanup")}</button></div>
+      <label>{text("settings.confirmDataCleanup.typeClearToConfirm")}<input className="workspace-input" autoFocus autoComplete="off" spellCheck={false} value={value} onChange={event => setValue(event.target.value)} /></label>
+      <div className="desktop-manager-actions"><WorkspaceButton type="button" onClick={() => onFinish(false)}>{text("settings.confirmDataCleanup.cancel")}</WorkspaceButton><WorkspaceButton type="submit" disabled={value !== 'CLEAR'}>{text("settings.confirmDataCleanup.confirmCleanup")}</WorkspaceButton></div>
     </form>
   </DialogFrame>;
 }

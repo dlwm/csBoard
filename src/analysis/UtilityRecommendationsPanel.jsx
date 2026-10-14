@@ -1,3 +1,4 @@
+import { WorkspaceButton, WorkspacePanelHeading } from '../components/workspace/WorkspaceControls.jsx';
 import { WorkspacePanel } from '../components/workspace/WorkspaceSlots.jsx';
 import RecommendationFormulaEditor from './RecommendationFormulaEditor.jsx';
 import { translate } from '../i18n.js';
@@ -9,7 +10,7 @@ export default function UtilityRecommendationsPanel({ language, groups, utilitie
   const text = (key, values) => translate(language, key, values);
   const index = new Map(utilities.map(utility => [utility.id, utility]));
   return <WorkspacePanel className="utility-recommendations" data-tour="recommendations" aria-busy={loading}>
-    <header><h2>{text("analysis.utilityRecommendationsPanel.utilityRecommendations")}</h2>{focusedId && <button type="button" onClick={() => onFocus('')}>{text("analysis.utilityRecommendationsPanel.showAll")}</button>}</header>
+    <WorkspacePanelHeading title={text("analysis.utilityRecommendationsPanel.utilityRecommendations")} actions={focusedId && <WorkspaceButton variant="quiet" onClick={() => onFocus('')}>{text("analysis.utilityRecommendationsPanel.showAll")}</WorkspaceButton>} />
     {!selectedPlayers.length && <p>{text("analysis.utilityRecommendationsPanel.selectPlayersAndDemosToSeeRecommendations")}</p>}
     {loading && <p role="status">{text("analysis.utilityRecommendationsPanel.preparingRecommendations")}</p>}
     {error && <p role="alert">{error}</p>}
@@ -28,7 +29,7 @@ export default function UtilityRecommendationsPanel({ language, groups, utilitie
         <span className="recommendation-source" title={utility.source.fileName}>{utility.segment.throwEvent.user_name} · R{utility.source.round}</span>
         {previewState?.utilityId === utility.id && previewState.loading && <small role="status">{text("analysis.utilityRecommendationsPanel.loadingRecordedUtilityEffect")}</small>}
         {previewState?.utilityId === utility.id && previewState.error && <p role="alert">{previewState.error}</p>}
-        <div className="recommendation-actions"><button type="button" aria-pressed={focusedId === group.id} onClick={() => onFocus(focusedId === group.id ? '' : group.id)}>{focusedId === group.id ? text("analysis.utilityRecommendationsPanel.unfocus") : text("analysis.utilityRecommendationsPanel.focusGroup")}</button><button type="button" disabled={saveState.loading || saved} onClick={() => onSave(utility)}>{saved ? text("analysis.utilityRecommendationsPanel.added") : saving ? text("analysis.utilityRecommendationsPanel.loading") : text("analysis.utilityRecommendationsPanel.addRepresentative")}</button></div>
+        <div className="recommendation-actions"><WorkspaceButton type="button" aria-pressed={focusedId === group.id} onClick={() => onFocus(focusedId === group.id ? '' : group.id)}>{focusedId === group.id ? text("analysis.utilityRecommendationsPanel.unfocus") : text("analysis.utilityRecommendationsPanel.focusGroup")}</WorkspaceButton><WorkspaceButton variant="primary" disabled={saveState.loading || saved} onClick={() => onSave(utility)}>{saved ? text("analysis.utilityRecommendationsPanel.added") : saving ? text("analysis.utilityRecommendationsPanel.loading") : text("analysis.utilityRecommendationsPanel.addRepresentative")}</WorkspaceButton></div>
       </article>;
     })}</div>
     {saveState.error && <p role="alert">{saveState.error}</p>}

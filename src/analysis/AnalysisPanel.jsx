@@ -1,3 +1,5 @@
+import { WorkspacePanelHeading } from '../components/workspace/WorkspaceControls.jsx';
+import './analysis.css';
 import { WorkspacePanel, WorkspaceTarget } from '../components/workspace/WorkspaceSlots.jsx';
 // Composes the Analysis sidebar without owning data loading or scene rendering.
 import AnalysisQueryStatus from './AnalysisQueryStatus.jsx';
@@ -25,20 +27,11 @@ export default function AnalysisPanel({
   onToggleDemo,
   side,
   onSideChange,
-  rowsAvailable,
-  playing,
-  onTogglePlay,
-  time,
-  duration,
-  onTimeChange,
 }) {
   const text = (key, values) => translateMessage(language, key, values);
   const hasPlayers = selectedPlayers.length > 0;
   return <WorkspacePanel className="analysis-panel" data-tour="analysis" aria-busy={queryLoading}>
-    <div className="collab-heading">
-      <div><span>DEMO ANALYSIS</span><h2>{translate('analysis')}</h2></div>
-      <button type="button" disabled={queryLoading || !hasPlayers || !rowsAvailable} onClick={onTogglePlay}>{playing ? translate('pause') : translate('play')}</button>
-    </div>
+    <WorkspacePanelHeading title={translate('analysis')} subtitle={mapName.replace(/^de_/, '').toUpperCase()} />
     <p className="collab-note">{text("analysis.analysisPanel.aggregateSelectedPlayersAcrossParsedDemos", { value1: mapName.toUpperCase() })}</p>
     <AnalysisQueryStatus language={language} loading={queryLoading} error={queryError} data={analysisData} flags={flags} side={side} enabled={hasPlayers && selectedDemoIds.length > 0} />
     {status && <div className="analysis-status">{status}</div>}
@@ -54,7 +47,6 @@ export default function AnalysisPanel({
       <span>{translate('side').toUpperCase()}</span>
       <select value={side} onChange={(event) => onSideChange(event.target.value)}><option value="ALL">{translate('allRounds')}</option><option value="T">{translate('tRounds')}</option><option value="CT">{translate('ctRounds')}</option></select>
     </label>}
-    {hasPlayers && rowsAvailable && <div className="analysis-timeline"><span>{(time / 64).toFixed(1)}s</span><input type="range" min="0" max={duration} value={time} onChange={(event) => onTimeChange(Number(event.target.value))} /><span>{(duration / 64).toFixed(1)}s</span></div>}
     <WorkspaceTarget slot="analysis-options" />
   </WorkspacePanel>;
 }

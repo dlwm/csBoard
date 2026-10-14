@@ -1,3 +1,4 @@
+import { WorkspaceButton } from '../components/workspace/WorkspaceControls.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { translate } from '../i18n.js';
 import { UTILITY_REPLAY_VERSION } from './replaySchema.js';
@@ -40,6 +41,6 @@ export default function useUtilityReplayRecovery({ active, mapName, compute, lan
 export function UtilityReplayRecoveryNotice({ status, onRetry, language }) {
   if (!status) return null;
   return <div className="utility-replay-notice" role="status">
-    {status.loading ? <><i className="analysis-loading-spinner" aria-hidden="true" />{translate(language, "utility.utilityReplayRecovery.loadingCompleteThrowRecording")}</> : <><span>{translate(language, status.message)}</span><button type="button" onClick={() => onRetry(status.note, status.firstPerson, true)}>{translate(language, "utility.utilityReplayRecovery.updateRecording")}</button></>}
+    {status.loading ? <><i className="analysis-loading-spinner" aria-hidden="true" />{translate(language, "utility.utilityReplayRecovery.loadingCompleteThrowRecording")}</> : <><span>{translate(language, status.message)}</span><WorkspaceButton type="button" onClick={() => onRetry(status.note, status.firstPerson, true)}>{translate(language, "utility.utilityReplayRecovery.updateRecording")}</WorkspaceButton></>}
   </div>;
 }

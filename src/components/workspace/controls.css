@@ -1,0 +1,53 @@
+@import './theme.css';
+/* Shared controls own all ordinary action visuals, including portal dialogs. */
+.workspace-button {
+  display: inline-flex; justify-content: center; align-items: center; gap: var(--ui-space-2);
+  min-height: var(--ui-control-height); min-width: 0; padding: 7px 11px;
+  border: 1px solid var(--ui-line); border-radius: var(--ui-radius);
+  background: var(--ui-surface-raised); color: var(--ui-text-secondary);
+  font: 500 var(--ui-label-size)/1.35 var(--font-ui); cursor: pointer;
+  flex-shrink: 0; text-decoration: none; transition: background-color .12s, border-color .12s, color .12s;
+}
+.workspace-button:hover:not(:disabled) { background: var(--accent-hover); color: var(--ui-text); border-color: var(--accent-border); }
+.workspace-button-primary { background: var(--accent); color: #08121d; border-color: var(--accent); font-weight: 600; }
+.workspace-button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 85%, white); color: #08121d; }
+.workspace-button-quiet { background: transparent; border-color: transparent; }
+.workspace-button.selected { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+.workspace-button:disabled { opacity: .4; cursor: default; }
+.workspace-button:focus-visible, .workspace-section > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.workspace-panel-heading h2 { margin: 6px 0 0; color: var(--ui-text); font: 600 var(--ui-heading-size)/1.2 var(--font-ui); letter-spacing: -.025em; }
+.workspace-context-tag { display: inline-block; padding: 3px 6px; border-radius: 4px; background: var(--ui-surface-raised); font: var(--ui-caption-size)/1.4 var(--font-ui); color: var(--ui-text-muted); }
+.workspace-section { display: grid; gap: var(--ui-space-2); min-width: 0; }
+.workspace-section > h3, .workspace-section > summary { margin: 0; color: var(--ui-text-secondary); font: 500 var(--ui-label-size)/1.5 var(--font-ui); letter-spacing: 0; }
+.workspace-section > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; cursor: pointer; list-style: none; }
+.workspace-section > summary::-webkit-details-marker { display: none; }
+.workspace-section-chevron { color: var(--ui-text-muted); transition: transform .15s; }
+.workspace-section[open] > summary .workspace-section-chevron { transform: rotate(180deg); }
+.workspace-section-content { display: grid; gap: var(--ui-space-2); min-width: 0; }
+@media (prefers-reduced-motion: reduce) { .workspace-section-chevron { transition: none; } }
+.workspace-section-meta { display: inline-flex; gap: 8px; align-items: center; }
+.workspace-section-meta small { font: 10px var(--font-ui); color: var(--ui-text-muted); }
+.workspace-button-compact { min-height: var(--ui-control-compact-height); padding: 5px 8px; font-size: var(--ui-caption-size); }
+.workspace-button-icon { width: var(--ui-control-height); height: var(--ui-control-height); padding: 0; flex: none; }
+.workspace-button-icon.workspace-button-compact { width: var(--ui-control-compact-height); height: var(--ui-control-compact-height); }
+.workspace-button:is(.active, [aria-pressed=true], [aria-current]) { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent); }
+.workspace-button-danger { color: var(--ui-danger); background: color-mix(in srgb, var(--ui-danger) 8%, var(--ui-surface)); }
+.workspace-button-danger:hover:not(:disabled) { border-color: var(--ui-danger); color: var(--ui-danger); }
+.workspace-panel-title { min-width: 0; }
+.workspace-panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
+.workspace-input { min-width: 0; max-width: 100%; border: 1px solid var(--ui-line); border-radius: var(--ui-radius); background: var(--ui-surface-deep); color: var(--ui-text); padding: 8px 10px; font: var(--ui-body-size)/1.4 var(--font-ui); }
+.workspace-input:not(textarea) { min-height: var(--ui-control-height); }
+.workspace-input::placeholder { color: var(--ui-text-muted); }
+.workspace-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.workspace-input:disabled { opacity: .5; }
+.workspace-button-entry { flex-shrink: 1; overflow-wrap: anywhere; display: flex; justify-content: flex-start; text-align: left; width: 100%; background: transparent; border-color: transparent; }
+.workspace-button-entry > :first-child { min-width: 0; }
+.workspace-panel-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ui-space-2); padding-bottom: var(--ui-space-3); border-bottom: 1px solid var(--ui-line); }
+.workspace-panel-actions .workspace-input { flex: 1; }
+.workspace-frame, .resource-pack-dialog, .ai-panel, .changelog-dialog { scrollbar-width: thin; scrollbar-color: var(--ui-line) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--ui-line); border-radius: 3px; }
+@media (prefers-reduced-motion: reduce) { .workspace-button { transition: none; } }
+
+.workspace-button:not(.workspace-button-entry) { white-space: nowrap; }
+.workspace-button > svg { flex: none; width: 16px; height: 16px; }

@@ -1,3 +1,4 @@
+import { WorkspaceButton } from '../components/workspace/WorkspaceControls.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { translate } from '../i18n.js';
 import './demoFormat.css';
@@ -50,13 +51,13 @@ export default function DemoFormatControls({ compute, cache, cacheId, fileName, 
   };
   const noticeText = notice?.key === 'formats.import.complete' ? text(notice, { warning: notice.values.warning ? text('formats.import.optionalMissing') : '' }) : text(notice);
   return <div className="demo-format-controls" aria-busy={busy}>
-    <button type="button" disabled={disabled || busy} onClick={() => input.current.click()}>{text("formats.demoFormatControls.importPackage")}</button>
-    <button type="button" disabled={disabled || busy || (!cacheId && !recording)} onClick={() => run('format.export', { ids: cacheId ? [cacheId] : [], ...(recording ? { inline: recording } : {}) })}
+    <WorkspaceButton type="button" disabled={disabled || busy} onClick={() => input.current.click()}>{text("formats.demoFormatControls.importPackage")}</WorkspaceButton>
+    <WorkspaceButton type="button" disabled={disabled || busy || (!cacheId && !recording)} onClick={() => run('format.export', { ids: cacheId ? [cacheId] : [], ...(recording ? { inline: recording } : {}) })}
       title={text("formats.demoFormatControls.exportsTheDraftReplayProfileIncludingAvailableInputsActualSmoke")}>
       {text("formats.demoFormatControls.exportPackage")}
-    </button>
+    </WorkspaceButton>
     <input ref={input} type="file" accept=".cs2df,.zip,application/zip" onChange={importFile} hidden />
-    {busy && <><progress max="100" value={progress} aria-label={text("formats.demoFormatControls.packageProgress")} /><button type="button" onClick={() => active.current?.abort()}>{text("formats.demoFormatControls.cancel")}</button></>}
+    {busy && <><progress max="100" value={progress} aria-label={text("formats.demoFormatControls.packageProgress")} /><WorkspaceButton type="button" onClick={() => active.current?.abort()}>{text("formats.demoFormatControls.cancel")}</WorkspaceButton></>}
     {(notice || error) && <span className={error ? 'demo-format-error' : ''} role={error ? 'alert' : 'status'} title={error || noticeText}>{error || noticeText}</span>}
   </div>;
 }

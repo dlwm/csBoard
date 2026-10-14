@@ -80,7 +80,7 @@
   "targetPosition": "Позиция цели",
   "tRounds": "Раунды T",
   "utilityRecommendationsPanel.added": "Добавлено",
-  "utilityRecommendationsPanel.addRepresentative": "Добавить образец",
+  "utilityRecommendationsPanel.addRepresentative": "Сохранить гранату",
   "utilityRecommendationsPanel.decoy": "Ложная",
   "utilityRecommendationsPanel.demosRounds": "{demoCount} Demo · {roundCount} раундов",
   "utilityRecommendationsPanel.derivedFromThrowsRoundsAndDemosNotASuccessProbability": "Учитывает броски, раунды и Demo; это не вероятность успеха.",
@@ -99,5 +99,7 @@
   "utilityRecommendationsPanel.throws": "{count} бросков",
   "utilityRecommendationsPanel.unfocus": "Снять фокус",
   "utilityRecommendationsPanel.utilityRecommendations": "Рекомендуемые гранаты",
-  "victimPosition": "Позиция жертвы"
+  "victimPosition": "Позиция жертвы",
+  "visual.timeline": "Шкала времени анализа",
+  "visual.economySummary": "Свои {own} · Противник {opponent}"
 }

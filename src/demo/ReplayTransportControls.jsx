@@ -1,3 +1,4 @@
+import { WorkspaceButton } from '../components/workspace/WorkspaceControls.jsx';
 import { WorkspaceTarget } from '../components/workspace/WorkspaceSlots.jsx';
 import { useRef } from 'react';
 import useAnchoredMenuPosition from '../components/workspace/useAnchoredMenuPosition.js';
@@ -15,14 +16,14 @@ export default function ReplayTransportControls({ data, segment, tick, playing, 
   const label = recording ? translate(language, "replay.replayTransportControls.clip") : t("replay.round");
   return <div className="demo-playback-controls">
     {data && (!recording || data.rounds.length > 1) && <div data-tour="rounds" ref={pickerRef} className={`demo-round-picker${menuOpen ? ' open' : ''}${recording ? ' recording-segments' : ''}`}>
-      <button type="button" onClick={onMenu}>{segment ? `${label} ${segment.round}${recording ? '' : ` · ${economies.get(segment.round)?.T.label}/${economies.get(segment.round)?.CT.label}`}` : t("common.selectRound")}</button>
+      <WorkspaceButton type="button" onClick={onMenu}>{segment ? `${label} ${segment.round}${recording ? '' : ` · ${economies.get(segment.round)?.T.label}/${economies.get(segment.round)?.CT.label}`}` : t("common.selectRound")}</WorkspaceButton>
       {menuOpen && <div ref={menuRef} style={menuStyle} className="demo-round-list">{data.rounds.map(item => {
         const economy = economies.get(item.round);
-        return <button type="button" key={item.round} className={segment?.round === item.round ? 'active' : ''} style={recording ? undefined : { '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => onSegment(item)}>
+        return <WorkspaceButton type="button" key={item.round} className={segment?.round === item.round ? 'active' : ''} style={recording ? undefined : { '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => onSegment(item)}>
           {!recording && <span className="economy-t">T {economy?.T.label}</span>}<strong>{item.round}</strong>
           {!recording && <><span className="economy-ct">CT {economy?.CT.label}</span><i /></>}
           {recording && <span>{((item.endTick - item.startTick) / data.demo.tickRate).toFixed(1)}s</span>}
-        </button>;
+        </WorkspaceButton>;
       })}</div>}
     </div>}
     {data && segment && <div className="demo-scrub" data-tour="timeline">
@@ -31,8 +32,8 @@ export default function ReplayTransportControls({ data, segment, tick, playing, 
         {!recording && events.map((event, index) => <button type="button" className={`timeline-event event-${event.event_name}`} title={event.title} aria-label={event.title} style={{ left: `${((event.tick - timelineStart) / duration) * 100}%` }} key={`${event.event_name}-${event.tick}-${index}`} onClick={() => onSeek(event.tick)}>{event.label}</button>)}
       </div><span className="demo-duration">/ {((segment.endTick - segment.startTick) / data.demo.tickRate).toFixed(1)}s</span>
     </div>}
-    {segment && <button type="button" className="demo-play" disabled={loading || mapMismatch} title={mapMismatch ? translate(language, "replay.replayTransportControls.returnToTheRecordingSMapToPlay") : undefined} onClick={onToggle}>{loading ? t("common.loading") : playing ? t("replay.pause") : t("replay.play")}</button>}
+    {segment && <WorkspaceButton variant="primary" type="button" className="demo-play" disabled={loading || mapMismatch} title={mapMismatch ? translate(language, "replay.replayTransportControls.returnToTheRecordingSMapToPlay") : undefined} onClick={onToggle}>{loading ? t("common.loading") : playing ? t("replay.pause") : t("replay.play")}</WorkspaceButton>}
     <WorkspaceTarget slot="playback-actions" />
-    {showSaveFrame && <button type="button" className="demo-save-frame" data-tour="save-frame" disabled={loading || mapMismatch} onClick={onSaveFrame}>{t("collaboration.saveFrame")}</button>}
+    {showSaveFrame && <WorkspaceButton type="button" className="demo-save-frame" data-tour="save-frame" disabled={loading || mapMismatch} onClick={onSaveFrame}>{t("collaboration.saveFrame")}</WorkspaceButton>}
   </div>;
 }

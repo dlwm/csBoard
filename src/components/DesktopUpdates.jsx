@@ -1,3 +1,4 @@
+import { WorkspaceButton } from './workspace/WorkspaceControls.jsx';
 import { useAppDialogs } from './AppDialogs.jsx';
 import { useState } from 'react';
 import MarkdownContent from './MarkdownContent.jsx';
@@ -49,13 +50,13 @@ export default function DesktopUpdates({ language, working }) {
     <label className="desktop-awake"><input type="checkbox" checked={state?.autoCheck ?? true} disabled={!state || pending} onChange={event => { const autoCheck = event.target.checked; run(() => api.preferences({ autoCheck })); }} />{text("settings.desktopUpdates.checkForUpdatesAfterStartup")}</label>
     {['downloading', 'verifying', 'ready'].includes(phase) && <div className="desktop-update-progress"><progress max="100" value={state?.progress || 0} aria-label={text("settings.desktopUpdates.updateDownloadProgress")} /><span>{Math.floor(state?.progress || 0)}% · {formatNumber((state?.transferredBytes || 0) / 1024 ** 2, language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} / {formatNumber((state?.packageBytes || 0) / 1024 ** 2, language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB</span></div>}
     <div className="desktop-manager-actions">
-      <button disabled={!state?.enabled || busy || pending} onClick={() => run(() => api.check())}>{text("settings.desktopUpdates.checkForUpdates")}</button>
-      {state?.latestVersion && ['available', 'error'].includes(phase) && <button disabled={pending || !state.enabled} onClick={() => run(() => api.download())}>{text("settings.desktopUpdates.downloadUpdate")}</button>}
-      {phase === 'downloading' && <button onClick={() => { setError(''); api.cancel().catch(error => setError(error.message)); }}>{text("settings.desktopUpdates.cancelDownload")}</button>}
-      {phase === 'ready' && <button disabled={pending || working} onClick={async () => {
+      <WorkspaceButton disabled={!state?.enabled || busy || pending} onClick={() => run(() => api.check())}>{text("settings.desktopUpdates.checkForUpdates")}</WorkspaceButton>
+      {state?.latestVersion && ['available', 'error'].includes(phase) && <WorkspaceButton disabled={pending || !state.enabled} onClick={() => run(() => api.download())}>{text("settings.desktopUpdates.downloadUpdate")}</WorkspaceButton>}
+      {phase === 'downloading' && <WorkspaceButton onClick={() => { setError(''); api.cancel().catch(error => setError(error.message)); }}>{text("settings.desktopUpdates.cancelDownload")}</WorkspaceButton>}
+      {phase === 'ready' && <WorkspaceButton disabled={pending || working} onClick={async () => {
         if (state.platform !== 'darwin' && !await dialogs.confirm(text("settings.desktopUpdates.theAppWillCloseAndOpenTheInstallerSaveYour"))) return;
         run(async () => { await getPlatform().preferences.flush(); await api.install(); });
-      }}>{state.platform === 'darwin' ? text("settings.desktopUpdates.openUpdatePackage") : text("settings.desktopUpdates.quitAndInstallUpdate")}</button>}
+      }}>{state.platform === 'darwin' ? text("settings.desktopUpdates.openUpdatePackage") : text("settings.desktopUpdates.quitAndInstallUpdate")}</WorkspaceButton>}
     </div>
     <p>{state?.platform === 'darwin' ? text("settings.desktopUpdates.openTheDownloadedDmgQuitCsboardThenDragTheNew") : text("settings.desktopUpdates.onlyPublishedStableReleasesAreOfferedDownloadsAndInstallationRequire")}</p>
     {notes.content && <details className="desktop-update-notes"><summary>{text("settings.desktopUpdates.releaseNotes")}</summary>

@@ -1,3 +1,4 @@
+import { WorkspaceButton } from './workspace/WorkspaceControls.jsx';
 import { getMapPlaceRegions } from '../data/mapPlaceData.js';
 import { preferences } from '../platform/preferences.js';
 import { useEffect, useId, useState } from 'react';
@@ -32,7 +33,7 @@ export default function ViewTools({ guideControlsOpen = false, boardViewMode, ma
   }, [mobile, open]);
   const text = (key, values) => translate(language, key, values);
   return <div className={`view-tools${mobile ? ' mobile-view-tools' : ''}${open ? ' expanded' : ''}`}>
-    {mobile && <button type="button" className="mobile-view-tools-toggle" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen(value => !value)}>{text("view.viewTools.mapCameras")}{touchDrawingEnabled && <small>{text("view.viewTools.draw")}</small>} <span aria-hidden="true">{open ? '−' : '+'}</span></button>}
+    {mobile && <WorkspaceButton compact type="button" className="mobile-view-tools-toggle" aria-expanded={open} aria-controls={contentId} onClick={() => setOpen(value => !value)}>{text("view.viewTools.mapCameras")}{touchDrawingEnabled && <small>{text("view.viewTools.draw")}</small>} <span aria-hidden="true">{open ? '−' : '+'}</span></WorkspaceButton>}
     {(!mobile || open) && <div id={contentId} className="view-tools-content">
     <div className="view-tools-top">
       <div className="map-preview-stack">
@@ -41,22 +42,22 @@ export default function ViewTools({ guideControlsOpen = false, boardViewMode, ma
         <RadarOverlay radarSource={radarSource} activePanel={activePanel} boardRef={boardRef} mapName={mapName} navData={navData} />
         {currentMapLayers.length > 1 && <span>{currentMapLayers[map2dLayer]?.id === 'lower' ? t("view.lowerFloor") : t("view.upperFloor")}</span>}
       </button> : <div className="map-preview-slot map-preview-empty" aria-hidden="true" />}
-    {getMapPlaceRegions(navData,mapName).some(region=>region.kind==='place') && <div className="map-style-controls" role="group" aria-label={text("view.viewTools.2dMapStyle")}>{[['plain',text("view.viewTools.map")],['places',text("view.viewTools.callouts")]].map(([value,label])=><button type="button" key={value} aria-pressed={map2dStyle===value} onClick={()=>setMap2dStyle(value)}><span>{label}</span></button>)}</div>}
+    {getMapPlaceRegions(navData,mapName).some(region=>region.kind==='place') && <div className="map-style-controls" role="group" aria-label={text("view.viewTools.2dMapStyle")}>{[['plain',text("view.viewTools.map")],['places',text("view.viewTools.callouts")]].map(([value,label])=><WorkspaceButton compact type="button" key={value} aria-pressed={map2dStyle===value} onClick={()=>setMap2dStyle(value)}><span>{label}</span></WorkspaceButton>)}</div>}
       </div>
       <div className="camera-slots">
         <span>{t("view.cameraPositions")}</span>
-        {cameraSlotState.map((saved, index) => <button type="button" key={index} disabled={!saved && !(mobile && savingCamera)} className={activeCameraSlot === index ? 'active' : ''} aria-label={text(savingCamera ? 'view.camera.saveSlot' : 'view.camera.restoreSlot', { slot: index + 1 })} onClick={() => {
+        {cameraSlotState.map((saved, index) => <WorkspaceButton compact type="button" key={index} disabled={!saved && !(mobile && savingCamera)} className={activeCameraSlot === index ? 'active' : ''} aria-label={text(savingCamera ? 'view.camera.saveSlot' : 'view.camera.restoreSlot', { slot: index + 1 })} onClick={() => {
           if (mobile && savingCamera) { boardRef.current?.commands?.execute('camera.save', { slot: index }); setSavingCamera(false); }
           else boardRef.current?.commands?.execute('camera.restore', { slot: index });
-        }}>{index === 9 ? 0 : index + 1}</button>)}
-        {boardViewMode !== '2d' && <div className="floor-controls">{floorOptions.map(([floor, label]) => <button type="button" key={floor} className={modelFloor === floor ? 'active' : ''} onClick={() => selectMapFloor(floor)}>{label}</button>)}</div>}
-        {mobile && <button type="button" className="camera-save-toggle" aria-pressed={savingCamera} onClick={() => setSavingCamera(value => !value)}>{savingCamera ? text("view.viewTools.chooseASlot") : text("view.viewTools.saveCamera")}</button>}
-        <button type="button" className="camera-reset" onClick={() => boardRef.current?.commands?.execute('camera.reset')}>{t("view.resetView")}</button>
+        }}>{index === 9 ? 0 : index + 1}</WorkspaceButton>)}
+        {boardViewMode !== '2d' && <div className="floor-controls">{floorOptions.map(([floor, label]) => <WorkspaceButton compact type="button" key={floor} className={modelFloor === floor ? 'active' : ''} onClick={() => selectMapFloor(floor)}>{label}</WorkspaceButton>)}</div>}
+        {mobile && <WorkspaceButton compact type="button" className="camera-save-toggle" aria-pressed={savingCamera} onClick={() => setSavingCamera(value => !value)}>{savingCamera ? text("view.viewTools.chooseASlot") : text("view.viewTools.saveCamera")}</WorkspaceButton>}
+        <WorkspaceButton compact type="button" className="camera-reset" onClick={() => boardRef.current?.commands?.execute('camera.reset')}>{t("view.resetView")}</WorkspaceButton>
       </div>
     </div>
-    {mobile && <button type="button" className="touch-drawing-toggle" aria-pressed={touchDrawingEnabled} onClick={() => { setTouchDrawingEnabled(value => !value); setOpen(false); }}>{touchDrawingEnabled ? text("view.viewTools.stopDrawingRotateView") : text("view.viewTools.enableDrawing")}</button>}
+    {mobile && <WorkspaceButton compact type="button" className="touch-drawing-toggle" aria-pressed={touchDrawingEnabled} onClick={() => { setTouchDrawingEnabled(value => !value); setOpen(false); }}>{touchDrawingEnabled ? text("view.viewTools.stopDrawingRotateView") : text("view.viewTools.enableDrawing")}</WorkspaceButton>}
     <div className="brush-controls">
-      <div className="brush-swatches">{BRUSH_COLORS.map((color) => <button type="button" key={color} className={`brush-swatch${brushColor.toLowerCase() === color ? ' active' : ''}`} style={{ background: color }} aria-label={color} title={color} onClick={() => { setBrushColor(color); preferences.setItem('csboard-brush-color', color); }} />)}</div>
+      <div className="brush-swatches">{BRUSH_COLORS.map((color) => <button type="button" key={color} className={`brush-swatch${brushColor.toLowerCase() === color ? ' active' : ''}`} style={{ '--brush-color': color }} aria-label={color} title={color} onClick={() => { setBrushColor(color); preferences.setItem('csboard-brush-color', color); }} />)}</div>
       <div className="brush-util-row">
         <div className="brush-widths">{BRUSH_WIDTHS.map((width) => <button type="button" key={width} className={`brush-width${brushWidth === width ? ' active' : ''}`} title={`${width}px`} onClick={() => { setBrushWidth(width); preferences.setItem('csboard-brush-width', String(width)); }}><i style={{ width: Math.max(2, width), height: Math.max(2, width) }} /></button>)}</div>
         <button type="button" className={`brush-eraser${eraserEnabled ? ' active' : ''}`} title={t("common.eraser")} aria-label={t("common.eraser")} onClick={() => setEraserEnabled((value) => !value)}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" width="12" height="12"><path d="M11 3 14 6l-5 5H5l-3-3z" /><path d="M8 6 11 9" /></svg></button>

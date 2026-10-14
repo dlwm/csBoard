@@ -1,3 +1,4 @@
+import { WorkspaceButton } from '../components/workspace/WorkspaceControls.jsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { translate } from '../i18n.js';
@@ -10,7 +11,7 @@ export function TutorialOffer({ language, onAccept, onDecline }) {
   return createPortal(<dialog ref={dialog} className="operation-offer" onCancel={event => { event.preventDefault(); onDecline(); }} onKeyDown={event => event.stopPropagation()} aria-labelledby="operation-offer-title">
     <small>CSBOARD</small><h2 id="operation-offer-title">{text("onboarding.operationGuide.startTheOperationGuide")}</h2>
     <p>{text("onboarding.operationGuide.learnTheViewsReplayUtilityNotesAndCollaborationInThe")}</p>
-    <footer><button type="button" autoFocus onClick={onDecline}>{text("onboarding.operationGuide.notNow")}</button><button type="button" onClick={onAccept}>{text("onboarding.operationGuide.startGuide")}</button></footer>
+    <footer><WorkspaceButton type="button" autoFocus onClick={onDecline}>{text("onboarding.operationGuide.notNow")}</WorkspaceButton><WorkspaceButton type="button" onClick={onAccept}>{text("onboarding.operationGuide.startGuide")}</WorkspaceButton></footer>
   </dialog>, document.body);
 }
 
@@ -76,14 +77,14 @@ export default function OperationGuide({ language, steps, step, mobile, onStep, 
   return createPortal(<div className={`operation-guide-layer${mobile ? ' is-mobile' : ''}`}>
     {layout?.bounds && <div className="operation-spotlight" style={layout.bounds} aria-hidden="true" />}
     <aside ref={card} className="operation-guide" role="region" aria-label={text("onboarding.operationGuide.operationGuide")} style={{ left: layout?.x ?? 12, top: layout?.y ?? 64, maxHeight: layout?.maxHeight }} onKeyDown={event => event.stopPropagation()}>
-      <header><span>{text("onboarding.operationGuide.operationGuide")} · {step + 1}/{steps.length}</span><div><button type="button" onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed} aria-label={text("onboarding.operationGuide.collapseOrExpandGuide")}>{collapsed ? '+' : '−'}</button><button type="button" onClick={onFinish} aria-label={text("onboarding.operationGuide.closeGuide")}>×</button></div></header>
+      <header><span>{text("onboarding.operationGuide.operationGuide")} · {step + 1}/{steps.length}</span><div><WorkspaceButton type="button" onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed} aria-label={text("onboarding.operationGuide.collapseOrExpandGuide")}>{collapsed ? '+' : '−'}</WorkspaceButton><WorkspaceButton icon variant="quiet" type="button" onClick={onFinish} aria-label={text("onboarding.operationGuide.closeGuide")}>×</WorkspaceButton></div></header>
       <h2 aria-live="polite">{translate(language, current.title)}</h2>
       {!collapsed && <><p>{translate(language, current.body)}</p>
-        {current.id === 'import' && exampleAvailable && <div className="operation-example"><button type="button" disabled={exampleLoading} onClick={onExample}>{exampleLoading ? text("onboarding.operationGuide.preparingExample", { value1: Math.round(exampleProgress * 100) }) : text("onboarding.operationGuide.openBuiltInExampleRound22")}</button><small>{text("onboarding.operationGuide.aCompactRealReplayNoRawDemoImportOrParsing")}</small>{exampleError && <p role="alert">{exampleError}</p>}</div>}
+        {current.id === 'import' && exampleAvailable && <div className="operation-example"><WorkspaceButton type="button" disabled={exampleLoading} onClick={onExample}>{exampleLoading ? text("onboarding.operationGuide.preparingExample", { value1: Math.round(exampleProgress * 100) }) : text("onboarding.operationGuide.openBuiltInExampleRound22")}</WorkspaceButton><small>{text("onboarding.operationGuide.aCompactRealReplayNoRawDemoImportOrParsing")}</small>{exampleError && <p role="alert">{exampleError}</p>}</div>}
         {current.needsDemo && !hasDemo && <p className="operation-notice">{text("onboarding.operationGuide.openAParsedDemoFromTheLocalListToTry")}</p>}
         {progress && <p className="operation-task" role="status">{done ? text("onboarding.operationGuide.completed") : text("onboarding.operationGuide.waitingForYourAction")} · {Math.min(progress.current, progress.total)}/{progress.total}</p>}
-        {!layout?.bounds && <button type="button" className="operation-return" onClick={onReturn}>{text("onboarding.operationGuide.showThisStepSControls")}</button>}
-        <footer><button type="button" disabled={step === 0} onClick={() => onStep(step - 1)}>{text("onboarding.operationGuide.back")}</button>{!done && <button type="button" onClick={() => onStep(step + 1)}>{text("onboarding.operationGuide.skipExercise")}</button>}<button type="button" disabled={!done} onClick={() => step === steps.length - 1 ? onFinish() : onStep(step + 1)}>{step === steps.length - 1 ? text("onboarding.operationGuide.finish") : text("onboarding.operationGuide.next")}</button></footer>
+        {!layout?.bounds && <WorkspaceButton type="button" className="operation-return" onClick={onReturn}>{text("onboarding.operationGuide.showThisStepSControls")}</WorkspaceButton>}
+        <footer><WorkspaceButton type="button" disabled={step === 0} onClick={() => onStep(step - 1)}>{text("onboarding.operationGuide.back")}</WorkspaceButton>{!done && <WorkspaceButton type="button" onClick={() => onStep(step + 1)}>{text("onboarding.operationGuide.skipExercise")}</WorkspaceButton>}<WorkspaceButton type="button" disabled={!done} onClick={() => step === steps.length - 1 ? onFinish() : onStep(step + 1)}>{step === steps.length - 1 ? text("onboarding.operationGuide.finish") : text("onboarding.operationGuide.next")}</WorkspaceButton></footer>
       </>}
     </aside>
   </div>, document.body);

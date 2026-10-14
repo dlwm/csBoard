@@ -1,3 +1,4 @@
+import { WorkspaceButton } from '../components/workspace/WorkspaceControls.jsx';
 import { WorkspaceContribution } from '../components/workspace/WorkspaceSlots.jsx';
 import { translate } from '../i18n.js';
 
@@ -16,11 +17,11 @@ export default function UtilityPlaybackControls({ playback, setPlayback, display
     </WorkspaceContribution>
     <WorkspaceContribution slot="bottom-transport">{playback && <div className="utility-bottom-playback">
       <strong title={playback.note.name}>{playback.note.name}</strong>
-      <button type="button" onClick={() => setPlayback(current => current && ({ ...current, tick: current.playing ? current.tick : current.tick >= end ? 0 : current.tick, playing: !current.playing, delayUntil: 0 }))}>{playback.playing ? t("replay.pause") : t("replay.play")}</button>
+      <WorkspaceButton type="button" onClick={() => setPlayback(current => current && ({ ...current, tick: current.playing ? current.tick : current.tick >= end ? 0 : current.tick, playing: !current.playing, delayUntil: 0 }))}>{playback.playing ? t("replay.pause") : t("replay.play")}</WorkspaceButton>
       <span>{(playback.tick / rate).toFixed(1)}s</span>
       <input className="utility-playback-timeline" type="range" min="0" max={end} step="1" value={playback.tick} aria-label={label("utility.utilityPlaybackControls.utilityPlaybackPosition")} onChange={event => { const tick = Number(event.target.value); setPlayback(current => current && ({ ...current, tick, playing: false, delayUntil: 0 })); }} />
       <span>/ {(end / rate).toFixed(1)}s</span>
-      <button type="button" onClick={() => setPlayback(null)} aria-label={label("utility.utilityPlaybackControls.stopPlayback")}>×</button>
+      <WorkspaceButton icon variant="quiet" type="button" onClick={() => setPlayback(null)} aria-label={label("utility.utilityPlaybackControls.stopPlayback")}>×</WorkspaceButton>
     </div>}</WorkspaceContribution>
   </>;
 }

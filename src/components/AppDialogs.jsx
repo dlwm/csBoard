@@ -1,3 +1,4 @@
+import { WorkspaceButton } from './workspace/WorkspaceControls.jsx';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { translate } from '../i18n.js';
@@ -56,10 +57,10 @@ function RequestDialog({ request, onFinish }) {
   return <DialogFrame title={heading} onCancel={() => onFinish(false)}>
     <header><strong>{heading}</strong></header>
     {message && <p>{message}</p>}
-    {kind === 'text' && <textarea readOnly aria-label={heading} value={value} onFocus={event => event.target.select()} />}
+    {kind === 'text' && <textarea className="workspace-input" readOnly aria-label={heading} value={value} onFocus={event => event.target.select()} />}
     <div className="save-archive-actions">
-      {kind === 'confirm' && <button type="button" data-dialog-focus onClick={() => onFinish(false)}>{text("common.appDialogs.cancel")}</button>}
-      <button type="button" onClick={() => onFinish(true)}>{kind === 'confirm' ? text("common.appDialogs.confirm") : text("common.appDialogs.close")}</button>
+      {kind === 'confirm' && <WorkspaceButton type="button" data-dialog-focus onClick={() => onFinish(false)}>{text("common.appDialogs.cancel")}</WorkspaceButton>}
+      <WorkspaceButton type="button" onClick={() => onFinish(true)}>{kind === 'confirm' ? text("common.appDialogs.confirm") : text("common.appDialogs.close")}</WorkspaceButton>
     </div>
   </DialogFrame>;
 }

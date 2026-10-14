@@ -80,7 +80,7 @@
   "targetPosition": "击杀目标所在",
   "tRounds": "T 回合",
   "utilityRecommendationsPanel.added": "已添加",
-  "utilityRecommendationsPanel.addRepresentative": "添加代表道具",
+  "utilityRecommendationsPanel.addRepresentative": "保存道具",
   "utilityRecommendationsPanel.decoy": "诱饵弹",
   "utilityRecommendationsPanel.demosRounds": "{demoCount} 个 Demo · {roundCount} 个回合",
   "utilityRecommendationsPanel.derivedFromThrowsRoundsAndDemosNotASuccessProbability": "由投掷次数、回合数及 Demo 数换算；不是成功率。",
@@ -99,5 +99,7 @@
   "utilityRecommendationsPanel.throws": "{count} 次",
   "utilityRecommendationsPanel.unfocus": "取消聚焦",
   "utilityRecommendationsPanel.utilityRecommendations": "道具推荐",
-  "victimPosition": "被击杀时所在"
+  "victimPosition": "被击杀时所在",
+  "visual.timeline": "分析播放进度",
+  "visual.economySummary": "己方 {own} · 对手 {opponent}"
 }

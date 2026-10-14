@@ -1,3 +1,4 @@
+import { WorkspaceButton } from './workspace/WorkspaceControls.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { translate } from '../i18n.js';
 
@@ -81,18 +82,18 @@ export default function GameResourceImport({ api, language, onBusy, onImported }
     timeout: text("resources.gameResourceImport.conversionTimedOutSelectFewerMapsAndRetry"),
   };
   return <section className="game-resource-import" aria-busy={active || checking}>
-    <header><h3>{text("resources.gameResourceImport.importGameResources")}</h3><div><button disabled={active || checking} onClick={detect}>{text("resources.gameResourceImport.detectAgain")}</button><button disabled={active || checking} onClick={choose}>{text("resources.gameResourceImport.chooseGameFolder")}</button></div></header>
+    <header><h3>{text("resources.gameResourceImport.importGameResources")}</h3><div><WorkspaceButton disabled={active || checking} onClick={detect}>{text("resources.gameResourceImport.detectAgain")}</WorkspaceButton><WorkspaceButton disabled={active || checking} onClick={choose}>{text("resources.gameResourceImport.chooseGameFolder")}</WorkspaceButton></div></header>
     <p>{text("resources.gameResourceImport.readsSteamInstallationInformationAndCs2ResourcesWithoutChangingGame")}</p>
     {checking && !active && <p role="status">{text("resources.gameResourceImport.checking")}</p>}
     {!checking && !installations.length && !active && <p>{text("resources.gameResourceImport.noCs2ResourcesFoundChooseAGameFolderManuallyOn")}</p>}
     {installations.length > 0 && <>
-      <label className="game-installation-select">{text("resources.gameResourceImport.sourceFolder")}<select disabled={active || checking} value={selected} onChange={event => setInstallation(installations.find(item => item.id === event.target.value))}>{installations.map(item => <option key={item.id} value={item.id}>{item.directory}</option>)}</select></label>
+      <label className="game-installation-select">{text("resources.gameResourceImport.sourceFolder")}<select className="workspace-input" disabled={active || checking} value={selected} onChange={event => setInstallation(installations.find(item => item.id === event.target.value))}>{installations.map(item => <option key={item.id} value={item.id}>{item.directory}</option>)}</select></label>
       <fieldset disabled={active || checking}><legend>{text("resources.gameResourceImport.selectResources")}</legend><label><input type="checkbox" checked={icons} onChange={event => setIcons(event.target.checked)} />{text("resources.gameResourceImport.uiIcons")}</label><div className="game-map-selection">{installation?.maps.map(item => <label key={item.key}><input type="checkbox" checked={maps.includes(item.key)} onChange={event => setMaps(current => event.target.checked ? [...current, item.key] : current.filter(key => key !== item.key))} />{item.key}</label>)}</div></fieldset>
       {estimate && <div className="game-import-space"><span>{text("resources.gameResourceImport.recommendedFreeSpace")}: <b>{formatBytes(estimate.requiredBytes, language)}</b></span><span>{text("resources.gameResourceImport.availableOnDataDisk")}: <b>{formatBytes(estimate.availableBytes, language)}</b></span><small>{text("resources.gameResourceImport.includesTemporaryConversionFilesFinalSizeMayDiffer")}</small></div>}
       {estimate && estimate.availableBytes < estimate.requiredBytes && <p className="resource-pack-error">{phaseErrors.space}</p>}
     </>}
     {(active || progress?.total > 0) && <div className="game-import-progress" role="status" aria-live="polite"><div><strong>{phases[progress.phase]}</strong><span>{progress.current === 'icons' ? text("resources.gameResourceImport.uiIcons") : progress.current} · {progress.completed} / {progress.total}</span></div><progress max={progress.total || 1} value={progress.completed || 0} aria-label={text("resources.gameResourceImport.overallProgress")} />{active && <div className="game-import-current"><progress aria-label={text("resources.gameResourceImport.currentStep")} />{progress.filesTotal > 1 && <span>{progress.filesCompleted} / {progress.filesTotal} {text("resources.gameResourceImport.files")}</span>}</div>}</div>}
     {(error || progress?.error) && <p className="resource-pack-error" role="alert">{error || phaseErrors[progress.error.code] || progress.error.message}</p>}
-    <div className="game-import-actions">{active ? <button onClick={() => api.cancel().catch(error => setError(error.message))}>{text("resources.gameResourceImport.cancelImport")}</button> : <button className="resource-pack-primary" disabled={checking || !estimate || estimate.key !== selectionKey || estimate.availableBytes < estimate.requiredBytes} onClick={start}>{text("resources.gameResourceImport.startImport")}</button>}</div>
+    <div className="game-import-actions">{active ? <WorkspaceButton onClick={() => api.cancel().catch(error => setError(error.message))}>{text("resources.gameResourceImport.cancelImport")}</WorkspaceButton> : <WorkspaceButton variant="primary" className="resource-pack-primary" disabled={checking || !estimate || estimate.key !== selectionKey || estimate.availableBytes < estimate.requiredBytes} onClick={start}>{text("resources.gameResourceImport.startImport")}</WorkspaceButton>}</div>
   </section>;
 }

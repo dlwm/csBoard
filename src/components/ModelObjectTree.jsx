@@ -1,3 +1,4 @@
+import { WorkspaceButton } from './workspace/WorkspaceControls.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { translate } from '../i18n.js';
 import { buildModelObjectTree, isModelObjectLeaf } from '../../shared/map-model-objects.js';
@@ -49,8 +50,8 @@ export default function ModelObjectTree({ mapName, api, language, disabled }) {
     <summary onClick={event => { event.preventDefault(); setOpen(value => !value); }}>{text("view.modelObjectTree.modelObjects")}{metadata && <small>{metadata.objects.length - hidden.size} / {metadata.objects.length}</small>}</summary>
     {open && <div className="model-object-tree-content">
       <p>{text("view.modelObjectTree.groupedByNameChangesApplyAndSaveImmediatelyNavAnd")}</p>
-      {error ? <p role="alert">{error} <button type="button" onClick={() => setAttempt(value => value + 1)}>{text("view.modelObjectTree.retry")}</button></p> : !metadata ? <p role="status">{text("view.modelObjectTree.readingObjectNames")}</p> : <>
-        <div className="model-object-tree-actions"><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={text("view.modelObjectTree.searchObjects")} aria-label={text("view.modelObjectTree.searchModelObjects")} /><button type="button" disabled={disabled} onClick={() => toggle(metadata.objects.map(object => object.id), true)}>{text("view.modelObjectTree.showAll")}</button></div>
+      {error ? <p role="alert">{error} <WorkspaceButton type="button" onClick={() => setAttempt(value => value + 1)}>{text("view.modelObjectTree.retry")}</WorkspaceButton></p> : !metadata ? <p role="status">{text("view.modelObjectTree.readingObjectNames")}</p> : <>
+        <div className="model-object-tree-actions"><input className="workspace-input" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={text("view.modelObjectTree.searchObjects")} aria-label={text("view.modelObjectTree.searchModelObjects")} /><WorkspaceButton type="button" disabled={disabled} onClick={() => toggle(metadata.objects.map(object => object.id), true)}>{text("view.modelObjectTree.showAll")}</WorkspaceButton></div>
         {saveError && <p role="alert">{saveError}</p>}
         {!tree.ids.length && <p>{text("view.modelObjectTree.noMatchingObjects")}</p>}
         <div className="model-object-tree-branches">{tree.ids.length > 0 && <ObjectBranch key={query} root branch={{ ...tree, label: 'root' }} hidden={hidden} onChange={toggle} text={text} disabled={disabled} />}</div>

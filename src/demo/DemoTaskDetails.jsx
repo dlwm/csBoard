@@ -1,3 +1,4 @@
+import { WorkspaceButton } from '../components/workspace/WorkspaceControls.jsx';
 import { conciseDemoError } from './diagnostics.js';
 import { useState } from 'react';
 import { formatBytes as displayBytes, formatDuration } from '../i18n.js';
@@ -54,8 +55,8 @@ export default function DemoTaskDetails({ task, batch, language }) {
   return <details className="demo-task-details">
     <summary>{text("replay.demoTaskDetails.parsingDetails")}</summary>
     <div className="demo-detail-modes" aria-label={text("replay.demoTaskDetails.detailsView")}>
-      <button type="button" aria-pressed={mode === 'display'} onClick={() => setMode('display')}>{text("replay.demoTaskDetails.display")}</button>
-      <button type="button" aria-pressed={mode === 'json'} onClick={() => setMode('json')}>JSON</button>
+      <WorkspaceButton type="button" aria-pressed={mode === 'display'} onClick={() => setMode('display')}>{text("replay.demoTaskDetails.display")}</WorkspaceButton>
+      <WorkspaceButton type="button" aria-pressed={mode === 'json'} onClick={() => setMode('json')}>JSON</WorkspaceButton>
     </div>
     {mode === 'json' ? <pre>{JSON.stringify(raw, null, 2)}</pre> : <div className="demo-detail-display">
       <dl>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>

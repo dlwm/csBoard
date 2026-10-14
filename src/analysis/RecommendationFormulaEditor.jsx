@@ -1,3 +1,4 @@
+import { WorkspaceButton } from '../components/workspace/WorkspaceControls.jsx';
 import { useState } from 'react';
 import { translate } from '../i18n.js';
 import { DEFAULT_RECOMMENDATION_FORMULAS, FORMULA_VARIABLES, validateRecommendationFormulas } from './recommendationFormulas.js';
@@ -21,13 +22,13 @@ export default function RecommendationFormulaEditor({ language, formulas, onAppl
     }}>
       {Object.keys(DEFAULT_RECOMMENDATION_FORMULAS).map(name => <label key={name}>
         <span>{text(labels[name])}</span>
-        <textarea rows={2} value={draft[name]} spellCheck={false} onChange={event => setDraft(current => ({ ...current, [name]: event.target.value }))} />
+        <textarea className="workspace-input" rows={2} value={draft[name]} spellCheck={false} onChange={event => setDraft(current => ({ ...current, [name]: event.target.value }))} />
         <small>{FORMULA_VARIABLES[name].map(variable => `{${variable}}`).join(' · ')}</small>
       </label>)}
       {error && <p role="alert">{text("analysis.recommendationFormulaEditor.invalidFormula")}{error}</p>}
-      <div><button type="submit">{text("analysis.recommendationFormulaEditor.applyAndRegroup")}</button><button type="button" onClick={() => {
+      <div><WorkspaceButton variant="primary" type="submit">{text("analysis.recommendationFormulaEditor.applyAndRegroup")}</WorkspaceButton><WorkspaceButton type="button" onClick={() => {
         setDraft(DEFAULT_RECOMMENDATION_FORMULAS); onApply(DEFAULT_RECOMMENDATION_FORMULAS); setError('');
-      }}>{text("analysis.recommendationFormulaEditor.resetDefaults")}</button></div>
+      }}>{text("analysis.recommendationFormulaEditor.resetDefaults")}</WorkspaceButton></div>
     </form>
   </details>;
 }

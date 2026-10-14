@@ -1,7 +1,5 @@
 .demo-format-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}
-.demo-format-controls button{padding:7px 9px;border:1px solid var(--workspace-divider);background:var(--workspace-surface);color:var(--accent);font:9px var(--font-mono);cursor:pointer}
-.demo-format-controls button:hover{border-color:var(--accent);color:var(--accent)}
-.demo-format-controls button:disabled{opacity:.45;cursor:default}
+.demo-format-controls button:disabled{opacity:.45}
 .demo-format-controls progress{width:70px;height:5px;accent-color:var(--accent)}
 .demo-format-controls span{font-size:10px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .demo-format-controls .demo-format-error{color:#ef8d79}

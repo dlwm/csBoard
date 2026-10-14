@@ -1,3 +1,4 @@
+import { WorkspaceButton, WorkspacePanelHeading } from '../components/workspace/WorkspaceControls.jsx';
 import { useState } from 'react';
 import { preferences } from '../platform/preferences.js';
 import { localeForLanguage } from '../i18n.js';
@@ -14,9 +15,9 @@ export default function UtilityNotesPanel({ notes, folders, language, onCreateFo
   const compareItems = sort === 'landing' ? (a,b)=>compareUtilityLandingPlaces(a,b,localeForLanguage(language)) : null;
   const changeSort = event => { setSort(event.target.value); preferences.setItem('csboard-utility-sort',event.target.value); };
   return <WorkspacePanel className="utility-location-panel" data-tour="notes">
-    <header><strong>{t("utility.utilityNotes")}</strong><select className="utility-sort-select" aria-label={t("utility.utilitySort")} title={t("utility.utilitySort")} value={sort} onChange={changeSort}><option value="landing">{t("utility.sortLandingPlace")}</option><option value="manual">{t("utility.sortManual")}</option></select><span>{t("utility.utilityCount", { count: notes.length })}</span></header>
+    <WorkspacePanelHeading title={t("utility.utilityNotes")} subtitle={t("utility.utilityCount", { count: notes.length })} actions={<select className="workspace-input utility-sort-select" aria-label={t("utility.utilitySort")} title={t("utility.utilitySort")} value={sort} onChange={changeSort}><option value="landing">{t("utility.sortLandingPlace")}</option><option value="manual">{t("utility.sortManual")}</option></select>} />
     <UtilityArchiveTree notes={notes} folders={folders} language={language} onCreateFolder={onCreateFolder}
       onDeleteFolder={onDeleteFolder} onMove={onMove} compareItems={compareItems} onFocus={onFocus} onClearFocus={onClearFocus} onOpen={onOpen} t={t}
-      toolbarActions={<><button type="button" onClick={onAdd}>{t("common.addUtilityNote")}</button><WorkspaceTarget slot="utility-actions" /></>} />
+      toolbarActions={<><WorkspaceButton compact variant="primary" type="button" onClick={onAdd}>{t("common.addUtilityNote")}</WorkspaceButton><WorkspaceTarget slot="utility-actions" /></>} />
   </WorkspacePanel>;
 }

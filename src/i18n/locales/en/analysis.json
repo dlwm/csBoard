@@ -80,7 +80,7 @@
   "targetPosition": "Target Position",
   "tRounds": "T Rounds",
   "utilityRecommendationsPanel.added": "Added",
-  "utilityRecommendationsPanel.addRepresentative": "Add representative",
+  "utilityRecommendationsPanel.addRepresentative": "Save utility",
   "utilityRecommendationsPanel.decoy": "Decoy",
   "utilityRecommendationsPanel.demosRounds": "{demoCount} Demos · {roundCount} rounds",
   "utilityRecommendationsPanel.derivedFromThrowsRoundsAndDemosNotASuccessProbability": "Derived from throws, rounds and Demos; not a success probability.",
@@ -99,5 +99,7 @@
   "utilityRecommendationsPanel.throws": "{count} throws",
   "utilityRecommendationsPanel.unfocus": "Unfocus",
   "utilityRecommendationsPanel.utilityRecommendations": "Utility recommendations",
-  "victimPosition": "Victim Position"
+  "victimPosition": "Victim Position",
+  "visual.timeline": "Analysis timeline",
+  "visual.economySummary": "Own {own} · Opponent {opponent}"
 }

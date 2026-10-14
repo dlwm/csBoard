@@ -1,0 +1,28 @@
+/* One application theme, inherited by workspace chrome and portal dialogs.
+   Module accents communicate identity/state; surfaces and type stay consistent.
+   中文：所有页面共用视觉变量；菜单仅切换强调色，不建立独立主题。 */
+:root {
+  --ui-surface: #10171e;
+  --ui-surface-raised: #18232d;
+  --ui-surface-deep: #0b1117;
+  --ui-line: #2a3744;
+  --ui-text: #e8eef5;
+  --ui-text-secondary: #b8c6d5;
+  --ui-text-muted: #8495a8;
+  --ui-danger: #ff9b91;
+  --ui-radius: 7px;
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-caption-size: 10px;
+  --ui-label-size: 11px;
+  --ui-body-size: 12px;
+  --ui-heading-size: 22px;
+  --ui-control-height: 34px;
+  --ui-control-compact-height: 28px;
+}
+@media (pointer: coarse) {
+  :root { --ui-control-height: 42px; --ui-control-compact-height: 36px; }
+}
+@media (max-height: 600px) { :root { --ui-heading-size: 19px; } }

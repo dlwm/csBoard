@@ -1,3 +1,4 @@
+import { WorkspaceButton } from './workspace/WorkspaceControls.jsx';
 import { useEffect } from 'react';
 import changelogEn from '../../CHANGELOG.md?raw';
 import changelogRu from '../../docs/CHANGELOG.ru-RU.md?raw';
@@ -65,7 +66,7 @@ export default function ChangelogModal({ buildVersion, language, onClose }) {
   const licenseLabel = translate(language, "common.changelogModal.gnuGplV30License");
   return <div className="changelog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <article className="changelog-dialog" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
-      <header><div><span>{buildVersion}</span><h2 id="changelog-title">{title}</h2></div><button type="button" aria-label={closeLabel} title={closeLabel} onClick={onClose}>×</button></header>
+      <header><div><span>{buildVersion}</span><h2 id="changelog-title">{title}</h2></div><WorkspaceButton icon variant="quiet" type="button" aria-label={closeLabel} title={closeLabel} onClick={onClose}>×</WorkspaceButton></header>
       <div className="changelog-content">{renderChangelog(language === 'zh' ? changelogZh : language === 'ru' ? changelogRu : changelogEn)}</div>
       <footer>Copyright © 2026 Colvin Chen · <a href="./LICENSE" target="_blank" rel="noreferrer">{licenseLabel}</a></footer>
     </article>

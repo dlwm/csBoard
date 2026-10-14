@@ -22,15 +22,14 @@
 .desktop-manager{width:min(1020px,calc(100vw - 32px))}
 .settings-layout{display:grid;grid-template-columns:170px minmax(0,1fr);height:min(68dvh,720px);min-height:0}
 .settings-nav{display:flex;flex-direction:column;gap:6px;padding:18px 12px;border-right:1px solid var(--resource-line);overflow:auto;background:var(--resource-surface)}
-.settings-nav button{text-align:left;white-space:normal;padding:10px 12px}
-.settings-nav button[aria-current=location]{border-color:var(--accent-border);color:var(--accent);background:var(--accent-bg)}
+.settings-nav button{text-align:left;white-space:normal}
 .settings-layout>.desktop-manager-content{position:relative;max-height:none;min-height:0;scrollbar-gutter:stable;overscroll-behavior:contain;padding-bottom:55dvh}
 .desktop-manager-content>[data-settings-section]{margin-top:0;padding:22px 0;scroll-margin-top:0}
 .desktop-manager-content>[data-settings-section]:first-of-type{border-top:0}
 .desktop-manager-content>[data-settings-section]>h2{margin:0 0 16px;font-size:16px;font-weight:500;color:var(--resource-text)}
 .settings-range{display:flex;align-items:center;gap:14px;margin:18px 0}.settings-range>span{min-width:120px}.settings-range input[type=range]{flex:1;min-width:50px;accent-color:var(--accent)}.settings-range output{min-width:3ch;text-align:right;color:var(--accent);font-family:var(--font-mono)}
 .desktop-manager-content small{color:var(--resource-muted)}#settings-models .desktop-manager-actions{margin-top:16px}
-@media(max-width:640px){.settings-layout{grid-template-columns:115px minmax(0,1fr);height:65dvh}.settings-nav{padding:10px 6px}.settings-nav button{padding:8px;font-size:11px}.settings-range{flex-wrap:wrap;gap:8px}.settings-range>span{flex-basis:100%}.desktop-manager{overflow:hidden}}
+@media(max-width:640px){.settings-layout{grid-template-columns:115px minmax(0,1fr);height:65dvh}.settings-nav{padding:10px 6px}.settings-range{flex-wrap:wrap;gap:8px}.settings-range>span{flex-basis:100%}.desktop-manager{overflow:hidden}}
 
 #settings-appearance>.desktop-appearance{margin:0;padding:0;border:0}
 /* Ranges must not inherit text-field padding/borders: endpoints are 0 and 100.
@@ -40,7 +39,7 @@
 .settings-range-track input::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:14px;height:14px;border:1px solid var(--accent);border-radius:50%;background:var(--accent)}
 .settings-range-track input::-moz-range-thumb{width:14px;height:14px;border:1px solid var(--accent);border-radius:50%;background:var(--accent)}
 .settings-range-recommended{position:absolute;left:calc(7px + (100% - 14px)*.6);top:18px;width:1px;height:7px;background:var(--accent);opacity:.75;pointer-events:none}
-.resource-pack-dialog .settings-recommendation{padding:4px 6px;font-size:10px;white-space:nowrap;color:var(--accent)}
+.resource-pack-dialog .settings-recommendation{white-space:nowrap}
 @media(max-width:640px){.settings-quality-range>label{flex-basis:100%}.settings-quality-range{flex-wrap:wrap}.settings-range-track{min-width:60px}}
 
 .resource-pack-dialog .desktop-appearance input[type=range]{padding:0;border:0;background:transparent;box-sizing:border-box}
@@ -50,4 +49,14 @@
 .data-cleanup-confirmation h2, .data-cleanup-confirmation p { margin: 0; }
 .data-cleanup-confirmation p { line-height: 1.6; }
 .data-cleanup-confirmation label { display: flex; flex-direction: column; gap: 8px; }
-.data-cleanup-confirmation input { padding: 10px; border: 1px solid var(--accent-border, #354238); background: #0d1512; color: #e4eee9; font: inherit; }
+
+.settings-nav button { justify-content: flex-start; }
+.settings-layout > .desktop-manager-content { container: settings-content / inline-size; }
+@container settings-content (max-width: 470px) {
+  .settings-range { flex-wrap: wrap; gap: 8px; }
+  .settings-range > span, .settings-quality-range > label { flex-basis: 100%; }
+  .settings-range-track { min-width: 80px; }
+}
+@media (max-height: 600px) {
+  .settings-nav { padding: 12px 10px; }
+}

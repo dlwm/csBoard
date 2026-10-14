@@ -1,3 +1,4 @@
+import { WorkspaceButton } from './workspace/WorkspaceControls.jsx';
 import { useAppDialogs } from './AppDialogs.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -75,15 +76,15 @@ export default function ResourcePackModal({ language, onClose }) {
   return createPortal(<dialog ref={ref} className="resource-pack-dialog" onClose={onClose} onCancel={event => { if (busy) event.preventDefault(); }} onKeyDown={event => event.stopPropagation()} aria-labelledby="resource-pack-title">
     <header className="resource-pack-header">
       <div><small>CSBOARD / RESOURCES</small><h2 id="resource-pack-title">{text("resources.resourcePackModal.resourceLibrary")}</h2></div>
-      <button className="resource-pack-close" type="button" disabled={busy} onClick={onClose} aria-label={text("resources.resourcePackModal.close")}>×</button>
+      <WorkspaceButton icon className="resource-pack-close" type="button" disabled={busy} onClick={onClose} aria-label={text("resources.resourcePackModal.close")}>×</WorkspaceButton>
     </header>
     <div className="resource-pack-body">
       <nav className="resource-pack-nav" aria-label={text("resources.resourcePackModal.resourceType")}>
-        {['models', 'icons'].map(value => <button key={value} type="button" aria-pressed={kind === value} onClick={() => { setKind(value); setQuery(''); }}>
+        {['models', 'icons'].map(value => <WorkspaceButton key={value} type="button" aria-pressed={kind === value} onClick={() => { setKind(value); setQuery(''); }}>
           <span>{value === 'models' ? text("resources.resourcePackModal.mapModels") : text("resources.resourcePackModal.uiIcons")}</span>
           <b>{status ? catalog[value === 'models' ? 'maps' : 'icons'].filter(key => status[value]?.[key]).length : '—'}<small> / {catalog[value === 'models' ? 'maps' : 'icons'].length}</small></b>
           <i>{value === 'models' ? 'GLB' : 'SVG'}</i>
-        </button>)}
+        </WorkspaceButton>)}
         <p>{text("resources.resourcePackModal.addResourcesAsYouNeedThem")}</p>
       </nav>
       <section className="resource-pack-content" aria-busy={busy || checking}>
@@ -93,18 +94,18 @@ export default function ResourcePackModal({ language, onClose }) {
           : text("resources.resourcePackModal.missingIconsUseTheDefaultStyleMatchFilenamesToThe")}</p>
         {changed && <div className="resource-pack-apply-notice" role="status">
           <div><strong>{text("resources.resourcePackModal.resourcesChangedNotYetApplied")}</strong><p>{text("resources.resourcePackModal.restartTheAppOrReloadToApplyNowSaveUnsaved")}</p></div>
-          <button type="button" disabled={busy} onClick={reload}>{text("resources.resourcePackModal.reloadAndApply")}</button>
+          <WorkspaceButton type="button" disabled={busy} onClick={reload}>{text("resources.resourcePackModal.reloadAndApply")}</WorkspaceButton>
         </div>}
         {gameOpen && <GameResourceImport api={resources.game} language={language} onBusy={setBusy} onImported={result => {
           setStatus(result.status); setRevision(value => value + 1); setResults(result.results);
           if (result.results.some(item => item.ok)) { markResourcesChanged(); setChanged(true); }
         }} />}
         <div className="resource-pack-toolbar">
-          <input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={text("resources.resourcePackModal.searchFilenames")} aria-label={text("resources.resourcePackModal.searchResources")} />
-          <select value={filter} onChange={event => setFilter(event.target.value)} aria-label={text("resources.resourcePackModal.importStatus")}>
+          <input className="workspace-input" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={text("resources.resourcePackModal.searchFilenames")} aria-label={text("resources.resourcePackModal.searchResources")} />
+          <select className="workspace-input" value={filter} onChange={event => setFilter(event.target.value)} aria-label={text("resources.resourcePackModal.importStatus")}>
             <option value="all">{text("resources.resourcePackModal.all")}</option><option value="installed">{text("resources.resourcePackModal.ready")}</option><option value="missing">{text("resources.resourcePackModal.missing")}</option>
           </select>
-          <button type="button" disabled={busy || checking} onClick={inspect}>{text("resources.resourcePackModal.refresh")}</button>
+          <WorkspaceButton type="button" disabled={busy || checking} onClick={inspect}>{text("resources.resourcePackModal.refresh")}</WorkspaceButton>
         </div>
         {error && <p className="resource-pack-error" role="alert">{error}</p>}
         <div className="resource-pack-scroll">
@@ -113,7 +114,7 @@ export default function ResourcePackModal({ language, onClose }) {
               <div className="resource-pack-entry-heading"><span className="resource-pack-mark" aria-hidden="true">{kind === 'icons' && status.icons[key] ? <img src={`/resource-pack/icons/${key}.svg`} alt="" /> : kind === 'models' ? '◇' : '◈'}</span>
               <div><strong>{key}</strong><small>{key}.{kind === 'icons' ? 'svg' : 'glb'}</small></div>
               <span className="resource-pack-badge">{status[kind]?.[key] === 'local' ? text("resources.resourcePackModal.localTest") : status[kind]?.[key] ? text("resources.resourcePackModal.ready") : text("resources.resourcePackModal.missing")}</span>
-              {resources.remove && status[kind]?.[key] && status[kind][key] !== 'local' && <button className="resource-pack-remove" type="button" disabled={busy || checking} aria-label={text("resources.resourcePackModal.remove", { key: key })} onClick={() => removeResource(key)}>{text("resources.resourcePackModal.remove2")}</button>}
+              {resources.remove && status[kind]?.[key] && status[kind][key] !== 'local' && <WorkspaceButton variant="danger" className="resource-pack-remove" type="button" disabled={busy || checking} aria-label={text("resources.resourcePackModal.remove", { key: key })} onClick={() => removeResource(key)}>{text("resources.resourcePackModal.remove2")}</WorkspaceButton>}
               </div>
               {kind === 'models' && status.models[key] && resources.modelObjects && <ModelObjectTree key={`${key}:${revision}`} mapName={key} api={resources} language={language} disabled={busy || checking} />}
             </li>)}
@@ -128,7 +129,7 @@ export default function ResourcePackModal({ language, onClose }) {
     </div>
     <footer className="resource-pack-footer">
       <p role="status">{changed ? text("resources.resourcePackModal.resourcesChangedReloadToApply") : text("resources.resourcePackModal.validatedFilesReplaceMatchingNamesSelectMultipleSvgGlbFiles")}</p>
-      <div>{changed && <button type="button" disabled={busy} onClick={reload}>{text("resources.resourcePackModal.reloadAndApply")}</button>}{resources.game && <button type="button" disabled={busy || checking} aria-expanded={gameOpen} onClick={() => setGameOpen(value => !value)}>{text("resources.resourcePackModal.importGameResources")}</button>}<button className="resource-pack-primary" type="button" disabled={busy || checking} onClick={importFiles}>{busy ? text("resources.resourcePackModal.importing") : text("resources.resourcePackModal.importResources")}</button></div>
+      <div>{changed && <WorkspaceButton type="button" disabled={busy} onClick={reload}>{text("resources.resourcePackModal.reloadAndApply")}</WorkspaceButton>}{resources.game && <WorkspaceButton type="button" disabled={busy || checking} aria-expanded={gameOpen} onClick={() => setGameOpen(value => !value)}>{text("resources.resourcePackModal.importGameResources")}</WorkspaceButton>}<WorkspaceButton variant="primary" className="resource-pack-primary" type="button" disabled={busy || checking} onClick={importFiles}>{busy ? text("resources.resourcePackModal.importing") : text("resources.resourcePackModal.importResources")}</WorkspaceButton></div>
     </footer>
   </dialog>, document.body);
 }

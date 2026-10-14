@@ -1,3 +1,4 @@
+import { WorkspaceButton } from './workspace/WorkspaceControls.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { translate } from '../i18n.js';
 
@@ -20,6 +21,6 @@ export default function AnalysisCacheSettings({ api, language, working }) {
     <h3>{text("settings.analysisCacheSettings.analysisCache")}</h3>
     <label className="desktop-awake"><input type="checkbox" checked={settings?.realtime || false} disabled={!settings || pending || working} onChange={event => update(event.target.checked)} />{text("settings.analysisCacheSettings.realtimeAnalysisRecomputeEachQuery")}</label>
     <p>{text("settings.analysisCacheSettings.offByDefaultReuseLocalAnalysisCachesResultsRebuildAfter")}</p>
-    {error && <p role="alert" className="resource-pack-error">{error} {!settings && <button type="button" onClick={inspect}>{text("settings.analysisCacheSettings.retry")}</button>}</p>}
+    {error && <p role="alert" className="resource-pack-error">{error} {!settings && <WorkspaceButton type="button" onClick={inspect}>{text("settings.analysisCacheSettings.retry")}</WorkspaceButton>}</p>}
   </section>;
 }

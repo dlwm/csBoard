@@ -129,6 +129,12 @@ async function collaborate() {
 // changes. Missing required controls fail instead of publishing an empty scene.
 // 模板版本与输出文件名稳定；界面变化应改模板，失败不覆盖旧截图。
 async function action(step) {
+  if (step.action === 'resize') {
+    if (![step.width, step.height].every(value => Number.isInteger(value) && value >= 320 && value <= 4096)) throw Error('Resize requires width/height between 320 and 4096');
+    await call('Emulation.setDeviceMetricsOverride', { width: step.width, height: step.height, deviceScaleFactor: 1, mobile: false });
+    await wait(`innerWidth === ${step.width} && innerHeight === ${step.height}`, 'viewport resize');
+    await delay(500); manifest.interactions.push({type:'resize',width:step.width,height:step.height}); return;
+  }
   if (step.action === 'collaborate') return collaborate();
   if (step.action === 'command') {
     await wait('!!window.csboardAutomation?.getState().ready','public viewer ready');
@@ -217,7 +223,7 @@ try {
     if(exceptions.length)throw Error(`Renderer failed: ${JSON.stringify(exceptions)}`);
     const shot=await call('Page.captureScreenshot',{format:'png'});
     await fs.writeFile(path.join(run,scene.file),Buffer.from(shot.data,'base64'));
-    manifest.scenes.push({file:scene.file,description:scene.description,text:await evaluate('document.body.innerText'), state:await evaluate('window.csboardAutomation.getState()'), events:await evaluate('window.csboardAutomation.drainEvents()')});
+    manifest.scenes.push({file:scene.file,description:scene.description, viewport:await evaluate('({width:innerWidth,height:innerHeight})'),text:await evaluate('document.body.innerText'), state:await evaluate('window.csboardAutomation.getState()'), events:await evaluate('window.csboardAutomation.drainEvents()')});
     for(const step of scene.after || [])await action(step);
   }
   // Stage first. Documentation assets change only after explicit selection.
