@@ -1,12 +1,14 @@
+import { reviewToolNames } from './reviewTools.js';
 import { tacticalSystemPrompt } from './systemPrompt.js';
 import { compressionSettings, compressContext, providerMessages } from './contextCompression.js';
 
 const withoutImages = messages => messages.map(message => message.name === 'board_observation' && Array.isArray(message.content) ? { ...message, content: message.content.filter(part => part.type === 'text').map(part => part.text).join('\n') + '\nImage is not retained in history; inspect the board again for a fresh view.' } : message);
 
 const canonical = value => JSON.stringify(value, (_, item) => item && !Array.isArray(item) && typeof item === 'object' ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
-const readOnly = (name, input) => ['read_app_documentation', 'inspect_board_view', 'resolve_view_point', 'inspect_spatial_context', 'list_nav_areas', 'find_nav_path', 'get_action_history', 'get_board_state', 'get_map_context', 'list_map_places', 'find_map_locations', 'search_utilities', 'get_utility_details', 'list_archives'].includes(name) || name === 'manage_archive_folders' && input.action === 'list';
+const readOnly = (name, input) => reviewToolNames.has(name) || ['read_app_documentation', 'inspect_board_view', 'resolve_view_point', 'inspect_spatial_context', 'list_nav_areas', 'find_nav_path', 'get_action_history', 'get_board_state', 'get_map_context', 'list_map_places', 'find_map_locations', 'search_utilities', 'get_utility_details', 'list_archives'].includes(name) || name === 'manage_archive_folders' && input.action === 'list';
 
 export async function runTacticalConversation({ messages, text, config, transport, tools, signal, confirm, onDelta, onTool, onState = () => {}, session, language, contextMemory = () => ({}), allowedTools = null, stopOnToolFailure = false, compression, compaction = {}, onCompaction = () => {}, entryIdForRound = () => undefined, userEntryId }) {
+  tools.beginTurn?.();
   const turnId = session.turnId || crypto.randomUUID();
   const reportTool = tool => {
     tools.recordAction?.({ id: `${turnId}:${tool.round}:${tool.id}`, name: tool.name, status: tool.status, reused: Boolean(tool.reused), readOnly: tool.readOnly, reason: tool.result?.error || tool.result?.reason || (tool.status === 'requires_input' ? 'Awaiting user input in a dialog' : tool.status === 'cancelled' ? 'Operation cancelled; inspect current board before resuming' : null) });

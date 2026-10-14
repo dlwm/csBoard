@@ -8,7 +8,7 @@ Demos, analysis caches, archives, utility notes and chat sessions are stored on 
 
 **Experimental feature.**
 
-Open or create an archive in Collaboration, expand **Operation assistant**, and configure the service URL, model and API key. The service must support Chat Completions tool calls. Local services can use HTTP on localhost; other services require HTTPS.
+Expand **Operation assistant** in Match Replay, Data Analysis or Collaboration and configure the service URL, model and API key. Collaboration editing additionally requires an open editable archive. The service must support Chat Completions tool calls. Local services can use HTTP on localhost; other services require HTTPS.
 
 Chat can read and edit players, illustrative utility effects, drawn routes, tactical frames, camera views and archive folders, or open the normal archive dialogs. A batch formation is one undo step. Room edits synchronize; chat persists locally in separate sessions. Stopping preserves completed edits.
 
@@ -174,3 +174,9 @@ First-time visitors can start an operation guide in the actual workspace. Click 
 Desktop parsing shares the available logical cores across at most two Demos. Low-memory machines or memory pressure reduce concurrency to one; the parser also uses a soft garbage-collection memory target. Remaining imports stay queued. Entity, event and smoke/fire processing remains sequential. Desktop → Storage & backups includes the realtime analysis toggle; cached analysis is used by default.
 
 Desktop → Storage & backups shows database, cache and resource usage, supports manual least-recently-used cache cleanup, and creates verified backup folders. Restore replaces native data and imported resources on restart while retaining the previous directories. Original Demo files, browser preferences and unsaved work are not included. Background tasks are bounded and cancellable; automatic sleep prevention is optional for the current session.
+
+## Experimental replay and analysis assistance
+
+The same assistant also opens in Match Replay and Data Analysis. Read get_review_context first. query_match_events returns deterministic counts and paged event evidence from selected Demos, with missing/omitted data reported; at most 8 Demos are processed per query. Event statistics apply Demo/player/round/event-type filters, not UI side/economy/spatial filters. Utility recommendations use the current UI filters and expose frequency scores, not effectiveness ratings. Evidence links can open a verified Demo/round/tick. Prepared views and filters take effect only after the user clicks their action card. Review tools do not edit tactical archives or automatically save throws. These features remain experimental.
+
+Review results can be published as finding, event-moment (`clips`), or two-column comparison cards using `present_review_result`. Query evidence first, then reference the returned evidence IDs from the same turn. A result supports four cards and 24 evidence references total. Cards state whether an interpretation is based on records or inferred, and include limitations. Publishing never changes the view; only a user click requests navigation. Cards are saved with the conversation and marked historical when reopened. No causal assessment is verified by the renderer.

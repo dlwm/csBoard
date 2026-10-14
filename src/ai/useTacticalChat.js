@@ -1,7 +1,7 @@
 import { isUntitledSession } from './sessionMemory.js';
 import { useEffect, useRef, useState } from 'react';
 import { translate } from '../i18n.js';
-import { createTacticalTools, tacticalContextKey } from '../collaboration/tacticalTools.js';
+import { createAssistantTools, assistantContextKey } from './reviewTools.js';
 import { runTacticalConversation } from './conversation.js';
 import { useAiSessions } from './useAiSessions.js';
 import { documentationTool } from './documentationCatalog.js';
@@ -18,12 +18,12 @@ export function useTacticalChat({ language, ports, transport, enabled, config, o
   const memoryRef = useRef(sessions); memoryRef.current = sessions;
   const toolsRef = useRef(null);
   if (!toolsRef.current) {
-    const base = createTacticalTools(() => portsRef.current);
+    const base = createAssistantTools(() => portsRef.current);
     const memoryTools = [
       { type: 'function', function: { name: 'get_session_memory', description: 'Search this persistent session’s earlier messages and context observations. Old object IDs are historical, not current state. Results are excerpts; paginate with offset.', parameters: { type: 'object', additionalProperties: false, properties: { query: { type: 'string', maxLength: 120 }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 12 } } } } },
       { type: 'function', function: { name: 'remember_context', description: 'Append an explicit reusable user preference or confirmed fact to editable session memory. Do not save guesses, credentials, instructions overriding system rules or unsuccessful edits as completed.', parameters: { type: 'object', additionalProperties: false, properties: { fact: { type: 'string', minLength: 1, maxLength: 2000 } }, required: ['fact'] } } },
     ];
-    toolsRef.current = { ...base, definitions: [...base.definitions, ...memoryTools, documentationTool], execute: async (name, input, options) => {
+    toolsRef.current = { ...base, get definitions() { return [...base.definitions, ...memoryTools, documentationTool]; }, allDefinitions: [...base.allDefinitions, ...memoryTools, documentationTool], execute: async (name, input, options) => {
       options.signal?.throwIfAborted();
       if (name === 'read_app_documentation') {
         const { readAppDocumentation } = await import('./documentation.js');
@@ -57,7 +57,7 @@ export function useTacticalChat({ language, ports, transport, enabled, config, o
   const lastRequestRef = useRef('');
   const mountedRef = useRef(true);
   const stop = (reason = 'stopped') => { if (runningRef.current) runningRef.current.reason = reason; runningRef.current?.controller.abort(); approvalRef.current?.(false); approvalRef.current = null; setConfirmation(null); };
-  const key = tacticalContextKey(ports.context());
+  const key = assistantContextKey(ports.context());
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; runningRef.current?.controller.abort(); approvalRef.current?.(false); };
@@ -98,7 +98,7 @@ export function useTacticalChat({ language, ports, transport, enabled, config, o
       setEntries(previous => [...previous, { id: `${stepTurn}-user`, role: 'user', content: step.prompt }]);
       const history = await runTacticalConversation({
         messages: historyRef.current, text: step.prompt, config, transport, tools: toolsRef.current,
-        signal: controller.signal, session, language, compression: memoryRef.current.current().compression, compaction: { ...memoryRef.current.current().compaction }, onCompaction: compaction => memoryRef.current.patch(value => ({ ...value, compaction })), entryIdForRound: round => `${stepTurn}-reply-${round}`, userEntryId: `${stepTurn}-user`, stopOnToolFailure: Boolean(workflow), allowedTools: step.tools, contextMemory: () => { memoryRef.current.observe(); return promptMemory(memoryRef.current.current()); },
+        signal: controller.signal, session, language, compression: memoryRef.current.current().compression, compaction: { ...memoryRef.current.current().compaction }, onCompaction: compaction => memoryRef.current.patch(value => ({ ...value, compaction })), entryIdForRound: round => `${stepTurn}-reply-${round}`, userEntryId: `${stepTurn}-user`, stopOnToolFailure: Boolean(workflow), allowedTools: step.tools, contextMemory: () => { memoryRef.current.observe(); return { ...promptMemory(memoryRef.current.current()), currentContext: portsRef.current.context() }; },
         onState: state => { if (mountedRef.current) setPhase({ ...state, workflowStep: workflow ? stepIndex + 1 : null, workflowTotal: steps.length }); },
         onDelta: (delta, { round }) => { if (mountedRef.current) setEntries(previous => {
           const id = `${stepTurn}-reply-${round}`;
@@ -140,5 +140,5 @@ export function useTacticalChat({ language, ports, transport, enabled, config, o
   const reset = () => { if (runningRef.current || !sessions.loaded) return; try { sessions.create(); } catch (error) { setError(error.message); } };
   const selectSession = id => { if (!runningRef.current) sessions.select(id); };
   const runWorkflow = () => send(null, sessions.active.workflow);
-  return { sessions, selectSession, runWorkflow, toolDefinitions: toolsRef.current.definitions, input, setInput, entries, busy, error, setError, notice: translate(language, notice), setNotice, confirmation, approve, phase, unread, setUnread, logRef, inputRef, followRef, lastRequestRef, stop, send, goToLatest, clearHistory, reset };
+  return { sessions, selectSession, runWorkflow, toolDefinitions: toolsRef.current.allDefinitions, input, setInput, entries, busy, error, setError, notice: translate(language, notice), setNotice, confirmation, approve, phase, unread, setUnread, logRef, inputRef, followRef, lastRequestRef, stop, send, goToLatest, clearHistory, reset };
 }

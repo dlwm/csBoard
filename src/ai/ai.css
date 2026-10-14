@@ -88,3 +88,18 @@
   .ai-body > * { flex-shrink: 0; }
   .ai-body .ai-log { flex: none; min-height: 60px; max-height: 200px; }
 }
+.ai-review-context { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--border-color, #394249); border-radius: 6px; }
+.ai-review-context > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-review-evidence { display: grid; gap: 5px; margin-top: 5px; }
+.ai-review-evidence:empty { display: none; }
+.ai-review-evidence button { display: grid; gap: 3px; width: 100%; text-align: start; white-space: normal; }
+.ai-review-evidence small { overflow-wrap: anywhere; }
+
+.ai-review-result { display: grid; gap: 8px; margin: 8px 0; }
+.ai-review-result > small, .ai-review-limitations { color: #8c9b8d; }
+.ai-review-card { padding: 10px; border: 1px solid var(--accent-border); border-radius: 8px; background: rgba(127, 127, 127, .05); overflow-wrap: anywhere; }
+.ai-review-card header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ai-review-card p { font-size: 12px; line-height: 1.6; white-space: pre-wrap; margin: 8px 0; }
+.ai-review-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ai-review-limitations { padding-left: 18px; font-size: 11px; }
+@media (max-width: 600px) { .ai-review-comparison { grid-template-columns: 1fr; } }

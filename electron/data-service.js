@@ -9,13 +9,14 @@ export function registerDataService({ app, authorize, storage, scheduler, root, 
   void prepareAnalysisCache(path.join(app.getPath('userData'), 'analysis-cache'), app.getVersion()).catch(error => console.warn('Analysis cache cleanup failed:', error.message));
   ipcMain.handle('data:run', (event, id, method, args) => {
     authorize(event); assertAvailable();
-    const analysis = ['analysis.catalog', 'analysis.query', 'analysis.utility', 'analysis.utilityReplay', 'analysis.recommendations'].includes(method);
+    const analysis = ['analysis.assistant', 'analysis.catalog', 'analysis.query', 'analysis.utility', 'analysis.utilityReplay', 'analysis.recommendations'].includes(method);
     const format = ['format.import', 'format.export'].includes(method);
     if ((!analysis && !format && !['json.encode', 'json.decode', 'broadcast.encode', 'broadcast.decode'].includes(method)) || typeof id !== 'string' || !args
       || (method === 'format.import' && (!/^format\|[a-f0-9-]{36}$/.test(args.destinationId) || !(args.bytes instanceof Uint8Array) || args.bytes.byteLength > 256 * 1024 ** 2))
       || (method === 'format.export' && (!Array.isArray(args.ids) || args.ids.length > 1 || !args.ids.every(value => typeof value === 'string') || (!args.ids.length && !args.inline?.data)))
       || (analysis && (!Array.isArray(args.ids) || !args.ids.every(value => typeof value === 'string')))
       || (['analysis.query', 'analysis.utility'].includes(method) && (!Array.isArray(args.players) || !args.players.every(value => typeof value === 'string')))
+      || (method === 'analysis.assistant' && (args.ids.length > 64 || args.ids.some(value => value.length > 1024)))
       || (method === 'analysis.recommendations' && (!Array.isArray(args.utilities) || args.utilities.length > 50000))
       || (method === 'analysis.utilityReplay' && (args.ids.length > 1 || !['map', 'fileName', 'kind', 'thrower', 'throwerId'].every(key => typeof args[key] === 'string' && args[key].length <= 1024) || !Number.isInteger(args.round) || !Number.isInteger(args.tick)))
       || (method === 'analysis.utility' && (args.ids.length !== 1 || !Number.isInteger(args.round) || typeof args.segmentId !== 'string'))) throw new Error('Invalid data operation');

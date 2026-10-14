@@ -71,7 +71,7 @@ export function createTacticalTools(getPorts) {
   const recordAction = entry => {
     const actionId = entry.id || id('action');
     const existing = actions.findIndex(action => action.id === actionId);
-    const action = { ...(existing >= 0 ? actions[existing] : {}), ...entry, id: actionId, timestamp: existing >= 0 ? actions[existing].timestamp : new Date().toISOString(), ...(entry.status !== 'running' ? { finishedAt: new Date().toISOString() } : {}), context: { ...getPorts().context() }, revision: String(revision), readOnly: readOnlyNames.has(entry.name) || entry.name === 'manage_archive_folders' && entry.readOnly === true };
+    const action = { ...(existing >= 0 ? actions[existing] : {}), ...entry, id: actionId, timestamp: existing >= 0 ? actions[existing].timestamp : new Date().toISOString(), ...(entry.status !== 'running' ? { finishedAt: new Date().toISOString() } : {}), context: { ...getPorts().context() }, revision: String(revision), readOnly: entry.readOnly === true || readOnlyNames.has(entry.name) };
     if (existing >= 0) actions[existing] = action; else actions.push(action);
     if (actions.length > 32) actions.shift();
     if (!action.readOnly && action.status !== 'running') lastAction = action;
@@ -382,3 +382,5 @@ export function createTacticalTools(getPorts) {
   };
   return { definitions: tacticalToolDefinitions, execute, readScope, recordAction, contextKey: () => contextKey(getPorts().context()) };
 }
+
+export { validate as validateToolArguments };

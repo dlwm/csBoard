@@ -80,7 +80,7 @@ for (const file of files(path.join(root, 'src')).filter(file => !file.startsWith
     }
     // Includes keys in arrays/descriptors, not just direct translate() calls.
     if (node.type === 'Literal' && typeof node.value === 'string' && namespaces.has(node.value.split('.')[0]) && node.value.split('.').length >= 3) {
-      if (!(node.value in catalogues.en) && !legacyKeys[node.value]) failures.push(`${path.relative(root, file)}: unknown message ${node.value}`);
+      if (!(node.value in catalogues.en) && !legacyKeys[node.value] && !(node.value.endsWith('.') && Object.keys(catalogues.en).some(key => key.startsWith(node.value)))) failures.push(`${path.relative(root, file)}: unknown message ${node.value}`);
     }
   });
 }

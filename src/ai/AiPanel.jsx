@@ -1,3 +1,5 @@
+import AiReviewResult from './AiReviewResult.jsx';
+import AiReviewEvidence from './AiReviewEvidence.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { translate } from '../i18n.js';
 import { useTacticalChat } from './useTacticalChat.js';
@@ -12,6 +14,8 @@ export default function AiPanel({ language, ports, transport, enabled, visible =
   const experimentalLabel = text("assistant.aiPanel.experimental");
   const assistantLabel = text("assistant.aiPanel.operationAssistantExperimental");
   const experimentalBadge = <span className="ai-experimental">{experimentalLabel}</span>;
+  const reviewContext = ports.context();
+  const reviewMode = reviewContext.panel !== 'collab';
   const toolLabel = name => toolDisplay(name, language).label;
   const statusLabel = status => ({ running: text("assistant.aiPanel.running"), done: text("assistant.aiPanel.completed"), error: text("assistant.aiPanel.failed"), cancelled: text("assistant.aiPanel.cancelled"), interrupted: text("assistant.aiPanel.interrupted"), requires_input: text("assistant.aiPanel.awaitingUserAction") })[status];
   const [open, setOpen] = useState(false);
@@ -23,6 +27,7 @@ export default function AiPanel({ language, ports, transport, enabled, visible =
   const [draftProvider, setDraftProvider] = useState('openai');
   const confirmRef = useRef(null);
   const [saving, setSaving] = useState(false);
+  const [applyingReview, setApplyingReview] = useState(false);
   const { sessions, selectSession, runWorkflow, toolDefinitions, input, setInput, entries, busy, error, setError, notice, setNotice, confirmation, approve, phase, unread, setUnread, logRef, inputRef, followRef, lastRequestRef, stop, send, goToLatest, clearHistory, reset } = useTacticalChat({ language, ports, transport, enabled, config, openSettings: () => setSettings(true) });
   useEffect(() => {
     let active = true;
@@ -36,6 +41,13 @@ export default function AiPanel({ language, ports, transport, enabled, visible =
   }, [transport]);
   useEffect(() => { if (open && !settings && followRef.current) goToLatest(); }, [open, settings]);
   useEffect(() => { if (confirmation) confirmRef.current?.focus(); }, [confirmation]);
+  const applyReview = async action => {
+    if (busy || applyingReview) return;
+    setError(''); setApplyingReview(true);
+    try { await ports.review.apply(action); }
+    catch (error) { setError(error.message); }
+    finally { setApplyingReview(false); }
+  };
   const save = async event => {
     event.preventDefault(); if (saving) return;
     setError(''); setSaving(true);
@@ -89,14 +101,15 @@ export default function AiPanel({ language, ports, transport, enabled, visible =
         <button disabled={saving} type="submit">{text("assistant.aiPanel.saveSettings")}</button><button type="button" disabled={saving} onClick={() => setSettings(false)}>{text("assistant.aiPanel.cancel")}</button></fieldset>{error && <p className="ai-error" role="alert">{error}</p>}
       </form>}
       {!settings && <>
-      <AiSessionManager language={language} sessions={sessions} busy={busy} selectSession={selectSession} toolDefinitions={toolDefinitions} runWorkflow={runWorkflow} onError={setError} />
+      <AiSessionManager contextTool={reviewMode ? 'get_review_context' : 'get_board_state'} language={language} sessions={sessions} busy={busy} selectSession={selectSession} toolDefinitions={toolDefinitions} runWorkflow={runWorkflow} onError={setError} />
+      {reviewMode && <div className="ai-review-context"><b>{text(reviewContext.panel === 'demo' ? 'assistant.review.replayContext' : 'assistant.review.analysisContext')}</b><small>{reviewContext.panel === 'demo' ? `${reviewContext.review?.fileName || '—'} · ${text('assistant.review.round', { round: reviewContext.review?.round ?? '—' })}` : text('assistant.review.selection', { players: reviewContext.review?.selectedPlayers.length || 0, demos: reviewContext.review?.selectedDemoIds.length || 0 })}</small><div>{(reviewContext.panel === 'demo' ? ['summarizeRound', 'findKeyEvents'] : ['summarizeSelection', 'findUsefulUtilities']).map(key => <button type="button" key={key} disabled={busy || !enabled} onClick={() => { setInput(text('assistant.review.prompts.' + key)); inputRef.current?.focus(); }}>{text('assistant.review.suggestions.' + key)}</button>)}</div></div>}
       <small className="ai-service">{config.model || text("assistant.aiPanel.noModelConfigured")}</small>
       <div className="ai-log" ref={logRef} onScroll={event => { const node = event.currentTarget; followRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48; if (followRef.current) setUnread(false); }}>
-        {!entries.length && <p className="ai-empty">{text("assistant.aiPanel.describeTheOperationToPerformQueryMapReferencesAndSaved")}</p>}
-        {entries.map(entry => entry.role === 'activity' ? <details className="ai-activity" key={entry.id}>
+        {!entries.length && <p className="ai-empty">{text(reviewMode ? "assistant.review.empty" : "assistant.aiPanel.describeTheOperationToPerformQueryMapReferencesAndSaved")}</p>}
+        {entries.map(entry => entry.role === 'activity' ? <div key={entry.id}><details className="ai-activity" key={entry.id}>
           <summary>{text("assistant.aiPanel.activity")} · {entry.items.length}{entry.items.some(item => item.status === 'error') ? ` · ${text("assistant.aiPanel.containsFailedActions")}` : entry.items.some(item => item.status === 'running') ? ` · ${statusLabel('running')}` : ''}</summary>
-          {entry.items.map(item => <div className={`ai-tool ${item.status}`} key={item.id} tabIndex={0} title={toolDisplay(item.name, language).description}><span>{toolLabel(item.name)} · {statusLabel(item.status)}{item.reused ? ` · ${text("assistant.aiPanel.reusedResult")}` : ''}</span><code className="ai-tool-id">{item.name}</code>{item.image && <button type="button" className="ai-view-button" onClick={() => setViewPreview(item.image)} aria-label={text("assistant.aiPanel.viewFullScreenshot")}><img className="ai-view-preview" src={item.image.dataUrl} alt={text("assistant.aiPanel.numberedBoardView")} /></button>}{item.result?.error && <small>{item.result.error}</small>}</div>)}
-        </details> : <div className={`ai-message ${entry.role}`} key={entry.id}><div className="ai-message-heading"><b>{entry.role === 'user' ? text("assistant.aiPanel.user") : text("assistant.aiPanel.assistant")}</b>{entry.role === 'assistant' && <button type="button" onClick={() => copyReply(entry.content)}>{text("assistant.aiPanel.copy")}</button>}</div>{entry.role === 'assistant' ? <AiMessage content={entry.content} /> : <p>{entry.content}</p>}</div>)}
+          {entry.items.map(item => <div className={`ai-tool ${item.status}`} key={item.id} tabIndex={0} title={toolDisplay(item.name, language).description}><span>{toolLabel(item.name)} · {statusLabel(item.status)}{item.reused ? ` · ${text("assistant.aiPanel.reusedResult")}` : ''}</span><code className="ai-tool-id">{item.name}</code>{item.image && <button type="button" className="ai-view-button" onClick={() => setViewPreview(item.image)} aria-label={text("assistant.aiPanel.viewFullScreenshot")}><img className="ai-view-preview" src={item.image.dataUrl} alt={text("assistant.aiPanel.numberedBoardView")} /></button>}{item.result?.error && <small>{item.result.error}</small>}{reviewMode && <AiReviewEvidence result={item.result} language={language} busy={busy || applyingReview} onApply={applyReview} />}</div>)}
+        </details>{entry.items.filter(item => item.result?.reviewResult).map(item => <AiReviewResult key={item.id} result={item.result.reviewResult} language={language} busy={busy || applyingReview || !reviewMode} onApply={applyReview} />)}</div> : <div className={`ai-message ${entry.role}`} key={entry.id}><div className="ai-message-heading"><b>{entry.role === 'user' ? text("assistant.aiPanel.user") : text("assistant.aiPanel.assistant")}</b>{entry.role === 'assistant' && <button type="button" onClick={() => copyReply(entry.content)}>{text("assistant.aiPanel.copy")}</button>}</div>{entry.role === 'assistant' ? <AiMessage content={entry.content} /> : <p>{entry.content}</p>}</div>)}
 
       </div>
       {unread && <button type="button" className="ai-latest" onClick={goToLatest}>{text("assistant.aiPanel.latestMessages")}</button>}
@@ -104,9 +117,9 @@ export default function AiPanel({ language, ports, transport, enabled, visible =
       {confirmation && <div className="ai-confirm" role="alert"><p>{confirmationSummary()}</p><strong>{toolLabel(confirmation.name)}</strong><div><button ref={confirmRef} type="button" onClick={() => { approve(false); inputRef.current?.focus(); }}>{text("assistant.aiPanel.cancelAction")}</button><button type="button" onClick={() => { approve(true); inputRef.current?.focus(); }}>{text("assistant.aiPanel.confirmAction")}</button></div></div>}
       {notice && <p className="ai-notice" role="status">{notice}</p>}
       {error && <div className="ai-error" role="alert"><p>{error}</p>{lastRequestRef.current && <button type="button" disabled={busy} onClick={() => { setInput(lastRequestRef.current); inputRef.current?.focus(); }}>{text("assistant.aiPanel.editRequest")}</button>}</div>}
-      {!enabled && <small>{text("assistant.aiPanel.openOrCreateATacticalArchiveFirst")}</small>}
+      {!enabled && <small>{text(reviewMode ? "assistant.review.loadDataFirst" : "assistant.aiPanel.openOrCreateATacticalArchiveFirst")}</small>}
       <form className="ai-compose" onSubmit={send}><textarea ref={inputRef} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); if (!busy) send(event); } }} aria-label={text("assistant.aiPanel.tacticalMessage")} value={input} maxLength={6000} placeholder={text("assistant.aiPanel.describeAnOperationOrAskTheAssistantToLearnFrom")} onChange={event => { setInput(event.target.value); event.target.style.height = 'auto'; event.target.style.height = `${Math.min(140, Math.max(65, event.target.scrollHeight))}px`; }} disabled={!enabled} />{busy && <button type="button" onClick={() => stop()}>{text("assistant.aiPanel.stop")}</button>}<button type="submit" disabled={busy || !sessions.loaded || !enabled || !input.trim()}>{text("assistant.aiPanel.send")}</button></form>
-      <footer><button type="button" disabled={busy || !enabled || !ports.board()?.canUndoCollab?.()} onClick={() => { ports.commands.execute('board.undo'); ports.flush(); }}>{text("assistant.aiPanel.undoBoardAction")}</button><small>{text("assistant.aiPanel.enterToSendShiftEnterForNewline")}</small></footer>
+      <footer>{!reviewMode && <button type="button" disabled={busy || !enabled || !ports.board()?.canUndoCollab?.()} onClick={() => { ports.commands.execute('board.undo'); ports.flush(); }}>{text("assistant.aiPanel.undoBoardAction")}</button>}<small>{text("assistant.aiPanel.enterToSendShiftEnterForNewline")}</small></footer>
       </>}
     </div>}
   </aside>;

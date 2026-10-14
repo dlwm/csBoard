@@ -2,6 +2,13 @@ import { translate } from '../i18n.js';
 
 // Display translations only. Protocol IDs and workflow permissions stay stable.
 const labels = {
+  present_review_result: { label: "assistant.tools.present_review_result.label", description: "assistant.tools.present_review_result.description" },
+  get_review_context: { label: "assistant.tools.get_review_context.label", description: "assistant.tools.get_review_context.description" },
+  query_match_events: { label: "assistant.tools.query_match_events.label", description: "assistant.tools.query_match_events.description" },
+  list_utility_recommendations: { label: "assistant.tools.list_utility_recommendations.label", description: "assistant.tools.list_utility_recommendations.description" },
+  prepare_replay_view: { label: "assistant.tools.prepare_replay_view.label", description: "assistant.tools.prepare_replay_view.description" },
+  prepare_analysis_filter: { label: "assistant.tools.prepare_analysis_filter.label", description: "assistant.tools.prepare_analysis_filter.description" },
+
   read_app_documentation: { label: "assistant.tools.read_app_documentation.label", description: "assistant.tools.read_app_documentation.description" },
   get_session_memory: { label: "assistant.tools.get_session_memory.label", description: "assistant.tools.get_session_memory.description" },
   remember_context: { label: "assistant.tools.remember_context.label", description: "assistant.tools.remember_context.description" },

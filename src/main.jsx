@@ -104,6 +104,7 @@ import { buildRecording } from './demo/recordingArchive.js';
 import useSavedRecordings from './demo/useSavedRecordings.js';
 import useBroadcastRoom from './broadcast/useBroadcastRoom.js';
 import AiPanel from './ai/AiPanel.jsx';
+import { createReviewPorts, reviewScopeKey } from './ai/reviewPorts.js';
 
 const platform = getPlatform();
 const mobileWorkspace = platform.capabilities.mobile;
@@ -1314,9 +1315,48 @@ function App() {
     setCollabUtilityRevision(value => value + 1);
     return result;
   };
+  const aiReviewStateRef = useRef(null);
+  aiReviewStateRef.current = {
+    panel: activePanel, mapName, demoId: activeDemoCacheIdRef.current || activeRecordingId || 'current-replay', data: demoData, round: demoRound, tick: demoTick,
+    customRecording: customReplay, replayLoading: demoRoundLoading, selectedDemoIds: analysisSelectedDemoIds, selectedPlayers: analysisSelectedPlayers,
+    availableDemoIds: cachedDemos.filter(entry => entry.rawMap === mapName).map(entry => entry.id), availablePlayers: analysisPlayers,
+    side: analysisSide, metric: demoViewFlags.analysisMetric, utilityKinds: demoViewFlags.utilityKinds,
+    analysisLoading: analysisQueryLoading || analysisPlayersLoading, analysisError: analysisQueryError,
+    recommendationsLoading: utilityRecommendations.loading, groups: utilityRecommendations.groups, utilities: combinedAnalysis.utilities,
+  };
+  const aiReview = AI_ENABLED ? createReviewPorts({
+    getState: () => aiReviewStateRef.current, compute: platform.compute,
+    navigate: async (action, { signal } = {}) => {
+      const current = aiReviewStateRef.current, scope = reviewScopeKey(current);
+      signal?.throwIfAborted();
+      const entry = current.data && current.demoId === action.demoId ? { data: current.data } : await readLibraryDemo(action.demoId);
+      signal?.throwIfAborted();
+      if (reviewScopeKey(aiReviewStateRef.current) !== scope) throw Object.assign(new Error('Review context changed'), { code: 'context_changed' });
+      if (!entry?.data) throw Object.assign(new Error('Replay data is unavailable'), { code: 'invalid_data' });
+      const round = entry.data.rounds.find(round => round.round === action.round);
+      if (!round) throw Object.assign(new Error('Replay round is unavailable'), { code: 'invalid_data' });
+      if (current.demoId !== action.demoId) applyDemoData(entry.data, action.demoId);
+      setMapName(entry.data.demo.map || current.mapName);
+      switchMainPanel('demo'); setDemoPlaying(false); setDemoRound(round); seekDemoTick(action.tick);
+      setDemoCameraMode('manual');
+      const event = action.player && entry.data.events?.find(event => event.user_name === action.player && event.user_steamid || event.attacker_name === action.player && event.attacker_steamid);
+      const playerId = event ? event.user_name === action.player ? event.user_steamid : event.attacker_steamid : action.player;
+      setDemoPovPlayerId(playerId ? String(playerId) : '');
+      return { status: 'succeeded' };
+    },
+    filter: action => {
+      if (action.players) selectAnalysisPlayers(action.players);
+      if (action.demoIds) setAnalysisSelectedDemoIds(action.demoIds);
+      if (action.side) setAnalysisSide(action.side);
+      if (action.metric) setDemoViewFlags(flags => ({ ...flags, analysisMetric: action.metric }));
+      setAnalysisPlaying(false); setAnalysisTime(0);
+      return { status: 'succeeded' };
+    },
+  }) : null;
   const aiPorts = AI_ENABLED ? {
+    review: aiReview,
     commands: workspaceCommands,
-    context: () => ({ mapName, panel: activePanel, controls: { showGrid, showModel, modelFloor, modelViewMode, modelOpacity, brushColor, brushWidth, eraserEnabled }, archiveName: archivesRef.current.find(item => item.id === activeArchiveId)?.name || '', frameId: activeFrameIdRef.current, archiveId: activeArchiveId, roomCode, enabled: activePanel === 'collab' && hasActiveFrameContext }),
+    context: () => ({ mapName, panel: activePanel, controls: { showGrid, showModel, modelFloor, modelViewMode, modelOpacity, brushColor, brushWidth, eraserEnabled }, archiveName: archivesRef.current.find(item => item.id === activeArchiveId)?.name || '', frameId: activeFrameIdRef.current, archiveId: activeArchiveId, roomCode, enabled: activePanel === 'collab' ? hasActiveFrameContext : activePanel === 'demo' ? Boolean(demoData && demoRound && !demoRoundLoading) : activePanel === 'analysis', review: activePanel === 'collab' ? null : aiReview.context() }),
     board: () => boardRef.current,
     nav: () => navData,
     frames: () => framesRef.current,
@@ -1354,7 +1394,7 @@ function App() {
          {tutorialOpen && <OperationGuide language={language} steps={tutorialSteps} step={tutorialStep} mobile={mobileWorkspace} hasDemo={Boolean(demoData)} taskProgress={tutorialTaskProgress} exampleAvailable={platform.capabilities.demoParsing} exampleLoading={tutorialExampleLoading} exampleProgress={tutorialExampleProgress} exampleError={tutorialExampleError} onExample={openTutorialExample} onStep={moveTutorial} onReturn={() => moveTutorial(tutorialStep)} onFinish={finishTutorial} />}
          {parseGameState !== 'hidden' && <div className={`parse-game-layer ${parseGameState}`}><SideGameHub language={language} stopped={!parseGameManual && parseGameState === 'stopped'} manual={parseGameManual} onClose={() => { setParseGameDismissed(true); setParseGameManual(false); setParseGameState('hidden'); }} /></div>}
         <ThreeBoard showSpawnMarkers={showSpawnMarkers} mapFloor={modelFloor} map2dStyle={map2dStyle} onModelSimplificationStatus={setModelSimplificationStatus} modelQuality={modelQuality} smokeTimersEnabled={replayPanel} boardViewMode={boardViewMode} demoMapName={replayPanel ? demoData?.demo.map : utilityReplay?.note.mapName} utilityPlayingNoteId={activePanel === 'utility' ? utilityReplay?.note.id : null} utilityReplayDisplay={activePanel === 'utility' ? utilityReplayDisplay : undefined} language={language} key={mapName} mapName={mapName} navData={navData} showGrid={showGrid} showModel={showModel} modelOpacity={modelOpacity} modelViewMode={modelViewMode} onModelViewRangeChange={setModelViewRange} trackpadDetection={trackpadDetection} showDemoNames={showDemoNames} demoInEyePlayer={replayPanel ? demoPovPlayer : null} demoSnapshot={replayPanel ? demoSnapshot : activePanel === 'utility' ? utilityReplaySnapshot : null} demoSnapshots={replayPanel ? demoSnapshots : []} demoTick={replayPanel ? demoTick : utilityReplay?.tick || 0} demoFires={replayPanel ? demoData?.events?.filter((event) => event.event_name === 'weapon_fire') || [] : []} demoHurts={replayPanel ? demoData?.events?.filter((event) => event.event_name === 'player_hurt') || [] : []} demoGrenades={replayPanel ? demoData?.events?.filter((event) => ['grenade_thrown', 'smokegrenade_detonate', 'smokegrenade_expired', 'inferno_startburn', 'inferno_expire', 'flashbang_detonate', 'hegrenade_detonate', 'decoy_started', 'decoy_detonate'].includes(event.event_name) && event.tick >= (demoRound?.contextStartTick ?? demoRound?.freezeStartTick ?? demoRound?.startTick ?? 0)) || [] : utilityReplay?.note.replay.events || []} demoProjectiles={replayPanel ? demoProjectiles : utilityReplay?.note.replay.projectiles || []} demoSmokeVoxelFrames={replayPanel ? demoSmokeVoxelFrames : utilityReplay?.note.replay.smokeVoxelFrames || []} demoInfernoFrames={replayPanel ? demoInfernoFrames : utilityReplay?.note.replay.infernoFrames || []} demoGrenadeSegments={replayPanel ? demoGrenadeSegments : utilityReplaySegments} onDemoGrenadeSelect={replayPanel ? onDemoGrenadeSelect : null} demoDeaths={replayPanel ? demoDeaths : []} demoC4Events={replayPanel ? demoC4Events : []} demoHltvEvents={replayPanel ? demoHltvEvents : []} demoCameraMode={replayPanel ? demoCameraMode : 'manual'} onDemoPovPlayer={(id) => { setDemoPovPlayerId(id); setDemoCameraMode('manual'); }} onDemoCameraMode={(mode) => { setDemoCameraMode(mode); setDemoPovPlayerId(''); }} onBoardViewMode={setBoardViewMode} onDemoCameraInterrupt={interruptDemoCamera} utilityFirstPerson={activePanel === 'utility' ? utilityFirstPerson : null} utilityProjectileFollow={activePanel === 'utility' ? utilityProjectileFollow : null} heatDeaths={activePanel === 'analysis' ? demoData?.events?.filter((event) => event.event_name === 'player_death') || [] : []} demoViewFlags={demoViewFlags} analysisRows={analysisRows} analysisUtilities={visibleAnalysisUtilities} analysisHighlightedUtilityId={analysisHighlightedUtilityId} analysisSelectedPlayers={analysisSelectedPlayers} analysisSide={analysisSide} analysisEnabled={activePanel === 'analysis'} analysisRounds={demoData?.rounds || []} analysisTime={analysisTime} deletePointId={deletePointId} pointUpdate={pointUpdate} onPointSelect={onPointSelect} onGrenadeWheel={setGrenadeWheel} onCameraSlots={onCameraSlots} onReady={onReady} onModelLoadState={setModelLoadState} pointPlacementEnabled={activePanel === 'collab'} collabEditingEnabled={activePanel === 'collab' && hasActiveFrameContext} brushEnabled={true} touchDrawingEnabled={!mobileWorkspace || touchDrawingEnabled} brushColor={brushColor} brushWidth={brushWidth} eraserEnabled={eraserEnabled} onBrushChange={handleBrushChange} onCollabEdit={() => scheduleCollabSave()} onUtilityCommit={commitUtilityChange} />
-         {AI_ENABLED && <WorkspaceContribution slot="viewport-bottom-right"><AiPanel language={language} ports={aiPorts} transport={platform.ai} enabled={activePanel === 'collab' && hasActiveFrameContext} visible={activePanel === 'collab'} /></WorkspaceContribution>}
+         {AI_ENABLED && <WorkspaceContribution slot="viewport-bottom-right"><AiPanel language={language} ports={aiPorts} transport={platform.ai} enabled={aiPorts.context().enabled} visible={['collab', 'demo', 'analysis'].includes(activePanel)} /></WorkspaceContribution>}
          {activePanel === 'analysis' && analysisQueryLoading && <div className="analysis-loading-overlay" role="status" aria-live="polite"><i className="analysis-loading-spinner" aria-hidden="true" />{translate(language, demoViewFlags.analysisMetric === 'utility'
            ? "common.main.loadingUtilityPositionsAndTrajectories"
            : "common.main.updatingAnalysis")}</div>}

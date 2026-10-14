@@ -1,3 +1,4 @@
+import { portableReviewResult } from './reviewResults.js';
 import { compressionSettings } from './contextCompression.js';
 import { getPlatform } from '../platform/index.js';
 
@@ -6,13 +7,14 @@ export const createSession = () => ({ id: crypto.randomUUID(), title: '', create
 // Legacy default titles are read-only compatibility data, not display copy.
 export const isUntitledSession = session => !session.title || session.title === '\u65b0\u4f1a\u8bdd';
 export const sessionRecords = () => getPlatform().records;
+const storedResult = result => result?.error ? { error: cleanText(result.error, 2000) } : result?.reviewResult ? { reviewResult: portableReviewResult(result.reviewResult) } : undefined;
 const cleanText = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
 
 // Persist text and outcomes, not provider credentials, raw tool arguments,
 // image data or replayable unfinished tool calls.
 export function storedEntries(entries) {
   return entries.map(entry => entry.role === 'activity' ? {
-    id: entry.id, role: 'activity', items: entry.items.map(item => ({ id: item.id, name: item.name, status: item.status === 'running' ? 'interrupted' : item.status, reused: Boolean(item.reused), result: item.result?.error ? { error: cleanText(item.result.error, 2000) } : undefined })),
+    id: entry.id, role: 'activity', items: entry.items.map(item => ({ id: item.id, name: item.name, status: item.status === 'running' ? 'interrupted' : item.status, reused: Boolean(item.reused), result: storedResult(item.result) })),
   } : { id: entry.id, role: entry.role, content: entry.content, ...(entry.interrupted ? { interrupted: true } : {}) });
 }
 export function historyFromEntries(entries, compaction = {}) {
@@ -24,6 +26,7 @@ const geometryHash = points => { let hash = 2166136261; for (const character of 
 export function readContextSnapshot(ports) {
   const context = ports.context(); const board = ports.board();
   const base = { ...context, roomOwner: ports.room()?.owner, frames: ports.frames().map((frame, index) => ({ id: frame.id, number: index + 1 })) };
+  if (context.panel && context.panel !== 'collab') return { ...base, review: context.review ? { ...context.review, tick: undefined } : null, boardAvailable: false };
   if (!context.enabled || !board?.ready || !board.getWorkspaceState) return { ...base, boardAvailable: false };
   const workspace = board.getWorkspaceState();
   const position = value => board.boardToGame(value).map(number => Math.round(number * 10) / 10);
@@ -77,7 +80,7 @@ export function importSessionFile(value, toolNames) {
   session.title = cleanText(raw.title, 120) || session.title; session.memory = raw.memory;
   session.entries = raw.entries.map(entry => {
     if (['user', 'assistant'].includes(entry?.role) && typeof entry.content === 'string' && entry.content.length <= 512000) return { id: crypto.randomUUID(), role: entry.role, content: entry.content, ...(entry.interrupted ? { interrupted: true } : {}) };
-    if (entry?.role === 'activity' && Array.isArray(entry.items) && entry.items.length <= 24) return { id: crypto.randomUUID(), role: 'activity', items: entry.items.map(item => ({ id: crypto.randomUUID(), name: cleanText(item.name, 120), status: ['done', 'error', 'cancelled', 'interrupted', 'requires_input'].includes(item.status) ? item.status : 'interrupted', result: item.result?.error ? { error: cleanText(item.result.error, 2000) } : undefined })) };
+    if (entry?.role === 'activity' && Array.isArray(entry.items) && entry.items.length <= 24) return { id: crypto.randomUUID(), role: 'activity', items: entry.items.map(item => ({ id: crypto.randomUUID(), name: cleanText(item.name, 120), status: ['done', 'error', 'cancelled', 'interrupted', 'requires_input'].includes(item.status) ? item.status : 'interrupted', result: storedResult(item.result) })) };
     throw new Error('Invalid session message');
   });
   session.workflow = raw.workflow.map(step => {
