@@ -119,3 +119,26 @@ source.dispose();
 The reader works independently of React, CSBoard storage and parser engines. Its dependencies are JSZip and precompiled Ajv validators; there is no runtime schema compilation. ZIP paths, schemas and size budgets are checked. Opening reads metadata and players; segment JSON and events are decompressed on demand, with cancellation. This is segment-level loading, not streaming a huge JSON file row by row. The format entry does not import Three.js.
 
 `cs2-demo-format/3.0` statistics packages are a different profile and are not accepted as complete playback packages. Applications may support them through their own migration adapter. NAV and optional map models remain host-provided; a replay package does not contain these assets. Missing optional tracks are reported through capabilities rather than invented data.
+
+### Camera input
+
+The viewer defaults to the `csboard` preset: middle-button orbit, Shift + middle-button or right-button pan, WASD movement, Shift acceleration, wheel/trackpad zoom and touch gestures. Keyboard input is scoped to the focused canvas, so typing in host forms does not move the camera. `input: 'orbit'` selects conventional OrbitControls mouse bindings. `input: false` or `input: {}` disables user camera navigation; API camera commands remain available.
+
+Custom configurations enable **only** the supplied actions. Use `KeyboardEvent.code` so bindings do not depend on the keyboard language. Mouse buttons are 0 (left), 1 (middle), 2 (right). A mouse binding's `keys` are alternative held keys, allowing either Shift key or a custom grab key.
+
+```js
+const viewer = createViewer({
+  container, navData,
+  input: {
+    rotate: { button: 1 },
+    pan: { button: 1, keys: ['Space'] }, // Hold Space to grab/pan.
+    forward: 'ArrowUp', backward: 'ArrowDown',
+    left: 'ArrowLeft', right: 'ArrowRight',
+    up: 'PageUp', down: 'PageDown',
+    zoom: true, touch: true, wrap: true,
+    speed: 18, fast: ['ShiftLeft', 'ShiftRight'], fastSpeed: 51,
+  },
+});
+```
+
+`wrap` requests Pointer Lock during a mouse drag so movement can continue at the screen edge; refusal falls back to captured dragging. Navigation releases held keys on focus loss, window blur and page hiding. Disposal removes listeners and restores the original controls. Advanced hosts may import `createCameraInputController` for an existing camera/OrbitControls pair, call `attach()`, call `update(timestamp)` in their render loop and call `dispose()` on teardown. `keyboardScope: 'window'` is available for a dedicated application viewport; the default is `'viewport'`. Business editing shortcuts remain the host's responsibility.

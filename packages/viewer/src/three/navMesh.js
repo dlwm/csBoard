@@ -22,6 +22,9 @@ export function createNavMesh(navData, focusScreen, focusEnabled, viewportSize) 
     points.forEach((point) => bounds.expandByPoint(new THREE.Vector3(point.y * MAP_SCALE, point.z * MAP_SCALE, point.x * MAP_SCALE)));
     for (let index = 1; index < points.length - 1; index += 1) {
       [points[0], points[index], points[index + 1]].forEach((point) => {
+        // Zero artificial height offset: retain original NAV Z for render,
+        // raycasts, trajectories and floors. Do not flatten multi-level terrain.
+        // 中文：默认抬高量为 0；原始坡面/楼层高度不能当成显示偏移扣除。
         positions.push(point.y * MAP_SCALE, point.z * MAP_SCALE, point.x * MAP_SCALE);
         const heightRatio = (point.z - minHeight) / Math.max(maxHeight - minHeight, 1);
         color.copy(lowColor).lerp(highColor, heightRatio * 0.72);

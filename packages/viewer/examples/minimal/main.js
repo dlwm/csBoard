@@ -1,14 +1,16 @@
-import { createViewer } from '@csboard/viewer';
+import { createViewer, createGltfResourceLoader } from '@csboard/viewer';
 import { openReplayPackageSource } from '@csboard/viewer/format';
 
 const $ = id => document.getElementById(id);
-let viewer, source, pending;
+let viewer, source, pending, modelUrl;
 function close() {
   pending?.abort(); pending = null;
   // The view borrows its data source. Release it after disposing the view.
   // 视图借用来源；先销毁视图，再释放标准包读取器。
   viewer?.dispose(); viewer = null;
   source?.dispose(); source = null;
+  if (modelUrl) URL.revokeObjectURL(modelUrl); modelUrl = null;
+  $('model').disabled = true; $('model-toggle').disabled = true; $('model-unload').disabled = true; $('model-status').textContent = '';
   $('controls').hidden = true; $('close').disabled = true;
 }
 async function execute(command) {
@@ -43,7 +45,16 @@ $('open').onclick = handle(async () => {
     request.signal.throwIfAborted();
     const metadata = candidate.getMetadata();
     source = candidate;
-    viewer = createViewer({ container: $('viewport'), navData, mapName: metadata.mapName });
+    const choice = $('input-preset').value;
+    const input = choice === 'disabled' ? false : choice === 'custom'
+      ? { rotate: { button: 1 }, pan: { button: 1, keys: 'Space' }, forward: 'ArrowUp', backward: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', zoom: true, touch: true, wrap: true } : choice;
+    const resourceLoader = createGltfResourceLoader({ resolve: key => key === 'world-model' && modelUrl ? [modelUrl] : [] });
+    viewer = createViewer({ container: $('viewport'), navData, mapName: metadata.mapName, input, resourceLoader });
+    $('model').disabled = false; $('model-toggle').disabled = false; $('model-unload').disabled = false;
+    viewer.on('resource.state', event => {
+      const state = event.payload;
+      $('model-status').textContent = state.error?.message || (state.status === 'loading' ? `${state.phase || 'Downloading'} ${state.total ? Math.round(state.loaded / state.total * 100) + '%' : state.loaded + ' bytes'}` : state.status);
+    });
     viewer.setDataSource(source);
     viewer.on('*', event => { if (event.type.startsWith('playback.')) update(); });
     const segments = source.listSegments();
@@ -62,5 +73,14 @@ $('open').onclick = handle(async () => {
 $('segment').onchange = handle(() => execute({ type: 'replay.open', segmentId: $('segment').value }));
 $('seek').oninput = handle(() => execute({ type: 'replay.seek', tick: Number($('seek').value) }));
 $('play').onclick = handle(() => execute({ type: viewer.getState().playback.playing ? 'replay.pause' : 'replay.play' }));
+$('model').onchange = handle(async () => {
+  const file = $('model').files[0]; if (!viewer || !file) return;
+  await execute({ type: 'model.unload' });
+  if (modelUrl) URL.revokeObjectURL(modelUrl);
+  modelUrl = URL.createObjectURL(file);
+  await execute({ type: 'model.visibility', visible: true });
+});
+$('model-toggle').onclick = handle(() => execute({ type: 'model.visibility', visible: !viewer.getState().modelVisible }));
+$('model-unload').onclick = handle(() => execute({ type: 'model.unload' }));
 $('close').onclick = () => { close(); $('status').textContent = 'Closed.'; };
 window.addEventListener('pagehide', close, { once: true });

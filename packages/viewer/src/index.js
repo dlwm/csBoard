@@ -27,3 +27,5 @@ export { createViewerToolAdapter } from './core/toolAdapter.js';
 export { WORKSPACE_LAYOUT_VERSION, WORKSPACE_PLAYER_SCHEMA, normalizeWorkspacePlayers, createWorkspaceLayout } from './data/workspace.js';
 
 export { createUtilityReferenceController } from './core/utilityReferences.js';
+
+export { createCameraInputController, CAMERA_INPUT_PRESETS, resolveCameraInput } from './input/cameraInput.js';

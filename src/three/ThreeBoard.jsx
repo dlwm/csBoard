@@ -46,6 +46,7 @@ import { enableMaterialFloorFade, floorVisibilityAtY, updateFloorFadeState } fro
 import createNavBoundaryCollider, { getNavSourceBounds } from './navBoundaryCollider.js';
 import createAnalysisSceneController from './analysisSceneController.js';
 import createCameraInputController from './cameraInputController.js';
+import { CAMERA_INPUT_PRESETS } from '../../packages/viewer/src/input/cameraInput.js';
 import { createBoardObservation } from './boardObservation.js';
 import createCameraStateController from './cameraStateController.js';
 import createC4SceneController from './c4SceneController.js';
@@ -753,6 +754,7 @@ export default function ThreeBoard(inputProps) {
       renderer,
       camera,
       controls,
+      bindings: { ...CAMERA_INPUT_PRESETS.csboard, keyboardScope: "window" },
       trackpadDetectionRef,
       wheelGestureRef,
       onCameraInterrupt: () => {
@@ -996,7 +998,7 @@ export default function ThreeBoard(inputProps) {
         event.preventDefault();
         return;
       }
-      if (['w', 'a', 's', 'd', 'shift', 'control'].includes(event.key.toLowerCase())) {
+      if (!(event.ctrlKey || event.metaKey || event.altKey) && ['w', 'a', 's', 'd', 'shift', 'control'].includes(event.key.toLowerCase())) {
         if (['w', 'a', 's', 'd'].includes(event.key.toLowerCase()) && (demoCameraModeRef.current !== 'manual' || demoInEyePlayerRef.current)) demoCameraInterruptRef.current?.();
         pressedKeys.add(event.key.toLowerCase());
         event.preventDefault();
@@ -1692,26 +1694,6 @@ export default function ThreeBoard(inputProps) {
     const onViewportResize = () => { renderer.getDrawingBufferSize(viewportSize); demoMonitorRenderer.invalidateLayout(); };
     const unsubscribeViewportResize = viewport.onResize(onViewportResize);
     onViewportResize();
-    let lastMoveTime = performance.now();
-    const moveCamera = (now) => {
-      const elapsed = Math.min((now - lastMoveTime) / 1000, 0.05);
-      lastMoveTime = now;
-      const forward = new THREE.Vector3();
-      if(camera.planView)forward.copy(camera.up);else camera.getWorldDirection(forward);
-      forward.y = 0;
-      forward.normalize();
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
-      const movement = new THREE.Vector3();
-      if (pressedKeys.has('w')) movement.add(forward);
-      if (pressedKeys.has('s')) movement.sub(forward);
-      if (pressedKeys.has('d')) movement.add(right);
-      if (pressedKeys.has('a')) movement.sub(right);
-      if (movement.lengthSq() === 0) return;
-      cameraState.clearActiveSlot();
-      movement.normalize().multiplyScalar(elapsed * (pressedKeys.has('shift') ? 51 : 18)/(camera.planView?camera.zoom:1));
-      camera.position.add(movement);
-      controls.target.add(movement);
-    };
     const updateAimTargetScreenSizes = () => {
       const viewportHeight = Math.max(1, renderer.domElement.clientHeight);
       [...demoMarkers.values(), ...pointsRef.current, previewPoint].filter(Boolean).forEach((point) => {
@@ -1793,7 +1775,7 @@ export default function ThreeBoard(inputProps) {
         // Hold the saved first-person view until the pointer leaves the list.
         controls.update();
       } else if (!demoDirectorCameraActive) {
-        moveCamera(now);
+        cameraInput.update(now);
         controls.update();
       }
       const firstPerson = utilityFirstPersonRef.current;

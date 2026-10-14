@@ -30,3 +30,9 @@ Use the same package-name imports in `main.js`; no CSBoard path alias is require
 - On close or navigation, abort pending reads, dispose the viewer, then dispose the borrowed source.
 
 No GLB is required. Add optional model, equipment and voice drivers only when your application needs them. The example shows base rendering, not the full CSBoard combat UI or an audio player. v3 statistics packages are not full replay packages; missing tracks remain unknown/unsupported rather than fabricated. JSON is decoded per segment, not streamed row by row.
+
+## Camera input and optional models
+
+Choose the input preset before opening: CSBoard, Orbit, custom arrow keys with Space + middle-button grab, or disabled. Focus the canvas to use keyboard navigation. Custom configurations and omitted-action semantics are documented in the package README.
+
+After opening a replay, choose a matching, self-contained GLB to display its world model. The example injects `createGltfResourceLoader`, resolves `world-model` to a local Object URL, and uses `model.visibility` / `model.unload`. No CSBoard resource registry or platform adapter is involved. The model must use metres, Y-up, and original uncentred map coordinates; the viewer subtracts its NAV origin. Progress and errors use `resource.state`; object URLs are released after view disposal.

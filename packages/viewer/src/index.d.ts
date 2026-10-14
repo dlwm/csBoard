@@ -73,7 +73,7 @@ export interface Viewer {
   dispose(): void;
 }
 export interface NavData { areas: Record<string, { corners: { x: number; y: number; z: number }[] }> }
-export function createViewer(options: { container: HTMLElement; navData: NavData; mapName?: string; pixelRatioLimit?: number; resourceLoader?: ResourceLoader; utilitySource?: UtilitySource; createUtilityRenderer?: (context: { scene: unknown; origin: Vec3; navData: unknown; floorState: unknown }) => UtilityRenderer; voiceDecoder?: import('./playback/index.js').VoiceDecoder; voiceDriver?: import('./playback/index.js').VoiceDriver; combatOverlayTheme?: Partial<typeof import('./overlays/index.js').COMBAT_OVERLAY_THEME>; combatOverlay?: import('./overlays/index.js').CombatOverlayOptions; readDirectorEvent?: (event: import('./data/replaySource.js').ReplayRow, context: { origin: Vec3; frames: import('./playback/index.js').ReplayFrame[]; roster: import('./data/replaySource.js').ReplayPlayer[] }) => DirectorRecord | null; flashMode?: 'sample' | 'source-duration'; weaponIcons?: (weapon: string, context: { side: string }) => { key: string; url?: string } | null; floorRanges?: Record<string, [number, number]>; floorBoundary?: number; monitorLayout?: (surface: { width: number; height: number; playerIds: string[] }) => MonitorLayout | null; dataSource?: ReplayDataSource; playbackBudget?: { maxBytes?: number; maxRows?: number }; readProducerFields?: (fields: unknown) => Record<string, unknown>; policy?: (command: ViewerCommand, context: OperationContext & { revision: number }) => boolean | void | Promise<boolean | void>; presentation?: { current(): Promise<boolean>; subscribe(listener: (visible: boolean) => void): () => void }; onObserverError?: (error: unknown) => void }): Viewer;
+export function createViewer(options: { container: HTMLElement; navData: NavData; input?: CameraInputConfiguration; mapName?: string; pixelRatioLimit?: number; resourceLoader?: ResourceLoader; utilitySource?: UtilitySource; createUtilityRenderer?: (context: { scene: unknown; origin: Vec3; navData: unknown; floorState: unknown }) => UtilityRenderer; voiceDecoder?: import('./playback/index.js').VoiceDecoder; voiceDriver?: import('./playback/index.js').VoiceDriver; combatOverlayTheme?: Partial<typeof import('./overlays/index.js').COMBAT_OVERLAY_THEME>; combatOverlay?: import('./overlays/index.js').CombatOverlayOptions; readDirectorEvent?: (event: import('./data/replaySource.js').ReplayRow, context: { origin: Vec3; frames: import('./playback/index.js').ReplayFrame[]; roster: import('./data/replaySource.js').ReplayPlayer[] }) => DirectorRecord | null; flashMode?: 'sample' | 'source-duration'; weaponIcons?: (weapon: string, context: { side: string }) => { key: string; url?: string } | null; floorRanges?: Record<string, [number, number]>; floorBoundary?: number; monitorLayout?: (surface: { width: number; height: number; playerIds: string[] }) => MonitorLayout | null; dataSource?: ReplayDataSource; playbackBudget?: { maxBytes?: number; maxRows?: number }; readProducerFields?: (fields: unknown) => Record<string, unknown>; policy?: (command: ViewerCommand, context: OperationContext & { revision: number }) => boolean | void | Promise<boolean | void>; presentation?: { current(): Promise<boolean>; subscribe(listener: (visible: boolean) => void): () => void }; onObserverError?: (error: unknown) => void }): Viewer;
 export function sourceToScene(position: Vec3, origin?: Vec3): Vec3;
 export function sceneToSource(position: Vec3, origin?: Vec3): Vec3;
 export const VIEWER_API_VERSION: string;
@@ -137,3 +137,26 @@ export function normalizeWorkspacePlayers(players: WorkspacePlayer[]): Workspace
 export function createWorkspaceLayout(input: { players: WorkspacePlayer[]; utilities?: WorkspaceLayout['utilities']; effects?: WorkspaceLayout['effects']; mapName?: string; origin?: Vec3 }): WorkspaceLayout;
 
 export function createUtilityReferenceController(options: { source: UtilitySource; renderer: Pick<UtilityRenderer, 'place' | 'move' | 'remove' | 'getPlacements'>; mapName: string | null; isEditable(): boolean; readGuard?: () => unknown; notify?: (type: string, payload: unknown, options: { changed: boolean }) => void; commit?: <T>(action: () => T) => T; onReleaseError?: (error: unknown) => void }): { list(query?: UtilityCatalogueQuery, context?: { signal?: AbortSignal }): Promise<UtilityCatalogue>; place(args: { referenceId: string; id?: string; position?: Vec3 }, context?: { signal?: AbortSignal }): Promise<{ id: string }>; move(args: { id: string; position: Vec3 }): { id: string }; remove(args: { id: string }): { id: string }; getPlacements(): UtilityPlacement[]; dispose(): void };
+
+/** Keyboard bindings use KeyboardEvent.code. Omitted custom actions are disabled. */
+export interface CameraMouseBinding { button: 0 | 1 | 2; keys?: string | string[]; }
+export interface CameraInputBindings {
+  rotate?: CameraMouseBinding | CameraMouseBinding[] | null;
+  pan?: CameraMouseBinding | CameraMouseBinding[] | null;
+  forward?: string | string[] | null; backward?: string | string[] | null;
+  left?: string | string[] | null; right?: string | string[] | null;
+  up?: string | string[] | null; down?: string | string[] | null;
+  fast?: string | string[] | null;
+  zoom?: boolean; touch?: boolean; wrap?: boolean;
+  speed?: number; fastSpeed?: number; keyboardScope?: 'viewport' | 'window';
+}
+export type CameraInputConfiguration = 'csboard' | 'orbit' | false | CameraInputBindings;
+export const CAMERA_INPUT_PRESETS: Readonly<Record<'csboard' | 'orbit', CameraInputBindings>>;
+export function resolveCameraInput(value?: CameraInputConfiguration): CameraInputBindings;
+/** Advanced hosts with an existing Three.js camera can reuse the same input module. */
+export function createCameraInputController(options: {
+  renderer: { domElement: HTMLCanvasElement }; camera: unknown; controls: unknown;
+  bindings?: CameraInputConfiguration; onCameraInterrupt?: () => void;
+  onManualInteraction?: () => void; canEnableControls?: () => boolean;
+  trackpadDetectionRef?: { current: boolean }; wheelGestureRef?: { current: { lastTime: number; mode: string | null } };
+}): { attach(mount?: HTMLElement): void; update(timestamp: number): void; beginDrag(event: PointerEvent): boolean; continueDrag(): boolean; endDrag(): boolean; readonly active: boolean; dispose(): void; };

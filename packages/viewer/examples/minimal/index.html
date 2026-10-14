@@ -17,9 +17,11 @@
   <header>
     <label>NAV JSON <input id="nav" type="file" accept=".json"></label>
     <label>Replay package <input id="replay" type="file" accept=".cs2df,.zip"></label>
+    <label>Camera input <select id="input-preset"><option value="csboard">CSBoard (middle drag / WASD)</option><option value="orbit">Orbit (left drag)</option><option value="custom">Custom (arrows / Space + middle grab)</option><option value="disabled">Disabled</option></select></label>
     <button id="open">Open</button>
     <button id="close" disabled>Close</button>
   </header>
+  <header><label>Optional map GLB <input id="model" type="file" accept=".glb" disabled></label><button id="model-toggle" disabled>Show / hide model</button><button id="model-unload" disabled>Unload model</button><span id="model-status"></span></header>
   <p id="status" role="status">Choose a standard replay package and matching NAV JSON.</p>
   <div id="viewport"></div>
   <section id="controls" hidden>
