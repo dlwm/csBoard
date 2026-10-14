@@ -47,6 +47,10 @@ UI、第三方调用和 AI 工具尽量汇入公开命令。使用 `getCapabilit
 - 资源、片段、Worker、事件和 GPU 对象明确谁创建、谁释放；不要将可选模型变为启动必需项。
 - 修改实际行为就核对断言与测试替身；打包依赖和原生桥接要用真实产物启动检查。
 
+## 工作区视觉组件
+
+`src/components/workspace/WorkspaceControls.jsx` 提供 `WorkspaceButton`（主操作、普通、轻量和选中状态）、`WorkspacePanelHeading` 与 `WorkspaceSection`（可选原生折叠）。业务传入国际化文字、状态与事件。所有菜单和弹窗共享 `theme.css` 的设计变量与 `controls.css` 的控件样式；栏布局放在 `workspace.css`，模块样式只负责内容。普通按钮统一使用共享组件，文本输入使用 `workspace-input`；时间轴、色板与场景标记等专用控件保留原生结构。播放注册到 `bottom-transport`，显示控件注册到现有设置插槽，侧栏内容使用工作区注册机制；不按窗口坐标定位业务控件。
+
 ## 深入阅读
 
 - [最小独立接入示例](../packages/viewer/examples/minimal/README.md)：其他项目从这里开始。
@@ -57,3 +61,13 @@ UI、第三方调用和 AI 工具尽量汇入公开命令。使用 `getCapabilit
 - [AI 提示词](ai/README.md)、[预设数据](presets/README.md)：可贡献内容的位置。
 
 视图库目前是未发布到 npm 的私有实验包，API 0.1。代码按 GPL-3.0-only 提供；引用和分发前阅读 [许可证](../LICENSE) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。
+
+## 界面文案与错误
+
+应用词典集中在 `src/i18n/locales/{en,zh,ru}`，按功能分组。新增文案时，三种语言使用相同的键和命名占位符；组件调用 `translate(language, 'replay.example', { count })`，或使用 `createTranslator(language)`。需要插入 React 元素时使用 `translateParts`，不要在词典中嵌入 HTML。原有 `src/i18n.js` 导入入口和旧键兼容映射仍保留。
+
+异步提示保存键和参数，在渲染时翻译，避免切换语言后保留旧文案或重新启动任务。解析进度传递 `{ code, values }`，技术诊断保留原文。界面数字、容量和耗时使用 `formatNumber`、`formatBytes`、`formatDuration`；序列化坐标、ID 和 `getpos` 指令不使用本地化格式。
+
+视图库不依赖应用词典。保持公开错误码、操作结果与数据结构稳定；宿主可使用 `translateError` 展示已知错误，并保留 `message` / `details` 供诊断。未知错误直接展示原文，不根据翻译后的句子猜错误码，也不因为显示文案变化而自动重试操作。
+
+`make i18n-check` 检查词典键、重复键、占位符、兼容映射及源码引用，并已纳入 `make lint` 和既有发布检查。动态选择的文案须使用词典中已有的键；第三方错误和用户输入不是翻译键。

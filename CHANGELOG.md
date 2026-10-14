@@ -2,6 +2,24 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [2.0.0-alpha.2] - 2026-10-14
+
+### Added
+
+- Extend the experimental operation assistant to Match Replay and Analysis, with evidence-linked findings, event lists and comparisons that can open the relevant replay moment.
+- Allow applications embedding the independent viewer to configure camera mouse, keyboard and touch controls, or disable them, and load local map models.
+
+### Changed
+
+- Refresh all workspaces with shared controls, consistent panel headings and a clearer navigation hierarchy.
+- Adapt navigation, sidebars, timelines and dialogs to window resizing, with larger drawing controls and improved spacing.
+- Improve English, Chinese and Russian interface text, including loading states, errors and live status.
+
+### Fixed
+
+- Keep sidebar toggles accessible when collapsed and prevent navigation from overflowing short windows.
+- Allow the Root folder to collapse and reopen, and prevent an empty floating map frame from covering replay player status.
+
 ## [2.0.0-alpha.1] - 2026-10-14
 
 This is the first preview of CSBoard 2.0. Data exchange and viewer integration interfaces are experimental and may change before the stable release.

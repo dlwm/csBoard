@@ -47,6 +47,10 @@ Public layouts use scene metres and radians; explicitly convert Source coordinat
 - Specify ownership and release of segments, Workers, subscriptions and GPU resources. Models remain optional.
 - Update assertions and test doubles with behavior changes. Check packaged dependencies and IPC using an actual application launch.
 
+## Workspace UI primitives
+
+`src/components/workspace/WorkspaceControls.jsx` provides `WorkspaceButton` (primary, secondary, quiet and selected states), `WorkspacePanelHeading`, and `WorkspaceSection` (optional native disclosure). Feature code supplies translated labels, state and handlers. All menus and portal dialogs share design tokens in `theme.css` and controls in `controls.css`; chrome layout lives in `workspace.css`. Module styles own only their content. Use the shared components for ordinary buttons and text fields (`workspace-input`); reserve native custom controls for timelines, color swatches and in-scene markers. Register playback in `bottom-transport`, display controls in the existing settings slots, and sidebar content through the workspace registry. Avoid positioning feature controls relative to the window.
+
 ## Further reading
 
 - [Minimal independent consumer](../packages/viewer/examples/minimal/README.md): start here for another application.
@@ -56,3 +60,13 @@ Public layouts use scene metres and radians; explicitly convert Source coordinat
 - [Testing](../tests/README.md), [AI corpus](ai/README.md), [preset data](presets/README.md).
 
 The viewer is a private experimental package, API 0.1, not published to npm. It uses GPL-3.0-only; read the [license](../LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) before integrating or distributing it.
+
+## Interface text and errors
+
+Application translations live in `src/i18n/locales/{en,zh,ru}` and are grouped by feature. Add the same key and named placeholders to all three dictionaries; components use `translate(language, 'replay.example', { count })` or a bound `createTranslator(language)`. Use `translateParts` for React nodes, not HTML inside translated strings. Legacy keys remain readable through the existing `src/i18n.js` import path.
+
+Store a key plus values for asynchronous notices, rather than the translated sentence. Translate when rendering so changing language does not restart work or leave old-language status text. Worker progress sends `{ code, values }`; technical diagnostics retain their original text. Use `formatNumber`, `formatBytes` and `formatDuration` for display; never localize serialized coordinates, IDs or `getpos` commands.
+
+The viewer package does not depend on application dictionaries. Keep its error codes, operation results and schemas stable. The host can use `translateError` for a known code and retain `message` / `details` for diagnosis. Unknown errors keep their original message; do not infer codes by matching translated sentences or retry an operation just because its display text changed.
+
+`make i18n-check` checks dictionary keys, duplicate keys, placeholders, compatibility aliases and source references. It is also included in `make lint` and the existing release checks. Dynamic message selection must use registered keys; third-party error messages and user content are not translation keys.

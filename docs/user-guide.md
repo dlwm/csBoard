@@ -65,3 +65,13 @@ Demos, caches, archives, notes and sessions stay on your device. Collaboration a
 The operation assistant is experimental and can be excluded at build time. It can inspect context and execute editing tools, with separate sessions, memory, workflows and JSON import/export. Review its edits; it does not validate real throw physics or tactical effectiveness. See [AI prompts and references](ai/README.md).
 
 Room authorization and reconnection have limitations; large Demos can require substantial memory. Report the version, reproduction steps and relevant diagnostics in [Issues](https://github.com/dlwm/csBoard/issues), keeping private recordings and keys out of public reports.
+
+## Experimental operation assistant
+
+When AI is included in the build, the same assistant is available in Match Replay, Data Analysis and Collaboration. Configure a model that supports tool calls in its settings. The service receives the conversation and queried evidence; it does not automatically receive an entire Demo.
+
+In Match Replay, ask for a round summary or key events. Evidence cards identify the Demo, round and original tick; click a card to view that moment. In Data Analysis, select players and Demos, then ask for event statistics or utility recommendations. Event statistics apply Demo/player/round/event-type filters, not the UI's side, economy or spatial filters; recommendation results use the current UI filters. Missing data and omitted Demos are reported. Frequency scores do not measure tactical effectiveness.
+
+Prepared replay views and analysis filters apply only when clicked. Changing the selection can invalidate an old action. Review mode does not edit tactical archives or save throws automatically; use the normal UI to save them. Collaboration retains its existing editing tools. All of these AI features remain experimental.
+
+The experimental assistant can present evidence-linked finding cards, event-moment lists and two-column comparisons in Match Replay and Data Analysis. Click an evidence item to inspect it; publishing a card does not change the view. Cards are retained when saving or exporting a conversation and labelled as historical when reopened. Current data and selection are checked again before navigation. Comparisons show two groups of evidence, rather than simultaneous replay viewports.

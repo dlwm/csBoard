@@ -5,7 +5,7 @@
 [English](../README.md) · [中文](README.zh-CN.md) · [Скачать приложение](https://github.com/dlwm/csBoard/releases/latest)
 
 
-> **Предварительный выпуск 2.0:** [2.0.0-alpha.1](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.1). Интерфейсы интеграции экспериментальны; ссылка загрузки ведёт на стабильный выпуск.
+> **Предварительный выпуск 2.0:** [2.0.0-alpha.2](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.2). Интерфейсы интеграции экспериментальны; ссылка загрузки ведёт на стабильный выпуск.
 
 ## С чего начать?
 

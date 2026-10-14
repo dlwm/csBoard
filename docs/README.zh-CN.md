@@ -5,7 +5,7 @@
 [English](../README.md) · [Русский](README.ru-RU.md) · [桌面端下载](https://github.com/dlwm/csBoard/releases/latest)
 
 
-> **2.0 预览版：** [2.0.0-alpha.1](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.1)。接入接口仍为实验性；桌面端下载链接指向正式版。
+> **2.0 预览版：** [2.0.0-alpha.2](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.2)。接入接口仍为实验性；桌面端下载链接指向正式版。
 
 ## 从这里开始
 

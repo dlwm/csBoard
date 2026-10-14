@@ -470,3 +470,13 @@ UI 添加期间禁用确认、搜索和选项，仍可取消；请求引用在�
 ## 标准包读取入口
 
 标准读取器已移入 `@csboard/viewer/format`，独立示例不再从应用 `src/formats` 导入回放来源。数据链路为“解析器 → 标准包 → 标准读取器 → 视图”；来源接口只负责读取生命周期，不引入新的交换格式。入口、输入类型、支持的 profile 与限制见 [兼容范围](viewer-compatibility.md) 和包 README。
+
+## 可配置的相机输入
+
+`createViewer({ input })` 默认使用 `csboard` 操作预设；`orbit` 使用左键旋转。自定义对象只启用明确配置的动作，不继承遗漏的默认键；`false` 或 `{}` 关闭用户相机操作，API 相机命令仍可用。配置字段和示例见 [视图库 Camera input](../packages/viewer/README.md#camera-input)。主应用也使用同一输入模块；房间、画笔、人员编辑与道具轮盘属于宿主业务快捷键。
+
+键盘采用 `KeyboardEvent.code`，默认仅在画布获得焦点时响应。支持前后左右、升降、加速，以及鼠标旋转/平移的按键组合（例如 Space + 中键抓住地图）。窗口失焦、页面隐藏会清除按键，销毁会移除监听器；循环拖动申请 Pointer Lock，失败时回退到普通拖动。
+
+NAV 几何不添加高度偏移，直接使用原始 Z 并转换单位、减去统一原点；默认抬高量为 **0**。原始 NAV 自身的坡度、楼层高度或与世界模型地面之间的差值不属于人为偏移。拾取、碰撞、楼层与轨迹均使用同一坐标约定。区域效果的防重叠处理只作用于区域显示，不改变 NAV 几何。
+
+[最小接入示例](../packages/viewer/examples/minimal/README.md) 现在提供操作预设选择和本地 GLB 文件导入。外部应用使用 `createGltfResourceLoader`，将自己的文件转为 Object URL，传入 resolver，再执行 `model.visibility`；退出后销毁视图并释放 URL。库不读取本机资源目录或主动弹出文件选择器。
