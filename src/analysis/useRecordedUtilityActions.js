@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 import { createRecordedThrowRepository } from '../utility/recordedThrowRepository.js';
 import { analysisUtilityPreviewNote, hasRecordedSmokeVoxels } from './utilityPreview.js';
 
@@ -17,11 +17,7 @@ export default function useRecordedUtilityActions({ utilities, compute, contextK
   const [saveState, setSaveState] = useState(idle);
   const [previewState, setPreviewState] = useState(idle);
   const message = (error, saving = false) => error.code === 'smoke_voxels_missing'
-    ? localize(language, {
-      zh: saving ? '该代表烟缺少实际烟雾体素，无法添加；请重新解析此 Demo。' : '该代表烟缺少实际烟雾体素，请重新解析此 Demo。',
-      en: 'This representative smoke has no recorded voxels; reparse this Demo.',
-      ru: 'У образца дыма нет записанных вокселей; повторно разберите Demo.',
-    }) : error.message;
+    ? translate(language, saving ? "analysis.recordedUtility.cannotSaveSmoke" : "analysis.recordedUtility.missingSmoke") : error.message;
   const clearPreview = () => {
     const request = previewRequest.current;
     clearTimeout(request.timer);

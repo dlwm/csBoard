@@ -1,0 +1,21 @@
+{
+  "broadcastDownloadOverlay.cancel": "Cancel",
+  "broadcastDownloadOverlay.connecting": "Connecting…",
+  "broadcastDownloadOverlay.downloadComplete": "Download complete",
+  "broadcastDownloadOverlay.downloadFailed": "Download failed",
+  "broadcastDownloadOverlay.downloadingBroadcastArchive": "Downloading broadcast archive…",
+  "broadcastDownloadOverlay.processingReplayData": "Processing replay data…",
+  "broadcastDownloadOverlay.savingLocally": "Saving locally…",
+  "broadcastDownloadOverlay.uploadingBroadcast": "Uploading broadcast…",
+  "broadcastRoomControls.6DigitRoomCode": "6-digit room code",
+  "broadcastRoomControls.connected": "Connected",
+  "broadcastRoomControls.connecting": "Connecting",
+  "broadcastRoomControls.disconnected": "Disconnected",
+  "broadcastRoomControls.join": "Join",
+  "broadcastRoomControls.leave": "Leave",
+  "broadcastRoomControls.roomClosed": "Room closed",
+  "broadcastRoomControls.roomCode": "Room code",
+  "broadcastRoomControls.sharedReplay": "Shared replay",
+  "broadcastRoomControls.transferFailed": "Transfer failed",
+  "broadcastRoomControls.uploading": "Uploading"
+}

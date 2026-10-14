@@ -1,0 +1,12 @@
+{
+  "demoFormatControls.cancel": "Cancel",
+  "demoFormatControls.cancelled": "Cancelled.",
+  "demoFormatControls.exportPackage": "Export package",
+  "demoFormatControls.exportsTheDraftReplayProfileIncludingAvailableInputsActualSmoke": "Exports the draft replay profile, including available inputs, actual smoke and voice; not a v3 statistics package.",
+  "demoFormatControls.importPackage": "Import package",
+  "demoFormatControls.packageExceeds256Mib": "Package exceeds 256 MiB.",
+  "demoFormatControls.packageProgress": "Package progress",
+  "demoFormatControls.replayPackageExportedDraftProfile": "Replay package exported (draft profile).",
+  "import.complete": "Imported {segments} segments{warning}",
+  "import.optionalMissing": "; some input, smoke or voice data is unavailable"
+}

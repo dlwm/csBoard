@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import changelogEn from '../../CHANGELOG.md?raw';
 import changelogRu from '../../docs/CHANGELOG.ru-RU.md?raw';
 import changelogZh from '../../docs/CHANGELOG.zh-CN.md?raw';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 
 const inlineTokenPattern = /(`[^`]+`|\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*)/g;
 
@@ -60,9 +60,9 @@ export default function ChangelogModal({ buildVersion, language, onClose }) {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [onClose]);
 
-  const title = localize(language, { zh: '更新日志', en: 'Changelog', ru: 'Список изменений' });
-  const closeLabel = localize(language, { zh: '关闭更新日志', en: 'Close changelog', ru: 'Закрыть список изменений' });
-  const licenseLabel = localize(language, { zh: 'GNU GPL v3.0 许可证', en: 'GNU GPL v3.0 License', ru: 'Лицензия GNU GPL v3.0' });
+  const title = translate(language, "common.changelogModal.changelog");
+  const closeLabel = translate(language, "common.changelogModal.closeChangelog");
+  const licenseLabel = translate(language, "common.changelogModal.gnuGplV30License");
   return <div className="changelog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <article className="changelog-dialog" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
       <header><div><span>{buildVersion}</span><h2 id="changelog-title">{title}</h2></div><button type="button" aria-label={closeLabel} title={closeLabel} onClick={onClose}>×</button></header>

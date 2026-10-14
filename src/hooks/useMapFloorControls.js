@@ -39,7 +39,7 @@ export default function useMapFloorControls({ map2dLayer, map2dStyle, mapName, m
   return {
     currentLayerUrl: layers[map2dLayer]?.url || layers[0]?.url,
     cycleFloor,
-    floorOptions: layers.length > 1 ? [['main', t('upperFloor')], ['lower', t('lowerFloor')]] : [['main', t('layerSelection')]],
+    floorOptions: layers.length > 1 ? [['main', t("view.upperFloor")], ['lower', t("view.lowerFloor")]] : [['main', t("view.layerSelection")]],
     layers,
     selectFloor,
   };

@@ -1,14 +1,13 @@
 import { useAppDialogs } from './AppDialogs.jsx';
 import { useState } from 'react';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 import { folderChildren, folderOptions, ROOT_FOLDER_ID } from '../app/archiveFolders.js';
 
-const label = (language, zh, en, ru) => localize(language, { zh, en, ru });
 const DRAG_TYPE = 'application/x-csboard-archive-node';
 
 export function FolderSelect({ state, value, onChange, language }) {
   return <select value={value || ROOT_FOLDER_ID} onChange={(event) => onChange(event.target.value)}>
-    {folderOptions(state).map((folder) => <option key={folder.id} value={folder.id}>{'　'.repeat(folder.depth)}{folder.id === ROOT_FOLDER_ID ? 'Root' : folder.label}</option>)}
+    {folderOptions(state).map((folder) => <option key={folder.id} value={folder.id}>{'　'.repeat(folder.depth)}{folder.id === ROOT_FOLDER_ID ? translate(language, 'common.folders.root') : folder.label}</option>)}
   </select>;
 }
 
@@ -58,7 +57,7 @@ export default function ArchiveFolderTree({ state, items, language, onCreate, on
     if (await onCreate(name, parentId)) { setName(''); setParentId(ROOT_FOLDER_ID); setCreating(false); }
   };
   const deleteFolder = async (id) => {
-    if (!await dialogs.confirm(label(language, '删除文件夹？里面的内容会移到上一级，不会删除存档。', 'Delete folder? Its contents will move to the parent without deleting archives.', 'Удалить папку? Содержимое переместится на уровень выше, архивы сохранятся.'))) return;
+    if (!await dialogs.confirm(translate(language, "common.folders.deleteFolderItsContentsWillMoveToThe"))) return;
     onDelete(id);
   };
   const children = (parent, depth, ancestors = new Set()) => {
@@ -70,9 +69,9 @@ export default function ArchiveFolderTree({ state, items, language, onCreate, on
     const closed = collapsed.has(entry.id);
     return <div key={`folder-${entry.id}`} className="folder-tree-branch">
       <div className={`folder-tree-row${dropTarget === `folder:${entry.id}` ? ' drop-target' : ''}`} style={{ '--folder-depth': depth }} draggable onDragStart={(event) => startDrag(event, 'folder', entry.id)} onDragOver={(event) => allowDrop(event, 'folder', entry.id)} onDragLeave={() => setDropTarget('')} onDrop={(event) => drop(event, 'folder', entry.id)}>
-        <button type="button" className="folder-tree-toggle" aria-label={closed ? label(language, '展开', 'Expand', 'Развернуть') : label(language, '收起', 'Collapse', 'Свернуть')} onClick={() => toggle(entry.id)}>{closed ? '▸' : '▾'}</button>
+        <button type="button" className="folder-tree-toggle" aria-label={closed ? translate(language, "common.folders.expand") : translate(language, "common.folders.collapse")} onClick={() => toggle(entry.id)}>{closed ? '▸' : '▾'}</button>
         <span className="folder-tree-name" title={entry.value.name}>▣ {entry.value.name}</span>
-        <button type="button" className="folder-tree-delete" aria-label={label(language, '删除文件夹', 'Delete folder', 'Удалить папку')} onClick={() => deleteFolder(entry.id)}>×</button>
+        <button type="button" className="folder-tree-delete" aria-label={translate(language, "common.folders.deleteFolder")} onClick={() => deleteFolder(entry.id)}>×</button>
       </div>
       {!closed && children(entry.id, depth + 1, new Set([...ancestors, entry.id]))}
     </div>;
@@ -80,16 +79,16 @@ export default function ArchiveFolderTree({ state, items, language, onCreate, on
   };
 
   return <div className="folder-tree">
-    <div className="folder-tree-heading"><strong>{label(language, '目录', 'Folders', 'Папки')}</strong><div className="folder-tree-actions">{toolbarActions}<button type="button" onClick={() => setCreating(true)}>＋ {label(language, '新建文件夹', 'New folder', 'Новая папка')}</button></div></div>
+    <div className="folder-tree-heading"><strong>{translate(language, "common.folders.folders")}</strong><div className="folder-tree-actions">{toolbarActions}<button type="button" onClick={() => setCreating(true)}>＋ {translate(language, "common.folders.newFolder")}</button></div></div>
     <div className="folder-tree-scroll">
-      <div className={`folder-tree-row root${dropTarget === `folder:${ROOT_FOLDER_ID}` ? ' drop-target' : ''}`} onDragOver={(event) => allowDrop(event, 'folder', ROOT_FOLDER_ID)} onDragLeave={() => setDropTarget('')} onDrop={(event) => drop(event, 'folder', ROOT_FOLDER_ID)}><span className="folder-tree-name">▣ Root</span><small>{items.length}</small></div>
+      <div className={`folder-tree-row root${dropTarget === `folder:${ROOT_FOLDER_ID}` ? ' drop-target' : ''}`} onDragOver={(event) => allowDrop(event, 'folder', ROOT_FOLDER_ID)} onDragLeave={() => setDropTarget('')} onDrop={(event) => drop(event, 'folder', ROOT_FOLDER_ID)}><span className="folder-tree-name">▣ {translate(language, 'common.folders.root')}</span><small>{items.length}</small></div>
       {items.length || state.folders.length ? children(ROOT_FOLDER_ID, 0) : <div className="archive-empty">{emptyLabel}</div>}
     </div>
     {creating && <div className="save-archive-modal" onClick={(event) => { if (event.target === event.currentTarget) setCreating(false); }}><form className="save-archive-dialog folder-create-dialog" onSubmit={submitFolder}>
-      <header><strong>{label(language, '新建文件夹', 'New folder', 'Новая папка')}</strong><button type="button" onClick={() => setCreating(false)}>×</button></header>
-      <label className="collab-utility-search"><span>{label(language, '上级目录', 'Parent folder', 'Родительская папка')}</span><FolderSelect state={state} value={parentId} onChange={setParentId} language={language} /></label>
-      <label className="collab-utility-search"><span>{label(language, '名称', 'Name', 'Название')}</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label>
-      <div className="save-archive-actions"><button type="button" onClick={() => setCreating(false)}>{label(language, '取消', 'Cancel', 'Отмена')}</button><button type="submit" disabled={!name.trim()}>{label(language, '创建', 'Create', 'Создать')}</button></div>
+      <header><strong>{translate(language, "common.folders.newFolder")}</strong><button type="button" onClick={() => setCreating(false)}>×</button></header>
+      <label className="collab-utility-search"><span>{translate(language, "common.folders.parentFolder")}</span><FolderSelect state={state} value={parentId} onChange={setParentId} language={language} /></label>
+      <label className="collab-utility-search"><span>{translate(language, "common.folders.name")}</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label>
+      <div className="save-archive-actions"><button type="button" onClick={() => setCreating(false)}>{translate(language, "common.folders.cancel")}</button><button type="submit" disabled={!name.trim()}>{translate(language, "common.folders.create")}</button></div>
     </form></div>}
   </div>;
 }

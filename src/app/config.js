@@ -34,19 +34,6 @@ export const MAPS = [
   { id: 'de_vertigo', label: 'Vertigo' },
 ];
 
-export const MAP_LABELS_ZH = {
-  de_dust2: '炙热沙城 II',
-  de_mirage: '荒漠迷城',
-  de_nuke: '核子危机',
-  de_ancient: '远古遗迹',
-  de_anubis: '阿努比斯',
-  de_cache: '死城之谜',
-  de_inferno: '炼狱小镇',
-  de_overpass: '死亡游乐园',
-  de_train: '列车停放站',
-  de_vertigo: '殒命大厦',
-};
-
 export function loadViewPreferences() {
   try {
     const saved = JSON.parse(preferences.getItem(VIEW_PREFERENCES_KEY) || '{}');

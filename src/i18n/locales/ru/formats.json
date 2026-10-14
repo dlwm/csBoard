@@ -1,0 +1,12 @@
+{
+  "demoFormatControls.cancel": "Отмена",
+  "demoFormatControls.cancelled": "Отменено.",
+  "demoFormatControls.exportPackage": "Экспорт пакета",
+  "demoFormatControls.exportsTheDraftReplayProfileIncludingAvailableInputsActualSmoke": "Экспортирует черновой профиль повтора с доступными вводом, дымом и голосом; не статистический пакет v3.",
+  "demoFormatControls.importPackage": "Импорт пакета",
+  "demoFormatControls.packageExceeds256Mib": "Пакет превышает 256 MiB.",
+  "demoFormatControls.packageProgress": "Ход обработки",
+  "demoFormatControls.replayPackageExportedDraftProfile": "Пакет повтора экспортирован (черновой профиль).",
+  "import.complete": "Импортировано фрагментов: {segments}{warning}",
+  "import.optionalMissing": "; часть данных ввода, дыма или голоса недоступна"
+}

@@ -12,7 +12,7 @@ TARGET ?=
 VERSION ?=
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint test test-js check release-check dev dev-workers server deploy build build-remote \
+.PHONY: help install lint i18n-check test test-js check release-check dev dev-workers server deploy build build-remote \
 	desktop-start desktop-dev desk-dev desktop-prepare desktop-check desktop-smoke desktop-build-mac-arm64 \
 	desktop-build-mac-x64 desktop-build-win-x64 native-build \
 	mobile-prepare mobile-open mobile-build version version-sync version-check \
@@ -22,7 +22,7 @@ help:
 	@printf '%s\n' \
 		'CSBoard — make <command> [ARGS="extra flags"]' \
 		'  install                      Install locked dependencies' \
-		'  lint                         Check architecture boundaries' \
+		'  lint                         Check architecture and translation catalogues' \
 		'  test                         Run behavior tests; TEST=tests/name.test.js selects files' \
 		'  test-js                      Run selected JS tests without rebuilding native storage' \
 		'  check                        Check versions, architecture, tests and web build' \
@@ -61,6 +61,10 @@ install:
 
 lint:
 	$(NODE) scripts/check-architecture.js
+	$(MAKE) i18n-check
+
+i18n-check:
+	$(NODE) scripts/check-i18n.js
 
 # Sequential recipes keep failures from starting later release checks.
 test: native-build

@@ -50,41 +50,41 @@ const replayProfile = 'replay', analysisProfile = 'analysis', preparationProfile
 // 限制每次返回体积，不降低采样率，也不重复全量扫描；避免大批 JSON 耗尽 WASM。
 const PARSE_TICK_BATCH_SIZE = 512;
 const parseProgressStages = [
-  { percent: 0, zh: '正在展开 Demo 时间轴并校准起始 tick…', en: 'Expanding the demo timeline and calibrating its first tick...' },
-  { percent: 3, zh: '正在合并分段录像的重叠回合…', en: 'Merging overlapping rounds from segmented recordings...' },
-  { percent: 6, zh: '正在按设定精度建立主回放采样索引…', en: 'Building the main replay index at the selected sampling rate...' },
-  { percent: 9, zh: '正在辨认玩家实体与 Steam 身份…', en: 'Resolving player entities and Steam identities...' },
-  { percent: 12, zh: '正在对齐 T 与 CT 的阵营变化…', en: 'Aligning T and CT side changes...' },
-  { percent: 15, zh: '正在还原玩家出生与存活区间…', en: 'Restoring player spawns and alive intervals...' },
-  { percent: 18, zh: '正在解码地图坐标与高度数据…', en: 'Decoding map coordinates and elevation data...' },
-  { percent: 21, zh: '正在连接移动采样点并修正跨帧位移…', en: 'Connecting movement samples and correcting cross-frame displacement...' },
-  { percent: 24, zh: '正在同步站立、下蹲与腾空姿态…', en: 'Synchronizing standing, crouching, and airborne poses...' },
-  { percent: 27, zh: '正在还原水平转向与俯仰角度…', en: 'Restoring horizontal aim and vertical pitch...' },
-  { percent: 30, zh: '正在识别行走、奔跑与急停片段…', en: 'Identifying walking, running, and counter-strafe segments...' },
-  { percent: 33, zh: '正在对齐开镜状态与视野变化…', en: 'Aligning scoped states and field-of-view changes...' },
-  { percent: 36, zh: '正在装配主武器、副武器与近战状态…', en: 'Assembling primary, secondary, and melee weapon states...' },
-  { percent: 39, zh: '正在同步弹匣余量与射击计数…', en: 'Synchronizing magazine counts and fired-shot totals...' },
-  { percent: 42, zh: '正在整理护甲、头盔与拆弹器状态…', en: 'Organizing armor, helmet, and defuse-kit states...' },
-  { percent: 45, zh: '正在追踪 C4 携带、掉落与拾取…', en: 'Tracking C4 possession, drops, and pickups...' },
-  { percent: 48, zh: '正在核对余额、购买与装备价值…', en: 'Reconciling balances, purchases, and equipment values...' },
-  { percent: 51, zh: '正在对齐开火事件与枪口反馈…', en: 'Aligning weapon-fire events with muzzle feedback...' },
-  { percent: 54, zh: '正在匹配伤害来源与受击时间点…', en: 'Matching damage sources with impact timings...' },
-  { percent: 57, zh: '正在复原击杀、助攻与爆头记录…', en: 'Restoring kills, assists, and headshot records...' },
-  { percent: 60, zh: '正在核验穿烟、穿墙与盲视击杀…', en: 'Verifying smoke, penetration, and blind kill conditions...' },
-  { percent: 63, zh: '正在计算闪光强度与致盲衰减…', en: 'Calculating flash intensity and blindness decay...' },
-  { percent: 66, zh: '正在拼接烟雾生效与消散区间…', en: 'Joining smoke activation and expiration intervals...' },
-  { percent: 69, zh: '正在整理燃烧区域与爆炸事件…', en: 'Organizing fire zones and explosion events...' },
-  { percent: 72, zh: '正在关联道具投掷者与实体轨迹…', en: 'Associating utility throwers with projectile entities...' },
-  { percent: 75, zh: '正在回溯投掷前静止描点并记录完整动作…', en: 'Restoring complete throw actions from the last stationary aim...' },
-  { percent: 78, zh: '正在识别跳投、跑投与静止投掷…', en: 'Classifying jump throws, running throws, and standing throws...' },
-  { percent: 81, zh: '正在重建道具飞行、反弹与落点…', en: 'Reconstructing utility flight, bounces, and landing points...' },
-  { percent: 84, zh: '正在校准下包、拆包与爆炸计时…', en: 'Calibrating plant, defuse, and explosion timings...' },
-  { percent: 87, zh: '正在读取 HLTV 导播镜头与目标…', en: 'Reading HLTV camera cues and targets...' },
-  { percent: 90, zh: '正在判定冻结时间、回合开始与结束…', en: 'Determining freeze time, round starts, and round endings...' },
-  { percent: 93, zh: '正在切分常规回合、换边与加时…', en: 'Splitting regulation rounds, side switches, and overtime...' },
-  { percent: 96, zh: '正在压实连续快照并生成回合索引…', en: 'Compacting continuous snapshots and generating round indexes...' },
-  { percent: 98, zh: '正在统计数据体积并准备本地缓存…', en: 'Measuring data size and preparing the local cache...' },
-  { percent: 100, zh: '所有回放数据已核对完成，正在载入第一回合…', en: 'All replay data verified, loading the first round...' },
+  { percent: 0, code: "ticks_0" },
+  { percent: 3, code: "ticks_3" },
+  { percent: 6, code: "ticks_6" },
+  { percent: 9, code: "ticks_9" },
+  { percent: 12, code: "ticks_12" },
+  { percent: 15, code: "ticks_15" },
+  { percent: 18, code: "ticks_18" },
+  { percent: 21, code: "ticks_21" },
+  { percent: 24, code: "ticks_24" },
+  { percent: 27, code: "ticks_27" },
+  { percent: 30, code: "ticks_30" },
+  { percent: 33, code: "ticks_33" },
+  { percent: 36, code: "ticks_36" },
+  { percent: 39, code: "ticks_39" },
+  { percent: 42, code: "ticks_42" },
+  { percent: 45, code: "ticks_45" },
+  { percent: 48, code: "ticks_48" },
+  { percent: 51, code: "ticks_51" },
+  { percent: 54, code: "ticks_54" },
+  { percent: 57, code: "ticks_57" },
+  { percent: 60, code: "ticks_60" },
+  { percent: 63, code: "ticks_63" },
+  { percent: 66, code: "ticks_66" },
+  { percent: 69, code: "ticks_69" },
+  { percent: 72, code: "ticks_72" },
+  { percent: 75, code: "ticks_75" },
+  { percent: 78, code: "ticks_78" },
+  { percent: 81, code: "ticks_81" },
+  { percent: 84, code: "ticks_84" },
+  { percent: 87, code: "ticks_87" },
+  { percent: 90, code: "ticks_90" },
+  { percent: 93, code: "ticks_93" },
+  { percent: 96, code: "ticks_96" },
+  { percent: 98, code: "ticks_98" },
+  { percent: 100, code: "ticks_100" },
 ];
 
 function memoryDiagnostics() {
@@ -294,14 +294,14 @@ return async (data) => {
       if (data.type === 'load') {
       beginPhase('parser');
       postMessage({ type: 'progress', phase: 'load', completed: 0, total: 1, percent: 0 });
-      postMessage({ type: 'status', message: '正在加载 Demo 解析器…' });
+      postMessage({ type: 'status', code: 'parser_loading' });
        demoParts = await openSources(data);
        partOffsets = await findPartOffsets(demoParts);
        demoBytes = demoParts[0];
        const magic = null; // Native/opaque sources do not expose raw header bytes here.
        const infoOffset = null; // Source validation belongs to the parser driver/adapter.
        postMessage({ type: 'diagnostic', phase: 'input', data: { bytes: demoParts.reduce((sum, part) => sum + part.byteLength, 0), parts: demoParts.length, magic, infoOffset, sourceFormat: session.info.sourceFormat || 'unknown', validatedBy: session.info.id, partOffsets, memory: memoryDiagnostics() } });
-       postMessage({ type: 'status', message: '正在读取 Demo Header…' });
+       postMessage({ type: 'status', code: 'header_reading' });
        beginPhase('header');
        const headers = await Promise.all(demoParts.map(async part => toPlainObject(await parseHeader(part))));
        const header = headers[0];
@@ -317,9 +317,9 @@ return async (data) => {
        const incompatibility = recording ? null : matchCompatibility(header, matchRounds);
        if (incompatibility) throw Object.assign(new Error('Non-standard match Demo; continue parsing as a custom DEMO.'), { code: NON_STANDARD_DEMO, reason: incompatibility });
        postMessage({ type: 'diagnostic', phase: 'header', data: { elapsedMs: performance.now() - phaseStartedAt, memory: memoryDiagnostics() } });
-        postMessage({ type: 'status', message: '正在读取回合事件…' });
+        postMessage({ type: 'status', code: 'rounds_reading' });
         beginPhase('events');
-          postMessage({ type: 'status', message: '正在读取道具与投掷物轨迹…' });
+          postMessage({ type: 'status', code: 'utilities_reading' });
             const grenadeDataByPart = await Promise.all(demoParts.map((part, index) => parsePartGrenades(part, !partEvents[index].some((event) => event.event_name === 'grenade_thrown'))));
             const projectilesByPart = grenadeDataByPart.map((data) => data.projectiles);
             partEvents = partEvents.map((events, index) => events.some((event) => event.event_name === 'grenade_thrown') ? events : [...events, ...inferProjectileThrows(projectilesByPart[index], events, grenadeDataByPart[index].throwStates)].sort((left, right) => left.tick - right.tick));
@@ -336,7 +336,7 @@ return async (data) => {
        allVoiceFrames = voiceParts.flatMap((voice, index) => (voice?.frames || []).filter(frame => includesPartTick(frame.tick, index)).map(frame => ({ ...frame, tick: frame.tick + partOffsets[index] }))).sort((a, b) => a.tick - b.tick);
        const voiceSummary = { frames: allVoiceFrames.length, skipped: voiceParts.reduce((sum, voice) => sum + (voice?.summary?.skipped || 0), 0), limited: voiceParts.some(voice => voice?.summary?.limited) };
          beginPhase('ticks');
-         postMessage({ type: 'status', message: `正在一次性解析 ${rounds.length} 个回合位置…` });
+         postMessage({ type: 'status', code: 'positions_reading', values: { count: rounds.length } });
              const throwPlans = demoParts.map((part, index) => {
              const offset = partOffsets[index];
               const localThrows = partEvents[index].filter((event) => event.event_name === 'grenade_thrown' && includesPartTick(event.tick, index));
@@ -435,7 +435,7 @@ return async (data) => {
                .map(({ name, steamid }) => ({ name, steamid }));
              const warnings = missingPositionPlayers.length ? [{ type: 'missing-player-position', players: missingPositionPlayers }] : [];
              postMessage({ type: 'diagnostic', phase: 'ticks', data: { elapsedMs: performance.now() - phaseStartedAt, throwSnapshots: throwSnapshots.length, snapshots: snapshotCount, analysis: analysis.length, memory: memoryDiagnostics() } });
-            postMessage({ type: 'status', message: `Demo 已读取，${rounds.length} 个回合已全部就绪` });
+            postMessage({ type: 'status', code: 'rounds_ready', values: { count: rounds.length } });
             const observedCounts = { replay: snapshotCount, inputs: throwSnapshots.filter(snapshot => snapshot.players.some(player => player.inputAvailable)).length,
               projectiles: allProjectiles.length, smokeVoxels: allSmokeVoxelFrames.length, fireAreas: allInfernoFrames.length, voice: allVoiceFrames.length };
             const formatCapabilities = Object.fromEntries(Object.entries(observedCounts).map(([key, count]) => {
@@ -454,7 +454,7 @@ return async (data) => {
      if (data.type === 'analysis') {
        if (!demoParts.length) return;
        beginPhase('analysis');
-       postMessage({ type: 'status', message: '正在读取全场移动数据…' });
+       postMessage({ type: 'status', code: 'analysis_reading' });
        const step = 32;
        const globalTicks = [];
        data.rounds.forEach((round) => { for (let tick = round.startTick; tick <= round.endTick; tick += step) globalTicks.push(tick); });
@@ -466,7 +466,7 @@ return async (data) => {
        }))).flat();
         const normalized = normalizeRows(rows, 0);
         postMessage({ type: 'analysis', rows: normalized, estimatedBytes: estimateDataBytes(normalized) });
-       postMessage({ type: 'status', message: '全场移动数据已就绪' });
+       postMessage({ type: 'status', code: 'analysis_ready' });
      }
   } catch (error) {
     const failureMemory = memoryDiagnostics();

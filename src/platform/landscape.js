@@ -1,5 +1,5 @@
 import { preferences } from './preferences.js';
-import { localize, normalizeLanguage } from '../i18n.js';
+import { translate, normalizeLanguage, LANGUAGE_CHANGED_EVENT } from '../i18n.js';
 import { installMobileViewport } from './mobileViewport.js';
 
 // Shared orientation gate for native and H5; actual orientation locks belong to the shell.
@@ -14,12 +14,11 @@ export function installLandscapeNotice() {
   const update = () => {
     let language = 'en';
     try { language = normalizeLanguage(preferences.getItem('csboard-language')); } catch { /* Storage may be unavailable. */ }
-    notice.textContent = localize(language, {
-      zh: '请横屏使用 CSBoard', en: 'Rotate your device to use CSBoard', ru: 'Поверните устройство для работы с CSBoard',
-    });
+    notice.textContent = translate(language, "view.landscape.rotateYourDeviceToUseCsboard");
     document.getElementById('root').inert = portrait.matches;
   };
   update();
   portrait.addEventListener('change', update);
+  window.addEventListener(LANGUAGE_CHANGED_EVENT, update);
   return portrait;
 }

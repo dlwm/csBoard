@@ -1,0 +1,21 @@
+{
+  "broadcastDownloadOverlay.cancel": "Отмена",
+  "broadcastDownloadOverlay.connecting": "Подключение…",
+  "broadcastDownloadOverlay.downloadComplete": "Загрузка завершена",
+  "broadcastDownloadOverlay.downloadFailed": "Ошибка загрузки",
+  "broadcastDownloadOverlay.downloadingBroadcastArchive": "Загрузка архива…",
+  "broadcastDownloadOverlay.processingReplayData": "Обработка данных…",
+  "broadcastDownloadOverlay.savingLocally": "Сохранение…",
+  "broadcastDownloadOverlay.uploadingBroadcast": "Загрузка трансляции…",
+  "broadcastRoomControls.6DigitRoomCode": "Код из 6 символов",
+  "broadcastRoomControls.connected": "Подключено",
+  "broadcastRoomControls.connecting": "Подключение",
+  "broadcastRoomControls.disconnected": "Отключено",
+  "broadcastRoomControls.join": "Войти",
+  "broadcastRoomControls.leave": "Выйти",
+  "broadcastRoomControls.roomClosed": "Комната закрыта",
+  "broadcastRoomControls.roomCode": "Код комнаты",
+  "broadcastRoomControls.sharedReplay": "Общий просмотр",
+  "broadcastRoomControls.transferFailed": "Ошибка передачи",
+  "broadcastRoomControls.uploading": "Загрузка"
+}

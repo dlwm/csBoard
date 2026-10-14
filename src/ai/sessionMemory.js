@@ -2,7 +2,9 @@ import { compressionSettings } from './contextCompression.js';
 import { getPlatform } from '../platform/index.js';
 
 export { AI_SESSION_STORE_KEY as SESSION_STORE_KEY } from '../../shared/record-keys.js';
-export const createSession = () => ({ id: crypto.randomUUID(), title: '新会话', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), entries: [], memory: '', events: [], snapshot: null, workflow: [], compression: compressionSettings(), compaction: { summary: '', coveredEntryIds: [], count: 0 } });
+export const createSession = () => ({ id: crypto.randomUUID(), title: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), entries: [], memory: '', events: [], snapshot: null, workflow: [], compression: compressionSettings(), compaction: { summary: '', coveredEntryIds: [], count: 0 } });
+// Legacy default titles are read-only compatibility data, not display copy.
+export const isUntitledSession = session => !session.title || session.title === '\u65b0\u4f1a\u8bdd';
 export const sessionRecords = () => getPlatform().records;
 const cleanText = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
 

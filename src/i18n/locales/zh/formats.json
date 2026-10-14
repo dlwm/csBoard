@@ -1,0 +1,12 @@
+{
+  "demoFormatControls.cancel": "取消",
+  "demoFormatControls.cancelled": "已取消。",
+  "demoFormatControls.exportPackage": "导出数据包",
+  "demoFormatControls.exportsTheDraftReplayProfileIncludingAvailableInputsActualSmoke": "导出可保留投掷动作、实际烟体和语音的回放合同草案，不是 v3 完整统计包。",
+  "demoFormatControls.importPackage": "导入数据包",
+  "demoFormatControls.packageExceeds256Mib": "数据包超过 256 MiB。",
+  "demoFormatControls.packageProgress": "数据包处理进度",
+  "demoFormatControls.replayPackageExportedDraftProfile": "回放数据包已导出（格式草案）。",
+  "import.complete": "已导入 {segments} 个片段{warning}",
+  "import.optionalMissing": "；部分输入、烟体或语音数据未提供"
+}

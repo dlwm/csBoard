@@ -1,6 +1,6 @@
 import { getDemoBombState } from './bombTimeline.js';
 import { getDemoPlayerTimeline, demoPlayerId } from './playerTimeline.js';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { roundEconomy, roundSideSignature, sidesSwitched } from './economy.js';
@@ -62,14 +62,14 @@ export default function useDemoViewState({ activePanel, demoCameraMode, demoData
   const demoDeaths = demoData?.events?.filter((event) => event.event_name === 'player_death' && demoRound && event.tick >= demoRound.startTick && event.tick <= demoTick) || [];
   const demoC4Events = useMemo(() => demoData?.events?.filter((event) => demoRound && ['bomb_dropped', 'bomb_pickup', 'bomb_planted', 'bomb_begindefuse', 'bomb_abortdefuse', 'bomb_exploded', 'bomb_defused', 'round_end'].includes(event.event_name) && event.tick >= (demoRound.freezeStartTick ?? demoRound.startTick) && event.tick <= demoRound.endTick) || [], [demoData?.events, demoRound]);
   const demoHltvEvents = useMemo(() => demoData?.events?.filter((event) => demoRound && ['hltv_fixed', 'hltv_chase'].includes(event.event_name) && event.tick >= (demoRound.freezeStartTick ?? demoRound.startTick) && event.tick <= demoRound.endTick) || [], [demoData?.events, demoRound]);
-  const timelineEvents = demoData?.events?.filter((event) => demoRound && ['player_death', 'bomb_planted', 'bomb_exploded', 'round_end'].includes(event.event_name) && event.tick >= demoRound.startTick && event.tick <= demoRound.endTick).map((event) => ({ ...event, label: event.event_name === 'player_death' ? '×' : event.event_name === 'bomb_planted' ? '↓' : event.event_name === 'bomb_exploded' ? '💥' : '□', title: event.event_name === 'player_death' ? `${event.attacker_name || t('world')} ${t('killed')} ${event.user_name || t('unknown')}` : event.event_name === 'bomb_planted' ? t('c4Planted') : event.event_name === 'bomb_exploded' ? t('c4Exploded') : t('roundEnd') })) || [];
+  const timelineEvents = demoData?.events?.filter((event) => demoRound && ['player_death', 'bomb_planted', 'bomb_exploded', 'round_end'].includes(event.event_name) && event.tick >= demoRound.startTick && event.tick <= demoRound.endTick).map((event) => ({ ...event, label: event.event_name === 'player_death' ? '×' : event.event_name === 'bomb_planted' ? '↓' : event.event_name === 'bomb_exploded' ? '💥' : '□', title: event.event_name === 'player_death' ? `${event.attacker_name || t("common.world")} ${t("replay.killed")} ${event.user_name || t("common.unknown")}` : event.event_name === 'bomb_planted' ? t("replay.c4Planted") : event.event_name === 'bomb_exploded' ? t("replay.c4Exploded") : t("replay.roundEnd") })) || [];
   const bomb = getDemoBombState(demoC4Events, demoSnapshots, tickRate, demoTick);
   const c4Countdown = bomb.countdownSeconds;
   const c4Terminal = bomb.terminal && ['bomb_exploded', 'bomb_defused'].includes(bomb.terminal.type) ? { event_name: bomb.terminal.type, tick: bomb.terminal.tick } : null;
   const roundEndEvent = demoC4Events.find((event) => event.event_name === 'round_end' && event.tick <= demoTick);
   const frozen = demoRound && demoTick < demoRound.startTick;
   const roundCountdownSeconds = Math.ceil(demoRound ? Math.max(0, frozen ? (demoRound.startTick - demoTick) / tickRate : 115 - (demoTick - demoRound.startTick) / tickRate) : 0);
-  const roundClock = `${frozen ? localize(language, { zh: '冻结', en: 'Freeze', ru: 'Заморозка' }) + ' ' : ''}${Math.floor(roundCountdownSeconds / 60)}:${String(roundCountdownSeconds % 60).padStart(2, '0')}`;
+  const roundClock = `${frozen ? translate(language, "replay.demoViewState.freeze") + ' ' : ''}${Math.floor(roundCountdownSeconds / 60)}:${String(roundCountdownSeconds % 60).padStart(2, '0')}`;
   const roundWinner = roundEndEvent ? roundWinnerSide(roundEndEvent.winner ?? demoRound?.winner) : null;
   const roundResult = roundEndEvent ? `${roundWinner || '-'} · ${roundReasonLabel(roundEndEvent.reason || demoRound?.reason, language)}` : '';
   const currentDefuser = bomb.currentDefuser;

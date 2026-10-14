@@ -1,16 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 import './operationGuide.css';
 
 export function TutorialOffer({ language, onAccept, onDecline }) {
   const dialog = useRef(null), previousFocus = useRef(document.activeElement);
-  const text = (zh, en, ru) => localize(language, { zh, en, ru });
+  const text = (key, values) => translate(language, key, values);
   useEffect(() => { dialog.current.showModal(); return () => previousFocus.current?.focus?.(); }, []);
   return createPortal(<dialog ref={dialog} className="operation-offer" onCancel={event => { event.preventDefault(); onDecline(); }} onKeyDown={event => event.stopPropagation()} aria-labelledby="operation-offer-title">
-    <small>CSBOARD</small><h2 id="operation-offer-title">{text('开启操作指引？', 'Start the operation guide?', 'Начать обучение?')}</h2>
-    <p>{text('在实际界面中了解视图、回放、道具速记和协作操作。可以随时跳过，之后点击主视图右上角的问号重新开始。', 'Learn the views, replay, utility notes and collaboration in the actual workspace. Skip any time, or restart from ? in the upper-right of the main view.', 'Изучите виды, повтор, заметки гранат и совместную работу в интерфейсе. Можно пропустить шаги или начать заново через ? справа вверху сцены.')}</p>
-    <footer><button type="button" autoFocus onClick={onDecline}>{text('暂不开启', 'Not now', 'Не сейчас')}</button><button type="button" onClick={onAccept}>{text('开始指引', 'Start guide', 'Начать')}</button></footer>
+    <small>CSBOARD</small><h2 id="operation-offer-title">{text("onboarding.operationGuide.startTheOperationGuide")}</h2>
+    <p>{text("onboarding.operationGuide.learnTheViewsReplayUtilityNotesAndCollaborationInThe")}</p>
+    <footer><button type="button" autoFocus onClick={onDecline}>{text("onboarding.operationGuide.notNow")}</button><button type="button" onClick={onAccept}>{text("onboarding.operationGuide.startGuide")}</button></footer>
   </dialog>, document.body);
 }
 
@@ -39,7 +39,7 @@ function visibleTarget(selectors) {
 export default function OperationGuide({ language, steps, step, mobile, onStep, onFinish, hasDemo, taskProgress, onReturn, exampleAvailable, exampleLoading, exampleProgress, exampleError, onExample }) {
   const current = steps[step], card = useRef(null);
   const [layout, setLayout] = useState(null), [collapsed, setCollapsed] = useState(false);
-  const text = (zh, en, ru) => localize(language, { zh, en, ru });
+  const text = (key, values) => translate(language, key, values);
   useEffect(() => { setCollapsed(false); }, [current.id]);
   useLayoutEffect(() => {
     let frame, stopped = false;
@@ -75,15 +75,15 @@ export default function OperationGuide({ language, steps, step, mobile, onStep, 
   const done = !progress || progress.current >= progress.total;
   return createPortal(<div className={`operation-guide-layer${mobile ? ' is-mobile' : ''}`}>
     {layout?.bounds && <div className="operation-spotlight" style={layout.bounds} aria-hidden="true" />}
-    <aside ref={card} className="operation-guide" role="region" aria-label={text('操作指引', 'Operation guide', 'Обучение')} style={{ left: layout?.x ?? 12, top: layout?.y ?? 64, maxHeight: layout?.maxHeight }} onKeyDown={event => event.stopPropagation()}>
-      <header><span>{text('操作指引', 'Operation guide', 'Обучение')} · {step + 1}/{steps.length}</span><div><button type="button" onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed} aria-label={text('收起或展开指引', 'Collapse or expand guide', 'Свернуть или развернуть')}>{collapsed ? '+' : '−'}</button><button type="button" onClick={onFinish} aria-label={text('结束指引', 'Close guide', 'Завершить')}>×</button></div></header>
-      <h2 aria-live="polite">{localize(language, current.title)}</h2>
-      {!collapsed && <><p>{localize(language, current.body)}</p>
-        {current.id === 'import' && exampleAvailable && <div className="operation-example"><button type="button" disabled={exampleLoading} onClick={onExample}>{exampleLoading ? text(`准备示例… ${Math.round(exampleProgress * 100)}%`, `Preparing example… ${Math.round(exampleProgress * 100)}%`, `Подготовка примера… ${Math.round(exampleProgress * 100)}%`) : text('打开内置示例 · 第 22 回合', 'Open built-in example · Round 22', 'Открыть пример · Раунд 22')}</button><small>{text('精简真实回放，无需导入或解析原始 Demo。', 'A compact real replay; no raw Demo import or parsing required.', 'Компактный реальный повтор без импорта и разбора исходного Demo.')}</small>{exampleError && <p role="alert">{exampleError}</p>}</div>}
-        {current.needsDemo && !hasDemo && <p className="operation-notice">{text('先从本地列表打开一个已解析的 Demo，再尝试这一步；也可以继续浏览指引。', 'Open a parsed Demo from the local list to try this step, or continue reading the guide.', 'Откройте разобранное Demo из локального списка или продолжите просмотр обучения.')}</p>}
-        {progress && <p className="operation-task" role="status">{done ? text('已完成', 'Completed', 'Готово') : text('等待你的操作', 'Waiting for your action', 'Ожидается действие')} · {Math.min(progress.current, progress.total)}/{progress.total}</p>}
-        {!layout?.bounds && <button type="button" className="operation-return" onClick={onReturn}>{text('显示本步操作区域', 'Show this step’s controls', 'Показать элементы шага')}</button>}
-        <footer><button type="button" disabled={step === 0} onClick={() => onStep(step - 1)}>{text('上一步', 'Back', 'Назад')}</button>{!done && <button type="button" onClick={() => onStep(step + 1)}>{text('跳过练习', 'Skip exercise', 'Пропустить')}</button>}<button type="button" disabled={!done} onClick={() => step === steps.length - 1 ? onFinish() : onStep(step + 1)}>{step === steps.length - 1 ? text('完成', 'Finish', 'Готово') : text('下一步', 'Next', 'Далее')}</button></footer>
+    <aside ref={card} className="operation-guide" role="region" aria-label={text("onboarding.operationGuide.operationGuide")} style={{ left: layout?.x ?? 12, top: layout?.y ?? 64, maxHeight: layout?.maxHeight }} onKeyDown={event => event.stopPropagation()}>
+      <header><span>{text("onboarding.operationGuide.operationGuide")} · {step + 1}/{steps.length}</span><div><button type="button" onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed} aria-label={text("onboarding.operationGuide.collapseOrExpandGuide")}>{collapsed ? '+' : '−'}</button><button type="button" onClick={onFinish} aria-label={text("onboarding.operationGuide.closeGuide")}>×</button></div></header>
+      <h2 aria-live="polite">{translate(language, current.title)}</h2>
+      {!collapsed && <><p>{translate(language, current.body)}</p>
+        {current.id === 'import' && exampleAvailable && <div className="operation-example"><button type="button" disabled={exampleLoading} onClick={onExample}>{exampleLoading ? text("onboarding.operationGuide.preparingExample", { value1: Math.round(exampleProgress * 100) }) : text("onboarding.operationGuide.openBuiltInExampleRound22")}</button><small>{text("onboarding.operationGuide.aCompactRealReplayNoRawDemoImportOrParsing")}</small>{exampleError && <p role="alert">{exampleError}</p>}</div>}
+        {current.needsDemo && !hasDemo && <p className="operation-notice">{text("onboarding.operationGuide.openAParsedDemoFromTheLocalListToTry")}</p>}
+        {progress && <p className="operation-task" role="status">{done ? text("onboarding.operationGuide.completed") : text("onboarding.operationGuide.waitingForYourAction")} · {Math.min(progress.current, progress.total)}/{progress.total}</p>}
+        {!layout?.bounds && <button type="button" className="operation-return" onClick={onReturn}>{text("onboarding.operationGuide.showThisStepSControls")}</button>}
+        <footer><button type="button" disabled={step === 0} onClick={() => onStep(step - 1)}>{text("onboarding.operationGuide.back")}</button>{!done && <button type="button" onClick={() => onStep(step + 1)}>{text("onboarding.operationGuide.skipExercise")}</button>}<button type="button" disabled={!done} onClick={() => step === steps.length - 1 ? onFinish() : onStep(step + 1)}>{step === steps.length - 1 ? text("onboarding.operationGuide.finish") : text("onboarding.operationGuide.next")}</button></footer>
       </>}
     </aside>
   </div>, document.body);

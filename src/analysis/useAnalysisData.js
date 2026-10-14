@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getPlatform } from '../platform/index.js';
 import { getAnalysisDemosForPlayers } from './buildAnalysisDataset.js';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 
 export default function useAnalysisData({ active, cachedDemos, cachedDemosLoading, mapName, language, cacheSchemaVersion }) {
   const [demos, setDemos] = useState([]);
@@ -44,7 +44,7 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
       return undefined;
     }
     setPlayersLoading(true);
-    setStatus(localize(language, { zh: '正在读取本地图的分析数据…', en: 'Loading analysis data for this map...', ru: 'Загрузка данных аналитики для этой карты…' }));
+    setStatus("analysis.analysisData.loadingAnalysisDataForThisMap");
     const controller = new AbortController();
     getPlatform().compute('analysis.catalog', { ids: candidates.map(entry => entry.id), map: mapName, schema: cacheSchemaVersion }, { signal: controller.signal }).then(indexed => {
       if (cancelled) return;
@@ -53,12 +53,12 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
       loadedKeyRef.current = loadKey;
       setStatus('');
     }).catch(() => {
-      if (!cancelled) setStatus(localize(language, { zh: '分析数据读取失败', en: 'Failed to load analysis data', ru: 'Не удалось загрузить данные аналитики' }));
+      if (!cancelled) setStatus("analysis.analysisData.failedToLoadAnalysisData");
     }).finally(() => {
       if (!cancelled) setPlayersLoading(false);
     });
     return () => { cancelled = true; controller.abort(); };
-  }, [active, cachedDemos, cachedDemosLoading, mapName, language, cacheSchemaVersion, catalogueKey]);
+  }, [active, cachedDemos, cachedDemosLoading, mapName, cacheSchemaVersion, catalogueKey]);
 
   const playerName = selectedPlayers[0] || '';
   const demosForPlayers = useMemo(() => getAnalysisDemosForPlayers(demos, selectedPlayers), [demos, selectedPlayers]);
@@ -121,6 +121,6 @@ export default function useAnalysisData({ active, cachedDemos, cachedDemosLoadin
     setPlayerQuery,
     setSelectedDemoIds,
     setStatus,
-    status,
+    status: translate(language, status),
   };
 }

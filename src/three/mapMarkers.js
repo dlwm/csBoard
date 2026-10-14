@@ -7,7 +7,7 @@ import { createRegionGlow } from './regionGlow.js';
 import { triggerRegionSurfaces, mergeRegionSurfaces } from '../data/regionSurfaces.js';
 import { NAV_FLOOR_BOUNDARIES } from '../data/navTopView.js';
 import { regionColor, regionAnchor } from '../data/mapRegionPresentation.js';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 
 const scale=.0254;
 const xyz=([x,y,z],lift=0)=>[y*scale,z*scale+lift,x*scale];
@@ -19,7 +19,7 @@ export function createMapMarkers({scene,navData,mapName,floorState,getModelCente
   let language;
   function text(kind,side,locale) {
     if(kind==='bombsite') return side;
-    return localize(locale,{zh:side+(kind==='buyzone'?'购买区':'出生区'),en:side+(kind==='buyzone'?' buy zone':' spawn'),ru:side+(kind==='buyzone'?' закупка':' спавн')});
+    return translate(locale, kind === "buyzone" ? "view.regions.buyzone" : "view.regions.spawn", { side });
   }
   function label(group,point,name,color,place=false) {
     const canvas=document.createElement('canvas'); canvas.width=96; canvas.height=64;
@@ -61,7 +61,7 @@ export function createMapMarkers({scene,navData,mapName,floorState,getModelCente
     for(const region of selected) {
       const color=region.kind==='bombsite'?'#ee6262':region.team==='T'?'#ffa954':'#65b5ff';
       const point=regionGeometry(group,region,color);
-      if(point && region.kind==='bombsite') label(group,point,text(region.kind,region.site || region.team,locale)+(region.source==='game_spawn_nav_cells' ? localize(locale,{zh:'（候选）',en:' (draft)',ru:' (?)'}) : ''),color);
+      if(point && region.kind==='bombsite') label(group,point,text(region.kind,region.site || region.team,locale)+(region.source==='game_spawn_nav_cells' ? translate(locale,"view.mapMarkers.draft") : ''),color);
     }
     if(kind==='places') {
       const byId=new Map(Object.values(navData.areas || {}).map(area=>[area.area_id,area]));

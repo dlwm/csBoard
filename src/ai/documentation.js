@@ -1,3 +1,4 @@
+import { translate } from '../i18n.js';
 import { documentationCatalog } from './documentationCatalog.js';
 
 // This bounded glob contains only reference Markdown; the manifest is the
@@ -17,7 +18,7 @@ function sections(text, language) {
     else if (current) current.lines.push(line);
     else if (!/^# /.test(line)) introduction.push(line);
   }
-  if (introduction.join('\n').trim()) rows.unshift({ heading: { en: 'Overview', zh: '概览', ru: 'Обзор' }[language], lines: introduction });
+  if (introduction.join('\n').trim()) rows.unshift({ heading: translate(language, "assistant.documentation.overview"), lines: introduction });
   return rows.map(row => ({ heading: row.heading, content: row.lines.join('\n').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/<img\b[^>]*>/gi, '').trim() }));
 }
 const cached = new Map();

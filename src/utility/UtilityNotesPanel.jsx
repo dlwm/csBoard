@@ -14,9 +14,9 @@ export default function UtilityNotesPanel({ notes, folders, language, onCreateFo
   const compareItems = sort === 'landing' ? (a,b)=>compareUtilityLandingPlaces(a,b,localeForLanguage(language)) : null;
   const changeSort = event => { setSort(event.target.value); preferences.setItem('csboard-utility-sort',event.target.value); };
   return <WorkspacePanel className="utility-location-panel" data-tour="notes">
-    <header><strong>{t('utilityNotes')}</strong><select className="utility-sort-select" aria-label={t('utilitySort')} title={t('utilitySort')} value={sort} onChange={changeSort}><option value="landing">{t('sortLandingPlace')}</option><option value="manual">{t('sortManual')}</option></select><span>{t('utilityCount', { count: notes.length })}</span></header>
+    <header><strong>{t("utility.utilityNotes")}</strong><select className="utility-sort-select" aria-label={t("utility.utilitySort")} title={t("utility.utilitySort")} value={sort} onChange={changeSort}><option value="landing">{t("utility.sortLandingPlace")}</option><option value="manual">{t("utility.sortManual")}</option></select><span>{t("utility.utilityCount", { count: notes.length })}</span></header>
     <UtilityArchiveTree notes={notes} folders={folders} language={language} onCreateFolder={onCreateFolder}
       onDeleteFolder={onDeleteFolder} onMove={onMove} compareItems={compareItems} onFocus={onFocus} onClearFocus={onClearFocus} onOpen={onOpen} t={t}
-      toolbarActions={<><button type="button" onClick={onAdd}>{t('addUtilityNote')}</button><WorkspaceTarget slot="utility-actions" /></>} />
+      toolbarActions={<><button type="button" onClick={onAdd}>{t("common.addUtilityNote")}</button><WorkspaceTarget slot="utility-actions" /></>} />
   </WorkspacePanel>;
 }

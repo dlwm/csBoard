@@ -1,6 +1,6 @@
 import { publishRoomFrames } from './roomFrames.js';
 import { readRoomWorkspace } from './roomWorkspace.js';
-import { localize, translate } from '../i18n.js';
+import { translate } from '../i18n.js';
 import { emptyWorkspace, frameWorkspace, normalizeFrames } from './workspace.js';
 
 // Owns observers, presence and remote scene application for exactly one connection.
@@ -28,7 +28,7 @@ export function connectRoom({ doc, provider, roomCode, getPorts }) {
       knownUsers.clear();
       users.forEach((user) => knownUsers.set(user.clientId, user));
       getPorts().events.users(users);
-      const events = [...joined.map((name) => localize(getPorts().context().language, { zh: `${name} 已加入房间`, en: `${name} joined the room`, ru: `${name} вошёл в комнату` })), ...left.map((name) => localize(getPorts().context().language, { zh: `${name} 已退出房间`, en: `${name} left the room`, ru: `${name} вышел из комнаты` }))];
+      const events = [...joined.map((name) => translate(getPorts().context().language, { key: "collaboration.roomConnection.joinedTheRoom", values: { name: name } })), ...left.map((name) => translate(getPorts().context().language, { key: "collaboration.roomConnection.leftTheRoom", values: { name: name } }))];
       if (events.length) getPorts().events.activity((current) => [...current, ...events.map((text) => ({ id: presenceEventId += 1, text }))].slice(-5));
     };
     awareness.on('change', syncPresence);

@@ -1,0 +1,21 @@
+{
+  "broadcastDownloadOverlay.cancel": "取消",
+  "broadcastDownloadOverlay.connecting": "正在连接房间…",
+  "broadcastDownloadOverlay.downloadComplete": "下载完成",
+  "broadcastDownloadOverlay.downloadFailed": "下载失败",
+  "broadcastDownloadOverlay.downloadingBroadcastArchive": "正在下载演播存档…",
+  "broadcastDownloadOverlay.processingReplayData": "正在整理回放数据…",
+  "broadcastDownloadOverlay.savingLocally": "正在保存到本地…",
+  "broadcastDownloadOverlay.uploadingBroadcast": "正在上传演播片段…",
+  "broadcastRoomControls.6DigitRoomCode": "6 位房间号",
+  "broadcastRoomControls.connected": "已连接",
+  "broadcastRoomControls.connecting": "连接中",
+  "broadcastRoomControls.disconnected": "连接中断",
+  "broadcastRoomControls.join": "进入",
+  "broadcastRoomControls.leave": "离开",
+  "broadcastRoomControls.roomClosed": "房间已关闭",
+  "broadcastRoomControls.roomCode": "房间号",
+  "broadcastRoomControls.sharedReplay": "共享回放",
+  "broadcastRoomControls.transferFailed": "传输失败",
+  "broadcastRoomControls.uploading": "上传中"
+}

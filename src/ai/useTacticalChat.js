@@ -1,5 +1,6 @@
+import { isUntitledSession } from './sessionMemory.js';
 import { useEffect, useRef, useState } from 'react';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 import { createTacticalTools, tacticalContextKey } from '../collaboration/tacticalTools.js';
 import { runTacticalConversation } from './conversation.js';
 import { useAiSessions } from './useAiSessions.js';
@@ -7,7 +8,7 @@ import { documentationTool } from './documentationCatalog.js';
 import { historyFromEntries, promptMemory, searchSessionMemory } from './sessionMemory.js';
 
 export function useTacticalChat({ language, ports, transport, enabled, config, openSettings }) {
-  const text = (zh, en, ru) => localize(language, { zh, en, ru });
+  const text = (key, values) => translate(language, key, values);
   const [phase, setPhase] = useState(null);
   const [notice, setNotice] = useState('');
   const [unread, setUnread] = useState(false);
@@ -85,7 +86,7 @@ export function useTacticalChat({ language, ports, transport, enabled, config, o
     runningRef.current = { controller, session };
     setInput(''); setError(''); setNotice(''); setBusy(true);
     sessions.observe();
-    if (sessions.active.title === '新会话') sessions.patch(session => ({ ...session, title: value.slice(0, 40) }));
+    if (isUntitledSession(sessions.active)) sessions.patch(session => ({ ...session, title: value.slice(0, 40) }));
     const timer = setTimeout(() => stop('timeout'), 8 * 120_000);
     try {
       const steps = workflow || [{ name: '', prompt: value, tools: null }];
@@ -114,7 +115,7 @@ export function useTacticalChat({ language, ports, transport, enabled, config, o
         confirm: (name, input) => new Promise(resolve => { approvalRef.current = resolve; setPhase({ phase: 'confirmation', name }); setConfirmation({ name, input }); }),
       });
       historyRef.current = history;
-      if (workflow && stepInterrupted) { setNotice(text('工作流已暂停，后续步骤未执行。', 'Workflow paused; subsequent steps were not executed.', 'Процесс приостановлен; следующие шаги не выполнены.')); break; }
+      if (workflow && stepInterrupted) { setNotice({ key: "assistant.tacticalChat.workflowPausedSubsequentStepsWereNotExecuted" }); break; }
       }
     } catch (error) {
       // Never replay unfinished tool calls; retain text and the interruption outcome.
@@ -125,7 +126,7 @@ export function useTacticalChat({ language, ports, transport, enabled, config, o
       if (mountedRef.current) {
         if (controller.signal.aborted || error.code === 'context_changed') {
           const reason = runningRef.current?.reason || error.code;
-          setNotice(reason === 'context_changed' ? text('战术上下文已切换，本轮执行已停止。', 'Tactical context changed; this turn was stopped.', 'Контекст тактики изменён; выполнение остановлено.') : reason === 'timeout' ? text('执行时间已到，本轮已停止。已完成的操作保留。', 'Time limit reached. Completed actions remain.', 'Время выполнения истекло. Выполненные действия сохранены.') : text('已停止。已完成的操作保留，可通过画布撤销恢复。', 'Stopped. Completed actions remain; use board undo to revert them.', 'Остановлено. Выполненные действия сохранены; их можно отменить на доске.'));
+          setNotice(reason === 'context_changed' ? { key: "assistant.tacticalChat.tacticalContextChangedThisTurnWasStopped" } : reason === 'timeout' ? { key: "assistant.tacticalChat.timeLimitReachedCompletedActionsRemain" } : { key: "assistant.tacticalChat.stoppedCompletedActionsRemainUseBoardUndoToRevertThem" });
         } else setError(error.message);
       }
     } finally {
@@ -139,5 +140,5 @@ export function useTacticalChat({ language, ports, transport, enabled, config, o
   const reset = () => { if (runningRef.current || !sessions.loaded) return; try { sessions.create(); } catch (error) { setError(error.message); } };
   const selectSession = id => { if (!runningRef.current) sessions.select(id); };
   const runWorkflow = () => send(null, sessions.active.workflow);
-  return { sessions, selectSession, runWorkflow, toolDefinitions: toolsRef.current.definitions, input, setInput, entries, busy, error, setError, notice, setNotice, confirmation, approve, phase, unread, setUnread, logRef, inputRef, followRef, lastRequestRef, stop, send, goToLatest, clearHistory, reset };
+  return { sessions, selectSession, runWorkflow, toolDefinitions: toolsRef.current.definitions, input, setInput, entries, busy, error, setError, notice: translate(language, notice), setNotice, confirmation, approve, phase, unread, setUnread, logRef, inputRef, followRef, lastRequestRef, stop, send, goToLatest, clearHistory, reset };
 }

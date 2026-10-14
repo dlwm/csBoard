@@ -28,7 +28,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createTouchInputController } from './touchInputController.js';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import { createNavMesh } from '../../packages/viewer/src/three/navMesh.js';
@@ -148,7 +148,7 @@ export default function ThreeBoard(inputProps) {
     try {
       viewport = createThreeViewport({ container: mount, pixelRatioLimit: getHost().mobile ? 1.5 : 2, canvasLabel: '3D tactical map' });
     } catch {
-      setError('当前浏览器不支持 WebGL，无法显示 3D 地图');
+      setError('view.errors.webglUnavailable');
       return undefined;
     }
     const { renderer, scene, camera } = viewport;
@@ -2042,9 +2042,9 @@ export default function ThreeBoard(inputProps) {
 
   // Demo POV owns its animated HUD crosshair; this simpler one is only for utility replay.
   const utilityCrosshairVisible = Boolean(props.utilityFirstPerson?.player);
-  return <div ref={(node) => { mountRef.current = node; }} className="three-board">{inputProps.boardViewMode==='2d' && NAV_FLOOR_BOUNDARIES[mapName]!=null && <div className="plan-floor-labels" aria-hidden="true"><span>{localize(props.language,{zh:'上层',en:'Upper floor',ru:'Верхний этаж'})}</span><span>{localize(props.language,{zh:'下层',en:'Lower floor',ru:'Нижний этаж'})}</span></div>}{props.collabEditingEnabled && <div className="touch-edit-tools" role="group" aria-label={localize(props.language, { zh: '触控编辑', en: 'Touch editing', ru: 'Сенсорное редактирование' })}>{[
-    ['move', { zh: '移动', en: 'Move', ru: 'Переместить' }],
-    ['aim', { zh: '朝向', en: 'Aim', ru: 'Направление' }],
-    ['pitch', { zh: '俯仰', en: 'Pitch', ru: 'Наклон' }],
-  ].map(([mode, label]) => <button key={mode} type="button" aria-pressed={touchEditMode === mode} onClick={() => setTouchEditMode(mode)}>{localize(props.language, label)}</button>)}</div>}{error && <div className="board-error">{error}</div>}{utilityCrosshairVisible && <div className="pov-crosshair" aria-hidden="true"><i /><i /><i /><i /></div>}</div>;
+  return <div ref={(node) => { mountRef.current = node; }} className="three-board">{inputProps.boardViewMode==='2d' && NAV_FLOOR_BOUNDARIES[mapName]!=null && <div className="plan-floor-labels" aria-hidden="true"><span>{translate(props.language,"view.threeBoard.upperFloor")}</span><span>{translate(props.language,"view.threeBoard.lowerFloor")}</span></div>}{props.collabEditingEnabled && <div className="touch-edit-tools" role="group" aria-label={translate(props.language, "view.threeBoard.touchEditing")}>{[
+    ['move', "view.threeBoard.move"],
+    ['aim', "view.threeBoard.aim"],
+    ['pitch', "view.threeBoard.pitch"],
+  ].map(([mode, label]) => <button key={mode} type="button" aria-pressed={touchEditMode === mode} onClick={() => setTouchEditMode(mode)}>{translate(props.language, label)}</button>)}</div>}{error && <div className="board-error">{translate(props.language, error)}</div>}{utilityCrosshairVisible && <div className="pov-crosshair" aria-hidden="true"><i /><i /><i /><i /></div>}</div>;
 }

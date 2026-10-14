@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 
 const Dialogs = createContext(null);
 
@@ -51,15 +51,15 @@ export function DialogFrame({ title, onCancel, children, className = '' }) {
 
 function RequestDialog({ request, onFinish }) {
   const { language, kind, title, message, value } = request;
-  const text = (zh, en, ru) => localize(language, { zh, en, ru });
-  const heading = title || (kind === 'confirm' ? text('确认操作', 'Confirm action', 'Подтвердите действие') : text('提示', 'Notice', 'Уведомление'));
+  const text = (key, values) => translate(language, key, values);
+  const heading = title || (kind === 'confirm' ? text("common.appDialogs.confirmAction") : text("common.appDialogs.notice"));
   return <DialogFrame title={heading} onCancel={() => onFinish(false)}>
     <header><strong>{heading}</strong></header>
     {message && <p>{message}</p>}
     {kind === 'text' && <textarea readOnly aria-label={heading} value={value} onFocus={event => event.target.select()} />}
     <div className="save-archive-actions">
-      {kind === 'confirm' && <button type="button" data-dialog-focus onClick={() => onFinish(false)}>{text('取消', 'Cancel', 'Отмена')}</button>}
-      <button type="button" onClick={() => onFinish(true)}>{kind === 'confirm' ? text('确认', 'Confirm', 'Подтвердить') : text('关闭', 'Close', 'Закрыть')}</button>
+      {kind === 'confirm' && <button type="button" data-dialog-focus onClick={() => onFinish(false)}>{text("common.appDialogs.cancel")}</button>}
+      <button type="button" onClick={() => onFinish(true)}>{kind === 'confirm' ? text("common.appDialogs.confirm") : text("common.appDialogs.close")}</button>
     </div>
   </DialogFrame>;
 }

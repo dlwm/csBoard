@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 import { UTILITY_REPLAY_VERSION } from './replaySchema.js';
 
 export default function useUtilityReplayRecovery({ active, mapName, compute, language, notesRef, persist, onPlay }) {
@@ -26,15 +26,11 @@ export default function useUtilityReplayRecovery({ active, mapName, compute, lan
         throwPlace: recorded.throwPlace, landingPlace: recorded.landingPlace, landingPosition: recorded.landingPosition, landingRegionId: recorded.landingRegionId, landingPlaceSource: recorded.landingPlaceSource, behavior: recorded.behavior, replay: recorded.replay, demoSource: recorded.demoSource };
       const saved = await ports.current.persist(notesRef.current.map(item => item.id === updated.id ? updated : item));
       request.signal.throwIfAborted();
-      setStatus(saved ? null : { note: updated, firstPerson, message: localize(language, { zh: '回放记录已更新，但保存失败。', en: 'Replay updated, but saving failed.', ru: 'Повтор обновлён, но не сохранён.' }) });
+      setStatus(saved ? null : { note: updated, firstPerson, message: "utility.utilityReplayRecovery.replayUpdatedButSavingFailed" });
       ports.current.onPlay(updated, firstPerson);
     } catch (error) {
       if (request.signal.aborted) return;
-      setStatus({ note, firstPerson, message: localize(language, {
-        zh: '此速记的投掷时序或记录需要更新。请重新解析来源 Demo，再点击“更新记录”；当前仍可播放已有片段。',
-        en: 'This note needs its throw timing or recorded data updated. Reparse the source Demo, then update its recording. Existing playback remains available.',
-        ru: 'Нужно обновить время броска или записанные данные заметки. Разберите исходную Demo заново и обновите запись. Старый фрагмент доступен.',
-      }) });
+      setStatus({ note, firstPerson, message: "utility.utilityReplayRecovery.thisNoteNeedsItsThrowTimingOrRecordedDataUpdated" });
       ports.current.onPlay(note, firstPerson);
     } finally { if (pending.current === request) pending.current = null; }
   };
@@ -44,6 +40,6 @@ export default function useUtilityReplayRecovery({ active, mapName, compute, lan
 export function UtilityReplayRecoveryNotice({ status, onRetry, language }) {
   if (!status) return null;
   return <div className="utility-replay-notice" role="status">
-    {status.loading ? <><i className="analysis-loading-spinner" aria-hidden="true" />{localize(language, { zh: '正在读取完整投掷记录…', en: 'Loading complete throw recording…', ru: 'Загрузка полной записи броска…' })}</> : <><span>{status.message}</span><button type="button" onClick={() => onRetry(status.note, status.firstPerson, true)}>{localize(language, { zh: '更新记录', en: 'Update recording', ru: 'Обновить запись' })}</button></>}
+    {status.loading ? <><i className="analysis-loading-spinner" aria-hidden="true" />{translate(language, "utility.utilityReplayRecovery.loadingCompleteThrowRecording")}</> : <><span>{translate(language, status.message)}</span><button type="button" onClick={() => onRetry(status.note, status.firstPerson, true)}>{translate(language, "utility.utilityReplayRecovery.updateRecording")}</button></>}
   </div>;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import FarkleGame from './FarkleGame.jsx';
-import { localize } from './i18n.js';
+import { translate } from './i18n.js';
 
 const shuffledNumbers = (size) => {
   const numbers = Array.from({ length: size * size }, (_value, index) => index + 1);
@@ -12,7 +12,7 @@ const shuffledNumbers = (size) => {
 };
 
 function SchulteGame({ language, stopped }) {
-  const text = (zh, en, ru) => localize(language, { zh, en, ru });
+  const text = (key, values) => translate(language, key, values);
   const [size, setSize] = useState(4);
   const [numbers, setNumbers] = useState(() => shuffledNumbers(4));
   const [next, setNext] = useState(1);
@@ -69,23 +69,23 @@ function SchulteGame({ language, stopped }) {
 
   return <div className="schulte-game">
     <div className="schulte-toolbar">
-      <div><span>{text('网格', 'GRID', 'СЕТКА')}</span>{[3, 4, 5, 6].map((value) => <button type="button" key={value} className={size === value ? 'active' : ''} onClick={() => { setSize(value); reset(value); }}>{value}×{value}</button>)}</div>
-      <button type="button" className="schulte-reset" onClick={() => reset()}>{text('重新洗牌', 'RESHUFFLE', 'ПЕРЕМЕШАТЬ')}</button>
+      <div><span>{text("common.sideGameHub.grid")}</span>{[3, 4, 5, 6].map((value) => <button type="button" key={value} className={size === value ? 'active' : ''} onClick={() => { setSize(value); reset(value); }}>{value}×{value}</button>)}</div>
+      <button type="button" className="schulte-reset" onClick={() => reset()}>{text("common.sideGameHub.reshuffle")}</button>
     </div>
-    <div className="schulte-status"><div><span>{complete ? text('完成', 'COMPLETE', 'ГОТОВО') : text('下一个', 'NEXT', 'ДАЛЕЕ')}</span><strong>{complete ? '✓' : next}</strong></div><div><span>{text('用时', 'TIME', 'ВРЕМЯ')}</span><strong>{(elapsed / 1000).toFixed(2)}s</strong></div><div><span>{text('最佳', 'BEST', 'РЕКОРД')}</span><strong>{bestBySize[size] == null ? '—' : `${(bestBySize[size] / 1000).toFixed(2)}s`}</strong></div></div>
+    <div className="schulte-status"><div><span>{complete ? text("common.sideGameHub.complete") : text("common.sideGameHub.next")}</span><strong>{complete ? '✓' : next}</strong></div><div><span>{text("common.sideGameHub.time")}</span><strong>{(elapsed / 1000).toFixed(2)}s</strong></div><div><span>{text("common.sideGameHub.best")}</span><strong>{bestBySize[size] == null ? '—' : `${(bestBySize[size] / 1000).toFixed(2)}s`}</strong></div></div>
     <div className="schulte-grid" style={{ '--schulte-size': size }}>{numbers.map((number) => <button type="button" key={number} className={`${number < next ? 'done ' : ''}${mistake === number ? 'mistake' : ''}`.trim()} disabled={stopped} onClick={() => choose(number)}>{number}</button>)}</div>
-    <p>{stopped ? text('解析已停止。', 'Parsing stopped.', 'Разбор остановлен.') : complete ? text('完成！重新洗牌再来一轮。', 'Complete! Reshuffle for another run.', 'Готово! Перемешайте и попробуйте снова.') : next === 1 ? text('从 1 开始，按顺序找到所有数字。首次点击开始计时。', 'Start at 1 and find every number in order. Timing begins on the first tap.', 'Начните с 1 и найдите все числа по порядку. Таймер запустится при первом нажатии.') : text(`继续寻找 ${next}`, `Find ${next} next`, `Найдите ${next}`)}</p>
+    <p>{stopped ? text("common.sideGameHub.parsingStopped") : complete ? text("common.sideGameHub.completeReshuffleForAnotherRun") : next === 1 ? text("common.sideGameHub.startAt1AndFindEveryNumberInOrderTiming") : text("common.sideGameHub.findNext", { next: next })}</p>
   </div>;
 }
 
 function ReactionGame({ language, stopped }) {
-  const text = (zh, en, ru) => localize(language, { zh, en, ru });
+  const text = (key, values) => translate(language, key, values);
   const [phase, setPhase] = useState('idle');
   const [successfulCount, setSuccessfulCount] = useState(0);
   const [best, setBest] = useState(null);
   const [lastMs, setLastMs] = useState(null);
   const [latestAverage, setLatestAverage] = useState(null);
-  const [message, setMessage] = useState(() => text('按下开始，等它变绿后再次按下。', 'Press to start, then press again once it turns green.', 'Нажмите для старта, затем нажмите снова, когда поле станет зелёным.'));
+  const [message, setMessage] = useState(() => text("common.sideGameHub.pressToStartThenPressAgainOnceItTurnsGreen"));
   const timeoutRef = useRef(null);
   const goAtRef = useRef(0);
   const groupRef = useRef([]);
@@ -95,7 +95,7 @@ function ReactionGame({ language, stopped }) {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
       setPhase('idle');
-      setMessage(text('解析已停止。', 'Parsing stopped.', 'Разбор остановлен.'));
+      setMessage(text("common.sideGameHub.parsingStopped"));
     }
     return () => window.clearTimeout(timeoutRef.current);
   }, [stopped, language]);
@@ -105,11 +105,11 @@ function ReactionGame({ language, stopped }) {
     if (phase === 'idle') {
       window.clearTimeout(timeoutRef.current);
       setPhase('waiting');
-      setMessage(text('等待变绿… 不要提前按下！', 'Wait for green… do not press early!', 'Ждите зелёного… не нажимайте раньше!'));
+      setMessage(text("common.sideGameHub.waitForGreenDoNotPressEarly"));
       const delay = 700 + Math.random() * 1600;
       timeoutRef.current = window.setTimeout(() => {
         setPhase('go');
-        setMessage(text('按下！', 'PRESS!', 'ЖМИТЕ!'));
+        setMessage(text("common.sideGameHub.press"));
         goAtRef.current = performance.now();
       }, delay);
       return;
@@ -118,7 +118,7 @@ function ReactionGame({ language, stopped }) {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
       setPhase('idle');
-      setMessage(text('太早了，再试一次。', 'Too early — try again.', 'Слишком рано — попробуйте ещё раз.'));
+      setMessage(text("common.sideGameHub.tooEarlyTryAgain"));
       return;
     }
     if (phase === 'go') {
@@ -133,7 +133,7 @@ function ReactionGame({ language, stopped }) {
       } else {
         groupRef.current = group;
       }
-      setMessage(text(`反应时间 ${ms.toFixed(0)}ms`, `Reaction ${ms.toFixed(0)}ms`, `Реакция: ${ms.toFixed(0)} мс`));
+      setMessage(text("common.sideGameHub.reactionMs", { value1: ms.toFixed(0) }));
       setPhase('idle');
     }
   };
@@ -142,7 +142,7 @@ function ReactionGame({ language, stopped }) {
     window.clearTimeout(timeoutRef.current);
     timeoutRef.current = null;
     setPhase('idle');
-    setMessage(text('已取消。', 'Cancelled.', 'Отменено.'));
+    setMessage(text("common.sideGameHub.cancelled"));
   };
 
   const groupNumber = Math.floor(successfulCount / 3) + 1;
@@ -150,30 +150,30 @@ function ReactionGame({ language, stopped }) {
 
   return <div className="reaction-game">
     <div className={`reaction-area reaction-${phase}`} role="button" tabIndex="0" onPointerDown={handleDown} onPointerCancel={handleCancel}>
-      {phase === 'idle' && <span className="reaction-hint">{successfulCount ? text('按下再试一次', 'Press to try again', 'Нажмите, чтобы повторить') : text('按下开始', 'Press to start', 'Нажмите для старта')}</span>}
-      {phase === 'waiting' && <span className="reaction-hint">{text('等待…', 'Wait…', 'Ждите…')}</span>}
-      {phase === 'go' && <span className="reaction-hint">{text('按下!', 'PRESS!', 'ЖМИТЕ!')}</span>}
+      {phase === 'idle' && <span className="reaction-hint">{successfulCount ? text("common.sideGameHub.pressToTryAgain") : text("common.sideGameHub.pressToStart")}</span>}
+      {phase === 'waiting' && <span className="reaction-hint">{text("common.sideGameHub.wait")}</span>}
+      {phase === 'go' && <span className="reaction-hint">{text("common.sideGameHub.press")}</span>}
     </div>
-    <div className="reaction-stats"><dl><div><dt>{text('最新', 'LATEST', 'ПОСЛЕДНЯЯ')}</dt><dd>{lastMs != null ? `${lastMs.toFixed(0)}ms` : '—'}</dd></div><div><dt>{text('最佳', 'BEST', 'ЛУЧШАЯ')}</dt><dd>{best != null ? `${best.toFixed(0)}ms` : '—'}</dd></div><div><dt>{text('组/次', 'GROUP / ATTEMPT', 'ГРУППА / ПОПЫТКА')}</dt><dd>{groupNumber} / {attemptNumber}</dd></div><div><dt>{text('上组平均', 'LATEST 3 AVG', 'СРЕДНЕЕ ЗА 3')}</dt><dd>{latestAverage != null ? `${latestAverage.toFixed(0)}ms` : '—'}</dd></div></dl></div>
+    <div className="reaction-stats"><dl><div><dt>{text("common.sideGameHub.latest")}</dt><dd>{lastMs != null ? `${lastMs.toFixed(0)}ms` : '—'}</dd></div><div><dt>{text("common.sideGameHub.best")}</dt><dd>{best != null ? `${best.toFixed(0)}ms` : '—'}</dd></div><div><dt>{text("common.sideGameHub.groupAttempt")}</dt><dd>{groupNumber} / {attemptNumber}</dd></div><div><dt>{text("common.sideGameHub.latest3Avg")}</dt><dd>{latestAverage != null ? `${latestAverage.toFixed(0)}ms` : '—'}</dd></div></dl></div>
     <p className="reaction-msg">{message}</p>
   </div>;
 }
 
 export default function SideGameHub({ language = 'zh', stopped = false, manual = false, onClose }) {
-  const text = (zh, en, ru) => localize(language, { zh, en, ru });
+  const text = (key, values) => translate(language, key, values);
   const [game, setGame] = useState('reaction');
   const games = [
     { id: 'farkle', label: 'FARKLE' },
-    { id: 'reaction', label: text('反应测试', 'REACTION', 'РЕАКЦИЯ') },
-    { id: 'schulte', label: text('舒尔特方块', 'SCHULTE', 'ТАБЛИЦА ШУЛЬТЕ') },
+    { id: 'reaction', label: text("common.sideGameHub.reaction") },
+    { id: 'schulte', label: text("common.sideGameHub.schulte") },
   ];
   return <section className="side-games">
     <header>
       <div className="side-games-tabs">{games.map((g) => <button type="button" key={g.id} className={game === g.id ? 'active' : ''} onClick={() => setGame(g.id)}>{g.label}</button>)}</div>
-      <small>{manual ? text('专注训练', 'FOCUS TRAINING', 'ТРЕНИРОВКА ВНИМАНИЯ') : stopped ? text('解析已停止', 'Parsing stopped', 'Разбор остановлен') : text('Demo 正在解析', 'Demo parsing', 'Разбор Demo')}</small>
-      {onClose && <button type="button" className="farkle-close" aria-label={text('关闭', 'Close', 'Закрыть')} onClick={onClose}>×</button>}
+      <small>{manual ? text("common.sideGameHub.focusTraining") : stopped ? text("common.sideGameHub.parsingStopped2") : text("common.sideGameHub.demoParsing")}</small>
+      {onClose && <button type="button" className="farkle-close" aria-label={text("common.sideGameHub.close")} onClick={onClose}>×</button>}
     </header>
-    {!manual && !stopped && <p className="parse-foreground-hint">{text('请保持本页在前台；切换标签页、最小化窗口或锁屏可能让解析明显变慢。', 'Keep this page in the foreground; switching tabs, minimizing the window, or locking the screen may significantly slow parsing.', 'Держите эту страницу на переднем плане: переключение вкладок, сворачивание окна или блокировка экрана могут заметно замедлить разбор.')}</p>}
+    {!manual && !stopped && <p className="parse-foreground-hint">{text("common.sideGameHub.keepThisPageInTheForegroundSwitchingTabsMinimizingThe")}</p>}
     <div className="side-games-body">
       {game === 'farkle' ? <FarkleGame language={language} stopped={stopped} onClose={null} embedded /> : null}
       {game === 'reaction' ? <ReactionGame language={language} stopped={stopped} /> : null}

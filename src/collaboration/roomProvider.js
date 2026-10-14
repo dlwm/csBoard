@@ -1,15 +1,7 @@
 import { WebsocketProvider } from 'y-websocket';
-import { localize } from '../i18n.js';
+import { translate } from '../i18n.js';
 
-export const roomConnectionMessage = (language, reason = 'unavailable') => localize(language, reason === 'configuration' ? {
-  zh: '此应用未配置协作服务器，暂时无法联网协作。',
-  en: 'No collaboration server is configured for this app.',
-  ru: 'Для приложения не настроен сервер совместной работы.',
-} : {
-  zh: '无法连接协作服务器，已停止重试。请检查网络或服务器配置后重新加入房间。',
-  en: 'Could not connect to the collaboration server. Retries stopped; check the connection or server configuration and rejoin.',
-  ru: 'Не удалось подключиться к серверу. Повторы остановлены; проверьте сеть и настройки, затем войдите снова.',
-});
+export const roomConnectionMessage = (language, reason = 'unavailable') => translate(language, reason === 'configuration' ? "collaboration.roomProvider.noCollaborationServerIsConfiguredForThisApp" : "collaboration.roomProvider.couldNotConnectToTheCollaborationServerRetriesStoppedCheck");
 
 // Bound failed handshakes, not normal connected sessions. A successful Yjs sync
 // resets the budget. Disable BroadcastChannel so local peers cannot falsely
