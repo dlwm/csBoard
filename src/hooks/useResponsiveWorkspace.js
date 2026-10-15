@@ -21,6 +21,8 @@ export default function useResponsiveWorkspace({ activePanel, leftSidebarOpen, m
       const { width, height } = entry.contentRect;
       target.style.setProperty('--workspace-viewport-width', `${width}px`);
       target.style.setProperty('--workspace-viewport-height', `${height}px`);
+      stage?.style.setProperty('--workspace-viewport-height', `${height}px`);
+      stage?.toggleAttribute('data-compact-viewport', height < 140);
       // Sidebar width is a frame token, not a function of viewport height:
       // starting playback must not resize the sidebar when the footer gains a row.
       // 左栏宽度不随底栏行数变化；地图控件按内容撑高，避免挤压业务列表。
@@ -44,7 +46,8 @@ export default function useResponsiveWorkspace({ activePanel, leftSidebarOpen, m
       target.style.removeProperty('--workspace-viewport-height');
       window.cancelAnimationFrame(frame);
       stage?.removeAttribute('data-map-status-overlap');
-      ['--map-bar-height', '--map-bar-width', '--status-bar-height', '--frame-window-width'].forEach((property) => stage?.style.removeProperty(property));
+      stage?.removeAttribute('data-compact-viewport');
+      ['--map-bar-height', '--map-bar-width', '--status-bar-height', '--frame-window-width', '--workspace-viewport-height'].forEach((property) => stage?.style.removeProperty(property));
     };
   }, [activePanel, leftSidebarOpen, mapName, navData, viewportRef, stageRef]);
 

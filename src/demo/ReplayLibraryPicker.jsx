@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+import useAnchoredMenuPosition from '../components/workspace/useAnchoredMenuPosition.js';
 import { WorkspaceButton } from '../components/workspace/WorkspaceControls.jsx';
 import { translate, localeForLanguage } from '../i18n.js';
 import { isRecording } from './recordings.js';
@@ -6,10 +8,12 @@ import ArchiveFolderTree from '../components/ArchiveFolderTree.jsx';
 // All replay entries share this catalogue. Storage ownership controls deletion;
 // it does not create a second custom-recording category or another workspace.
 export default function ReplayLibraryPicker({ entries, error, loadingId, activeId, open, language, folders, onToggle, onClose, onOpen, onRemove, onShare, onCreateFolder, onDeleteFolder, onMove }) {
+  const pickerRef = useRef(null);
+  const { menuRef, style } = useAnchoredMenuPosition(open, pickerRef, 440);
   const text = (key, values) => translate(language, key, values);
   const title = text("replay.replayLibraryPicker.localDemos");
-  return <div className="demo-cache-picker"><WorkspaceButton type="button" onClick={onToggle}>{title} · {entries.length}</WorkspaceButton>
-    {open && <div className="demo-cache-list replay-library"><header><strong>{title}</strong><WorkspaceButton icon variant="quiet" type="button" aria-label={text("replay.replayLibraryPicker.close")} onClick={onClose}>×</WorkspaceButton></header>
+  return <div ref={pickerRef} className="demo-cache-picker"><WorkspaceButton type="button" onClick={onToggle} aria-expanded={open}>{title} · {entries.length}</WorkspaceButton>
+    {open && <div ref={menuRef} popover="manual" style={style} className="demo-cache-list replay-library"><header><strong>{title}</strong><WorkspaceButton icon variant="quiet" type="button" aria-label={text("replay.replayLibraryPicker.close")} onClick={onClose}>×</WorkspaceButton></header>
       {loadingId && <p role="status">{text("replay.replayLibraryPicker.loadingRecording")}</p>}
       {error && <p role="alert">{error}</p>}
       <ArchiveFolderTree state={folders} items={entries} language={language} onCreate={onCreateFolder} onDelete={onDeleteFolder} onMove={onMove}

@@ -15,14 +15,14 @@
   --ui-space-2: 8px;
   --ui-space-3: 12px;
   --ui-space-4: 16px;
-  --ui-caption-size: 10px;
-  --ui-label-size: 11px;
-  --ui-body-size: 12px;
-  --ui-heading-size: 22px;
+  --ui-caption-size: calc(10px * var(--ui-font-scale, 1));
+  --ui-label-size: calc(11px * var(--ui-font-scale, 1));
+  --ui-body-size: calc(12px * var(--ui-font-scale, 1));
+  --ui-heading-size: calc(22px * var(--ui-font-scale, 1));
   --ui-control-height: 34px;
   --ui-control-compact-height: 28px;
 }
 @media (pointer: coarse) {
   :root { --ui-control-height: 42px; --ui-control-compact-height: 36px; }
 }
-@media (max-height: 600px) { :root { --ui-heading-size: 19px; } }
+@media (max-height: 600px) { :root { --ui-heading-size: calc(19px * var(--ui-font-scale, 1)); } }

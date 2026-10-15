@@ -59,7 +59,7 @@
 .workspace-frame .workspace-left-content .utility-recommendations { min-height: 0; }
 .workspace-frame .workspace-sidebar .analysis-view-options { position: static; width: auto; margin: 12px 0 0; }
 .workspace-frame[data-mobile-workspace] { --workspace-sidebar-width: clamp(230px, 30vw, 320px); --workspace-sidebar-padding: 12px; }
-.workspace-frame[data-mobile-workspace] .workspace-left.is-collapsed { width: auto; height: auto; max-width: min(280px, 55vw); }
+.workspace-frame[data-mobile-workspace] .workspace-left.is-collapsed { overflow: visible; max-height: none; width: auto; height: auto; max-width: min(280px, 55vw); }
 .workspace-frame[data-mobile-workspace] .workspace-map { height: auto; }
 .workspace-frame[data-mobile-workspace] .workspace-map .view-tools { height: auto; }
 .workspace-frame[data-mobile-workspace] { --workspace-toggle-width: 32px; }
@@ -141,6 +141,12 @@
 .workspace-corner-bottom-left { bottom: var(--workspace-corner-gap); left: var(--workspace-corner-gap); align-items: flex-start; }
 .workspace-corner-bottom-right { bottom: var(--workspace-corner-gap); right: var(--workspace-corner-gap); align-items: flex-end; }
 .workspace-frame.is-mobile .workspace-corners { --workspace-corner-gap: 12px; }
+/* Short viewports place the lower action beside the upper help control.
+   矮视窗保留角落操作，横向错开，避免软键盘压缩时互相盖住。 */
+.workspace-frame .workspace-grid[data-compact-viewport] .workspace-corner-bottom-right {
+  right: calc(var(--workspace-corner-gap) + var(--ui-control-height) + 16px);
+  max-width: calc(100% - 2 * var(--workspace-corner-gap) - var(--ui-control-height) - 16px);
+}
 .workspace-frame .workspace-corner .demo-recording-label { position: static; margin: 0; pointer-events: none; }
 .workspace-frame .workspace-corner .utility-input-overlay { position: static; margin: 0; transform: none; pointer-events: none; }
 .workspace-frame.is-mobile .workspace-corner .utility-input-overlay { zoom: .85; }
@@ -230,3 +236,7 @@
    leaving its empty frame visible would still cover the roster. */
 .workspace-frame:not(.is-mobile) .workspace-grid[data-map-status-overlap] .workspace-left.is-collapsed { visibility: hidden; pointer-events: none; }
 .workspace-frame.is-mobile .board-header { height: auto; padding-top: max(6px, env(safe-area-inset-top)); padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+
+/* Translated labels must still fit when interface text is enlarged. */
+.workspace-frame .camera-slots :is(.camera-reset, .floor-controls button),
+.workspace-frame .map-style-controls .workspace-button { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; padding: 5px 4px; }

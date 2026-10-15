@@ -517,7 +517,7 @@ html[lang=ru-RU] .demo-options::before{content:'ВИД'}html[lang=ru-RU] .demo-v
 .map-preview-stack{display:contents}
 .map-preview-stack:has(.map-style-controls){position:relative;display:block;align-self:stretch;min-width:0;min-height:0}
 
-.map-style-controls{display:flex;justify-content:flex-end;gap:3px;align-items:stretch;margin-top:4px}
+.map-style-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;align-items:stretch;margin-top:4px}
 .map-style-controls button{--tab-border:var(--ui-line);--tab-bg:var(--ui-surface);position:relative;isolation:isolate;clip-path:polygon(7px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 7px);white-space:nowrap}
 .map-style-controls button::before{content:'';position:absolute;inset:1px;clip-path:polygon(7px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 7px);z-index:-1;pointer-events:none}
 .map-style-controls button[aria-pressed=true]{--tab-border:var(--accent-border);--tab-bg:var(--accent-bg)}

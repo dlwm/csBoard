@@ -16,8 +16,8 @@ export default function ReplayTransportControls({ data, segment, tick, playing, 
   const label = recording ? translate(language, "replay.replayTransportControls.clip") : t("replay.round");
   return <div className="demo-playback-controls">
     {data && (!recording || data.rounds.length > 1) && <div data-tour="rounds" ref={pickerRef} className={`demo-round-picker${menuOpen ? ' open' : ''}${recording ? ' recording-segments' : ''}`}>
-      <WorkspaceButton type="button" onClick={onMenu}>{segment ? `${label} ${segment.round}${recording ? '' : ` · ${economies.get(segment.round)?.T.label}/${economies.get(segment.round)?.CT.label}`}` : t("common.selectRound")}</WorkspaceButton>
-      {menuOpen && <div ref={menuRef} style={menuStyle} className="demo-round-list">{data.rounds.map(item => {
+      <WorkspaceButton type="button" onClick={onMenu} aria-expanded={menuOpen}>{segment ? `${label} ${segment.round}${recording ? '' : ` · ${economies.get(segment.round)?.T.label}/${economies.get(segment.round)?.CT.label}`}` : t("common.selectRound")}</WorkspaceButton>
+      {menuOpen && <div ref={menuRef} popover="manual" style={menuStyle} className="demo-round-list">{data.rounds.map(item => {
         const economy = economies.get(item.round);
         return <WorkspaceButton type="button" key={item.round} className={segment?.round === item.round ? 'active' : ''} style={recording ? undefined : { '--economy-split': `${economy?.split ?? 50}%` }} onClick={() => onSegment(item)}>
           {!recording && <span className="economy-t">T {economy?.T.label}</span>}<strong>{item.round}</strong>

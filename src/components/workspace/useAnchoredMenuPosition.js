@@ -9,6 +9,11 @@ export default function useAnchoredMenuPosition(open, anchorRef, preferredWidth=
     if (!open || !anchorRef.current || !menuRef.current) return undefined;
     const anchor = anchorRef.current;
     const menu = menuRef.current;
+    // Native top layer preserves DOM ancestry for theme and outside-click
+    // handling, while escaping scroll/container clipping in the footer.
+    // 中文：浮层脱离底栏裁切，但仍保留原来的 DOM 归属和主题继承。
+    const topLayer = typeof menu.showPopover === 'function';
+    if (topLayer && !menu.matches(':popover-open')) menu.showPopover();
     const workspace = anchor.closest('.workspace-grid');
     const update = () => {
       const viewport = window.visualViewport;
@@ -30,10 +35,11 @@ export default function useAnchoredMenuPosition(open, anchorRef, preferredWidth=
       const maxHeight = Math.max(1, Math.min(360, up ? above : below));
       const height = Math.min(menu.scrollHeight + 2, maxHeight);
       const left = Math.max(bounds.left, Math.min(rect.left, bounds.right - width));
-      const top = up ? rect.top - 8 - height : rect.bottom + 8;
-      // Absolute coordinates stay in the picker so outside-click handling and
-      // workspace stacking remain intact; include the anchor's border offset.
-      const next = { position: 'absolute', left: left - rect.left - anchor.clientLeft, top: top - rect.top - anchor.clientTop, right: 'auto', bottom: 'auto', width, maxHeight, boxSizing: 'border-box' };
+      const top = Math.max(bounds.top, Math.min(up ? rect.top - 8 - height : rect.bottom + 8, bounds.bottom - height));
+      const next = { position: topLayer ? 'fixed' : 'absolute', margin: 0,
+        left: topLayer ? left : left - rect.left - anchor.clientLeft,
+        top: topLayer ? top : top - rect.top - anchor.clientTop,
+        right: 'auto', bottom: 'auto', width, maxHeight, boxSizing: 'border-box' };
       setStyle(previous => previous && Object.keys(next).every(key => previous[key] === next[key]) ? previous : next);
     };
     update();
@@ -44,6 +50,7 @@ export default function useAnchoredMenuPosition(open, anchorRef, preferredWidth=
     window.visualViewport?.addEventListener('resize', update);
     window.visualViewport?.addEventListener('scroll', update);
     return () => {
+      if (topLayer && menu.isConnected && menu.matches(':popover-open')) menu.hidePopover();
       observer.disconnect();
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
