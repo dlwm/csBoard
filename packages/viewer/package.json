@@ -38,6 +38,14 @@
     "./format": {
       "types": "./src/formats/index.d.ts",
       "import": "./src/formats/index.js"
+    },
+    "./smoke": {
+      "types": "./src/smoke/index.d.ts",
+      "import": "./src/smoke/index.js"
+    },
+    "./smoke/three": {
+      "types": "./src/smoke/three.d.ts",
+      "import": "./src/smoke/three.js"
     }
   },
   "peerDependencies": {
@@ -47,8 +55,10 @@
   "files": [
     "src",
     "README.md",
+    "API.md",
     "LICENSE",
-    "examples/minimal"
+    "examples/minimal",
+    "SMOKE.md"
   ],
   "dependencies": {
     "ajv": "^8.20.0",
