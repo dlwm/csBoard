@@ -23,6 +23,8 @@ NAV 随应用提供。建筑模型不是启动必需项；本地模型放在 `.l
 | 打开已构建应用，不重建 | `make desktop-start` |
 | 构建并启动网页与 Node 服务 | `make dev` |
 | 独立视图库示例 | `make viewer-example` |
+| 视图库外部接入验收 | `make viewer-check` |
+| `make mobile-ui-check` | 构建并验收移动 H5 的触控、弹层与视窗布局。 |
 
 源码变更后重新 prepare；不存在构建产物时 start 无法直接启动。桌面渲染产物在 `build/renderer`，后台任务在 `build/tasks`，应用在 `build/desktop`；网页产物为 `dist`。示例产物在 `build/viewer-example`，需用 HTTP 服务打开。
 

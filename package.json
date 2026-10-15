@@ -4,7 +4,7 @@
   "author": "colvin chen",
   "license": "GPL-3.0-only",
   "private": true,
-  "version": "2.0.0-alpha.2",
+  "version": "2.0.0-alpha.3",
   "type": "module",
   "main": "electron/main.js",
   "build": {
@@ -125,5 +125,5 @@
     "wrangler": "^4.37.1",
     "zod-to-json-schema": "^3.25.2"
   },
-  "mobileBuildNumber": 2000001
+  "mobileBuildNumber": 2000003
 }

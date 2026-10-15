@@ -36,7 +36,7 @@ A **driver** controls execution: WASM, native process or embedded runtime, input
 
 Prefer public commands for UI, external consumers and AI tools. Inspect `getCapabilities` / `getContract`, check structured `execute` results and unsubscribe on disposal. Include `expectedRevision` when editing; reread after conflicts. Hosts own permissions, approval, persistence and network identity.
 
-Public layouts use scene metres and radians; explicitly convert Source coordinates. Partial/unknown contracts are not universal stable schemas, and discovery is not runtime validation. Some application operations remain host-specific; do not exchange whole snapshots across profiles.
+Public layouts use scene metres and radians; explicitly convert Source coordinates. Built-in command schemas are validated before approval or mutation. Partial/unknown host payloads are not universal schemas; runtimeValidation=host marks host-owned validation. Event descriptors include payload schemas; regenerate static validators with make viewer-contracts after contract changes. Some application operations remain host-specific; do not exchange whole snapshots across profiles.
 
 ## Working conventions
 
@@ -56,10 +56,10 @@ Public layouts use scene metres and radians; explicitly convert Source coordinat
 - [Minimal independent consumer](../packages/viewer/examples/minimal/README.md): start here for another application.
 - [Package API](../packages/viewer/README.md), [compatibility scope](viewer-compatibility.md).
 - [Parser interface](parser-interface.md), [data format](demo-format.md).
-- [Design](library-design.md), [roadmap](../ROADMAP.md): planned direction, not a claim that everything is implemented.
+- [Design](library-design.md): architectural boundaries; consult the API and compatibility guide for implemented behavior.
 - [Testing](../tests/README.md), [AI corpus](ai/README.md), [preset data](presets/README.md).
 
-The viewer is a private experimental package, API 0.1, not published to npm. It uses GPL-3.0-only; read the [license](../LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) before integrating or distributing it.
+The viewer is a private experimental package, API 0.2, not published to npm. It uses GPL-3.0-only; read the [license](../LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md) before integrating or distributing it.
 
 ## Interface text and errors
 

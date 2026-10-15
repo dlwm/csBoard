@@ -1,6 +1,8 @@
 # 视图库兼容范围
 
-当前是 `@csboard/viewer` 私有实验包，API `0.1`，不是已发布的稳定 SDK。应用版本和 API 版本分别维护；后续改变字段仍需明确迁移说明。
+当前是 `@csboard/viewer` 私有实验包，API `0.2`，不是已发布的稳定 SDK。应用版本和 API 版本分别维护；后续改变字段仍需明确迁移说明。
+
+API 的配置、命令结果、事件、错误与资源所有权集中在 [公共接口约定](../packages/viewer/API.md)。外部接入请从 [最小示例](../packages/viewer/examples/minimal/README.md) 开始；`make viewer-check` 验证真实 tar 包安装。
 
 ## 公共边界
 
@@ -13,14 +15,19 @@
 | `workspace.players` | 替换人物列表；不替换宿主完整存档；回放只读 |
 | `getUtilityCatalogue` | 仅配置来源时提供；目录不包含录像和体素素材 |
 | `utility.place/move/remove` | 配置驱动后提供；成功值为 `{id}`；move 是刚性平移 |
+| `player.move` | 场景米坐标；应用沿用人物编辑权限与撤销历史 |
+| `model.visibility/style/objectsVisibility` | 应用与独立入口共用命令语义；应用保存设置与节点掩码，独立入口由调用方决定持久化 |
+| `getModelObjects/getModelObjectTree` | 两种入口均在模型 ready 后可查询；签名约束节点操作 |
 | `voice.configure` | 默认静音；设备权限、解码与来源属于宿主 |
 | `dispose` | 同一实例重复调用安全；释放该实例资源，不销毁宿主来源或共享音频设备 |
+
+应用的人物放置、移动提交、删除、阵营修改、相机聚焦/重置/快捷键与模型控件通过命令核心。拖动过程是临时预览，结束时提交一次并保留拖动前的撤销快照；房间恢复与存档恢复仍是宿主生命周期操作。未加载模型的对象勾选只保存偏好，不强制下载。示意道具、画笔和部分旧宿主预览仍属于应用工具，不声明为全部标准化。
 
 普通调用必须检查 capabilities/commands。独立和应用 profile 的旧 `getState().workspace`、`board.apply`、道具原始素材仍不相同；不得直接跨宿主交换完整快照。摄像机、模型资源、回放驱动的详细范围见 [集成文档](viewer-library.md)。
 
 ## 事件与版本
 
-事件共用 `{type,revision,operationId,origin,payload}`。有明确共用内容的布局通知是 `workspace.playersChanged` 和 `utility.placementsChanged`，只覆盖相应公共命令；旧 UI 操作、撤销或恢复使用宿主通知。其余主题的内容以现有类型/文档和具体宿主为准，不承诺发现清单中的所有事件在每种宿主都会发生。
+事件共用 `{type,revision,operationId,origin,payload}`。有明确共用内容的布局通知是 `workspace.playersChanged` 和 `utility.placementsChanged`，只覆盖相应公共命令；旧 UI 操作、撤销或恢复使用宿主通知。内置事件均提供 payloadSchema 与 schemaStatus；workspace.changed 为宿主摘要，应用相机允许宿主字段。无效内置事件通过 onObserverError 报告，不交付给订阅者。不承诺所有事件在每种宿主都会发生。
 
 远端工作区恢复递增公共 revision，origin 为 remote；本地宿主恢复为 host。外部编辑应携带读取时的 expectedRevision，冲突后重新读取，不能盲目重复编辑。异步道具加载还受独立工作区代次保护。
 
@@ -32,7 +39,7 @@
 
 ## 当前验收
 
-独立消费者只复制包代码并使用包名导入，提供自定义 NAV；构建拒绝应用模块依赖，实际渲染、编辑、2D 切换和多实例销毁通过。真实本地 WebSocket 下，桌面与网页同步道具放置、移动、删除、撤销和重新加入，保留引用与体素；旧 revision 被拒绝。
+独立消费者通过安装实际打包的归档并使用包名导入，提供自定义 NAV；构建拒绝应用模块依赖。真实浏览器下的 69 项检查涵盖回放、模型、编辑、2D 切换、相机输入、宿主滚动、事件和销毁。macOS Apple Silicon 桌面包通过启动、原生存储与 28 项回放、分析、道具保存、人物编辑与撤销、键盘放置、模型懒加载及持久化流程检查；移动 H5 通过 7 个触控与动态视窗场景。真实本地 WebSocket 下，桌面与网页同步道具放置、移动、删除、撤销和重新加入，保留引用与体素；旧 revision 被拒绝。
 
 这些是构建和实际操作验收，并不等同于完整单元测试、负载测试、跨设备性能基准或稳定 SDK 发布。暂未验收生产网络断线恢复、权限攻防及全部相机/模型输入组合。
 

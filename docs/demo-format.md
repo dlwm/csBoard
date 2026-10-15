@@ -1,6 +1,6 @@
 # Demo 数据格式接入
 
-本页记录 `feature/demo-format` 的当前实现。应用版本仍为 1.21.2；这些改动尚未发布。
+本页说明 CSBoard 2.0 预览版的数据格式接入。回放扩展仍为实验性，应用版本与格式版本分别维护。
 
 ## 使用方式
 
@@ -27,7 +27,7 @@ flowchart LR
 
 解析驱动负责运行解析器；格式适配器负责语义转换；计算驱动负责后台执行；存储驱动负责读写。
 格式模块不调用 Electron、DOM、Yjs 或 AI。UI 只注入计算、缓存和打开回放的接口。
-本次没有将已有解析缓存整体改为 ZIP，也没有提取独立 3D SDK。
+交换包不替代运行时缓存；独立视图的接入见 [视图库文档](viewer-library.md)。
 
 ## 字段对照
 
@@ -68,7 +68,7 @@ v3 的枚举、增量轨迹、坐标缩放和角度缩放由 v3 适配器处理�
 ## 合同来源与维护
 
 依赖固定到 `dlwm/cs2-demo-format` 的已审阅提交，不追随浮动 master。
-当前回放扩展在 `.local/demo-format` 的 `feature/replay-profile`，已在本地提交到 fork 的 `feature/replay-profile`（64a9deb），尚未推送，也未经上游接受。
+格式合同来源与固定 revision 记录在 `config/formats` 的快照元数据中；回放扩展来自 fork，不代表已被上游接受。
 合同快照记录本地 revision、源码 SHA-256 和是否有合同文件未提交的 `draft` 标志。依赖下载仍固定到已在远端的基础提交；本地提交标识不代表已推送或已发布。
 
 ```sh
@@ -89,4 +89,4 @@ make format-contracts ARGS="--source .local/demo-format"
 这些值位于格式 IO 模块；过大的片段或分析文件会明确拒绝，尚未提供二进制轨迹或分析分块。
 导入验证结构、文件路径、引用、轨迹顺序和支持的地图，但不证明来源可信或物理真实性。
 
-已完成格式交换的第一阶段；Go 已接入[通用解析会话接口](parser-interface.md)。其他解析器实现、独立数据源、3D viewer、命令与事件 API、AI 公共接口仍按 [路线图](../ROADMAP.md) 推进。
+Go 已接入[通用解析会话接口](parser-interface.md)；标准包可直接交给独立视图数据源。其他解析器接入约定见[解析器接口](parser-interface.md)，视图库支持范围见[兼容说明](viewer-compatibility.md)。

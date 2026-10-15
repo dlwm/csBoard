@@ -13,11 +13,22 @@ The repository build resolves package names to the source package. The older exa
 
 ## Use in another application
 
-The package is experimental/private and is not published to npm. Copy this example into your own Vite application and install the source package by local path, along with its peers:
+The package is experimental/private and is not published to npm. For a reproducible standalone installation, pack the library and install the archive in an empty Vite project. The archive includes this example and the API reference:
 
 ```sh
-npm install /absolute/path/to/csBoard/packages/viewer three@^0.185.1 three-mesh-bvh@^0.9.14
+# In csBoard, write a tarball to your chosen staging directory:
+npm pack ./packages/viewer --pack-destination /path/to/staging
+
+# In an empty directory outside csBoard:
+npm init -y
+npm install /path/to/staging/csboard-viewer-0.0.0.tgz three@^0.185.1 three-mesh-bvh@^0.9.14
+npm install --save-dev vite@8.2.1
+cp node_modules/@csboard/viewer/examples/minimal/index.html .
+cp node_modules/@csboard/viewer/examples/minimal/main.js .
+npx vite --host 127.0.0.1
 ```
+
+Open the local URL printed by Vite. On Windows, use your file manager or PowerShell `Copy-Item` in place of `cp`. `make viewer-check` verifies a packed installation and runs this example, including invalid-file recovery and reopening.
 
 Use the same package-name imports in `main.js`; no CSBoard path alias is required. The package declares JSZip and Ajv dependencies for standard reading. NAV JSON must provide an `areas` object whose entries contain `corners: [{x,y,z}, …]` in Source coordinates; choose the NAV belonging to the package's map. The reader validates the replay package, but cannot verify the identity of an unlabeled NAV file.
 

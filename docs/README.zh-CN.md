@@ -5,7 +5,7 @@
 [English](../README.md) · [Русский](README.ru-RU.md) · [桌面端下载](https://github.com/dlwm/csBoard/releases/latest)
 
 
-> **2.0 预览版：** [2.0.0-alpha.2](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.2)。接入接口仍为实验性；桌面端下载链接指向正式版。
+> **2.0 Alpha：** [2.0.0-alpha.3](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.3)。接入接口仍为实验性；桌面端下载链接指向正式版。
 
 ## 从这里开始
 
@@ -15,7 +15,7 @@
 | 理解结构或参与开发 | [开发者指南](developer-guide.zh-CN.md)：架构、驱动与独立库的边界 |
 | 在本机运行或打包 | [本地构建指南](build-guide.zh-CN.md)：开发命令、打包与 CI |
 | 在自己的项目中引用视图库 | [最小接入示例](../packages/viewer/examples/minimal/README.md) · [接口与兼容范围](viewer-compatibility.md) |
-| 查看更新和后续方向 | [更新日志](CHANGELOG.zh-CN.md) · [路线图](../ROADMAP.md) |
+| 查看更新 | [更新日志](CHANGELOG.zh-CN.md) |
 
 ## 对局回放
 

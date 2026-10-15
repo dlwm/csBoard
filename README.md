@@ -5,7 +5,7 @@ A tool for CS2 Demo playback, data analysis, utility notes and collaboration.
 [中文](docs/README.zh-CN.md) · [Русский](docs/README.ru-RU.md) · [Desktop download](https://github.com/dlwm/csBoard/releases/latest)
 
 
-> **2.0 preview:** [2.0.0-alpha.2](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.2). Integration interfaces are experimental; the desktop download link points to the stable release.
+> **2.0 Alpha:** [2.0.0-alpha.3](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.3). Integration interfaces are experimental; the desktop download link points to the stable release.
 
 ## Documentation
 
@@ -15,7 +15,7 @@ A tool for CS2 Demo playback, data analysis, utility notes and collaboration.
 | Understand or contribute to the code | [Developer guide](docs/developer-guide.md) — architecture, drivers and library boundaries |
 | Build and run locally | [Local build guide](docs/build-guide.md) — development, packaging and CI |
 | Embed the viewer in another application | [Minimal integration example](packages/viewer/examples/minimal/README.md) · [API and compatibility](packages/viewer/README.md) |
-| See what changed or what comes next | [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md) |
+| See what changed | [Changelog](CHANGELOG.md) |
 
 ## Match Replay
 

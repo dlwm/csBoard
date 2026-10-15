@@ -2,6 +2,31 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [2.0.0-alpha.3] - 2026-10-16
+
+CSBoard 2.0 continues in Alpha. Integration interfaces and smoke prediction remain experimental.
+
+### Added
+
+- Allow applications embedding the independent viewer to add their own scene markers, lines and picking tools with managed lifecycles, normal map occlusion and shared surface selection and coordinate projection.
+- Provide experimental smoke volume prediction and recorded-sample comparison for integrations; predicted volumes are approximate and do not replace recorded smoke.
+
+### Changed
+
+- Use familiar camera controls by default when embedding the independent viewer, with configurable mouse, keyboard, touchpad and wheel behavior.
+- Keep embedded-view camera rotation above ground by default, with configurable vertical limits shared by mouse and touchpad controls.
+- Improve workspace controls and spacing when changing font size or using smaller windows.
+- Keep player edits, camera controls and model settings consistent across the interface, operation assistant and integrated applications, while retaining editing permissions and undo history.
+
+### Fixed
+
+- Keep Demo and round lists above the 3D viewport in small windows and at larger font sizes.
+- Make the CSBoard viewer preset zoom consistently with the wheel, with touchpad detection available explicitly.
+- Hide known exported dust, steam and light-shaft cards by default to avoid solid triangle artifacts, while allowing users to enable them manually.
+- Reject invalid assistant or integration requests before they change the board, with clearer error details.
+- Keep model settings and object visibility synchronized with the interface and saved preferences.
+- Preserve valid player colors when adding more than five players or opening older saved boards.
+
 ## [2.0.0-alpha.2] - 2026-10-14
 
 ### Added

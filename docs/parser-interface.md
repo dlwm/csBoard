@@ -1,6 +1,6 @@
 # 通用解析接口
 
-状态：`feature/demo-format` 的执行接口草案，API 版本 `0.1`。未发布独立解析 SDK。
+状态：已集成的实验性解析会话接口，API 版本 `0.1`。未发布独立解析 SDK。
 类型声明在 `src/demo/parsers/session.d.ts`；实现入口在同目录的 `session.js`。
 这份执行合同与 `cs2-demo-format` 的持久化/交换合同分别管理。
 

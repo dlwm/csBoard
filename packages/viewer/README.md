@@ -1,11 +1,11 @@
 # @csboard/viewer
 
-Experimental, private workspace package. API **0.1**; not published to npm.
+Experimental, private workspace package. API **0.2**; not published to npm. See the [public API contract](API.md) and [minimal example](examples/minimal/README.md).
 
-The package contains actual Three.js rendering primitives and a renderer-neutral operation controller. It does not include CSBoard panels, parser engines, storage, collaboration transport or AI services. See [integration and limitations](../../docs/viewer-library.md) and [compatibility scope](../../docs/viewer-compatibility.md).
+The package contains actual Three.js rendering primitives and a renderer-neutral operation controller. It does not include CSBoard panels, parser engines, storage, collaboration transport or AI services. See [integration and limitations](https://github.com/dlwm/csBoard/blob/main/docs/viewer-library.md) and [compatibility scope](https://github.com/dlwm/csBoard/blob/main/docs/viewer-compatibility.md).
 
 ```js
-import { createViewer, sourceToScene } from './src/index.js';
+import { createViewer, sourceToScene } from '@csboard/viewer';
 
 const viewer = createViewer({ container, navData, mapName: 'my-map' });
 const origin = viewer.getState().coordinates.origin;
@@ -67,10 +67,10 @@ CSBoard now adopts the same voice coordinator and Worker decoder adapter. Header
 
 ## Contract discovery and agent tools
 
-`viewer.getContract()` describes only registered commands, their JSON Schema parameter descriptions, query names and optional event topics. `profile` distinguishes the standalone viewer from the application host. `schemaStatus: partial | unknown` means callers must obtain host-specific field definitions; discovery does not replace runtime validation or authorization. Event payload schemas remain pending.
+`viewer.getContract()` describes only registered commands, their JSON Schema parameter descriptions, query names and optional event topics. `profile` distinguishes the standalone viewer from the application host. `schemaStatus: partial | unknown` means callers must obtain host-specific field definitions. Built-in command schemas are validated before mutation; `runtimeValidation: host` marks custom profiles or overrides that need host validation. Event descriptors include payload schemas. Discovery does not grant authorization.
 
 ```js
-import { createViewerToolAdapter } from './src/index.js';
+import { createViewerToolAdapter } from '@csboard/viewer';
 
 const tools = createViewerToolAdapter(viewer, { origin: 'my-agent' });
 // Map these neutral descriptions into your model provider's tool format.
@@ -122,7 +122,19 @@ The reader works independently of React, CSBoard storage and parser engines. Its
 
 ### Camera input
 
-The viewer defaults to the `csboard` preset: middle-button orbit, Shift + middle-button or right-button pan, WASD movement, Shift acceleration, wheel/trackpad zoom and touch gestures. Keyboard input is scoped to the focused canvas, so typing in host forms does not move the camera. `input: 'orbit'` selects conventional OrbitControls mouse bindings. `input: false` or `input: {}` disables user camera navigation; API camera commands remain available.
+The viewer defaults to the `orbit` preset: left-button rotate, Shift + left-button or right-button pan, vertical wheel/trackpad scroll to zoom, and touch gestures. It does not enable WASD, pointer wrapping or hardware guessing. `input: 'csboard'` explicitly selects the original middle-button / WASD / wheel zoom behavior; CSBoard itself uses that preset. Keyboard bindings are scoped to the focused canvas unless the host chooses window scope. `input: false` or `input: {}` disables user camera navigation without blocking the host page's scrolling; API camera commands remain available.
+
+| Option | Default / meaning |
+| --- | --- |
+| `wheelMode` | `zoom`: scroll only zooms; `trackpad`: two-finger scroll rotates in 3D, Shift pans, Ctrl pinches, 2D scroll pans; `auto`: CSBoard's heuristic device detection, which is opt-in and can misclassify smooth wheels |
+| `wheelSpeed` | Positive multiplier, default 1, for wheel/trackpad gesture deltas |
+| `wheelInvert` | Reverse wheel gesture direction, default false; respects the deltas already supplied by the OS |
+| `rotateSpeed`, `panSpeed` | Positive overrides for drag and trackpad rotation/pan sensitivity; omitted values retain the supplied OrbitControls settings |
+| `zoom` | Whether zoom is enabled, including touch pinch; false leaves wheel scrolling to the host |
+| `touch` | Whether touchscreen camera gestures are enabled; false allows native touch scrolling |
+| `wrap` | Pointer Lock for continuous mouse dragging; false unless explicitly enabled or using `csboard` |
+
+Custom objects do not inherit action bindings. To modify a full preset, spread `CAMERA_INPUT_PRESETS.orbit` or `.csboard` into your configuration. `getState().input` exposes the standalone viewer's resolved input settings for host help/settings UIs. Wheel pixel, line and page deltas are normalized; no operating-system name determines direction. API 0.1 callers wanting the previous default should pass `input: 'csboard'` explicitly; see [migration](API.md#from-01-to-02).
 
 Custom configurations enable **only** the supplied actions. Use `KeyboardEvent.code` so bindings do not depend on the keyboard language. Mouse buttons are 0 (left), 1 (middle), 2 (right). A mouse binding's `keys` are alternative held keys, allowing either Shift key or a custom grab key.
 
@@ -142,3 +154,109 @@ const viewer = createViewer({
 ```
 
 `wrap` requests Pointer Lock during a mouse drag so movement can continue at the screen edge; refusal falls back to captured dragging. Navigation releases held keys on focus loss, window blur and page hiding. Disposal removes listeners and restores the original controls. Advanced hosts may import `createCameraInputController` for an existing camera/OrbitControls pair, call `attach()`, call `update(timestamp)` in their render loop and call `dispose()` on teardown. `keyboardScope: 'window'` is available for a dedicated application viewport; the default is `'viewport'`. Business editing shortcuts remain the host's responsibility.
+
+### Experimental smoke voxel estimates
+
+Use `@csboard/viewer/smoke` for deterministic, bounded voxel calculation without Three.js or a browser. `@csboard/viewer/smoke/three` supplies an optional static collision snapshot and the existing smoke density renderer. Both are available to external consumers; no CSBoard application, native parser or server is required.
+
+See [smoke prediction](SMOKE.md) for inputs, ownership, limitations and real recorded sample comparisons. An estimate is **not** an exact reproduction of CS2 smoke physics.
+
+
+### Host scene extensions
+
+Use `viewer.mountSceneExtension(id, setup)` for host markers, prediction candidates,
+measurement lines or picking tools. There is no need to provide a fake utility
+catalogue. UI controls remain host DOM, outside the canvas.
+
+```js
+import * as THREE from 'three';
+import { sourceToScene } from '@csboard/viewer';
+const unmount = viewer.mountSceneExtension('target-marker', context => {
+  const geometry = new THREE.SphereGeometry(.2);
+  const material = new THREE.MeshBasicMaterial({ color: '#ffbc60' });
+  const marker = new THREE.Mesh(geometry, material);
+  marker.position.fromArray(sourceToScene([100, 200, 50], context.origin));
+  context.addObject(marker);
+  // For map picking: context.pickSurface(pointerEvent).
+  // DOM listeners can use { signal: context.signal } for automatic removal.
+  return { dispose() { geometry.dispose(); material.dispose(); } };
+});
+unmount(); // Idempotent; viewer.dispose() also unmounts all extensions.
+```
+
+`setup` is synchronous. It receives an owned scene-local group, read-only camera
+reference for projection/raycasting, canvas, Source-coordinate origin, an abort
+signal, event subscription and command execution. `on()` subscriptions are removed
+on unmount. Optional `update(timestamp)` runs once per viewer frame, before all
+monitor views, and pauses with the viewer. An update error unmounts the extension
+and is reported through `onObserverError`; other extensions continue rendering.
+Use commands for camera changes. Extensions do not access private scene children.
+The host disposes its own GPU resources; shared assets are not implicitly freed.
+A failed setup must release resources it allocated before throwing. Arbitrary host
+geometry does not automatically become player navigation or smoke collision data.
+
+The `csboard` input preset uses wheel zoom, middle-button rotation, Shift + middle
+or right-button pan and WASD. Enable device guessing explicitly with
+`{ ...CAMERA_INPUT_PRESETS.csboard, wheelMode: 'auto' }`, or choose `'trackpad'` for
+known touchpad input. Every binding remains configurable/disableable.
+
+Known exported Dust2 dust/steam/light-shaft cards are hidden by default: without
+Source shaders they render as solid wedges. They remain in the model catalogue
+and can be re-enabled using `model.objectsVisibility`. Other geometry is retained.
+
+### Host geometry and picking: avoid depth and coordinate surprises
+
+For a whole map, use `resourceLoader` with the `world-model` key and
+`model.visibility`. This runs the shared display pipeline (display material,
+object visibility, batching and floor rules). Model vertices must already be in
+**scene-axis world metres**, before subtracting NAV origin; do not subtract the
+origin yourself. For a mesh already in **scene-local metres**, use an extension.
+
+```js
+const unmount = viewer.mountSceneExtension('my-objects', context => {
+  context.addObject(building); // Normal world depth, including NAV occlusion.
+  context.addObject(targetMarker, { occlusion: 'overlay' }); // Intentionally see through walls.
+  context.addObject(groundDecal, { surfaceBias: 1 }); // Small raster bias for coplanar surfaces.
+  context.canvas.addEventListener('pointerup', event => {
+    const hit = context.pickSurface(event);
+    if (hit) console.log(hit.surface, hit.sourcePosition);
+  }, { signal: context.signal });
+  return { dispose() { /* Release host-owned geometries/materials/textures. */ } };
+});
+```
+
+`addObject` accepts an unattached Object3D and returns an idempotent detach function.
+It manages the descendants present at attachment time. Attach additional objects
+separately; do not replace a managed node's material until after detaching it.
+The default `world` mode enables depth testing. Opaque/stochastic surfaces write
+depth; blended transparent surfaces do not. `overlay` disables both and renders
+last. Materials are cloned and restored on detach; host geometry/textures are
+never disposed by the viewer. `surfaceBias` is a signed raster-only bias within
+−16..16 (positive brings coplanar surfaces forward), not a coordinate/height fix.
+`context.group.add()` remains an unmanaged escape hatch for custom rendering.
+
+`viewer.pickSurface({clientX, clientY})` and `viewer.projectSource(SourceXYZ)` are
+also available outside extensions. Coordinates are CSS viewport pixels, directly
+compatible with pointer events and DOM labels; do not multiply by devicePixelRatio.
+Queries target the primary view, not monitor thumbnails. Picking reuses existing
+model/NAV collision geometry and the active floor. When a visible model misses,
+it returns `null`; it does not silently select NAV behind walls. With the model
+hidden or in 2D, it uses NAV. Arbitrary extension meshes are not collision surfaces.
+The hit includes `sourcePosition` in inches, `scenePosition`/`sceneNormal` in the
+scene coordinate system, `distanceMetres`, and `surface: 'model' | 'nav'`.
+
+If geometry appears in front of everything, check `depthTest: false`, a large
+`renderOrder`, or an explicitly requested `overlay`. If nearby surfaces flicker,
+check coincident geometry before applying a small `surfaceBias`. If geometry
+appears displaced or tilted, check units, axis conversion and double subtraction
+of NAV origin; changing depth settings will not repair wrong coordinates.
+
+Vertical camera orbit now defaults to the same above-ground limit as CSBoard
+(`maxPolarAngle = Math.PI * .49`). Hosts can set `minPolarAngle`/`maxPolarAngle` in
+radians, with `0 <= min < max <= PI`; `maxPolarAngle: Math.PI` explicitly permits
+underside views. These limits do not move the orbit target or enable mouse-follow
+rotation pivots. Use camera focus commands to change the target intentionally.
+
+If a consumer pins a Git revision or uses an archived SDK, local source changes
+will not reach that consumer. Update its SDK revision and rebuild its application;
+changing only a local `file:` dependency does not override a bundler alias.

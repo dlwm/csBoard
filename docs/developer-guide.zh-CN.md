@@ -56,11 +56,11 @@ UI、第三方调用和 AI 工具尽量汇入公开命令。使用 `getCapabilit
 - [最小独立接入示例](../packages/viewer/examples/minimal/README.md)：其他项目从这里开始。
 - [包接口](../packages/viewer/README.md)、[兼容范围](viewer-compatibility.md)：当前能力与边界。
 - [解析接口](parser-interface.md)、[数据格式](demo-format.md)：增加解析器或数据来源。
-- [架构设计](library-design.md)、[路线图](../ROADMAP.md)：设计方向，不等于全部已实现。
+- [架构设计](library-design.md)：分层与边界；已实现的行为以 API 和兼容说明为准。
 - [测试指南](../tests/README.md)：有效行为测试与真实打包验收。
 - [AI 提示词](ai/README.md)、[预设数据](presets/README.md)：可贡献内容的位置。
 
-视图库目前是未发布到 npm 的私有实验包，API 0.1。代码按 GPL-3.0-only 提供；引用和分发前阅读 [许可证](../LICENSE) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。
+视图库目前是未发布到 npm 的私有实验包，API 0.2。代码按 GPL-3.0-only 提供；引用和分发前阅读 [许可证](../LICENSE) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。
 
 ## 界面文案与错误
 
@@ -71,3 +71,5 @@ UI、第三方调用和 AI 工具尽量汇入公开命令。使用 `getCapabilit
 视图库不依赖应用词典。保持公开错误码、操作结果与数据结构稳定；宿主可使用 `translateError` 展示已知错误，并保留 `message` / `details` 供诊断。未知错误直接展示原文，不根据翻译后的句子猜错误码，也不因为显示文案变化而自动重试操作。
 
 `make i18n-check` 检查词典键、重复键、占位符、兼容映射及源码引用，并已纳入 `make lint` 和既有发布检查。动态选择的文案须使用词典中已有的键；第三方错误和用户输入不是翻译键。
+
+修改公开合同后运行 `make viewer-contracts` 同步静态校验器；`make lint` 检查生成物。内置命令在审批与变更前验证参数，事件描述提供载荷 Schema。宿主自定义 profile/覆盖标记为 `runtimeValidation: host`，由宿主负责校验。

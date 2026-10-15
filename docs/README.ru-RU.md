@@ -5,7 +5,7 @@
 [English](../README.md) · [中文](README.zh-CN.md) · [Скачать приложение](https://github.com/dlwm/csBoard/releases/latest)
 
 
-> **Предварительный выпуск 2.0:** [2.0.0-alpha.2](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.2). Интерфейсы интеграции экспериментальны; ссылка загрузки ведёт на стабильный выпуск.
+> **Alpha 2.0:** [2.0.0-alpha.3](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.3). Интерфейсы интеграции экспериментальны; ссылка загрузки ведёт на стабильный выпуск.
 
 ## С чего начать?
 
@@ -15,7 +15,7 @@
 | Разобраться в коде или внести изменения | [Руководство разработчика (English)](developer-guide.md) |
 | Собрать и запустить локально | [Локальная сборка (English)](build-guide.md) |
 | Встроить просмотрщик в своё приложение | [Минимальный пример](../packages/viewer/examples/minimal/README.md) · [API](../packages/viewer/README.md) |
-| Узнать об изменениях и планах | [История изменений](CHANGELOG.ru-RU.md) · [План развития](../ROADMAP.md) |
+| Узнать об изменениях | [История изменений](CHANGELOG.ru-RU.md) |
 
 ## Повтор матча
 

@@ -23,6 +23,8 @@ NAV is bundled. Models are optional; local GLBs belong in `.local/official/maps/
 | Open it without rebuilding | `make desktop-start` |
 | Build and serve web + Node backend | `make dev` |
 | Independent viewer example | `make viewer-example` |
+| Installed viewer acceptance | `make viewer-check` |
+| `make mobile-ui-check` | Build and verify mobile H5 touch, popovers and viewport layout. |
 
 Rebuild after source changes. `desktop-start` requires an existing build. Desktop outputs use `build/renderer`, `build/tasks` and `build/desktop`; web uses `dist`. Serve `build/viewer-example` over HTTP.
 
