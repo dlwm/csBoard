@@ -164,7 +164,7 @@ app.whenReady().then(async () => {
     height: 900,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
-      additionalArguments: [...(aiEnabled ? ['--csboard-ai-enabled'] : []), ...(!app.isPackaged && process.env.CSBOARD_AUTOMATION === '1' ? ['--csboard-automation'] : [])],
+      additionalArguments: [...(aiEnabled ? ['--csboard-ai-enabled'] : []), ...((!app.isPackaged && process.env.CSBOARD_AUTOMATION === '1') || process.argv.includes('--csboard-smoke-test') ? ['--csboard-automation'] : [])],
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false,

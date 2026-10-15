@@ -35,10 +35,34 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: make install
+      - uses: ./.github/actions/prepare-electron
       - name: Check versions, architecture, behavior and web build
         run: make check
       - name: Build standalone viewer consumers
         run: make viewer-example
+      - name: Install virtual display for browser acceptance
+        run: sudo apt-get update && sudo apt-get install --yes xvfb
+      - name: Verify installed viewer package, replay, models and input
+        run: xvfb-run -a make viewer-check
+      - name: Save viewer consumer diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: viewer-consumer-check
+          path: build/qa/viewer-consumer/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Verify mobile H5 touch and responsive workspace
+        run: xvfb-run -a make mobile-ui-check
+      - name: Save mobile workspace diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mobile-workspace-check
+          path: build/qa/mobile-workspace/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Validate Workers with their real bundler (no deployment)
         run: make workers-build
 
@@ -77,6 +101,7 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install make --yes --no-progress
       - run: make install
+      - uses: ./.github/actions/prepare-electron
       - name: Build directory package, inspect dependencies and start application
         run: make desktop-check TARGET=${{ matrix.target }}
       - name: Save startup screenshot and process diagnostics

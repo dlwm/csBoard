@@ -1,0 +1,28 @@
+name: Prepare Electron runtime
+description: Cache verified Electron archives and prepare the runtime before browser or desktop tasks.
+runs:
+  using: composite
+  steps:
+    - name: Resolve Electron runtime version and cache location
+      id: runtime
+      shell: bash
+      run: |
+        electron_version=$(node -p "require('./node_modules/electron/package.json').version")
+        echo "version=$electron_version" >> "$GITHUB_OUTPUT"
+        echo "electron_config_cache=$GITHUB_WORKSPACE/.local/cache/electron" >> "$GITHUB_ENV"
+    - name: Restore Electron download archives
+      id: archive
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: .local/cache/electron
+        key: electron-runtime-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.runtime.outputs.version }}
+    - name: Prepare Electron with bounded download retries
+      shell: bash
+      run: node scripts/prepare-electron.js
+    # Save immediately: a later browser assertion must not discard a valid download.
+    - name: Save verified Electron download archives
+      if: steps.archive.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: .local/cache/electron
+        key: ${{ steps.archive.outputs.cache-primary-key }}

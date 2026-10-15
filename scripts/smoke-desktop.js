@@ -1,3 +1,4 @@
+import { createModelFixture } from './lib/model-fixture.js';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -5,14 +6,17 @@ import os from 'node:os';
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { desktopPackagePaths } from './lib/desktop-paths.js';
+import { checkDesktopWorkflow } from './lib/desktop-workflow.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const metadata = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
 const { executable, target } = desktopPackagePaths(root, metadata, process.argv[2]);
 const artifacts = path.join(root, 'build/qa', `desktop-${target}`);
 await fs.mkdir(artifacts, { recursive: true });
-for (const name of ['result.json', 'window.png', 'failure.txt']) await fs.rm(path.join(artifacts, name), { force: true });
+for (const name of ['result.json', 'window.png', 'failure.txt', 'failure.png', 'replay.png', 'analysis.png', 'collaboration.png', 'utility.png']) await fs.rm(path.join(artifacts, name), { force: true });
 const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'csboard-smoke-'));
+await fs.mkdir(path.join(profile, 'resource-packs/models'), { recursive: true });
+await fs.writeFile(path.join(profile, 'resource-packs/models/de_dust2.glb'), createModelFixture());
 const freePort = () => new Promise((resolve, reject) => {
   const server = net.createServer(); server.once('error', reject);
   server.listen(0, '127.0.0.1', () => { const port = server.address().port; server.close(() => resolve(port)); });
@@ -21,12 +25,13 @@ const appPort = await freePort();
 let debugPort = await freePort();
 while (debugPort === appPort) debugPort = await freePort();
 let child, socket, failure, exited = false, log = '';
-const deadline = Date.now() + 60000;
+const deadline = Date.now() + 120000;
+const workflowChecks = [];
 const pending = new Map(); let sequence = 0;
 const pause = () => new Promise(resolve => setTimeout(resolve, 100));
 function checkDeadline() {
   if (exited) throw new Error(`Packaged app exited before readiness.\n${log.slice(-6000)}`);
-  if (Date.now() > deadline) throw new Error(`Packaged app did not become ready within 60 seconds.\n${log.slice(-6000)}`);
+  if (Date.now() > deadline) throw new Error(`Packaged app did not become ready within 120 seconds.\n${log.slice(-6000)}`);
 }
 const call = (method, params = {}) => new Promise((resolve, reject) => {
   const id = ++sequence;
@@ -80,10 +85,28 @@ try {
   if (storage.exceptionDetails) throw new Error(JSON.stringify(storage.exceptionDetails));
   const screenshot = await call('Page.captureScreenshot', {format:'png'});
   await fs.writeFile(path.join(artifacts,'window.png'),Buffer.from(screenshot.data,'base64'));
+  const evaluate = async expression => {
+    const result = await call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    if (result.exceptionDetails) throw Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+    return result.result.value;
+  };
+  const capture = async name => {
+    const result = await call('Page.captureScreenshot', { format: 'png' });
+    await fs.writeFile(path.join(artifacts, `${name}.png`), Buffer.from(result.data, 'base64'));
+  };
+  const workflow = await checkDesktopWorkflow({ root, evaluate, call, capture, results: workflowChecks });
   if (exceptions.length) throw new Error(`Renderer exceptions: ${JSON.stringify(exceptions)}`);
-  await fs.writeFile(path.join(artifacts,'result.json'),JSON.stringify({target,state,storage:storage.result.value,exceptions},null,2)+'\n');
-  console.log(`Packaged desktop opened, rendered and completed native IPC storage: ${target}`);
-} catch (error) { failure = error; }
+  await fs.writeFile(path.join(artifacts,'result.json'),JSON.stringify({target,state,storage:storage.result.value,workflow,exceptions},null,2)+'\n');
+  console.log(`Packaged desktop startup, IPC and ${workflowChecks.length} workflow checks passed: ${target}`);
+} catch (error) {
+  failure = error;
+  if (socket?.readyState === WebSocket.OPEN) {
+    try {
+      const shot = await call('Page.captureScreenshot', {format:'png'});
+      await fs.writeFile(path.join(artifacts,'failure.png'),Buffer.from(shot.data,'base64'));
+    } catch {}
+  }
+}
 finally {
   socket?.close();
   for (const task of pending.values()) { clearTimeout(task.timer); task.reject(new Error('Desktop smoke check closed')); }
@@ -94,7 +117,10 @@ finally {
     await closed; clearTimeout(timeout);
   }
   await fs.writeFile(path.join(artifacts,'process.log'),log);
-  if (failure) await fs.writeFile(path.join(artifacts,'failure.txt'),failure.stack+'\n');
+  if (failure) {
+    await fs.writeFile(path.join(artifacts,'failure.txt'),failure.stack+'\n');
+    await fs.writeFile(path.join(artifacts,'result.json'),JSON.stringify({target,passed:false,workflowChecks,error:failure.stack},null,2)+'\n');
+  }
   else await fs.rm(path.join(artifacts,'failure.txt'),{force:true});
   await fs.rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:200});
 }

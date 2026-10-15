@@ -45,10 +45,34 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: node scripts/release-metadata.js
+      - name: Install dependencies
+        run: make install
+      - uses: ./.github/actions/prepare-electron
       - name: Check release behavior before packaging
-        run: |
-          make install
-          make release-check
+        run: make release-check
+
+      - name: Install virtual display for viewer acceptance
+        run: sudo apt-get update && sudo apt-get install --yes xvfb
+      - name: Verify distributable viewer before release packaging
+        run: xvfb-run -a make viewer-check
+      - name: Save viewer release diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-viewer-consumer-check
+          path: build/qa/viewer-consumer/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Verify mobile H5 touch and responsive workspace
+        run: xvfb-run -a make mobile-ui-check
+      - name: Save mobile workspace release diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-mobile-workspace-check
+          path: build/qa/mobile-workspace/
+          if-no-files-found: ignore
+          retention-days: 7
 
   desktop:
     needs: prepare
@@ -102,6 +126,7 @@ jobs:
       - name: Prepare dependencies
         run: |
           make install
+      - uses: ./.github/actions/prepare-electron
       - name: Test native storage on the target platform
         run: make test TEST=tests/native-storage.test.js
       - name: Build installer

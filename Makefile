@@ -16,12 +16,14 @@ VERSION ?=
 	desktop-start desktop-dev desk-dev desktop-prepare desktop-check desktop-smoke desktop-build-mac-arm64 \
 	desktop-build-mac-x64 desktop-build-win-x64 native-build \
 	mobile-prepare mobile-open mobile-build version version-sync version-check \
-	resources nav-data nav-labels map-places map-export workers-build wrangler docker guide-example format-contracts viewer-example readme-shots
+	resources nav-data nav-labels map-places map-export workers-build wrangler docker guide-example format-contracts viewer-contracts viewer-example viewer-check mobile-ui-check readme-shots
 
 help:
 	@printf '%s\n' \
 		'CSBoard — make <command> [ARGS="extra flags"]' \
 		'  install                      Install locked dependencies' \
+		'  electron-prepare             Download and check the Electron runtime with bounded retries' \
+		'  smoke-compare                Compare predicted voxels with recorded samples (ARGS="--model path")' \
 		'  lint                         Check architecture and translation catalogues' \
 		'  test                         Run behavior tests; TEST=tests/name.test.js selects files' \
 		'  test-js                      Run selected JS tests without rebuilding native storage' \
@@ -49,6 +51,9 @@ help:
 		'  guide-example DEMO=path       Prepare the compact operation guide replay' \
 		'  format-contracts             Compile format validators; ARGS="--source .local/demo-format" to sync' \
 		'  viewer-example               Build the independent viewer example' \
+		'  viewer-contracts             Regenerate public command and event validators' \
+		'  viewer-check                 Verify an installed viewer package in a real browser' \
+		'  mobile-ui-check              Build and check mobile H5 touch and viewport layout' \
 		'  readme-shots                 Capture desktop screenshot previews; optionally replace README images' \
 		'  nav-labels                   Paint NAV regions and save place names' \
 		'  map-places                   Import map place/spawn entities from local VPKs' \
@@ -60,6 +65,7 @@ install:
 	$(NPM) ci $(ARGS)
 
 lint:
+	$(NODE) scripts/sync-viewer-contracts.js --check
 	$(NODE) scripts/check-architecture.js
 	$(MAKE) i18n-check
 
@@ -169,8 +175,26 @@ guide-example:
 format-contracts:
 	$(NODE) scripts/sync-format-contracts.js $(ARGS)
 
+viewer-contracts:
+	$(NODE) scripts/sync-viewer-contracts.js
+
+viewer-check:
+	$(NODE) scripts/check-viewer-consumer.js $(ARGS)
+
+mobile-ui-check: build
+	$(NODE) scripts/check-mobile-workspace.js
+
 viewer-example:
 	$(NODE) node_modules/vite/bin/vite.js build --config packages/viewer/examples/vite.config.js $(ARGS)
 
 readme-shots: native-build
 	$(NODE) scripts/readme-screenshots.js --build $(ARGS)
+
+# Real recorded smoke comparison; generated reports stay outside Git.
+.PHONY: smoke-compare
+smoke-compare:
+	$(NODE) scripts/compare-smoke-prediction.js $(ARGS)
+
+.PHONY: electron-prepare
+electron-prepare:
+	$(NODE) scripts/prepare-electron.js
