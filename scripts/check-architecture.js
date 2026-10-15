@@ -7,6 +7,7 @@ import { checkWorkspaceNode, checkWorkspaceStyles } from './check-workspace.js';
 // Enforce dependencies on parsed code, not text matches (comments and examples
 // must not become false violations). 依赖边界通过 AST 检查，忽略注释和示例字符串。
 const domainRoots = [
+  'packages/viewer/src/smoke/index.js',
   'packages/viewer/src/data/workspace.js', 'packages/viewer/src/core/utilityReferences.js', 'packages/viewer/src/core/contract.js', 'packages/viewer/src/core/toolAdapter.js',
   'packages/viewer/src/playback/voiceController.js',
   'packages/viewer/src/playback/voiceTimeline.js',
@@ -15,7 +16,7 @@ const domainRoots = [
   'src/demo/savedRecordingRepository.js', 'src/demo/recordings.js', 'src/demo/playbackSessions.js', 'src/demo/library.js', 'src/demo/parserRuntime.js', 'src/demo/grenades.js',
   'src/analysis/buildAnalysisDataset.js', 'src/analysis/utilityRecommendations.js',
   'src/utility/savedThrow.js', 'src/utility/recordedThrowRepository.js',
-  'src/utility/recoverRecordedReplay.js', 'packages/viewer/src/core/commandRegistry.js', 'packages/viewer/src/core/boardCommands.js',
+  'src/utility/recoverRecordedReplay.js', 'packages/viewer/src/core/commandRegistry.js', 'packages/viewer/src/core/boardCommands.js', 'packages/viewer/src/core/modelCommands.js',
   'src/collaboration/archiveStore.js', 'src/collaboration/frameSession.js',
 ];
 const compositions = new Set(['src/entry.js', 'src/bootstrap.js']);
@@ -54,6 +55,7 @@ export function checkArchitecture(root) {
             dependencies.push({ target, node });
             if (file.startsWith('packages/viewer/src/') && (/^(src|shared|electron)\//.test(target) || /^(react|react-dom|electron|@capacitor)(\/|$)/.test(target))) report(node, `Viewer cannot depend on host ${target}`);
             if (/^packages\/viewer\/src\/(core|data|playback)\//.test(file) && (target.startsWith('packages/viewer/src/three/') || /^three(\/|$)/.test(target))) report(node, `Viewer core cannot depend on renderer ${target}`);
+            if (/^packages\/viewer\/src\/smoke\/(index|predict|compare)\.js$/.test(file) && (target.startsWith('packages/viewer/src/three/') || /^three(?:-mesh-bvh)?(?:\/|$)/.test(target))) report(node, `Smoke calculation cannot depend on renderer ${target}`);
             if (specifier.startsWith('.') && !fs.existsSync(path.join(root, target))) report(node, `Missing module ${target}`);
             if (file.startsWith('shared/') && (target.startsWith('src/') || /^(react|electron|@capacitor)(\/|$)/.test(target))) report(node, `Shared protocol cannot depend on ${target}`);
             if (!file.startsWith('src/platform/') && file.startsWith('src/') && !compositions.has(file) && (infrastructure.test(target) || target === 'src/platform/createPlatform.js')) report(node, `Use public platform ports, not ${target}`);

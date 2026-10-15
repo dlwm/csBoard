@@ -41,3 +41,11 @@ export function buildModelObjectTree(objects, query = '') {
   };
   return serialize(root, [], true);
 }
+
+// Source exports contain camera-facing VFX cards. Without their game shader,
+// these become opaque wedges. Match known effect asset names, not generic
+// "dust"/"smoke" substrings (which can also name actual buildings/props).
+// 中文：仅隐藏已知特效面片；不按宽泛关键词隐藏建筑，用户仍可手动开启。
+export function isDefaultHiddenMapObject(name) {
+  return /(?:^|_)(?:dust_001b?|steam_001|lightshaft_001)(?=\.meshset(?:_|$)|$)/i.test(name || '');
+}

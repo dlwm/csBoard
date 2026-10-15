@@ -1,7 +1,8 @@
+import { ViewerError } from './controller.js';
 import { normalizeWorkspacePlayers } from '../data/workspace.js';
 import { createCommandRegistry } from './commandRegistry.js';
 
-export const BOARD_EDIT_COMMANDS = Object.freeze(['workspace.players', 'board.apply', 'board.clear', 'board.undo', 'board.redo', 'player.rename', 'player.team', 'utility.add', 'utility.place', 'utility.move', 'utility.remove']);
+export const BOARD_EDIT_COMMANDS = Object.freeze(['workspace.players', 'board.apply', 'board.clear', 'board.undo', 'board.redo', 'player.rename', 'player.team', 'player.move', 'utility.add', 'utility.place', 'utility.move', 'utility.remove']);
 
 export function createBoardCommands(ports) {
   const id = value => { if (typeof value !== 'string' || !value) throw new TypeError('Object ID is required'); return value; };
@@ -12,6 +13,7 @@ export function createBoardCommands(ports) {
     'board.clear': () => ports.clear(), 'board.undo': () => ports.undo(), 'board.redo': () => ports.redo(),
     'player.rename': ({ id: playerId, name }) => { if (typeof name !== 'string' || !name.trim()) throw new TypeError('Player name is required'); return ports.rename(id(playerId), name); },
     'player.team': ({ id: playerId, team }) => { if (!['T', 'CT'].includes(team)) throw new TypeError('Team must be T or CT'); return ports.setTeam(id(playerId), team); },
+    ...(ports.movePlayer ? { 'player.move': ({ id: playerId, position }) => { if (!Array.isArray(position) || position.length !== 3 || !position.every(Number.isFinite)) throw new TypeError('Position must be finite XYZ metres'); return ports.movePlayer(id(playerId), position); } } : {}),
     'utility.add': ({ note }) => { if (!note?.id || !Array.isArray(note.position)) throw new TypeError('Saved utility is required'); return ports.addUtility(note); },
     'utility.remove': ({ id: utilityId }) => ports.removeUtility(id(utilityId)),
     ...(ports.utilityReferences ? { 'utility.place': (args, context) => ports.utilityReferences.place(args, context), 'utility.move': args => ports.utilityReferences.move(args), 'utility.remove': args => ports.utilityReferences.remove(args) } : {}),
@@ -21,5 +23,5 @@ export function createBoardCommands(ports) {
     'camera.focusPlacedUtility': ({ id: utilityId }) => ports.focusPlacedUtility(id(utilityId)),
     'camera.focusUtility': ({ note }) => ports.focusUtility(note),
     'camera.endPreview': () => ports.endPreview(), 'camera.reset': () => ports.resetCamera(),
-  }, { before: name => { if (BOARD_EDIT_COMMANDS.includes(name) && !ports.isEditable()) throw new Error('Tactical editing is unavailable'); }, after: name => { if (name.startsWith('camera.')) ports.onCameraChange?.(); } });
+  }, { before: name => { if (BOARD_EDIT_COMMANDS.includes(name) && !ports.isEditable()) throw new ViewerError('permission_denied', 'Tactical editing is unavailable'); }, after: name => { if (name.startsWith('camera.')) ports.onCameraChange?.(); } });
 }

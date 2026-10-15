@@ -29,7 +29,7 @@ export function createViewerToolAdapter(viewer, { origin = 'ai', maxResponseByte
           return result;
         }
         if (name === 'viewer_get_state') {
-          if (Object.keys(args).some(key => key !== 'sections') || (args.sections != null && (!Array.isArray(args.sections) || args.sections.length > 16 || args.sections.some(key => typeof key !== 'string')))) throw new ViewerError('invalid_argument', 'Invalid state sections');
+          if (Object.keys(args).some(key => key !== 'sections') || (args.sections != null && (!Array.isArray(args.sections) || args.sections.length > 16 || new Set(args.sections).size !== args.sections.length || args.sections.some(key => typeof key !== 'string')))) throw new ViewerError('invalid_argument', 'Invalid state sections');
           const state = viewer.getState(), sections = args.sections || ['revision', 'ready', 'mapName', 'selectedId', 'coordinates', 'camera', 'playback', 'voice', 'lastAction'];
           if (args.sections?.some(key => !Object.hasOwn(state, key))) throw new ViewerError('unknown_section', 'Requested state section is not available');
           return bound(Object.fromEntries(['revision', ...sections].filter((key, index, all) => Object.hasOwn(state, key) && all.indexOf(key) === index).map(key => [key, state[key]])));
@@ -48,7 +48,7 @@ export function createViewerToolAdapter(viewer, { origin = 'ai', maxResponseByte
         if (name === 'viewer_get_capabilities') return bound(viewer.getCapabilities());
         if (name === 'viewer_get_contract') return bound(viewer.getContract());
         throw new ViewerError('unknown_tool', 'Unknown viewer tool');
-      } catch (error) { return { status: 'failed', error: { code: error.code || 'tool_failed', message: error.message || String(error) } }; }
+      } catch (error) { return { status: 'failed', error: { code: error.code || 'tool_failed', message: error.message || String(error), details: error.details || {} } }; }
     },
   });
 }

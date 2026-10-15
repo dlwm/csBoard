@@ -10,6 +10,7 @@ function close() {
   viewer?.dispose(); viewer = null;
   source?.dispose(); source = null;
   if (modelUrl) URL.revokeObjectURL(modelUrl); modelUrl = null;
+  $('model').value = '';
   $('model').disabled = true; $('model-toggle').disabled = true; $('model-unload').disabled = true; $('model-status').textContent = '';
   $('controls').hidden = true; $('close').disabled = true;
 }
@@ -67,7 +68,11 @@ $('open').onclick = handle(async () => {
     $('status').textContent = `${metadata.name} · ${metadata.mapName} · ${segments.length} segments`;
     update();
   } catch (error) {
-    candidate?.dispose(); close(); throw error;
+    const cancelled = request.signal.aborted;
+    const borrowed = source === candidate;
+    close();
+    if (!borrowed) candidate?.dispose();
+    if (!cancelled) throw error;
   } finally { pending = null; $('open').disabled = false; }
 });
 $('segment').onchange = handle(() => execute({ type: 'replay.open', segmentId: $('segment').value }));

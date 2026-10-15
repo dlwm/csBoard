@@ -18,7 +18,7 @@ export default function useWorkspaceCommands(ports) {
     };
     registry.current = createCommandRegistry({
       'frame.create': frame('create'), 'frame.duplicate': frame('duplicate'), 'frame.switch': frame('switch'), 'frame.delete': frame('delete'),
-      ...Object.fromEntries(['board.apply', 'board.clear', 'board.undo', 'board.redo', 'player.rename', 'player.team', 'utility.add', 'utility.place', 'utility.move', 'utility.remove',
+      ...Object.fromEntries(['workspace.players', 'board.apply', 'board.clear', 'board.undo', 'board.redo', 'player.rename', 'player.team', 'player.move', 'utility.add', 'utility.place', 'utility.move', 'utility.remove',
         'camera.save', 'camera.restore', 'camera.focusPlayer', 'camera.focusUtility', 'camera.focusPlacedUtility', 'camera.endPreview', 'camera.reset'].map(name => [name, board(name)])),
     });
   }

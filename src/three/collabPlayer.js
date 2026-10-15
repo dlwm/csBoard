@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { firstMapCollisionHit } from './mapCollisionIndex.js';
 import { createPlayerPawn } from '../../packages/viewer/src/three/playerPawn.js';
-import { playerBaseColor, validPlayerBaseColor } from './playerColors.js';
+import { playerBaseColor, validPlayerBaseColor, normalizePlayerBaseColor } from './playerColors.js';
 import { createWeaponModel } from './weaponModel.js';
 
 export function randomPlayerName() {
@@ -24,7 +24,7 @@ function createNameLabel(name) {
 
 export function createCollabPlayer({ position, id, name, team = 'T', crouched = false, pitch = 0, weapon = 'ak47', showName = true, baseColor }) {
   const group = new THREE.Group();
-  group.userData.baseColor = validPlayerBaseColor(baseColor) ? baseColor : playerBaseColor(5, id || name);
+  group.userData.baseColor = validPlayerBaseColor(baseColor) ? normalizePlayerBaseColor(baseColor) : playerBaseColor(5, id || name);
   group.userData.collabPlayer = true;
   group.userData.pointId = id;
   group.userData.team = team;

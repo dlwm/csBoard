@@ -28,8 +28,12 @@ export default function ViewTools({ guideControlsOpen = false, boardViewMode, ma
   useEffect(() => {
     if (!mobile || !open) return undefined;
     const close = event => { if (event.key === 'Escape') setOpen(false); };
+    const resize = () => { if ((window.visualViewport?.height ?? window.innerHeight) < 320) setOpen(false); };
+    resize();
     window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
+    window.addEventListener('resize', resize);
+    window.visualViewport?.addEventListener('resize', resize);
+    return () => { window.removeEventListener('keydown', close); window.removeEventListener('resize', resize); window.visualViewport?.removeEventListener('resize', resize); };
   }, [mobile, open]);
   const text = (key, values) => translate(language, key, values);
   return <div className={`view-tools${mobile ? ' mobile-view-tools' : ''}${open ? ' expanded' : ''}`}>

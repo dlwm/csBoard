@@ -7,13 +7,13 @@ import createGestures from './gestures.js';
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 export const CAMERA_INPUT_PRESETS = freeze({
   csboard: { rotate: { button: 1 }, pan: [{ button: 1, keys: ['ShiftLeft', 'ShiftRight'] }, { button: 2 }],
-    forward: 'KeyW', backward: 'KeyS', left: 'KeyA', right: 'KeyD', fast: ['ShiftLeft', 'ShiftRight'], zoom: true, touch: true, wrap: true },
-  orbit: { rotate: { button: 0 }, pan: [{ button: 0, keys: ['ShiftLeft', 'ShiftRight'] }, { button: 2 }], zoom: true, touch: true },
+    forward: 'KeyW', backward: 'KeyS', left: 'KeyA', right: 'KeyD', fast: ['ShiftLeft', 'ShiftRight'], zoom: true, touch: true, wrap: true, wheelMode: 'zoom' },
+  orbit: { rotate: { button: 0 }, pan: [{ button: 0, keys: ['ShiftLeft', 'ShiftRight'] }, { button: 2 }], zoom: true, touch: true, wheelMode: 'zoom' },
 });
 const actions = ['forward', 'backward', 'left', 'right', 'up', 'down', 'fast'];
-const allowed = [...actions, 'rotate', 'pan', 'zoom', 'touch', 'wrap', 'speed', 'fastSpeed', 'keyboardScope'];
+const allowed = [...actions, 'rotate', 'pan', 'zoom', 'touch', 'wrap', 'speed', 'fastSpeed', 'keyboardScope', 'wheelMode', 'wheelSpeed', 'wheelInvert', 'rotateSpeed', 'panSpeed', 'minPolarAngle', 'maxPolarAngle'];
 const codes = value => value == null ? [] : Array.isArray(value) ? value : [value];
-export function resolveCameraInput(value = 'csboard') {
+export function resolveCameraInput(value = 'orbit') {
   const config = typeof value === 'string' ? CAMERA_INPUT_PRESETS[value] : value === false ? {} : value;
   if (!config || typeof config !== 'object' || Array.isArray(config) || Object.keys(config).some(key => !allowed.includes(key))) throw new ViewerError('invalid_argument', 'Invalid camera input configuration');
   const result = { ...config };
@@ -21,13 +21,16 @@ export function resolveCameraInput(value = 'csboard') {
   for (const action of ['rotate', 'pan']) for (const binding of codes(result[action])) {
     if (!binding || typeof binding !== 'object' || ![0, 1, 2].includes(binding.button) || Object.keys(binding).some(key => !['button', 'keys'].includes(key)) || codes(binding.keys).some(key => typeof key !== 'string' || !key)) throw new ViewerError('invalid_argument', `${action} requires a mouse button (0/1/2) and optional key codes`);
   }
-  for (const key of ['zoom', 'touch', 'wrap']) if (result[key] != null && typeof result[key] !== 'boolean') throw new ViewerError('invalid_argument', `${key} must be boolean`);
-  for (const key of ['speed', 'fastSpeed']) if (result[key] != null && (!Number.isFinite(result[key]) || result[key] <= 0)) throw new ViewerError('invalid_argument', `${key} must be positive`);
+  for (const key of ['zoom', 'touch', 'wrap', 'wheelInvert']) if (result[key] != null && typeof result[key] !== 'boolean') throw new ViewerError('invalid_argument', `${key} must be boolean`);
+  for (const key of ['speed', 'fastSpeed', 'wheelSpeed', 'rotateSpeed', 'panSpeed']) if (result[key] != null && (!Number.isFinite(result[key]) || result[key] <= 0)) throw new ViewerError('invalid_argument', `${key} must be positive`);
+  if (result.wheelMode != null && !['zoom', 'auto', 'trackpad'].includes(result.wheelMode)) throw new ViewerError('invalid_argument', 'wheelMode must be zoom, auto or trackpad');
+  const minimum = result.minPolarAngle ?? 0, maximum = result.maxPolarAngle ?? Math.PI * .49;
+  if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum < 0 || maximum > Math.PI || minimum >= maximum) throw new ViewerError('invalid_argument', 'Polar angles require 0 <= minPolarAngle < maxPolarAngle <= PI (radians)');
   if (result.keyboardScope != null && !['viewport', 'window'].includes(result.keyboardScope)) throw new ViewerError('invalid_argument', 'keyboardScope must be viewport or window');
   return structuredClone(result);
 }
 
-export function createCameraInputController({ renderer, camera, controls, bindings = 'csboard',
+export function createCameraInputController({ renderer, camera, controls, bindings = 'orbit',
   trackpadDetectionRef = { current: true }, wheelGestureRef = { current: { lastTime: 0, mode: null } },
   onCameraInterrupt = () => {}, onManualInteraction = () => {}, canEnableControls = () => controls.enabled } = {}) {
   const config = resolveCameraInput(bindings), element = renderer.domElement;
@@ -36,15 +39,24 @@ export function createCameraInputController({ renderer, camera, controls, bindin
   const cursor = doc.createElement('i'); cursor.setAttribute('aria-hidden', 'true'); cursor.hidden = true;
   Object.assign(cursor.style, { position: 'absolute', pointerEvents: 'none', width: '8px', height: '8px', border: '1px solid currentColor', borderRadius: '50%', left: '0', top: '0', zIndex: '5' });
   const oldMouse = { ...controls.mouseButtons }, oldTouch = { ...controls.touches };
-  const oldZoom = controls.enableZoom, oldTabIndex = element.getAttribute('tabindex');
+  const oldZoom = controls.enableZoom, oldEnabled = controls.enabled, oldTouchAction = element.style.touchAction, oldTabIndex = element.getAttribute('tabindex');
+  const oldSpeeds = { rotateSpeed: controls.rotateSpeed, panSpeed: controls.panSpeed, minPolarAngle: controls.minPolarAngle, maxPolarAngle: controls.maxPolarAngle };
   controls.mouseButtons.LEFT = controls.mouseButtons.MIDDLE = controls.mouseButtons.RIGHT = null;
   controls.touches.ONE = config.touch ? THREE.TOUCH.ROTATE : null;
   controls.touches.TWO = config.touch ? THREE.TOUCH.DOLLY_PAN : null;
-  controls.enableZoom = Boolean(config.zoom || config.touch);
+  controls.enableZoom = Boolean(config.zoom);
+  for (const key of ['rotateSpeed', 'panSpeed']) if (config[key] != null) controls[key] = config[key];
+  controls.minPolarAngle = config.minPolarAngle ?? 0;
+  controls.maxPolarAngle = config.maxPolarAngle ?? Math.PI * .49;
+  if (!config.touch) element.style.touchAction = 'auto';
+  if (!codes(config.rotate).length && !codes(config.pan).length && !config.zoom && !config.touch && !actions.some(action => codes(config[action]).length)) controls.enabled = false;
   if (actions.some(action => codes(config[action]).length) && oldTabIndex == null) element.tabIndex = 0;
-  // Retain the common wheel/trackpad and two-finger plan-view behavior.
+  // Hardware detection is opt-in. A smooth mouse wheel must not unexpectedly
+  // become orbit/pan; disabling input must leave host scrolling available.
+  // 中文：设备推断仅显式启用，平滑鼠标滚轮不自动变成旋转，禁用不抢宿主滚动。
   const gestures = createGestures({ renderer, camera, controls, trackpadDetectionRef, wheelGestureRef,
-    onCameraInterrupt, onManualInteraction, canEnableControls, wheelEnabled: Boolean(config.zoom), touchEnabled: Boolean(config.touch) });
+    onCameraInterrupt, onManualInteraction, canEnableControls, wheelEnabled: Boolean(config.zoom), touchEnabled: Boolean(config.touch),
+    wheelMode: config.wheelMode ?? 'zoom', wheelSpeed: config.wheelSpeed ?? 1, wheelInvert: config.wheelInvert ?? false });
   let drag = null, lastTime = null, attached = false, disposed = false;
   const editable = target => target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable=false]),[role=textbox]');
   const has = action => codes(config[action]).some(code => pressed.has(code));
@@ -83,7 +95,7 @@ export function createCameraInputController({ renderer, camera, controls, bindin
     if (!action) return;
     onManualInteraction();
     if (action === 'pan') controls.pan(dx * controls.panSpeed * (camera.planView ? element.clientWidth / Math.max(1, camera.userData.planViewportWidth || element.clientWidth) : 1), dy * controls.panSpeed);
-    else if (camera.planView) camera.planRotation = (camera.planRotation || 0) + dx * .006;
+    else if (camera.planView) camera.planRotation = (camera.planRotation || 0) + dx * .006 * controls.rotateSpeed;
     else { const scale = 2 * Math.PI * controls.rotateSpeed / Math.max(1, element.clientHeight); controls.rotateLeft(dx * scale); controls.rotateUp(dy * scale); }
     controls.update();
   };
@@ -91,7 +103,6 @@ export function createCameraInputController({ renderer, camera, controls, bindin
   const attach = (mount = element.parentElement) => {
     if (attached || disposed) return; attached = true; mount.appendChild(cursor); gestures.attach(mount);
     const listen = (target, type, handler, options = {}) => target.addEventListener(type, handler, { ...options, signal: abort.signal });
-    if (!config.zoom) listen(element, 'wheel', event => { event.preventDefault(); event.stopImmediatePropagation(); }, { capture: true, passive: false });
     listen(element, 'pointerdown', event => { if (beginDrag(event)) { event.preventDefault(); } }, { capture: true });
     listen(doc, 'pointermove', move);
     listen(doc, 'pointerup', endDrag); listen(doc, 'pointercancel', endDrag);
@@ -124,6 +135,6 @@ export function createCameraInputController({ renderer, camera, controls, bindin
   };
   return { attach, update, beginDrag, continueDrag: () => Boolean(drag), endDrag,
     get active() { return Boolean(drag); },
-    dispose() { if (disposed) return; clear(); disposed = true; abort.abort(); gestures.dispose(); cursor.remove(); Object.assign(controls.mouseButtons, oldMouse); Object.assign(controls.touches, oldTouch); controls.enableZoom = oldZoom; if (oldTabIndex == null) element.removeAttribute('tabindex'); else element.setAttribute('tabindex', oldTabIndex); },
+    dispose() { if (disposed) return; clear(); disposed = true; abort.abort(); gestures.dispose(); cursor.remove(); Object.assign(controls.mouseButtons, oldMouse); Object.assign(controls.touches, oldTouch); Object.assign(controls, oldSpeeds); controls.enableZoom = oldZoom; controls.enabled = oldEnabled; element.style.touchAction = oldTouchAction; if (oldTabIndex == null) element.removeAttribute('tabindex'); else element.setAttribute('tabindex', oldTabIndex); },
   };
 }

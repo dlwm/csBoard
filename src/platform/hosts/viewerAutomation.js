@@ -1,5 +1,5 @@
 // Opt-in desktop automation transports the public viewer contract unchanged.
-// 仅隔离开发实例启用；不读 React 私有状态，不新增原生权限或命令旁路。
+// 仅隔离开发或启动验收实例启用；不读 React 私有状态，不新增原生权限或命令旁路。
 let attached, unsubscribe;
 export function attachViewerAutomation(viewer) {
   if (attached === viewer) return;
@@ -15,6 +15,7 @@ export function attachViewerAutomation(viewer) {
     getCapabilities: () => viewer.getCapabilities(),
     getState: () => viewer.getState(),
     getWorkspace: () => viewer.getWorkspace(),
+    ...(viewer.getModelObjects ? { getModelObjects: query => viewer.getModelObjects(query), getModelObjectTree: query => viewer.getModelObjectTree(query) } : {}),
     execute: (command, context = {}) => viewer.execute(command, { ...context, origin: 'automation' }),
     drainEvents: () => events.splice(0),
   });

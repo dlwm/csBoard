@@ -1,3 +1,5 @@
+import { VIEWER_ERROR_DEFINITIONS } from './errors.js';
+import { describeViewerEvents } from './eventContract.js';
 import { WORKSPACE_PLAYER_SCHEMA } from '../data/workspace.js';
 // Discovery describes registered operations only. It does not bypass runtime
 // validation or permission policy. 描述只用于发现，不能代替校验/授权。
@@ -39,7 +41,7 @@ define('replay.speed', 'Set replay speed; voice follows the same speed.', { spee
 define('replay.display', 'Control recorded effects and progressive trajectories.', { effects: bool, trajectories: bool });
 define('replay.overlays', 'Control primary-view damage and flash overlays.', { enabled: bool, hurt: bool, flash: bool, reducedEffects: bool, maxFlashOpacity: unit });
 define('voice.configure', 'Set voice options. Unmuting does not unlock an audio device; the host must obtain user consent.', { enabled: bool, muted: bool, volume: unit, side: enumeration(['all', 'T', 'CT']) }, [], 'settings');
-const events = ['utility.placementsChanged', 'workspace.playersChanged', 'operation.started', 'operation.succeeded', 'operation.failed', 'operation.cancelled', 'lifecycle.ready', 'lifecycle.disposed', 'workspace.changed', 'selection.changed', 'camera.changed', 'camera.follow', 'camera.director', 'equipment.ready', 'equipment.failed', 'map.floor', 'model.visibility', 'model.style', 'model.objectsChanged', 'resource.state', 'playback.source', 'playback.loading', 'playback.ready', 'playback.failed', 'playback.cancelled', 'playback.play', 'playback.pause', 'playback.seek', 'playback.speed', 'playback.time', 'playback.ended', 'playback.display', 'playback.overlays', 'voice.state', 'voice.options'];
+export const BUILTIN_COMMAND_NAMES = Object.freeze(Object.keys(definitions));
 export function describeViewerContract({ apiVersion, profile = 'custom', names, queries = [], overrides = {} }) {
   const commands = names.map(name => {
     const descriptor = overrides[name] || definitions[name] || { name, description: 'Host extension; request its schema from the host.', effect: 'extension', schemaStatus: 'unknown', parameters: object({}, [], true), examples: [] };
@@ -52,11 +54,12 @@ export function describeViewerContract({ apiVersion, profile = 'custom', names, 
       description: 'Reset the host camera view and clear temporary brush strokes.', effect: 'workspace' };
     return { ...descriptor, name };
   });
+  for (const command of commands) command.runtimeValidation = ['standalone', 'application'].includes(profile) && !overrides[command.name] && definitions[command.name] ? 'schema' : 'host';
   return structuredClone({ apiVersion, profile, schemaDialect: 'https://json-schema.org/draft/2020-12/schema',
     coordinates: { scene: { axes: 'XYZ', unit: 'metres', origin: 'getState().coordinates.origin' }, source: { axes: 'XYZ', unit: 'inches', conversion: 'Use sourceToScene/sceneToSource; Source and scene axes differ.' } },
     commands, queries: ['getState', 'getCapabilities', 'getContract', ...queries],
-    events: events.map(name => ({ name, support: 'optional', delivery: name === 'playback.time' ? 'sampled' : 'state-change' })),
-    eventEnvelope: { fields: ['type', 'revision', 'operationId', 'origin', 'payload'], payloadSchemas: { 'workspace.playersChanged': object({ players: { type: 'array', maxItems: 256, items: WORKSPACE_PLAYER_SCHEMA } }, ['players']), 'utility.placementsChanged': object({ action: enumeration(['placed', 'moved', 'removed']), id: string, placements: { type: 'array', items: object({ id: string, referenceId: { type: ['string', 'null'] }, kind: { type: ['string', 'null'] }, position: vec3, effectPosition: { anyOf: [vec3, { type: 'null' }] } }, ['id', 'referenceId', 'kind', 'position', 'effectPosition']) } }, ['action', 'id', 'placements']), otherTopics: 'not-yet-defined' } },
-    operation: { context: ['origin', 'operationId', 'expectedRevision', 'signal'], status: ['succeeded', 'failed', 'cancelled'], errors: 'code/message/details', approval: 'host policy', cancellation: 'AbortSignal' },
+    events: describeViewerEvents(profile),
+    eventEnvelope: { fields: ['type', 'revision', 'operationId', 'origin', 'payload'], payloadSchemas: Object.fromEntries(describeViewerEvents(profile).map(event => [event.name, event.payloadSchema])) },
+    operation: { context: ['origin', 'operationId', 'expectedRevision', 'signal'], status: ['succeeded', 'failed', 'cancelled'], errors: 'code/message/details', errorCodes: Object.values(VIEWER_ERROR_DEFINITIONS), approval: 'host policy', cancellation: 'AbortSignal' },
   });
 }

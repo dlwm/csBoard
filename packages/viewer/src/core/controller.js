@@ -1,7 +1,8 @@
 import { describeViewerContract } from './contract.js';
+import { contractIssue } from './validation.js';
 // Public operations, queries and subscriptions have no renderer dependency.
 // UI、AI 与外部调用共享命令实现；宿主可注入权限策略，核心不连接存储或房间。
-export const VIEWER_API_VERSION = '0.1';
+export const VIEWER_API_VERSION = '0.2';
 export class ViewerError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'ViewerError'; this.code = code; this.details = details; }
 }
@@ -15,14 +16,21 @@ const copy = (value, ancestors = new Set(), depth = 0) => {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, nested(item)]));
   return value;
 };
-const errorValue = error => ({ code: typeof error?.code === 'string' ? error.code : error?.name === 'AbortError' ? 'cancelled' : 'operation_failed', message: error?.message || String(error), details: copy(error?.details || {}) });
+const errorValue = error => {
+  let details; try { details = copy(error?.details || {}); } catch { details = { serializationError: 'invalid_data' }; }
+  return { code: typeof error?.code === 'string' && error.code ? error.code : error?.name === 'AbortError' ? 'cancelled' : 'operation_failed', message: String(error?.message || error), details };
+};
 
 export function createViewerController({ commands, readState, readCapabilities = () => ({}), readWorkspace, readUtilityCatalogue, policy, onObserverError = () => {}, profile = 'custom', contractOverrides = {}, queries = [] }) {
   requireValue(typeof commands?.execute === 'function' && Array.isArray(commands.names) && typeof readState === 'function', 'invalid_ports', 'Viewer requires commands and a state reader');
   const subscribers = new Map();
+  const contract = describeViewerContract({ apiVersion: VIEWER_API_VERSION, profile, names: commands.names, queries, overrides: contractOverrides });
+  const descriptors = new Map(contract.commands.map(command => [command.name, command]));
   let revision = 0, sequence = 0, closed = false, active = null, pending = null, lastAction = null;
   const check = () => requireValue(!closed, 'disposed', 'Viewer has been disposed');
   const emit = (type, payload, operation = active) => {
+    const issue = typeof type !== 'string' || !type ? { path: '/type', message: 'Event type must be a nonempty string' } : contractIssue(profile, 'event', type, payload);
+    if (issue) { try { onObserverError(new ViewerError('invalid_event', `Invalid ${type} payload at ${issue.path || '/'}`, { event: type, issue })); } catch {} return; }
     const event = { type, revision, operationId: operation?.id || null, origin: operation?.origin || 'system', payload: copy(payload) };
     for (const listener of [...(subscribers.get(type) || []), ...(subscribers.get('*') || [])]) {
       try { listener(copy(event)); } catch (error) { try { onObserverError(error); } catch {} }
@@ -35,23 +43,32 @@ export function createViewerController({ commands, readState, readCapabilities =
     emit(type, payload, origin === 'system' ? active || { origin } : { origin });
   };
   const execute = (command, context = {}) => {
-    const operation = { id: context.operationId || `viewer-${++sequence}`, origin: context.origin || 'api', changed: false, events: [] };
+    const validContext = context && typeof context === 'object' && !Array.isArray(context);
+    if (!validContext) context = {};
+    const operation = { id: typeof context.operationId === 'string' && context.operationId ? context.operationId : `viewer-${++sequence}`, origin: typeof context.origin === 'string' && context.origin ? context.origin : 'api', changed: false, events: [] };
     let args;
     const approvedRevision = revision;
     const flushChanges = () => {
       if (operation.changed) { revision++; operation.changed = false; }
-      if (active === operation) active = null;
-      for (const event of operation.events.splice(0)) emit(event.type, event.payload, operation);
+      // Keep the lane occupied while publishing changes; subscriber edits must
+      // not interleave revisions within one operation. 中文：变更发布时禁止重入。
+      try { for (const event of operation.events.splice(0)) emit(event.type, event.payload, operation); }
+      finally { if (active === operation) active = null; }
     };
     const failed = (error, status = context.signal?.aborted || error?.name === 'AbortError' ? 'cancelled' : 'failed') => {
       flushChanges();
       if (pending === operation) pending = null;
       const result = { status, operationId: operation.id, revision, error: errorValue(error) };
-      lastAction = { ...result, type: command?.type, origin: operation.origin };
+      lastAction = { ...result, type: typeof command?.type === 'string' ? command.type : undefined, origin: operation.origin };
       emit(`operation.${status}`, lastAction, operation); return result;
     };
     const validate = () => {
-      check(); context.signal?.throwIfAborted();
+      check();
+      requireValue(validContext, 'invalid_context', 'Operation context must be an object');
+      for (const key of ['origin', 'operationId']) requireValue(context[key] == null || (typeof context[key] === 'string' && Boolean(context[key])), 'invalid_context', `${key} must be a nonempty string`);
+      requireValue(context.expectedRevision == null || (Number.isSafeInteger(context.expectedRevision) && context.expectedRevision >= 0), 'invalid_context', 'expectedRevision must be a nonnegative integer');
+      requireValue(context.signal == null || ['throwIfAborted', 'addEventListener', 'removeEventListener'].every(key => typeof context.signal[key] === 'function'), 'invalid_context', 'signal must implement AbortSignal');
+      context.signal?.throwIfAborted();
       requireValue(context.expectedRevision == null || context.expectedRevision === revision, 'revision_conflict', `Expected revision ${context.expectedRevision}, current revision ${revision}`);
     };
     const perform = decision => {
@@ -70,15 +87,20 @@ export function createViewerController({ commands, readState, readCapabilities =
           emit('operation.succeeded', lastAction, operation); return result;
         };
         const value = commands.execute(command.type, args, context);
-        return value && typeof value.then === 'function' ? value.then(complete, error => failed(error)) : complete(value);
+        return value && typeof value.then === 'function' ? Promise.resolve(value).then(complete).catch(error => failed(error)) : complete(value);
       } catch (error) { return failed(error, context.signal?.aborted ? 'cancelled' : 'failed'); }
     };
     try {
       validate();
-      requireValue(command && typeof command.type === 'string', 'invalid_command', 'Command requires a type');
+      requireValue(command && typeof command === 'object' && !Array.isArray(command) && typeof command.type === 'string', 'invalid_command', 'Command requires a type');
       requireValue(commands.names.includes(command.type), 'unknown_command', `Unknown viewer command ${command.type}`);
       requireValue(!active && !pending, 'operation_busy', 'Another viewer operation is pending');
       const { type, ...parameters } = command; args = copy(parameters);
+      const issue = !contractOverrides[type] && contractIssue(profile, 'command', type, args);
+      if (issue) {
+        const descriptor = descriptors.get(type);
+        throw new ViewerError('invalid_argument', `Invalid ${type} argument at ${issue.path || '/'}: ${issue.message}`, { command: type, issue, allowedFields: Object.keys(descriptor.parameters.properties || {}), requiredFields: descriptor.parameters.required || [], examples: descriptor.examples, parameters: descriptor.parameters });
+      }
       pending = operation;
       const decision = policy?.(copy(command), { ...context, revision });
       if (decision && typeof decision.then === 'function') {
@@ -111,7 +133,7 @@ export function createViewerController({ commands, readState, readCapabilities =
     getContract() { check(); return describeViewerContract({ apiVersion: VIEWER_API_VERSION, profile, names: commands.names, queries: [...queries, ...(readWorkspace ? ['getWorkspace'] : []), ...(readUtilityCatalogue ? ['getUtilityCatalogue'] : [])], overrides: contractOverrides }); },
     getCapabilities() { check(); return { ...copy(readCapabilities()), commands: [...commands.names] }; },
     on(type, listener) {
-      check(); requireValue(typeof listener === 'function', 'invalid_listener', 'Event listener must be a function');
+      check(); requireValue(typeof type === 'string' && Boolean(type), 'invalid_argument', 'Event topic must be a nonempty string'); requireValue(typeof listener === 'function', 'invalid_listener', 'Event listener must be a function');
       if (!subscribers.has(type)) subscribers.set(type, new Set()); subscribers.get(type).add(listener);
       return () => subscribers.get(type)?.delete(listener);
     },

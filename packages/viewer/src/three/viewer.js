@@ -1,3 +1,6 @@
+import { createSurfaceQueries } from './surfaceQueries.js';
+import { createSceneExtensions } from './sceneExtensions.js';
+import { createModelCommands } from '../core/modelCommands.js';
 import { createCameraInputController, resolveCameraInput } from '../input/cameraInput.js';
 import { createUtilityReferenceController } from '../core/utilityReferences.js';
 import { normalizeWorkspacePlayers, createWorkspaceLayout } from '../data/workspace.js';
@@ -60,7 +63,7 @@ const releaseObjects = root => {
 
 // First standalone rendering slice: NAV, player pawns, camera and picking.
 // 宿主提供 NAV 和人员快照；这里不读取地图目录、Demo、存档、房间或 AI 配置。
-export function createViewer({ container, navData, mapName = null, pixelRatioLimit = 2, input = "csboard", policy, presentation, onObserverError, dataSource = null, readProducerFields, playbackBudget = {}, resourceLoader = null, floorRanges = null, floorBoundary = null, monitorLayout = null, weaponIcons = null, flashMode = 'sample', readDirectorEvent = null, combatOverlay = {}, combatOverlayTheme = {}, voiceDecoder = null, voiceDriver = null, utilitySource = null, createUtilityRenderer = null } = {}) {
+export function createViewer({ container, navData, mapName = null, pixelRatioLimit = 2, input = "orbit", policy, presentation, onObserverError, dataSource = null, readProducerFields, playbackBudget = {}, resourceLoader = null, floorRanges = null, floorBoundary = null, monitorLayout = null, weaponIcons = null, flashMode = 'sample', readDirectorEvent = null, combatOverlay = {}, combatOverlayTheme = {}, voiceDecoder = null, voiceDriver = null, utilitySource = null, createUtilityRenderer = null } = {}) {
   if ((utilitySource == null) !== (createUtilityRenderer == null) || (utilitySource && ['list', 'load'].some(k => typeof utilitySource[k] !== 'function')) || (createUtilityRenderer != null && typeof createUtilityRenderer !== 'function')) throw new ViewerError('invalid_ports', 'Provide utilitySource and createUtilityRenderer together');
   if ((voiceDecoder == null) !== (voiceDriver == null) || (voiceDecoder != null && typeof voiceDecoder !== 'function')
     || (voiceDriver && ['now', 'schedule', 'stopAll', 'setVolume'].some(key => typeof voiceDriver[key] !== 'function'))) throw new ViewerError('invalid_argument', 'Provide a voice decoder and audio driver together');
@@ -94,6 +97,7 @@ export function createViewer({ container, navData, mapName = null, pixelRatioLim
   const nav = createNavMesh(navData, new THREE.Vector2(), { value: 0 }, viewportSize);
   nav.group.position.copy(nav.center).negate(); scene.add(nav.group);
   const origin = nav.center.toArray();
+  let extensionRevision = 0;
   const floorState = new THREE.Vector4(0, 0, 0, 0);
   enableMaterialFloorFade(nav.mesh.material, floorState);
   let activeFloor = 'all', display = null;
@@ -339,7 +343,7 @@ export function createViewer({ container, navData, mapName = null, pixelRatioLim
     getPose: player => player,
     getLayout: readMonitorLayout,
     getPlaybackState: () => ({ source: playback.getState().segment?.id, seek: seekRevision, tick: playback.getState().tick }),
-    getContentState: () => [playback.getState().tick, collisionVersion, modelVisible, modelStyle.opacity, modelStyle.focus, modelStyle.range, floorState.x, floorState.y, floorState.w, focusScreen.x, focusScreen.y, ...[...markers.values()].map(pawn => pawn.userData.heldWeapon?.userData.weaponModelRevision)],
+    getContentState: () => [extensionRevision, playback.getState().tick, collisionVersion, modelVisible, modelStyle.opacity, modelStyle.focus, modelStyle.range, floorState.x, floorState.y, floorState.w, focusScreen.x, focusScreen.y, ...[...markers.values()].map(pawn => pawn.userData.heldWeapon?.userData.weaponModelRevision)],
   });
   const changed = () => { workspaceEpoch++; drawPlayers(); controller.notify('workspace.changed', { playerCount: players.length }, { changed: true }); };
   const focusPoint = position => { const point = new THREE.Vector3().fromArray(vector(position, 'position')); releaseCamera(); const offset = camera.position.clone().sub(controls.target).normalize().multiplyScalar(12); if (camera.planView) { camera.planSpan = 16; camera.updateProjectionMatrix(); } controls.target.copy(point); camera.position.copy(point).add(offset); controls.update(); controller.notify('camera.changed', cameraState(), { changed: true }); };
@@ -352,25 +356,14 @@ export function createViewer({ container, navData, mapName = null, pixelRatioLim
   }
   const commands = createCommandRegistry({
     ...(utilityReferences ? { 'utility.place': (args, context) => utilityReferences.place(args, context), 'utility.move': args => utilityReferences.move(args), 'utility.remove': args => utilityReferences.remove(args) } : {}),
-    ...(resources ? {
-      'model.style': ({ opacity, focus, range }) => {
-        if ((opacity != null && (!Number.isFinite(opacity) || opacity < 0 || opacity > 1))
-          || (range != null && (!Number.isFinite(range) || range < 0 || range > 1))
-          || (focus != null && !['full', 'pointer', 'camera'].includes(focus))) {
-          throw new ViewerError('invalid_argument', 'Model style requires opacity/range 0–1 and full/pointer/camera focus');
-        }
-        if (opacity != null) modelStyle.opacity = opacity;
-        if (range != null) modelStyle.range = range;
-        if (focus != null) modelStyle.focus = focus;
-        modelMode.value = ['full', 'pointer', 'camera'].indexOf(modelStyle.focus);
-        modelRange.value = modelStyle.range;
-        display?.setOpacity(modelStyle.opacity);
-        controller.notify('model.style', { ...modelStyle }, { changed: true });
-      },
-      'model.visibility': ({ visible }) => { if (typeof visible !== 'boolean') throw new ViewerError('invalid_argument', 'visible must be a boolean'); modelVisible = visible; if (worldModel) worldModel.visible = visible && !camera.planView; else if (visible && !camera.planView) resources.ensure('world-model').catch(() => {}); else resources.cancel('world-model'); controller.notify('model.visibility', { visible }, { changed: true }); },
-      'model.objectsVisibility': ({ ids, visible, signature }) => { if (!display) throw new ViewerError('not_ready', 'Model is not ready'); display.setObjects(ids, visible, signature); collisionVersion++; controller.notify('model.objectsChanged', { signature, ids, visible }, { changed: true }); },
-      'model.unload': () => { modelVisible = false; resources.unload('world-model'); controller.notify('model.visibility', { visible: false }, { changed: true }); },
-    } : {}),
+    ...(resources ? createModelCommands({
+      readStyle: () => modelStyle,
+      applyStyle: style => { Object.assign(modelStyle, style); modelMode.value = ['full', 'pointer', 'camera'].indexOf(style.focus); modelRange.value = style.range; display?.setOpacity(style.opacity); },
+      setVisible: visible => { modelVisible = visible; if (worldModel) worldModel.visible = visible && !camera.planView; else if (visible && !camera.planView) resources.ensure('world-model').catch(() => {}); else resources.cancel('world-model'); },
+      setObjects: ({ ids, visible, signature }) => { if (!display) throw new ViewerError('not_ready', 'Model is not ready'); display.setObjects(ids, visible, signature); collisionVersion++; },
+      unload: () => { modelVisible = false; resources.unload('world-model'); },
+      notify: (...args) => controller.notify(...args),
+    }) : {}),
     'map.floor': ({ id }) => { if (typeof id !== 'string' || (id !== 'all' && !Object.hasOwn(ranges, id))) throw new ViewerError('invalid_floor', 'Unknown floor ID'); applyFloorRange(floorState, id === 'all' ? null : ranges[id], origin[1]); activeFloor = id; drawPlayers(); effects.update(playback.getState().tick); controller.notify('map.floor', { id }, { changed: true }); },
     'replay.open': ({ segmentId }, context) => playback.openSegment(segmentId, { signal: context.signal, ...(voiceDecoder ? { tracks: ['frames', 'events', 'projectiles', 'smokeFrames', 'fireFrames', 'voiceFrames'] } : {}) }),
     'voice.configure': args => { voice.configure(args); controller.notify('voice.options', voice.getState(), { changed: true }); },
@@ -406,7 +399,7 @@ export function createViewer({ container, navData, mapName = null, pixelRatioLim
   controller = createViewerController({ commands, policy, onObserverError, profile: 'standalone', queries: ['getModelObjects', 'getModelObjectTree'],
     readWorkspace,
     ...(utilityReferences ? { readUtilityCatalogue: (query, context) => utilityReferences.list(query, context) } : {}),
-    readState: () => ({ ready: true, mapName, workspace: { points: players.map(player => ({ ...player, position: [...player.position] })) }, selectedId, camera: cameraState(), voice: voice.getState(), hud: { overlayOptions: { ...overlayOptions }, overlays: getCombatOverlayState(), bomb: bombTimeline?.at(hudTick) || null, tick: hudTick, players: hudPlayers, kills: hudKills, eventsStatus: playback.getState().capabilities.events?.status || 'unknown' }, equipmentStats: equipmentStats(), playback: playback.getState(), effectCounts: effects.getCounts(), effectDisplay: effects.getDisplay(), resources: resources?.getState() || [], renderStats: { frame: renderer.info.render.frame, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }, monitorStats: { ...monitor.stats }, modelVisible, modelStats: worldModel?.userData.renderStats || null, modelStyle: { ...modelStyle }, floor: activeFloor, floors: Object.entries(ranges).map(([id, range]) => ({ id, range: [...range] })), coordinates: { space: 'scene-local', unit: 'metres', origin } }),
+    readState: () => ({ ready: true, mapName, input: { ...inputBindings, zoom: Boolean(inputBindings.zoom), touch: Boolean(inputBindings.touch), wrap: Boolean(inputBindings.wrap), keyboardScope: inputBindings.keyboardScope ?? 'viewport', wheelMode: inputBindings.wheelMode ?? 'zoom', wheelSpeed: inputBindings.wheelSpeed ?? 1, wheelInvert: inputBindings.wheelInvert ?? false, rotateSpeed: controls.rotateSpeed, panSpeed: controls.panSpeed, minPolarAngle: controls.minPolarAngle, maxPolarAngle: controls.maxPolarAngle }, workspace: { points: players.map(player => ({ ...player, position: [...player.position] })) }, selectedId, camera: cameraState(), voice: voice.getState(), hud: { overlayOptions: { ...overlayOptions }, overlays: getCombatOverlayState(), bomb: bombTimeline?.at(hudTick) || null, tick: hudTick, players: hudPlayers, kills: hudKills, eventsStatus: playback.getState().capabilities.events?.status || 'unknown' }, equipmentStats: equipmentStats(), playback: playback.getState(), effectCounts: effects.getCounts(), effectDisplay: effects.getDisplay(), resources: resources?.getState() || [], renderStats: { frame: renderer.info.render.frame, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }, monitorStats: { ...monitor.stats }, modelVisible, modelStats: worldModel?.userData.renderStats || null, modelStyle: { ...modelStyle }, floor: activeFloor, floors: Object.entries(ranges).map(([id, range]) => ({ id, range: [...range] })), coordinates: { space: 'scene-local', unit: 'metres', origin } }),
     readCapabilities: () => ({ utilityReferences: Boolean(utilityReferences), editing: playback.getState().status === 'empty', camera: true, picking: true, director: true, voice: Boolean(voiceDriver && voiceDecoder), firstPerson: true, monitors: true, equipment: Boolean(weaponIcons), hud: true, nav: true, utilities: true, replay: true, model: Boolean(resources) }),
   });
   const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
@@ -433,6 +426,15 @@ export function createViewer({ container, navData, mapName = null, pixelRatioLim
     onCameraInterrupt: releaseCamera, onManualInteraction: cameraChanged, canEnableControls: () => !disposed });
   cameraInput.attach(container);
   const win = container.ownerDocument.defaultView;
+  const surfaceQueries = createSurfaceQueries({ camera, canvas: renderer.domElement,
+    readSurfaces: () => ({ model: worldModel, meshes: display?.collisions || [], nav: nav.mesh, floor: floorState }),
+    readViewport: () => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const width = (!camera.planView && monitorIds.some(id => cameraPlayers.has(id)) ? readMonitorLayout()?.mainWidth : null) ?? rect.width;
+      return { left: rect.left, top: rect.top, width, height: rect.height, right: rect.left + width, bottom: rect.bottom };
+    },
+    sourceToScene: position => sourceToScene(position, origin), sceneToSource: position => sceneToSource(position, origin), isDisposed: () => disposed });
+  const extensions = createSceneExtensions({ scene, camera, canvas: renderer.domElement, origin, controller, surfaceQueries, onChange: () => { extensionRevision++; }, reportError: onObserverError });
   const stopLoop = createRenderLoop(timestamp => {
     playback.update(timestamp);
     { const state = playback.getState(); voice.sync({ tick: state.tick, playing: state.playing, speed: state.speed }); }
@@ -440,6 +442,7 @@ export function createViewer({ container, navData, mapName = null, pixelRatioLim
     playerCamera.update(); director.update(timestamp);
     if (!playerCamera.getState().playerId && !director.getState().mode) controls.update();
     projection.update(Boolean(camera.planView));
+    extensions.update(timestamp);
     const monitorRect = monitorIds.length && !camera.planView ? readMonitorLayout() : null;
     const bounds = renderer.domElement.getBoundingClientRect();
     overlayLayer.setViewport(monitorRect ? { left: 0, top: 0, width: monitorRect.mainWidth, height: bounds.height } : null);
@@ -467,7 +470,7 @@ export function createViewer({ container, navData, mapName = null, pixelRatioLim
   }, { presentation, document: container.ownerDocument, requestFrame: win.requestAnimationFrame.bind(win), cancelFrame: win.cancelAnimationFrame.bind(win) });
   const setDataSource = source => { if (disposed) throw new ViewerError('disposed', 'Viewer is disposed'); if (source && source.getMetadata().mapName !== mapName) throw new ViewerError('map_mismatch', 'Replay map does not match the injected NAV'); workspaceEpoch++; releaseCamera(); monitorIds = []; baseColors.clear(); sideSeats.clear(); playback.setSource(source); };
   if (dataSource) setDataSource(dataSource);
-  return Object.freeze({ setDataSource, getModelObjects: query => { if (disposed) throw new ViewerError('disposed', 'Viewer is disposed'); if (!display) throw new ViewerError('not_ready', 'Model is not ready'); return display.objects.getCatalogue(query); }, getModelObjectTree: query => { if (disposed) throw new ViewerError('disposed', 'Viewer is disposed'); if (!display) throw new ViewerError('not_ready', 'Model is not ready'); return display.objects.getTree(query); }, apiVersion: controller.apiVersion, execute: controller.execute, getState: controller.getState, getCapabilities: controller.getCapabilities, getContract: controller.getContract, getWorkspace: controller.getWorkspace, ...(utilityReferences ? { getUtilityCatalogue: controller.getUtilityCatalogue } : {}), on: controller.on,
-    dispose() { if (disposed) return; disposed = true; cameraInput.dispose(); utilityReferences?.dispose(); utilityRenderer?.dispose(); stopLoop(); voice.dispose(); resources?.dispose(); monitor.dispose(); director.dispose(); playerCamera.dispose(); playback.dispose(); cameraPlayers.clear(); hudPlayers = []; hudById.clear(); killEvents = []; hudKills = []; playerTimeline = null; bombTimeline = null; directorTimeline = null; timelineSegment = null; effects.dispose(); bombScene.dispose(); overlayLayer.dispose(); if (ownsContainerPosition && container.style.position === 'relative') container.style.position = previousContainerPosition; stopResize(); controls.removeEventListener('end', cameraChanged); controls.dispose(); renderer.domElement.removeEventListener('pointermove', pointerMove); renderer.domElement.removeEventListener('pointerdown', pointerDown); renderer.domElement.removeEventListener('pointerup', pointerUp); controller.dispose(); releaseObjects(povEquipment); scene.remove(camera); releaseObjects(content); releaseObjects(nav.group); viewport.dispose(); },
+  return Object.freeze({ ...surfaceQueries, mountSceneExtension: extensions.mount, setDataSource, getModelObjects: query => { if (disposed) throw new ViewerError('disposed', 'Viewer is disposed'); if (!display) throw new ViewerError('not_ready', 'Model is not ready'); return display.objects.getCatalogue(query); }, getModelObjectTree: query => { if (disposed) throw new ViewerError('disposed', 'Viewer is disposed'); if (!display) throw new ViewerError('not_ready', 'Model is not ready'); return display.objects.getTree(query); }, apiVersion: controller.apiVersion, execute: controller.execute, getState: controller.getState, getCapabilities: controller.getCapabilities, getContract: controller.getContract, getWorkspace: controller.getWorkspace, ...(utilityReferences ? { getUtilityCatalogue: controller.getUtilityCatalogue } : {}), on: controller.on,
+    dispose() { if (disposed) return; disposed = true; extensions.dispose(); cameraInput.dispose(); utilityReferences?.dispose(); utilityRenderer?.dispose(); stopLoop(); voice.dispose(); resources?.dispose(); monitor.dispose(); director.dispose(); playerCamera.dispose(); playback.dispose(); cameraPlayers.clear(); hudPlayers = []; hudById.clear(); killEvents = []; hudKills = []; playerTimeline = null; bombTimeline = null; directorTimeline = null; timelineSegment = null; effects.dispose(); bombScene.dispose(); overlayLayer.dispose(); if (ownsContainerPosition && container.style.position === 'relative') container.style.position = previousContainerPosition; stopResize(); controls.removeEventListener('end', cameraChanged); controls.dispose(); renderer.domElement.removeEventListener('pointermove', pointerMove); renderer.domElement.removeEventListener('pointerdown', pointerDown); renderer.domElement.removeEventListener('pointerup', pointerUp); controller.dispose(); releaseObjects(povEquipment); scene.remove(camera); releaseObjects(content); releaseObjects(nav.group); viewport.dispose(); },
   });
 }
