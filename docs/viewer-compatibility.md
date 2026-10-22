@@ -1,6 +1,6 @@
 # 视图库兼容范围
 
-当前是 `@csboard/viewer` 私有实验包，API `0.2`，不是已发布的稳定 SDK。应用版本和 API 版本分别维护；后续改变字段仍需明确迁移说明。
+当前是 `@csboard/viewer` 私有实验包，API `0.2`，不是已发布的稳定 SDK。CSBoard 2.0 正式发布不改变该包的实验性状态。应用版本和 API 版本分别维护；后续改变字段仍需明确迁移说明。
 
 API 的配置、命令结果、事件、错误与资源所有权集中在 [公共接口约定](../packages/viewer/API.md)。外部接入请从 [最小示例](../packages/viewer/examples/minimal/README.md) 开始；`make viewer-check` 验证真实 tar 包安装。
 

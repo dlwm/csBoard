@@ -2,7 +2,7 @@
 
 当前兼容边界与验收结论见 [兼容范围](viewer-compatibility.md)。
 
-当前实现已随 CSBoard 2.0 Alpha 集成，可从打包归档安装到独立项目；尚未发布到 npm。API 版本为 `0.2`，与 CSBoard 应用版本、Demo 数据格式版本分别维护。
+当前实现已随 CSBoard 2.0 集成，可从打包归档安装到独立项目；视图库接口仍为实验性，尚未发布到 npm。API 版本为 `0.2`，与 CSBoard 应用版本、Demo 数据格式版本分别维护。
 
 ## 分层
 

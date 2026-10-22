@@ -5,7 +5,7 @@ A tool for CS2 Demo playback, data analysis, utility notes and collaboration.
 [中文](docs/README.zh-CN.md) · [Русский](docs/README.ru-RU.md) · [Desktop download](https://github.com/dlwm/csBoard/releases/latest)
 
 
-> **2.0 Alpha:** [2.0.0-alpha.3](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.3). Integration interfaces are experimental; the desktop download link points to the stable release.
+> **CSBoard 2.0:** [Release notes and downloads](https://github.com/dlwm/csBoard/releases/tag/v2.0.0). The operation assistant, integration interfaces and smoke prediction remain experimental.
 
 ## Documentation
 

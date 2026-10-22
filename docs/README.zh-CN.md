@@ -5,7 +5,7 @@
 [English](../README.md) · [Русский](README.ru-RU.md) · [桌面端下载](https://github.com/dlwm/csBoard/releases/latest)
 
 
-> **2.0 Alpha：** [2.0.0-alpha.3](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.3)。接入接口仍为实验性；桌面端下载链接指向正式版。
+> **CSBoard 2.0 正式版：** [更新说明与下载](https://github.com/dlwm/csBoard/releases/tag/v2.0.0)。操作助手、接入接口与烟雾预测仍为实验性功能。
 
 ## 从这里开始
 

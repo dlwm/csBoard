@@ -2,6 +2,28 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [2.0.0] - 2026-10-23
+
+### Added
+
+- Import and export processed replay packages for exchanging Demo data between tools.
+- Embed the independent viewer in other applications, with configurable controls, local map models, scene extensions, surface picking and operation events. Integration interfaces remain experimental.
+- Use the experimental operation assistant in Match Replay and Data Analysis, with evidence-linked findings and actions that open the relevant replay moment.
+- Provide experimental smoke volume prediction with recorded-sample comparison; approximate predictions do not replace recorded smoke.
+
+### Changed
+
+- Refresh all workspaces with shared controls, consistent panels and layouts that adapt to window size and font scaling.
+- Share player editing, camera controls and model settings across the interface, operation assistant and integrations, while preserving editing permissions and undo history.
+- Keep more map context visible in utility spotlight previews and improve English, Chinese and Russian interface text.
+
+### Fixed
+
+- Keep Demo and round lists above the 3D viewport, and sidebar controls accessible in smaller windows.
+- Restore Root folder collapse and keep model visibility synchronized with saved preferences.
+- Use predictable wheel zoom and configurable vertical camera limits in embedded views; hide known exported effects that appear as solid triangle artifacts.
+- Include dependent viewer modules in desktop packages and reject invalid editing requests before they change the board.
+
 ## [2.0.0-alpha.3] - 2026-10-16
 
 CSBoard 2.0 continues in Alpha. Integration interfaces and smoke prediction remain experimental.

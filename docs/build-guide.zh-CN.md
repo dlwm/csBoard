@@ -74,6 +74,8 @@ PR 和 main/master 推送运行 Checks：行为与网页、独立消费者构建
 
 通过 `make version VERSION=2.0.0-alpha.1` 开始预发布，通过 `make version BUMP=prerelease` 增加序号；交互菜单也提供增加预发布序号的选项。支持 `alpha`、`beta`、`rc`，均带数字序号。最后的文档与版本提交为 `release: v2.0.0-alpha.1`，再创建同名标签。
 
+通过 `make version VERSION=2.0.0` 转为正式版；将发布文档与同步后的版本提交为 `release: v2.0.0`，再创建同名标签。功能的实验性标记与应用发布阶段分别维护。
+
 `package.json` 是应用版本与 `mobileBuildNumber` 的来源。开始预发布后使用独立的原生构建计数器：版本变化时递增，重复同步不会递增。Android 保留完整版本名，iOS 的展示版本使用数字核心，二者使用相同构建编号。
 
 Release Actions 为预发布标签创建带 Pre-release 标记的草稿。桌面自动更新仍只选择正式版；预览安装包在对应 release 页面手动下载。独立视图库目前为实验性工作区包，尚未发布到 npm。

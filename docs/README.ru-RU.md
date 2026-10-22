@@ -5,7 +5,7 @@
 [English](../README.md) · [中文](README.zh-CN.md) · [Скачать приложение](https://github.com/dlwm/csBoard/releases/latest)
 
 
-> **Alpha 2.0:** [2.0.0-alpha.3](https://github.com/dlwm/csBoard/releases/tag/v2.0.0-alpha.3). Интерфейсы интеграции экспериментальны; ссылка загрузки ведёт на стабильный выпуск.
+> **CSBoard 2.0:** [Изменения и загрузки](https://github.com/dlwm/csBoard/releases/tag/v2.0.0). Помощник, интерфейсы интеграции и прогнозирование дыма остаются экспериментальными.
 
 ## С чего начать?
 

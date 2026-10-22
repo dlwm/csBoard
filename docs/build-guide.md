@@ -74,6 +74,8 @@ Keep raw Demos, VPKs, GLBs and extraction output under ignored `.local`; do not 
 
 Use `make version VERSION=2.0.0-alpha.1` to begin a preview, and `make version BUMP=prerelease` for the next number. The interactive menu also offers the next preview number. Supported phases are `alpha`, `beta` and `rc`, each with a numeric suffix. The final release commit is `release: v2.0.0-alpha.1`, followed by the matching tag.
 
+Promote a preview to stable with `make version VERSION=2.0.0`; commit the release documentation and synchronized versions as `release: v2.0.0`, then create the matching tag. Keep experimental feature labels independent of the application release stage.
+
 `package.json` owns the application version and, once previews begin, `mobileBuildNumber`. The native build counter increases when the version changes; repeated synchronization does not increase it. Android keeps the full version label, while iOS uses the numeric core for its marketing version. Both receive the same build counter.
 
 Release Actions creates a draft with GitHub's Pre-release flag for preview tags. Desktop automatic updates continue to select stable releases; obtain preview installers manually from their release page. The independent viewer remains an experimental workspace package, not a published npm package.
