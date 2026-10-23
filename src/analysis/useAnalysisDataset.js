@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { getPlatform } from '../platform/index.js';
 const EMPTY = { rows: [], deaths: [], utilities: [] };
 
-export default function useAnalysisDataset(demos, players, active, includeUtilities = true) {
+export default function useAnalysisDataset(demos, players, active, includeUtilities = true, kdContext = false) {
   const [state, setState] = useState({ data: EMPTY, loading: false, error: '' });
   // Metadata changes invalidate the request even if IDs stay the same.
   const demoKey = JSON.stringify(demos.map(entry => [entry.id, entry.updatedAt]));
   const playerKey = JSON.stringify(players);
-  const requestKey = JSON.stringify([demoKey, playerKey, active, includeUtilities]);
+  const requestKey = JSON.stringify([demoKey, playerKey, active, includeUtilities, kdContext]);
   const enabled = active && demos.length > 0 && players.length > 0;
   useEffect(() => {
     const controller = new AbortController();
@@ -20,12 +20,12 @@ export default function useAnalysisDataset(demos, players, active, includeUtilit
     // Clear old results so the scene never attributes them to the new selection.
     setState({ key: requestKey, data: EMPTY, loading: true, error: '' });
     const timer = setTimeout(() => {
-      getPlatform().compute('analysis.query', { ids, players: selectedPlayers, includeUtilities }, { signal: controller.signal })
+      getPlatform().compute('analysis.query', { ids, players: selectedPlayers, includeUtilities, ...(kdContext ? { kdContext: true } : {}) }, { signal: controller.signal })
         .then(data => { if (!controller.signal.aborted) setState({ key: requestKey, data, loading: false, error: '' }); })
         .catch(error => { if (!controller.signal.aborted) setState({ key: requestKey, data: EMPTY, loading: false, error: error.message }); });
     }, 120);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [demoKey, playerKey, active, includeUtilities, requestKey]);
+  }, [demoKey, playerKey, active, includeUtilities, kdContext, requestKey]);
   if (!enabled) return { data: EMPTY, loading: false, error: '' };
   // Selection changes show loading immediately, before the effect starts.
   return state.key === requestKey ? state : { data: EMPTY, loading: true, error: '' };

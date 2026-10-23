@@ -9,7 +9,7 @@ export function registerDataService({ app, authorize, storage, scheduler, root, 
   void prepareAnalysisCache(path.join(app.getPath('userData'), 'analysis-cache'), app.getVersion()).catch(error => console.warn('Analysis cache cleanup failed:', error.message));
   ipcMain.handle('data:run', (event, id, method, args) => {
     authorize(event); assertAvailable();
-    const analysis = ['analysis.assistant', 'analysis.catalog', 'analysis.query', 'analysis.utility', 'analysis.utilityReplay', 'analysis.recommendations'].includes(method);
+    const analysis = ['analysis.assistant', 'analysis.catalog', 'analysis.query', 'analysis.utility', 'analysis.utilityReplay', 'analysis.recommendations', 'analysis.kdRecommendations'].includes(method);
     const format = ['format.import', 'format.export'].includes(method);
     if ((!analysis && !format && !['json.encode', 'json.decode', 'broadcast.encode', 'broadcast.decode'].includes(method)) || typeof id !== 'string' || !args
       || (method === 'format.import' && (!/^format\|[a-f0-9-]{36}$/.test(args.destinationId) || !(args.bytes instanceof Uint8Array) || args.bytes.byteLength > 256 * 1024 ** 2))

@@ -121,3 +121,16 @@
 }
 .workspace-frame[data-mobile-workspace] .analysis-transport { gap: 8px; }
 .workspace-frame[data-mobile-workspace] .analysis-bottom-timeline { grid-template-columns: auto minmax(40px, 1fr) auto; gap: 5px; }
+
+/* KD recommendation content stays inside the shared sidebar and controls. */
+.kd-recommendation-context { display: grid; gap: 12px; }
+.kd-recommendation-context p { margin: 0; font: var(--ui-label-size)/1.6 var(--font-ui); color: var(--ui-text-secondary); }
+.kd-recommendation-context small, .kd-match-details small { color: var(--ui-text-muted); font: 11px/1.5 var(--font-ui); }
+.kd-radius { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; color: var(--ui-text-secondary); font-size: var(--ui-label-size); }
+.kd-radius b { font: 12px var(--font-mono); }
+.kd-radius input { grid-column: 1 / -1; width: 100%; min-width: 0; margin: 0; accent-color: var(--accent); }
+.kd-selection-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; font-size: var(--ui-label-size); }
+.kd-hotspot-suggestions, .kd-evidence-list, .kd-match-details { display: grid; gap: 7px; min-width: 0; }
+.kd-hotspot-suggestions .workspace-button, .kd-evidence-list .workspace-button { justify-content: flex-start; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.kd-match-details { border-top: 1px solid var(--ui-line); padding-top: 9px; font: var(--ui-label-size)/1.5 var(--font-ui); }
+.kd-match-details > strong { color: var(--accent); font-family: var(--font-mono); }

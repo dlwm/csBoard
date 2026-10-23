@@ -152,6 +152,8 @@ function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, se
         kind: segment.kind,
         side: metadata.side,
         economyMatchup: metadata.economyMatchup,
+        phase: Number.isFinite(metadata.plantTick) && segment.throwTick >= metadata.plantTick ? 'post'
+          : segment.throwTick - metadata.startTick < metadata.tickRate * (metadata.earlySeconds || 30) ? 'early' : 'mid',
         throwPosition,
         landing,
         projectiles: projectilePath,
@@ -174,6 +176,7 @@ function appendUtilityEvents(utilities, entry, rounds, roundMetadataByPlayer, se
 }
 
 function appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer) {
+  const plants = (entry.data.events || []).filter(item => item.event_name === 'bomb_planted');
   deaths.push(...(entry.data.events || []).filter((event) => event.event_name === 'player_death').map((event) => {
     const round = findRoundAtTick(rounds, event.tick);
     const economyByPlayer = Object.fromEntries([...roundMetadataByPlayer].map(([name, metadata]) => (
@@ -184,6 +187,9 @@ function appendDeathEvents(deaths, entry, rounds, roundMetadataByPlayer) {
       analysisDemoId: entry.id,
       analysisFileName: entry.data.demo?.fileName || entry.fileName || 'Demo',
       analysisRound: round?.round ?? null,
+      analysisRoundStartTick: round?.startTick ?? null,
+      analysisTickRate: entry.data.demo?.tickRate || 64,
+      analysisPlantTick: round ? plants.find(item => item.tick >= round.startTick && item.tick <= round.endTick)?.tick ?? null : null,
       analysisEconomyByPlayer: economyByPlayer,
       analysisEconomyMatchup: Object.values(economyByPlayer)[0] || 'UNKNOWN:UNKNOWN',
     };
@@ -227,4 +233,18 @@ export function getAnalysisEconomyAvailability(rows) {
     if (ECONOMY_CATEGORIES.includes(opponent)) available.opponent.add(opponent);
     return available;
   }, { own: new Set(), opponent: new Set() });
+}
+
+// Build round utilities incrementally while sharing one participant/economy
+// index per Demo. No movement rows, preparation frames or volumes are returned.
+export function createAnalysisUtilityBuilder(entry, playerNames, getRoundEconomy, { earlySeconds = 30 } = {}) {
+  const rounds = entry.data.rounds || [], names = new Set(playerNames);
+  const index = indexRoundMetadata(entry, rounds, playerNames, getRoundEconomy);
+  const metadata = new Map(playerNames.map(name => [name, buildRoundMetadata(entry, rounds, name, index)]));
+  for (const values of metadata.values()) for (const value of values.values()) value.earlySeconds = Math.max(10, Math.min(90, Number(earlySeconds) || 30));
+  return (round, grenades) => {
+    const utilities = [], diagnostics = { throwEvents: 0, unmatchedThrows: 0, missingSide: 0, missingPosition: 0 };
+    appendUtilityEvents(utilities, { ...entry, analysisRoundGrenades: { [round.round]: grenades } }, [round], metadata, names, buildDemoGrenadeSegments, false, diagnostics);
+    return utilities;
+  };
 }

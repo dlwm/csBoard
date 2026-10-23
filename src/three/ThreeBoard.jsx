@@ -43,7 +43,7 @@ import { cs2AnglesToSceneDirection } from '../demo/interpolation.js';
 import { grenadeKind, groupDemoProjectiles } from '../demo/grenades.js';
 import { effectEndTick, isEffectStartEvent } from '../demo/effectLifetime.js';
 import { demoEquipmentKind, demoEventPlayerMatches, demoPlayerReload } from '../demo/playerState.js';
-import { demoRosterRuntime } from './runtime.js';
+import { demoRosterRuntime, analysisUtilityRuntime } from './runtime.js';
 import { enableMaterialFloorFade, floorVisibilityAtY, updateFloorFadeState } from './floorFade.js';
 import createNavBoundaryCollider, { getNavSourceBounds } from './navBoundaryCollider.js';
 import createAnalysisSceneController from './analysisSceneController.js';
@@ -205,6 +205,7 @@ export default function ThreeBoard(inputProps) {
     const navBoundaryCollider = createNavBoundaryCollider(navData, () => modelCenter);
     const deathHeatScene = createDeathHeatSceneController({
       scene,
+      getHotspot: () => monitorPropsRef.current.analysisHotspot,
       refs: {
         deaths: demoDeathsRef,
         heatDeaths: heatDeathsRef,
@@ -1094,6 +1095,7 @@ export default function ThreeBoard(inputProps) {
         grenadeWheelRef.current?.({ open: false, type: grenadeType });
       }
     };
+    let kdPointerStart = null;
     const onPointerDown = (event) => {
       pointerCurrent = pointerPosition(event);
       if (event.pointerType === 'touch') {
@@ -1105,6 +1107,10 @@ export default function ThreeBoard(inputProps) {
       if (event.button === 0) renderer.domElement.setPointerCapture?.(event.pointerId);
       if (event.button === 1 || event.button === 2) cameraState.clearActiveSlot();
       focusScreen.set(pointerCurrent.x * 0.5 + 0.5, pointerCurrent.y * 0.5 + 0.5);
+      if (event.button === 0 && analysisEnabledRef.current && demoViewFlagsRef.current.analysisMetric === 'kd' && demoViewFlagsRef.current.kdRecommendations) {
+        kdPointerStart = { x: event.clientX, y: event.clientY, id: event.pointerId };
+        return; // A tap selects; drawing must not steal the recommendation gesture.
+      }
       if (event.button === 0 && !grenadeWheelOpen && !placing) {
         raycaster.setFromCamera(pointerCurrent, camera);
         raycaster.params.Line.threshold = 0.28;
@@ -1342,6 +1348,23 @@ export default function ThreeBoard(inputProps) {
       }
     };
     const onPointerUp = (event) => {
+      if (event.button === 0 && kdPointerStart) {
+        const start = kdPointerStart; kdPointerStart = null;
+        if (start.id !== event.pointerId || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6
+          || !analysisEnabledRef.current || !demoViewFlagsRef.current.kdRecommendations) return;
+        pointerCurrent = pointerPosition(event);
+        raycaster.setFromCamera(pointerCurrent, camera);
+        const markerHit = firstInteractiveFloorHit(raycaster.intersectObjects([...deathHeatScene.heatObjects.values()], false));
+        const marker = markerHit?.object;
+        const hit = marker?.userData.analysisKDKind ? markerHit : nav?.mesh ? firstInteractiveFloorHit(raycaster.intersectObject(nav.mesh, false)) : null;
+        if (hit) {
+          const point = marker?.userData.analysisKDKind ? marker.position : hit.point;
+          analysisUtilityRuntime.onHotspotSelect?.({ position: { x: point.x + modelCenter.x, y: point.y + modelCenter.y, z: point.z + modelCenter.z },
+            kind: marker?.userData.analysisKDKind || null });
+        }
+        return;
+      }
+
       if (event.button === 1) {
         const wasWrapped = cameraInput.endDrag();
         if (wasWrapped) return;
@@ -1411,6 +1434,7 @@ export default function ThreeBoard(inputProps) {
       if (!cameraTransition && !utilityFirstPersonRef.current?.player && !utilityProjectileFollowRef.current && !demoDirectorCameraActive) controls.enabled = true;
     };
     const cancelPointerInteraction = () => {
+      kdPointerStart = null;
       cameraInput.endDrag();
       pressedKeys.clear();
       if (grenadeAdjusting) rebuildGrenadeEffect(activeGrenade, activeGrenade?.userData.grenadeEffect, nav);

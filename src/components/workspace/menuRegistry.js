@@ -13,8 +13,8 @@ export function workspaceMenu(id) {
   return menu;
 }
 export const availableWorkspaceMenus = capabilities => WORKSPACE_MENUS.filter(menu => menu.requires.every(key => capabilities[key]));
-export function workspaceMenuLayout(id, { utilityMetric = false, hasFrame = false, utilityPlaying = false } = {}) {
+export function workspaceMenuLayout(id, { utilityMetric = false, analysisRecommendations = false, hasFrame = false, utilityPlaying = false } = {}) {
   const menu = workspaceMenu(id);
-  return { hasLeft: menu.left === 'always' || (menu.left === 'utilities' && utilityMetric) || (menu.left === 'frame' && hasFrame),
+  return { hasLeft: menu.left === 'always' || (menu.left === 'utilities' && (utilityMetric || analysisRecommendations)) || (menu.left === 'frame' && hasFrame),
     hasRight: menu.right, radar: menu.radar === 'utility' ? utilityPlaying ? 'demo' : null : menu.radar };
 }

@@ -1,3 +1,4 @@
+import { KD_RECOMMENDATION_POLICY } from '../analysis/kdHotspots.js';
 // Owns Demo death markers and Analysis heat/position marker scene resources.
 import * as THREE from 'three';
 import buildHeatCells from '../analysis/buildHeatCells.js';
@@ -9,12 +10,38 @@ const disposeMesh = (scene, mesh) => {
   mesh.material?.dispose();
 };
 
-export default function createDeathHeatSceneController({ scene, refs, floorFadeRef, getModelCenter, getNav }) {
+export default function createDeathHeatSceneController({ scene, refs, floorFadeRef, getModelCenter, getNav, getHotspot = () => null }) {
   const deathMarkers = new Map();
   const heatObjects = new Map();
   const raycaster = new THREE.Raycaster();
   let globalHeatOverlay = null;
   let globalHeatSignature = '';
+  let heatInputs = [], heatCells;
+  const selection = new THREE.Group(); scene.add(selection);
+  const selectionMaterial = new THREE.MeshBasicMaterial({ color: '#c9f76b', transparent: true, opacity: .85, depthTest: true, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.65, .85, 40), selectionMaterial);
+  ring.rotation.x = -Math.PI / 2; ring.renderOrder = 4; selection.add(ring);
+  let selectionSignature = '';
+  const clearLinks = () => {
+    for (const object of [...selection.children]) if (object !== ring) { object.geometry.dispose(); object.material.dispose(); selection.remove(object); }
+  };
+  const updateSelection = () => {
+    const value = getHotspot(), flags = refs.flags.current;
+    selection.visible = Boolean(value?.position && refs.analysisEnabled.current && flags.analysisMetric === 'kd' && flags.kdRecommendations);
+    if (!selection.visible) return;
+    const centre = getModelCenter(), p = value.position;
+    ring.position.set(p.x - centre.x, p.y - centre.y + .08, p.z - centre.z);
+    const signature = JSON.stringify([value.interactions, centre.toArray()]);
+    if (signature === selectionSignature) return;
+    selectionSignature = signature; clearLinks();
+    for (const item of (value.interactions || []).slice(0, 5)) {
+      if (!item.own || !item.enemy) continue;
+      const points = [item.own, item.enemy].map(point => new THREE.Vector3(point.x - centre.x, point.y - centre.y + KD_RECOMMENDATION_POLICY.eyeHeight, point.z - centre.z));
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineDashedMaterial({ color: '#91b9d0', dashSize: .4, gapSize: .25, transparent: true, opacity: .65, depthTest: true, depthWrite: false }));
+      line.computeLineDistances(); line.renderOrder = 4; selection.add(line);
+    }
+  };
+
 
   const updateDeaths = () => {
     const active = new Set();
@@ -59,10 +86,15 @@ export default function createDeathHeatSceneController({ scene, refs, floorFadeR
   };
 
   const updateHeat = () => {
+    updateSelection();
     const flags = refs.flags.current;
     const modelCenter = getModelCenter();
     const nav = getNav();
-    const { areaMode, utilityMode, globalHeat, cells } = buildHeatCells({
+    const nextInputs = [refs.analysisEnabled.current, flags, refs.selectedPlayers.current, refs.side.current,
+      refs.utilities.current, refs.rows.current, refs.analysisDeaths.current, refs.heatDeaths.current, modelCenter.x, modelCenter.y, modelCenter.z];
+    if (!heatCells || nextInputs.some((value, index) => value !== heatInputs[index])) {
+      heatInputs = nextInputs;
+      heatCells = buildHeatCells({
       analysisEnabled: refs.analysisEnabled.current,
       flags,
       selectedPlayers: refs.selectedPlayers.current,
@@ -72,7 +104,9 @@ export default function createDeathHeatSceneController({ scene, refs, floorFadeR
       analysisDeaths: refs.analysisDeaths.current,
       heatDeaths: refs.heatDeaths.current,
       modelCenter,
-    });
+      });
+    }
+    const { areaMode, utilityMode, globalHeat, cells } = heatCells;
     if (globalHeat && nav?.mesh) {
       const heatRadiusWorld = THREE.MathUtils.clamp(Number(flags.heatRadius) || 9, 2, 24);
       const signature = `radius-${heatRadiusWorld}|${[...cells].map(([key, cell]) => `${key}:${Object.entries(cell.kinds).map(([kind, count]) => `${kind}-${count}`).join(',')}`).join('|')}`;
@@ -108,6 +142,8 @@ export default function createDeathHeatSceneController({ scene, refs, floorFadeR
       }
       heat.position.copy(origin);
       heat.userData.analysisUtilityId = cell.utilityId || '';
+      heat.userData.analysisKDKind = cell.eventIds?.length ? cell.kind : '';
+      heat.userData.analysisEventIds = cell.eventIds || [];
       heat.userData.analysisUtilityEndpoint = cell.kind.startsWith('utilityThrow-') ? 'throw' : 'landing';
       heat.scale.setScalar((cell.kind.startsWith('utilityThrow-') ? 0.78 : 0.85) + Math.min(cell.count, 8) * 0.14);
       heat.material.opacity = Math.min(0.78, 0.24 + cell.count * 0.09);
@@ -134,6 +170,7 @@ export default function createDeathHeatSceneController({ scene, refs, floorFadeR
       scene.remove(marker);
     });
     deathMarkers.clear();
+    clearLinks(); ring.geometry.dispose(); selectionMaterial.dispose(); selection.removeFromParent();
     globalHeatOverlay?.removeFromParent();
   };
 

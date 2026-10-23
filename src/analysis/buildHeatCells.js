@@ -1,9 +1,9 @@
+import { buildKDAnchors } from './kdHotspots.js';
 // Aggregates KD, area-time, and utility events into render-ready spatial cells.
 import { ANALYSIS_AREA_PHASES, ANALYSIS_UTILITY_COLORS, ECONOMY_CATEGORIES } from './constants.js';
 
 import { utilityMatchesFilters } from './utilityFilters.js';
 
-const MAP_UNITS_TO_METERS = 0.0254;
 const clamp = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
 
 export default function buildHeatCells({
@@ -27,7 +27,7 @@ export default function buildHeatCells({
   const utilityMode = analysisEnabled && flags.analysisMetric === 'utility';
   const globalHeat = areaMode || ((flags.analysisMetric === 'kd' || utilityMode) && flags.heatStyle === 'global');
   const cells = new Map();
-  const addWorld = (kind, worldX, worldY, worldZ, color, amount = 1, utilityId = '') => {
+  const addWorld = (kind, worldX, worldY, worldZ, color, amount = 1, utilityId = '', eventId = '') => {
     const cellKey = `${globalHeat ? 'global' : kind}-${Math.round(worldX / 1.2)}-${Math.round(worldY / 0.5)}-${Math.round(worldZ / 1.2)}${!globalHeat && utilityId ? `-${utilityId}` : ''}`;
     const value = cells.get(cellKey) || {
       kind,
@@ -38,21 +38,14 @@ export default function buildHeatCells({
       color,
       kinds: {},
       utilityId,
+      eventIds: [],
     };
+    if (eventId && !value.eventIds.includes(eventId)) value.eventIds.push(eventId);
     value.count += amount;
     value.kinds[kind] = (value.kinds[kind] || 0) + amount;
     cells.set(cellKey, value);
   };
-  const addEvent = (kind, x, y, z, color) => {
-    if (x == null || y == null || z == null) return;
-    addWorld(
-      kind,
-      y * MAP_UNITS_TO_METERS - modelCenter.x,
-      z * MAP_UNITS_TO_METERS - modelCenter.y,
-      x * MAP_UNITS_TO_METERS - modelCenter.z,
-      color,
-    );
-  };
+
 
   if (utilityMode) {
     analysisUtilities.forEach((utility) => {
@@ -90,18 +83,10 @@ export default function buildHeatCells({
       if (seconds > 0) addWorld('areaHeat', player.position.x - modelCenter.x, player.position.y - modelCenter.y, player.position.z - modelCenter.z, '#ff6b47', seconds);
     }));
   } else {
-    const deaths = analysisEnabled ? analysisDeaths : heatDeaths;
-    deaths.forEach((event) => {
-      const requiredTeam = side === 'T' ? 2 : side === 'CT' ? 3 : null;
-      const attackerEconomy = event.analysisEconomyByPlayer?.[event.attacker_name] || event.analysisEconomyMatchup;
-      const victimEconomy = event.analysisEconomyByPlayer?.[event.user_name] || event.analysisEconomyMatchup;
-      const selectedAttacker = (!analysisEnabled || selected.has(event.attacker_name) && economyMatches(attackerEconomy)) && (requiredTeam == null || Number(event.attacker_team_num) === requiredTeam);
-      const selectedVictim = (!analysisEnabled || selected.has(event.user_name) && economyMatches(victimEconomy)) && (requiredTeam == null || Number(event.user_team_num) === requiredTeam);
-      if (flags.killerHeat && selectedAttacker) addEvent('killerHeat', event.attacker_X, event.attacker_Y, event.attacker_Z, '#ffb347');
-      if (flags.targetHeat && selectedAttacker) addEvent('targetHeat', event.user_X, event.user_Y, event.user_Z, '#ff6b6b');
-      if (flags.victimHeat && selectedVictim) addEvent('victimHeat', event.user_X, event.user_Y, event.user_Z, '#5da9ff');
-      if (flags.opponentHeat && selectedVictim) addEvent('opponentHeat', event.attacker_X, event.attacker_Y, event.attacker_Z, '#c58cff');
-    });
+    const colors = { killerHeat: '#ffb347', targetHeat: '#ff6b6b', victimHeat: '#5da9ff', opponentHeat: '#c58cff' };
+    for (const item of buildKDAnchors({ deaths: analysisEnabled ? analysisDeaths : heatDeaths, selectedPlayers, flags, side, analysisEnabled })) {
+      addWorld(item.kind, item.anchor.x - modelCenter.x, item.anchor.y - modelCenter.y, item.anchor.z - modelCenter.z, colors[item.kind], 1, '', item.eventId);
+    }
   }
 
   return { areaMode, utilityMode, globalHeat, cells };

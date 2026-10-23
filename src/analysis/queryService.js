@@ -1,3 +1,4 @@
+import { queryKDRecommendations } from './kdRecommendations.js';
 import { queryAssistantEvidence } from './assistantQueries.js';
 import { recoverRecordedReplay } from '../utility/recoverRecordedReplay.js';
 import { isRecording } from '../demo/recordings.js';
@@ -10,6 +11,7 @@ import { roundEconomy } from '../demo/economy.js';
 // The same query runs beside IndexedDB in a Worker or beside SQLite in a
 // desktop utility process. Only catalogue rows and selected results reach React.
 export async function runAnalysisQuery(cache, method, args) {
+  if (method === 'analysis.kdRecommendations') return queryKDRecommendations(cache, args);
   if (method === 'analysis.assistant') return queryAssistantEvidence(cache, args);
   if (method === 'analysis.utilityReplay') return recoverRecordedReplay(cache, args);
   if (method === 'analysis.recommendations') return buildUtilityRecommendations(args);
