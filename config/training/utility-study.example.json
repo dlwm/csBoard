@@ -1,0 +1,14 @@
+{
+  "input": ".local/utility-study/demos",
+  "output": ".local/utility-study/results",
+  "maps": [],
+  "sampleRate": 4,
+  "windowSeconds": 2,
+  "horizonsSeconds": [3, 5, 10],
+  "threads": 4,
+  "goMemoryMiB": 3072,
+  "nodeMemoryMiB": 4096,
+  "timeoutMinutes": 60,
+  "maxDemoMiB": 2048,
+  "matchGroups": {}
+}

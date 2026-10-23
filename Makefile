@@ -16,7 +16,7 @@ VERSION ?=
 	desktop-start desktop-dev desk-dev desktop-prepare desktop-check desktop-smoke desktop-build-mac-arm64 \
 	desktop-build-mac-x64 desktop-build-win-x64 native-build \
 	mobile-prepare mobile-open mobile-build version version-sync version-check \
-	resources nav-data nav-labels map-places map-export workers-build wrangler docker guide-example format-contracts viewer-contracts viewer-example viewer-check mobile-ui-check readme-shots
+	resources nav-data nav-labels map-places map-export workers-build wrangler docker study guide-example format-contracts viewer-contracts viewer-example viewer-check mobile-ui-check readme-shots
 
 help:
 	@printf '%s\n' \
@@ -48,6 +48,7 @@ help:
 		'  dev-workers / workers-build Run Workers locally / bundle without publishing' \
 		'  deploy                      Authorize and deploy Workers' \
 		'  wrangler ARGS="whoami"       Run the installed Wrangler CLI' \
+		'  study                        Collect local utility research data; ARGS=--prepare builds parser' \
 		'  guide-example DEMO=path       Prepare the compact operation guide replay' \
 		'  format-contracts             Compile format validators; ARGS="--source .local/demo-format" to sync' \
 		'  viewer-example               Build the independent viewer example' \
@@ -198,3 +199,7 @@ smoke-compare:
 .PHONY: electron-prepare
 electron-prepare:
 	$(NODE) scripts/prepare-electron.js
+
+# Data collection only: isolated sequential parsing, resumable outputs and share bundle.
+study:
+	$(NODE) scripts/training/run.js $(ARGS)
