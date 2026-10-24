@@ -7,11 +7,9 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-if not exist "build\go-parser\native\win-x64\csboard-go-parser.exe" (
-  echo Preparing the parser. First run needs internet, Git and Go.
-  node scripts/training/run.js --prepare
-  if errorlevel 1 goto failed
-)
+echo Preparing the current parser. First run needs internet, Git and Go.
+node scripts/training/run.js --prepare
+if errorlevel 1 goto failed
 if not exist ".local\utility-study\demos" mkdir ".local\utility-study\demos"
 echo Put match .dem files into the folder below. Subfolders are supported.
 echo %CD%\.local\utility-study\demos

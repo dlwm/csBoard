@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 
-export const STUDY_SCHEMA = 1;
+export const STUDY_SCHEMA = 2;
 // Only factual observations are exported. No geometric proxy becomes a causal label.
 // 仅导出观察事实；未投掷、未知库存、未记录致盲不可替换成“无效”。
 export function createStudyEncoder(salt) {
@@ -19,7 +19,7 @@ export function createStudyEncoder(salt) {
     const result = { type: value.event_name, tick: value.tick,
       user: identity(value.user_steamid, value.user_name), attacker: identity(value.attacker_steamid, value.attacker_name),
       assister: identity(value.assister_steamid, value.assister_name) };
-    for (const field of ['user_team_num', 'attacker_team_num', 'weapon', 'dmg_health', 'health', 'blind_duration', 'winner', 'reason', 'entityid',
+    for (const field of ['user_team_num', 'attacker_team_num', 'weapon', 'dmg_health', 'health', 'blind_duration', 'blind_source', 'projectile_id', 'winner', 'reason', 'entityid',
       'user_X', 'user_Y', 'user_Z', 'attacker_X', 'attacker_Y', 'attacker_Z', 'x', 'y', 'z']) {
       if (value[field] != null && ['string', 'number', 'boolean'].includes(typeof value[field])) result[field] = value[field];
     }

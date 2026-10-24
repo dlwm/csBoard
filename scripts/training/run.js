@@ -54,7 +54,7 @@ async function digest(file) { const hash = createHash('sha256'); for await (cons
 const sourceFiles = []; for (const directory of ['src/demo', 'src/formats', 'packages/viewer/src/data', 'shared', 'scripts/training']) for await (const file of files(resolve(directory))) if (file.endsWith('.js')) sourceFiles.push(file);
 sourceFiles.push(resolve('electron/native-client.js'));
 const code = createHash('sha256'); for (const file of sourceFiles.sort()) code.update(path.relative(root, file).replaceAll('\\', '/')).update(await fs.readFile(file));
-const fingerprint = createHash('sha256').update(JSON.stringify({ schema: STUDY_SCHEMA, config, code: code.digest('hex'), binary: await digest(binary) })).digest('hex');
+const sourceFingerprint = createHash('sha256').update(JSON.stringify({ schema: STUDY_SCHEMA, config, code: code.digest('hex'), binary: await digest(binary) })).digest('hex');
 const lockPath = path.join(base, 'running.lock');
 let lock;
 try { lock = await fs.open(lockPath, 'wx'); await lock.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })); }
@@ -71,6 +71,7 @@ try {
   const keyFile = path.join(base, 'identity.key');
   if (!await exists(keyFile)) await fs.writeFile(keyFile, randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 });
   const salt = (await fs.readFile(keyFile, 'utf8')).trim(), encode = createStudyEncoder(salt);
+  const fingerprint = createHash('sha256').update(sourceFingerprint).update(salt).digest('hex');
   const exportDir = path.join(output, 'export', fingerprint.slice(0, 16));
   const scratch = path.join(output, 'work');
   await fs.mkdir(exportDir, { recursive: true }); await fs.mkdir(scratch, { recursive: true });
@@ -129,6 +130,7 @@ try {
       machine: { platform: process.platform, arch: process.arch, node: process.version, cpu: os.cpus()[0]?.model, logicalCpus: os.availableParallelism(), memoryGiB: Math.round(os.totalmem() / 1024 ** 3), gpu: gpu.status === 0 ? gpu.stdout.trim() : null },
       settings: Object.fromEntries(Object.entries(config).filter(([key]) => !['input', 'output', 'matchGroups'].includes(key))),
       completed: reports.map(report => report.demoId), failures,
+      qualityWarnings: reports.flatMap(report => (report.qualityWarnings || []).map(code => ({ demoId: report.demoId, code }))),
       totals: { demos: reports.length, rounds: reports.reduce((n, report) => n + report.rounds.length, 0), windows: reports.reduce((n, report) => n + report.windows, 0) },
       splits: Object.fromEntries(['train', 'validation', 'test'].map(split => [split, reports.filter(report => report.split === split).length])),
       warnings: ['Demo-group split only. Configure matchGroups for maps from the same match/series.', 'No visibility knowledge reconstruction or measured causal labels.', 'Player identifiers are pseudonymized; coordinates and play patterns remain identifiable. Share only with intended recipients.'] };
@@ -136,7 +138,9 @@ try {
     await fs.writeFile(path.join(exportDir, 'SUMMARY.txt'), `CSBoard utility study\nCompleted demos: ${manifest.totals.demos}\nRounds: ${manifest.totals.rounds}\nDecision windows: ${manifest.totals.windows}\nFailed/skipped items: ${failures.length}\nSplits: ${JSON.stringify(manifest.splits)}\n\nThis is a data preparation bundle, not a trained model or evidence of causal benefit.\nKeep originals locally for follow-up. Do not share identity.key or work/*.job.json.\n`);
     const archive = path.join(output, `csboard-study-${new Date().toISOString().replaceAll(/[:.]/g, '-')}.tar.gz`);
     if (reports.length && !stopping) {
-      command('tar', ['-czf', archive, '-C', exportDir, 'manifest.json', 'SUMMARY.txt', ...reports.map(report => report.demoId)]);
+      const listFile = path.join(scratch, 'archive-files.txt');
+      await fs.writeFile(listFile, ['manifest.json', 'SUMMARY.txt', ...reports.map(report => report.demoId)].join('\n') + '\n');
+      command('tar', ['-czf', archive, '-C', exportDir, '-T', listFile]);
       await fs.writeFile(`${archive}.sha256`, `${await digest(archive)}  ${path.basename(archive)}\n`);
       console.log(`\nSend this bundle and its .sha256 file:\n${archive}`);
     }

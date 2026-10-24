@@ -55,7 +55,8 @@ try {
       await jsonl(`round-${round}-effects.jsonl.gz`, effects());
       await jsonl(`round-${round}-projectiles.jsonl.gz`, projectiles.map(value => {
         const result = {};
-        for (const key of ['tick', 'entityId', 'entityid', 'kind', 'grenade_type', 'X', 'Y', 'Z', 'x', 'y', 'z']) if (value[key] != null) result[key] = value[key];
+        for (const key of ['tick', 'entityId', 'entityid', 'entity_id', 'grenade_entity_id', 'kind', 'grenade_type', 'initial_velocity', 'X', 'Y', 'Z', 'x', 'y', 'z']) if (value[key] != null) result[key] = value[key];
+        result.thrower = encode.token(`player:${value.thrower_steamid || value.thrower_name || 'unknown'}`);
         return result;
       }));
       // Retain only coarse states until metadata arrives; discard volumes immediately.
@@ -82,7 +83,11 @@ try {
   }
   await jsonl('windows.jsonl.gz', samples());
   const counts = Object.fromEntries(['grenade_thrown', 'player_death', 'player_hurt', 'player_blind', 'smokegrenade_detonate', 'flashbang_detonate'].map(type => [type, events.filter(event => event.event_name === type).length]));
-  const report = { schemaVersion: STUDY_SCHEMA, demoId: job.demoId, sourceSha256: job.sourceHash,
+  const qualityWarnings = [];
+  if (counts.flashbang_detonate > 0 && counts.player_blind === 0) qualityWarnings.push('flash-detonations-without-blind-events');
+  if (counts.player_blind > 0 && !events.some(event => event.event_name === 'player_blind' && Number.isFinite(event.blind_duration))) qualityWarnings.push('blind-events-without-observed-duration');
+  for (const warning of qualityWarnings) console.warn(`  DATA QUALITY: ${warning}`);
+  const report = { qualityWarnings, schemaVersion: STUDY_SCHEMA, demoId: job.demoId, sourceSha256: job.sourceHash,
     split: job.split, groupId: job.groupId, map: summary.demo.map, patch: summary.demo.patch,
     tickRate, sampleRate: job.config.sampleRate, parser: summary.demo.parser,
     capabilities: summary.demo.formatCapabilities, rounds: summary.rounds, counts, windows,

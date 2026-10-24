@@ -140,6 +140,9 @@ func parseReportWithContext(ctx context.Context, data []byte, includeGrenades bo
 	if includeGrenades {
 		grenades = trackGrenades(parser)
 	}
+	// CS2 can expose blindness only as a typed event, without a generic player_blind.
+	// CS2 致盲可能只有类型事件；延后合并以兼容同时提供原始事件的录像。
+	flashedEvents := []map[string]any{}
 	names := make(map[string]struct{})
 	seenFrame := false
 	round := 0
@@ -250,6 +253,37 @@ func parseReportWithContext(ctx context.Context, data []byte, includeGrenades bo
 			}
 		}
 		result.ProductEvents = append(result.ProductEvents, row)
+	})
+	parser.RegisterEventHandler(func(event events.PlayerFlashed) {
+		if event.Player == nil {
+			return // A corrupt/unresolved victim cannot be used as a training label.
+		}
+		row := map[string]any{
+			"event_name": "player_blind", "tick": parser.GameState().IngameTick(),
+			"userid": event.Player.UserID, "blind_source": "demoinfocs-player-flashed",
+		}
+		addPlayer(row, "user", event.Player)
+		attacker := event.Attacker
+		if event.Projectile != nil {
+			if attacker == nil {
+				attacker = event.Projectile.Thrower
+			}
+			if event.Projectile.Entity != nil {
+				row["entityid"] = event.Projectile.Entity.ID()
+			}
+			// String preserves the full int64 identity across the JS/JSON boundary.
+			row["projectile_id"] = strconv.FormatInt(event.Projectile.UniqueID(), 10)
+		}
+		addPlayer(row, "attacker", attacker)
+		if pawn := event.Player.PlayerPawnEntity(); pawn != nil && entityValue(pawn, "m_flFlashDuration") != nil {
+			// Observed effective duration in seconds, not remaining time or causal credit.
+			// 实录有效致盲时长（秒）；缺属性时保持未知，不能补成零。
+			duration := float64(event.Player.FlashDuration)
+			if !math.IsNaN(duration) && !math.IsInf(duration, 0) && duration >= 0 {
+				row["blind_duration"] = duration
+			}
+		}
+		flashedEvents = append(flashedEvents, row)
 	})
 	parser.RegisterNetMessageHandler(func(event *msg.CMsgTEFireBullets) {
 		entityID := int(event.GetPlayer() & ((1 << 14) - 1))
@@ -362,6 +396,7 @@ func parseReportWithContext(ctx context.Context, data []byte, includeGrenades bo
 	} else if firstPrestartTick >= 0 {
 		result.ProductEvents = append(result.ProductEvents, map[string]any{"event_name": "round_end", "tick": firstPrestartTick, "reason": nil, "winner": nil})
 	}
+	result.ProductEvents = mergePlayerBlindEvents(result.ProductEvents, flashedEvents)
 	sort.SliceStable(result.ProductEvents, func(i, j int) bool {
 		return result.ProductEvents[i]["tick"].(int) < result.ProductEvents[j]["tick"].(int)
 	})
