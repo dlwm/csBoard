@@ -1,0 +1,12 @@
+.replay-review { display: flex; flex-direction: column; gap: var(--space-3, 12px); min-width: 0; }
+.replay-review label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.replay-review .workspace-input { width: 100%; min-width: 0; box-sizing: border-box; }
+.replay-review textarea { resize: vertical; min-height: 80px; max-height: 240px; }
+.replay-review-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.replay-review-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.replay-review-list { display: grid; gap: 6px; max-height: min(38dvh, 360px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.replay-review-list > .workspace-button, .replay-review-note > .workspace-button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; white-space: normal; text-align: left; gap: 4px; }
+.replay-review-list span, .replay-review-note span { overflow-wrap: anywhere; white-space: pre-wrap; }
+.replay-review-hint, .replay-review small { opacity: .72; font-size: .85em; }
+.replay-review-note { display: grid; gap: 6px; padding-block: 8px; border-bottom: 1px solid var(--border-color, #ffffff18); }
+@media (max-height: 600px) and (orientation: landscape) { .replay-review-list { max-height: 34dvh; } }

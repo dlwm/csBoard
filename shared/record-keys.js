@@ -12,7 +12,7 @@ export function recordingRecordKey(id) {
   return `recording-data-${id}`;
 }
 const fixedRecordKeys = new Set([
-  'workspace-archives', 'utility-notes', 'broadcast-archives', 'saved-recordings', 'recording-library',
+  'workspace-archives', 'replay-review-notes', 'utility-notes', 'broadcast-archives', 'saved-recordings', 'recording-library',
   'archive-folders-workspace', 'archive-folders-broadcast', 'archive-folders-recordings',
   'archive-folders-utility', 'native-demo-migration-v1', AI_SESSION_STORE_KEY, APPLICATION_PREFERENCES_KEY,
 ]);

@@ -1,3 +1,6 @@
+import useReplayReview from './demo/useReplayReview.js';
+import ReplayReviewPanel from './demo/ReplayReviewPanel.jsx';
+import { reviewSource } from './demo/review.js';
 import useKDRecommendations from './analysis/useKDRecommendations.js';
 import KDRecommendationsPanel from './analysis/KDRecommendationsPanel.jsx';
 import { WorkspaceButton, WorkspacePanelHeading } from './components/workspace/WorkspaceControls.jsx';
@@ -1087,12 +1090,44 @@ function App() {
     utility: { current: utilityNotes.filter(note => !tutorialUtilityBaseline.current.has(note.id) || (activeDemoCacheIdRef.current && note.demoSource?.demoId === activeDemoCacheIdRef.current)).length, total: 1 },
     frames: { current: tutorialFrameCount, total: 2 },
   };
+  const [pendingReviewTarget, setPendingReviewTarget] = useState(null);
+  const replayReview = useReplayReview({ data: demoData, recordingId: activeRecordingId, records: platform.records,
+    enabled: activePanel === 'demo' && Boolean(demoData), round: demoRound,
+    capture: () => ({ round: demoRound.round, tick: demoTick, povPlayerId: demoPovPlayerId, viewMode: boardViewMode,
+      camera: boardRef.current?.getCameraState?.() || null,
+      brushStrokes: boardRef.current?.getWorkspaceState?.().brushStrokes || [] }),
+    onNavigate: target => {
+      if (replayMapMismatchForReview()) return;
+      const restore = { ...target, source: reviewSource(demoData, activeRecordingId) };
+      setDemoPlaying(false);
+      boardRef.current?.viewer?.execute({ type: 'camera.free' }, { origin: 'ui' });
+      setDemoCameraMode('manual');
+      setDemoPovPlayerId(target.povPlayerId || '');
+      setBoardViewMode(target.viewMode || '3d');
+      if (target.round !== demoRound) pendingPlaybackRestoreRef.current = { round: target.round, tick: target.tick, povPlayerId: target.povPlayerId || '' };
+      setDemoRound(target.round); seekDemoTick(target.tick);
+      setPendingReviewTarget(restore);
+    } });
+  function replayMapMismatchForReview() { return Boolean(demoData?.demo.map && demoData.demo.map !== mapName); }
+  useEffect(() => {
+    const target = pendingReviewTarget;
+    if (!target) return;
+    if (target.source !== reviewSource(demoData, activeRecordingId) || activePanel !== 'demo') { setPendingReviewTarget(null); return; }
+    if (demoRoundLoading || demoRound?.round !== target.round.round || boardReadyMapRef.current !== mapName || replayMapMismatchForReview()) return;
+    const frame = requestAnimationFrame(() => {
+      if (target.camera) boardRef.current?.restoreCameraState?.(target.camera);
+      else if (!target.povPlayerId) boardRef.current?.reset?.();
+      if (target.brushStrokes) boardRef.current?.applyLiveBrushData?.(target.brushStrokes);
+      setPendingReviewTarget(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pendingReviewTarget, demoRoundLoading, demoRound, demoData, activeRecordingId, activePanel, mapName, boardViewMode, modelLoadState]);
   const selectedMode = showModel ? modelViewMode : -1;
   const customReplay = activePanel === 'demo' && isRecording(demoData);
   const replayPanel = activePanel === 'demo';
   const replayMapMismatch = Boolean(demoData?.demo.map && demoData.demo.map !== mapName);
   const displayPanel = activePanel;
-  const { hasLeft: hasLeftSidebar, hasRight: hasRightSidebar, radar: radarSource } = workspaceMenuLayout(displayPanel, { utilityMetric: demoViewFlags.analysisMetric === 'utility', analysisRecommendations: kdEnabled, hasFrame: hasActiveFrameContext, utilityPlaying: Boolean(utilityReplay) });
+  const { hasLeft: hasLeftSidebar, hasRight: hasRightSidebar, radar: radarSource } = workspaceMenuLayout(displayPanel, { utilityMetric: demoViewFlags.analysisMetric === 'utility', analysisRecommendations: kdEnabled, replayReview: replayReview.open && Boolean(demoData), hasFrame: hasActiveFrameContext, utilityPlaying: Boolean(utilityReplay) });
   const modelControlsTarget = replayPanel ? 'demo-model-controls' : 'bottom-model-controls';
   const currentUtilityNotes = useMemo(() => utilityNotes.filter(note=>note.mapName===mapName).map(withUtilityLandingPlace), [utilityNotes,mapName]);
   const collabUtilityOptions = [...currentUtilityNotes]
@@ -1267,14 +1302,16 @@ function App() {
     if (!demoSnapshot || demoRoundLoading) return;
     if (demoCameraMode !== 'monitor' && demoPovPlayerId && !demoPovPlayer) setDemoPovPlayerId('');
   }, [demoCameraMode, demoPovPlayerId, demoPovPlayer, demoRoundLoading, demoSnapshot]);
+  const reviewPlaybackEnd = activePanel === 'demo' && demoTick <= (replayReview.active?.endTick ?? -1) ? replayReview.active?.endTick : null;
   useEffect(() => {
     if (!demoPlaying || !demoData || !demoRound || (demoData.demo.map && demoData.demo.map !== mapName)) return undefined;
     return startPlaybackClock(seconds => setDemoTick((tick) => {
-      const next = Math.min(demoRound.endTick, tick + seconds * (demoData.demo.tickRate || 64));
-      if (next >= demoRound.endTick) setDemoPlaying(false);
+      const endTick = reviewPlaybackEnd ?? demoRound.endTick;
+      const next = Math.min(endTick, tick + seconds * (demoData.demo.tickRate || 64));
+      if (next >= endTick) setDemoPlaying(false);
       return next;
     }));
-  }, [demoPlaying, demoData, demoRound, mapName]);
+  }, [demoPlaying, demoData, demoRound, mapName, reviewPlaybackEnd]);
   useEffect(() => {
     if (!demoData?.demo.map || demoData.demo.map === mapName) return;
     setDemoPlaying(false);
@@ -1408,6 +1445,7 @@ function App() {
     {roomJoinOpen && <JoinRoomDialog code={roomJoinCode} onChange={setRoomJoinCode} onClose={() => setRoomJoinOpen(false)} onJoin={code => { setRoomJoinCode(code); setRoomJoinOpen(false); joinRoom(code); }} t={t} />}
     {tutorialOfferOpen && <TutorialOffer language={language} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
     <WorkspaceContribution slot="top"><BoardHeader onVoiceChange={changes => boardRef.current?.viewer.execute({ type: 'voice.configure', ...changes }, { origin: 'ui' })} storageWorking={demoBatchRunning || customRecordings.loading || tutorialExampleLoading || formatWorking} modelQuality={modelQuality} setModelQuality={setModelQuality} sampleRate={demoSampleRate} setSampleRate={setDemoSampleRate} boardViewMode={boardViewMode} onBoardViewModeChange={value => { boardRef.current?.commands.execute("camera.mode", { mode: value }, { origin: "ui" }); }} activePanel={displayPanel} language={language} mapName={mapName} parseGameState={parseGameState} setLanguage={setLanguage} setMapName={setMapName} setParseGameManual={setParseGameManual} setParseGameState={setParseGameState} switchPanel={switchMainPanel} t={t} /></WorkspaceContribution>
+      {activePanel === 'demo' && demoData && replayReview.open && <WorkspaceContribution slot="left"><ReplayReviewPanel review={replayReview} data={demoData} language={language} loading={demoRoundLoading || Boolean(pendingReviewTarget) || replayMapMismatchForReview()} onClose={() => { replayReview.setOpen(false); replayReview.leave(); }} /></WorkspaceContribution>}
       <WorkspaceContribution slot="left">{activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && <UtilityRecommendationsPanel language={language}
         groups={utilityRecommendations.groups} utilities={combinedAnalysis.utilities} loading={utilityRecommendations.loading} error={utilityRecommendations.error}
         selectedPlayers={analysisSelectedPlayers} focusedId={focusedAnalysisGroupId} onFocus={setFocusedAnalysisGroupId}
@@ -1472,11 +1510,11 @@ function App() {
              onMove={(source, target, position) => recordingFolders.move(replayEntries, source, target, position)} />}
              <BroadcastRoomControls room={broadcastRoom.session} language={language} onJoin={broadcastRoom.join} onLeave={broadcastRoom.leave} />{demoData && <span className="demo-name">{demoData.demo.map} / {demoData.demo.fileName}</span>}</div><ReplayTransportControls data={demoData} segment={demoRound} tick={demoTick} playing={demoPlaying} loading={demoRoundLoading || customRecordings.loading} mapMismatch={replayMapMismatch} recording={customReplay}
              economies={demoRoundEconomies} events={timelineEvents} menuOpen={demoRoundMenuOpen} onMenu={() => setDemoRoundMenuOpen(open => !open)}
-             onSegment={segment => { setDemoPlaying(false); setDemoRound(segment); setDemoRoundMenuOpen(false); }} onSeek={tick => { setDemoPlaying(false); seekDemoTick(tick); }}
+             onSegment={segment => { setDemoPlaying(false); replayReview.leave(); setDemoRound(segment); setDemoRoundMenuOpen(false); }} onSeek={tick => { setDemoPlaying(false); replayReview.leave(); seekDemoTick(tick); }}
              onToggle={() => setDemoPlaying(playing => !playing)} onSaveFrame={() => openSaveArchiveModal(true)} showSaveFrame={Boolean(demoData)} language={language} t={t} /></div>
 
              {!customReplay && demoStatus && !demoData && <div className="demo-loading-wrap"><div className="demo-loading" role="progressbar" aria-label={t("replay.parsingProgress")} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.floor(demoParseProgress)}><i style={{ width: `${demoParseProgress}%` }} /><span>{Math.floor(demoParseProgress)}%</span></div>{platform.kind === 'web' && <p className="demo-parsing-hint">{t("replay.demoForegroundParsingHint")}</p>}</div>}
-            <div className="demo-controls-row">{replayPanel && demoData && <div className="demo-view-options"><span>{t("view.view")}</span><WorkspaceButton type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t("view.showNames")}</WorkspaceButton>{[['manual','cameraManual'],['follow','cameraFollow'],['fixed','cameraFixed'],['chase','cameraChase']].map(([mode,key]) => <WorkspaceButton type="button" key={mode} className={demoCameraMode === mode ? 'selected' : ''} onClick={() => {
+            <div className="demo-controls-row">{replayPanel && demoData && <div className="demo-view-options"><span>{t("view.view")}</span><WorkspaceButton selected={replayReview.open} aria-expanded={replayReview.open} onClick={() => { replayReview.setOpen(!replayReview.open); setLeftSidebarOpen(true); }}>{t("replay.review.title")}</WorkspaceButton><WorkspaceButton type="button" className={showDemoNames ? 'selected' : ''} onClick={() => setShowDemoNames((value) => !value)}>{t("view.showNames")}</WorkspaceButton>{[['manual','cameraManual'],['follow','cameraFollow'],['fixed','cameraFixed'],['chase','cameraChase']].map(([mode,key]) => <WorkspaceButton type="button" key={mode} className={demoCameraMode === mode ? 'selected' : ''} onClick={() => {
                 const viewer = boardRef.current?.viewer;
                 if (viewer) {
                   if (mode !== 'manual') viewer.execute({ type: 'camera.mode', mode: '3d' }, { origin: 'ui' });

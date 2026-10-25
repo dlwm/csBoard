@@ -63,6 +63,7 @@ export default function createCameraStateController({
   };
 
   const getCameraState = () => ({
+    ...(camera.planView ? { planZoom: camera.zoom, planSpan: camera.planSpan, planRotation: camera.planRotation || 0 } : {}),
     position: camera.position.toArray(),
     target: controls.target.toArray(),
     viewRange: THREE.MathUtils.clamp(Number(getViewRange?.()), 0, 1),
@@ -74,6 +75,12 @@ export default function createCameraStateController({
       || !saved.position.every(Number.isFinite) || !saved.target.every(Number.isFinite)) return false;
     camera.position.fromArray(saved.position);
     controls.target.fromArray(saved.target);
+    if (camera.planView && Number.isFinite(saved.planZoom) && Number.isFinite(saved.planSpan)) {
+      camera.zoom = THREE.MathUtils.clamp(saved.planZoom, .1, 20);
+      camera.planSpan = Math.max(1, saved.planSpan);
+      camera.planRotation = Number.isFinite(saved.planRotation) ? saved.planRotation : 0;
+      camera.updateProjectionMatrix();
+    }
     if (Number.isFinite(saved.viewRange)) onRestoreViewRange?.(saved.viewRange);
     controls.update();
     return true;
