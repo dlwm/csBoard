@@ -1,0 +1,5 @@
+.model-view-picker-list { overflow-y: auto; overscroll-behavior: contain; color: var(--ui-text); border-radius: var(--ui-radius); }
+.model-view-picker-list:popover-open { display: block; }
+.model-view-picker-list label { min-height: var(--ui-control-height, 34px); box-sizing: border-box; }
+.model-view-picker-list input { accent-color: var(--accent); }
+.model-view-picker-list label:focus-within { outline: 1px solid var(--accent); outline-offset: -1px; }
