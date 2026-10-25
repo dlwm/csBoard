@@ -1,0 +1,19 @@
+.timing-distribution { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.timing-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.timing-options label { display: grid; gap: 5px; min-width: 0; }
+.timing-options .workspace-input { width: 100%; min-width: 0; box-sizing: border-box; }
+.timing-table-scroll { max-width: 100%; overflow: auto; max-height: min(52dvh, 480px); overscroll-behavior: contain; }
+.timing-table { border-collapse: separate; border-spacing: 2px; font-size: .8em; font-variant-numeric: tabular-nums; }
+.timing-table caption { text-align: start; padding-bottom: 6px; }
+.timing-table th { white-space: nowrap; padding: 5px; }
+.timing-table th:first-child { position: sticky; left: 0; z-index: 1; background: var(--ui-surface-raised); text-align: start; }
+.timing-table .workspace-button { min-width: 38px; min-height: 34px; padding: 4px; font-size: inherit; background: color-mix(in srgb, var(--accent, #c9f76b) calc(5% + var(--timing-intensity) * 70%), var(--ui-surface-raised)); }
+.timing-table .workspace-button.selected { outline: 2px solid var(--accent, #c9f76b); outline-offset: -2px; }
+.timing-evidence { display: grid; gap: 6px; max-height: 35dvh; overflow: auto; overscroll-behavior: contain; }
+.timing-evidence .workspace-button { display: grid; white-space: normal; text-align: start; overflow-wrap: anywhere; }
+.timing-distribution small { opacity: .75; }
+@media (pointer: coarse) { .timing-table .workspace-button { min-width: 44px; min-height: 44px; } }
+
+.timing-distribution-chart { height: 100%; min-height: 0; box-sizing: border-box; }
+.timing-distribution-chart .timing-table-scroll { max-height: none; flex: 1; min-height: 100px; }
+.timing-distribution-chart .timing-table { min-width: 100%; }

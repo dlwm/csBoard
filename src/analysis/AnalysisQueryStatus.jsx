@@ -4,6 +4,10 @@ import { utilityMatchesFilters } from './utilityFilters.js';
 export default function AnalysisQueryStatus({ language, loading, error, data, flags, side, enabled }) {
   const text = (key, values) => translate(language, key, values);
   if (!enabled) return null;
+  if (flags.analysisMetric === 'utility' && flags.utilityMode === 'timing') {
+    if (loading) return <p role="status">{text("analysis.timing.loading")}</p>;
+    return !error && data.timing ? <p>{text("analysis.timing.support", { demos: data.timing.demoCount, rounds: data.timing.roundCount })}</p> : null;
+  }
   if (loading) return <div className="analysis-status analysis-query-status" role="status" aria-live="polite"><i className="analysis-loading-spinner" aria-hidden="true" />{flags.analysisMetric === 'utility'
     ? text("analysis.analysisQueryStatus.loadingUtilityPositionsAndTrajectories")
     : text("analysis.analysisQueryStatus.updatingAnalysis")}</div>;

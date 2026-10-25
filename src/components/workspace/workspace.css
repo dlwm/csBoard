@@ -240,3 +240,9 @@
 /* Translated labels must still fit when interface text is enlarged. */
 .workspace-frame .camera-slots :is(.camera-reset, .floor-controls button),
 .workspace-frame .map-style-controls .workspace-button { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; padding: 5px 4px; }
+
+/* Full viewport panels reuse scene geometry; charts do not occupy corner overlays. */
+/* 整幅图表使用内容槽；仍保留场景实例与四角控件，尺寸由工作区统一管理。 */
+.workspace-viewport > .workspace-viewport-content { display: none; }
+.workspace-viewport[data-content-mode="panel"] > .workspace-viewport-content { display: block; position: relative; min-height: 0; min-width: 0; overflow: auto; background: var(--ui-surface); z-index: 2; padding: var(--ui-space-4); }
+.workspace-viewport[data-content-mode="panel"] > .three-board, .workspace-viewport[data-content-mode="panel"] > .stage-vignette { visibility: hidden; pointer-events: none; }

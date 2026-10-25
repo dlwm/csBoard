@@ -1825,6 +1825,8 @@ export default function ThreeBoard(inputProps) {
     const brushResolution = new THREE.Vector2();
     let lastExperimentFrame=0;
     const animate = (now) => {
+      // The shell may show a full viewport chart while retaining scene state.
+      if (monitorPropsRef.current.renderEnabled === false) return;
       const inPlan=boardViewModeRef.current==='2d';
       if(inPlan && !modelQualitySuspended){modelQualitySuspended=true;modelSimplification?.cancel();requestedSimplification=NaN;simplificationRequest++;setSimplificationStatus(null);}
       if(!inPlan)modelQualitySuspended=false;

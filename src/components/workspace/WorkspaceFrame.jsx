@@ -16,7 +16,7 @@ function SidebarToggle({ side, open, onToggle, language }) {
 // This shell owns geometry and sidebar chrome. Menu content only declares slots.
 // 框架统一负责尺寸、折叠、滚动和触控布局；菜单只提供槽位内容。
 export default function WorkspaceFrame({ panel, mobile, mobileH5, analysisMetric, mapName, navData,
-  hasLeft, hasRight, leftOpen, rightOpen, onLeftToggle, onRightToggle, language, children }) {
+  viewportMode = 'scene', hasLeft, hasRight, leftOpen, rightOpen, onLeftToggle, onRightToggle, language, children }) {
   const viewportRef = useRef(null), stageRef = useRef(null);
   const leftCollapsed = !hasLeft || !leftOpen, rightCollapsed = !hasRight || !rightOpen;
   useResponsiveWorkspace({ activePanel: panel, leftSidebarOpen: leftOpen, mapName, navData, viewportRef, stageRef });
@@ -28,7 +28,7 @@ export default function WorkspaceFrame({ panel, mobile, mobileH5, analysisMetric
         <WorkspaceMapBar />
         <WorkspaceSidebar side="left" hidden={leftCollapsed} label={translate(language, "common.workspaceFrame.leftSidebar")} />
       </div>
-      <div ref={viewportRef} className="workspace-viewport">{children}<WorkspaceCorners /></div>
+      <div ref={viewportRef} className="workspace-viewport" data-content-mode={viewportMode}>{children}<WorkspaceTarget slot="viewport-content" className="workspace-viewport-content" /><WorkspaceCorners /></div>
       <WorkspaceSidebar side="right" hidden={rightCollapsed} label={translate(language, "common.workspaceFrame.rightSidebar")} />
       <WorkspaceBar position="bottom"><div className="workspace-bottom-transport"><WorkspaceTarget slot="bottom-transport" /></div><div className="workspace-bottom-settings"><WorkspaceTarget slot="bottom-settings" /><WorkspaceTarget slot="bottom-model-controls" /><WorkspaceTarget slot="bottom-mobile-settings" /></div></WorkspaceBar>
       {hasLeft && <SidebarToggle side="left" open={leftOpen} onToggle={onLeftToggle} language={language} />}
