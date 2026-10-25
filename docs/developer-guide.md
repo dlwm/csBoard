@@ -70,3 +70,6 @@ Store a key plus values for asynchronous notices, rather than the translated sen
 The viewer package does not depend on application dictionaries. Keep its error codes, operation results and schemas stable. The host can use `translateError` for a known code and retain `message` / `details` for diagnosis. Unknown errors keep their original message; do not infer codes by matching translated sentences or retry an operation just because its display text changed.
 
 `make i18n-check` checks dictionary keys, duplicate keys, placeholders, compatibility aliases and source references. It is also included in `make lint` and the existing release checks. Dynamic message selection must use registered keys; third-party error messages and user content are not translation keys.
+
+
+Full viewport charts register content in `viewport-content` and select the shell's `viewportMode="panel"`. The workspace owns sizing and scrolling; keep filter/evidence panels in the existing sidebars. Retain the scene instance and set the host board's `renderEnabled={false}` while it is covered. Keyboard shortcuts must yield to focused input, select, textarea, button and editable controls.

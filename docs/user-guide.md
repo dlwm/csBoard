@@ -30,6 +30,14 @@ Save a frame for tactical editing, or save a time interval as an independent loc
 
 Recommendation scores help sorting; they are not success rates. Missing recorded inputs or smoke volumes cannot be reconstructed as fact. The bottom trajectory/effect switches affect the map-wide lineup view. Export/import JSON to keep your library.
 
+### Hotspot utility recommendations
+
+In Analysis, choose **KD Events → Hotspot utilities**. Select a suggested hotspot or tap a KD position on the map; adjust its range independently of the heatmap spread. The current player, side and economy filters determine the engagements. Candidates include recorded teammate throws from the selected Demos, matched by side and round phase.
+
+Smoke uses the representative throw's recorded occupied cells to find intersections with historical engagement sightlines. Fire uses recorded fire cells when available; HE and fallback fire matches use position proximity. These are geometric associations, not verified tactical outcomes or success probabilities. Height is respected, but wall obstruction and approximate eye height still limit the result.
+
+A group needs at least four similar throws. Ranking uses the match score; frequency, supporting Demos and rounds remain separate. Hover or focus a card to preview the real throw, save its representative to Utility Notes, or expand the focused group to open a related engagement in Match Replay. Flash candidates require positive recorded enemy blindness linked to the same thrower and detonation time; they match historical blinded positions, not a predicted future field of view. Queries are bounded and cancelled when the analysis context changes; missing source data and candidate limits are reported.
+
 ## Collaboration
 
 Open frames saved from a replay, move players, adjust their aim, place utilities and draw routes. Insert or duplicate frames for later phases, then save a local archive. Camera presets remain private rather than forcing other members to follow your view.
@@ -75,3 +83,28 @@ In Match Replay, ask for a round summary or key events. Evidence cards identify 
 Prepared replay views and analysis filters apply only when clicked. Changing the selection can invalidate an old action. Review mode does not edit tactical archives or save throws automatically; use the normal UI to save them. Collaboration retains its existing editing tools. All of these AI features remain experimental.
 
 The experimental assistant can present evidence-linked finding cards, event-moment lists and two-column comparisons in Match Replay and Data Analysis. Click an evidence item to inspect it; publishing a card does not change the view. Cards are retained when saving or exporting a conversation and labelled as historical when reopened. Current data and selection are checked again before navigation. Comparisons show two groups of evidence, rather than simultaneous replay viewports.
+
+
+## Death review and notes
+
+In Match Replay, open **Review** in the playback view controls. Filter deaths by player, choose the lead-in and victim/attacker/free view, then select an event and use the existing Play button. Playback stops one second after the death; **Full round** or seeking manually returns to normal round playback. Previous/Next opens another event. Cameras are reconstructed from Demo samples; missing or dead players cannot retain a first-person view.
+
+Save an observation at the current moment to retain its round, time, view and drawings locally. Opening a note restores that moment and replaces the current drawings. Notes reference the original replay; they do not contain an independent replay copy and cannot play without the source. A reparse with unchanged source metadata retains the association. Custom recordings support notes but do not create a match death queue.
+
+
+## Utility combinations
+
+In Data Analysis → Utility Events, enable **Utility combinations**. The current player, Demo, side, economy and utility-type filters apply. Select multiple teammates to study joint executes. Matching uses the existing adaptive 3D throw/landing/trajectory policy, plus relative effect timing and a maximum distance between effects. Groups contain two to four utilities and must recur in at least four distinct source rounds; repeat imports and multiple matches inside one round do not increase support.
+
+Each representative is one complete real occurrence, chosen as the medoid of both spatial and timing differences. Relative throw/effect times are measured from its first throw. Preview individual recorded effects, focus all matching utilities, or open a source round in Match Replay. **Save group** prepares every recorded throw before one note write, retaining actual smoke voxels and timing metadata; a new Utility Notes folder contains the group. Timings are metadata for reference; individual notes retain their existing playback behaviour. Folder failure leaves saved notes at the root with a warning.
+
+Search has explicit input/comparison/candidate budgets and reports exclusions. These results describe recurring utility sequences, not proven coordination, complete tactics or causal benefit; player movement and efficacy are not inferred by this detector.
+
+
+## Event timing heatmap
+
+Data Analysis → Utility Events now offers a shared mode switch: individual recommendations, combinations and the timing heatmap. Select players and source Demos, then adjust side/economy and utility types. Timing reads source events and round metadata without loading round trajectories or voxel payloads. It shows utility throws/effect starts, kills/deaths and involvement in the first opposing-team kill of each round. The opener is determined before player filters. It does not classify a complete tactical execute.
+
+Zero means freeze end. Bins are half-open intervals such as [0,5); choose 5/10/15-second bins and a range ending at 60/120/180/300 seconds. Switch between event counts and distinct supporting rounds; colours use one shared logarithmic scale. A row can overlap another (opening kills are also kills), so do not sum rows as independent events or interpret counts as probabilities. Unknown economy/team facts may exclude records; partial-source/range/budget warnings remain visible.
+
+Select a cell to inspect its original sources, then open a replay beginning two seconds before the selected event. Evidence lists are capped per cell with an explicit notice while counts remain complete within the search budget. The chart uses the main viewport, with settings and sources in the sidebar; 3D rendering is paused while the chart is shown. It scrolls horizontally on touch devices and supports keyboard arrows. Spatial heat controls and the multi-round animation transport are hidden while this temporal mode is active.

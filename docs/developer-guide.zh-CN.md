@@ -73,3 +73,6 @@ UI、第三方调用和 AI 工具尽量汇入公开命令。使用 `getCapabilit
 `make i18n-check` 检查词典键、重复键、占位符、兼容映射及源码引用，并已纳入 `make lint` 和既有发布检查。动态选择的文案须使用词典中已有的键；第三方错误和用户输入不是翻译键。
 
 修改公开合同后运行 `make viewer-contracts` 同步静态校验器；`make lint` 检查生成物。内置命令在审批与变更前验证参数，事件描述提供载荷 Schema。宿主自定义 profile/覆盖标记为 `runtimeValidation: host`，由宿主负责校验。
+
+
+需要整幅视图的图表注册到 `viewport-content`，并将外壳设为 `viewportMode="panel"`。尺寸与滚动由框架统一处理，筛选与来源仍放现有侧栏。保留场景实例，被图表覆盖时将宿主视图设为 `renderEnabled={false}`；输入框、选择框、文本区、按钮和可编辑控件获得焦点时，全局快捷键应让出处理权。
