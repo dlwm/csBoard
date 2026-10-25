@@ -1,0 +1,12 @@
+.utility-combinations { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.combination-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.combination-options label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.combination-options input { min-width: 0; width: 100%; box-sizing: border-box; }
+.combination-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.combination-members { display: grid; gap: 10px; padding-inline-start: 22px; margin: 0; }
+.combination-members li { padding: 6px; border-radius: 6px; }
+.combination-members li:hover, .combination-members li:focus-within { background: var(--surface-hover, #ffffff08); }
+.combination-members strong, .combination-members small { display: block; margin-block-end: 6px; overflow-wrap: anywhere; }
+.utility-combinations small { opacity: .75; overflow-wrap: anywhere; }
+.combination-sources { display: grid; gap: 6px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; }
+.combination-sources .workspace-button { white-space: normal; overflow-wrap: anywhere; text-align: start; }

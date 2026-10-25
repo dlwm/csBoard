@@ -5,7 +5,7 @@ const finitePosition = p => p && [p.x, p.y, p.z].every(Number.isFinite);
 
 // Sample by travelled distance, not tick count: resting projectiles do not
 // distort shape comparisons. Positions are world metres, including height.
-function route(points) {
+export function route(points) {
   const valid = points.filter(finitePosition);
   if (valid.length < 2) return { points: [], length: 0 };
   const lengths = [0];
@@ -21,7 +21,7 @@ function route(points) {
     return { x: a.x + (b.x - a.x) * blend, y: a.y + (b.y - a.y) * blend, z: a.z + (b.z - a.z) * blend };
   }) };
 }
-function difference(a, b, formulas) {
+export function difference(a, b, formulas) {
   if (a.kind !== b.kind) return Infinity;
   const knownTimes = [a.flightTime, b.flightTime].filter(value => Number.isFinite(value) && value >= 0);
   const values = {

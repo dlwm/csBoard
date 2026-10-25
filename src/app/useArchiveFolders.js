@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { addArchiveFolder, assignArchiveItem, emptyArchiveFolders, moveArchiveNode, normalizeArchiveFolders, removeArchiveFolder, unassignArchiveItem } from './archiveFolders.js';
+import { ROOT_FOLDER_ID, addArchiveFolder, assignArchiveItem, emptyArchiveFolders, moveArchiveNode, normalizeArchiveFolders, removeArchiveFolder, unassignArchiveItem } from './archiveFolders.js';
 import { loadArchiveFolders, storeArchiveFolders } from './persistentStore.js';
 
 // Folder placement is small metadata; moving an item must not rewrite its large replay payload.
@@ -38,6 +38,14 @@ export default function useArchiveFolders(kind, onWriteError) {
   return {
     state, stateRef,
     create: (name, parentId, items) => mutate((current) => addArchiveFolder(current, name, parentId, items)),
+    group: (name, ids, items) => {
+      const folderId = crypto.randomUUID();
+      return mutate(current => {
+        let next = addArchiveFolder(current, name, ROOT_FOLDER_ID, items, folderId);
+        for (const id of ids) next = assignArchiveItem(next, id, folderId, items);
+        return next;
+      });
+    },
     remove: (id, items) => mutate((current) => removeArchiveFolder(current, id, items)),
     move: (items, source, target, position) => mutate((current) => moveArchiveNode(current, items, source, target, position)),
     assign: (id, folderId, items) => mutate((current) => assignArchiveItem(current, id, folderId, items)),

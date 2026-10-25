@@ -42,6 +42,7 @@ export default function AppSettings({ storageWorking = false, language, onClose,
   const taskState = state => ({ queued: text("settings.appSettings.queued"), running: text("settings.appSettings.running"), completed: text("settings.appSettings.completed"), failed: text("settings.appSettings.failed"), cancelled: text("settings.appSettings.cancelled") })[state] || state;
   const taskLabel = task => task.kind === 'parse' ? task.label : ({
     'analysis.catalog': text("settings.appSettings.loadPlayerDirectory"),
+    'analysis.combinations': translate(language, "analysis.combinations.title"),
     'analysis.recommendations': text("settings.appSettings.buildUtilityRecommendations"),
     'analysis.utility': text("settings.appSettings.loadUtilityReplay"),
     'analysis.query': text("settings.appSettings.analyzeSelectedDemos"),

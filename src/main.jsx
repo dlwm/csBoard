@@ -1,3 +1,6 @@
+import useUtilityCombinations from './analysis/useUtilityCombinations.js';
+import useSaveUtilityCombination from './analysis/useSaveUtilityCombination.js';
+import UtilityCombinationsPanel from './analysis/UtilityCombinationsPanel.jsx';
 import useReplayReview from './demo/useReplayReview.js';
 import ReplayReviewPanel from './demo/ReplayReviewPanel.jsx';
 import { reviewSource } from './demo/review.js';
@@ -188,7 +191,7 @@ function App() {
   const parseGameTimerRef = useRef(null);
   const demoParseProgressRef = useRef({ startedAt: 0, real: 0, completed: 0, total: 0, lastRealAt: 0, msPerPercent: 3000, hasReal: false });
   const [demoKillsCollapsed, setDemoKillsCollapsed] = useState(false);
-  const [demoViewFlags, setDemoViewFlags] = useState({ deathVictim: true, deathKiller: true, killerHeat: false, victimHeat: false, targetHeat: false, opponentHeat: false, utilityThrow: true, utilityLanding: true, utilityKinds: [...ANALYSIS_UTILITY_KINDS], analysisMetric: 'kd', kdRecommendations: false, heatStyle: 'points', heatRadius: 9, areaPhases: [...ANALYSIS_AREA_PHASES], areaEarlySeconds: 30, economyOwn: [...ECONOMY_CATEGORIES], economyOpponent: [...ECONOMY_CATEGORIES] });
+  const [demoViewFlags, setDemoViewFlags] = useState({ deathVictim: true, deathKiller: true, killerHeat: false, victimHeat: false, targetHeat: false, opponentHeat: false, utilityThrow: true, utilityLanding: true, utilityKinds: [...ANALYSIS_UTILITY_KINDS], analysisMetric: 'kd', utilityCombinations: false, kdRecommendations: false, heatStyle: 'points', heatRadius: 9, areaPhases: [...ANALYSIS_AREA_PHASES], areaEarlySeconds: 30, economyOwn: [...ECONOMY_CATEGORIES], economyOpponent: [...ECONOMY_CATEGORIES] });
   const [showDemoNames, setShowDemoNames] = useState(false);
   const [demoRound, setDemoRound] = useState(null);
   const playbackSessions = useRef(createPlaybackSessions()).current;
@@ -463,21 +466,15 @@ function App() {
       return 'closing';
     });
   }, [demoBatch, demoBatchRunning, parseGameManual]);
+  const combinationsEnabled = activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && Boolean(demoViewFlags.utilityCombinations);
+  useEffect(() => { if (combinationsEnabled) setLeftSidebarOpen(true); }, [combinationsEnabled]);
   const kdEnabled = activePanel === 'analysis' && demoViewFlags.analysisMetric === 'kd' && Boolean(demoViewFlags.kdRecommendations);
   const { data: combinedAnalysis, loading: analysisQueryLoading, error: analysisQueryError } = useAnalysisDataset(selectedAnalysisDemos, analysisSelectedPlayers, activePanel === 'analysis', demoViewFlags.analysisMetric === 'utility', kdEnabled);
   useEffect(() => { if (kdEnabled) setLeftSidebarOpen(true); }, [kdEnabled]);
   const kdRecommendations = useKDRecommendations({ active: kdEnabled, mapName, demos: selectedAnalysisDemos,
     players: analysisSelectedPlayers, data: combinedAnalysis, datasetLoading: analysisQueryLoading, flags: demoViewFlags,
     side: analysisSide, compute: platform.compute,
-    navigate: async (evidence, { signal }) => {
-      const entry = await readLibraryDemo(evidence.demoId);
-      signal.throwIfAborted();
-      const round = entry?.data?.rounds?.find(item => item.round === evidence.round);
-      if (!round) throw new Error(translate(language, "analysis.kdRecommendations.replayUnavailable"));
-      applyDemoData(entry.data, evidence.demoId);
-      switchMainPanel('demo'); setDemoPlaying(false); setDemoRound(round); seekDemoTick(evidence.tick);
-      setDemoPovPlayerId(''); setDemoCameraMode('manual');
-    },
+    navigate: openAnalysisOccurrence,
   });
   const analysisActionUtilities = kdEnabled ? kdRecommendations.utilities : combinedAnalysis.utilities;
   const kdSceneSelection = useMemo(() => kdEnabled && kdRecommendations.hotspot ? {
@@ -486,17 +483,39 @@ function App() {
   analysisUtilityRuntime.onHotspotSelect = hotspot => {
     kdRecommendations.select(hotspot); setAnalysisPlaying(false); setLeftSidebarOpen(true);
   };
+  async function openAnalysisOccurrence(evidence, { signal }) {
+    const entry = await readLibraryDemo(evidence.demoId);
+    signal.throwIfAborted();
+    const round = entry?.data?.rounds?.find(item => item.round === evidence.round);
+    if (!round) throw new Error(translate(language, "analysis.kdRecommendations.replayUnavailable"));
+    const tickRate = entry.data.demo.tickRate || 64;
+    const tick = Math.max(round.freezeStartTick ?? round.startTick, Math.min(round.endTick, evidence.tick - (evidence.members ? 2 * tickRate : 0)));
+    switchMainPanel('demo');
+    pendingCameraRestoreRef.current = null;
+    applyDemoData(entry.data, evidence.demoId);
+    pendingPlaybackRestoreRef.current = { round, tick, povPlayerId: '' };
+    setDemoPlaying(false); setDemoRound(round); seekDemoTick(tick);
+    setDemoPovPlayerId(''); setDemoCameraMode('manual');
+    replayReview.leave(); setPendingReviewTarget(null);
+    if (entry.data.demo.map) setMapName(entry.data.demo.map);
+  }
+  const utilityCombinations = useUtilityCombinations({ data: combinedAnalysis, flags: demoViewFlags, side: analysisSide,
+    active: combinationsEnabled, datasetLoading: analysisQueryLoading, compute: platform.compute, navigate: openAnalysisOccurrence });
   const [recommendationFormulas, setRecommendationFormulas] = useState(DEFAULT_RECOMMENDATION_FORMULAS);
   const utilityRecommendations = useUtilityRecommendations({ data: combinedAnalysis, flags: demoViewFlags, side: analysisSide,
-    active: activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility', datasetLoading: analysisQueryLoading, formulas: IS_DEVELOPMENT_RUNTIME ? recommendationFormulas : undefined });
+    active: activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && !combinationsEnabled, datasetLoading: analysisQueryLoading, formulas: IS_DEVELOPMENT_RUNTIME ? recommendationFormulas : undefined });
   const [focusedAnalysisGroupId, setFocusedAnalysisGroupId] = useState('');
   useEffect(() => { setFocusedAnalysisGroupId(''); }, [utilityRecommendations.groups]);
   const visibleAnalysisUtilities = useMemo(() => {
+    if (combinationsEnabled && utilityCombinations.focusedGroup) {
+      const ids = new Set(utilityCombinations.focusedGroup.allUtilityIds);
+      return combinedAnalysis.utilities.filter(utility => ids.has(utility.id));
+    }
     const group = utilityRecommendations.groups.find(group => group.id === focusedAnalysisGroupId);
     if (!group) return combinedAnalysis.utilities;
     const ids = new Set(group.memberIds);
     return combinedAnalysis.utilities.filter(utility => ids.has(utility.id));
-  }, [combinedAnalysis.utilities, utilityRecommendations.groups, focusedAnalysisGroupId]);
+  }, [combinedAnalysis.utilities, utilityRecommendations.groups, focusedAnalysisGroupId, combinationsEnabled, utilityCombinations.focusedGroup]);
   const analysisEconomyAvailability = useMemo(() => getAnalysisEconomyAvailability(combinedAnalysis.rows), [combinedAnalysis.rows]);
   useEffect(() => {
     setAnalysisRows(combinedAnalysis.rows);
@@ -1194,7 +1213,7 @@ function App() {
     saveState: analysisUtilitySave, previewState: recommendationPreviewState } = useRecordedUtilityActions({
     utilities: analysisActionUtilities, compute: platform.compute, contextKey: mapName,
     active: activePanel === 'analysis' && (demoViewFlags.analysisMetric === 'utility' || kdEnabled),
-    previewRevision: kdEnabled ? kdRecommendations.queryKey : utilityRecommendations.groups, selectedId: kdEnabled ? kdRecommendations.focusedId : selectedAnalysisUtility?.id,
+    previewRevision: kdEnabled ? kdRecommendations.queryKey : combinationsEnabled ? utilityCombinations.groups : utilityRecommendations.groups, selectedId: kdEnabled ? kdRecommendations.focusedId : selectedAnalysisUtility?.id,
     savedIds: savedAnalysisUtilityIds, language,
     ports: {
       scene: () => boardRef.current,
@@ -1210,6 +1229,13 @@ function App() {
       },
     },
   });
+  const saveUtilityCombination = useSaveUtilityCombination({ compute: platform.compute, utilities: combinedAnalysis.utilities,
+    scope: mapName, active: combinationsEnabled,
+    ports: {
+      describeTiming: member => translate(language, "analysis.combinations.timing", { throwTime: member.throwOffsetSeconds.toFixed(1), effectTime: member.effectOffsetSeconds.toFixed(1) }),
+      persist: prepared => persistUtilityNotes([...utilityNotesRef.current, ...prepared]),
+      group: (name, prepared) => utilityFolders.group(name, prepared.map(note => note.id), utilityNotesRef.current),
+    } });
   const saveAnalysisUtility = () => prepareAnalysisUtility(selectedAnalysisUtility);
   const beginUtilityReplay = (note, firstPerson = false) => {
     if (!note.replay) return;
@@ -1446,7 +1472,11 @@ function App() {
     {tutorialOfferOpen && <TutorialOffer language={language} onAccept={beginTutorial} onDecline={rememberTutorialOffer} />}
     <WorkspaceContribution slot="top"><BoardHeader onVoiceChange={changes => boardRef.current?.viewer.execute({ type: 'voice.configure', ...changes }, { origin: 'ui' })} storageWorking={demoBatchRunning || customRecordings.loading || tutorialExampleLoading || formatWorking} modelQuality={modelQuality} setModelQuality={setModelQuality} sampleRate={demoSampleRate} setSampleRate={setDemoSampleRate} boardViewMode={boardViewMode} onBoardViewModeChange={value => { boardRef.current?.commands.execute("camera.mode", { mode: value }, { origin: "ui" }); }} activePanel={displayPanel} language={language} mapName={mapName} parseGameState={parseGameState} setLanguage={setLanguage} setMapName={setMapName} setParseGameManual={setParseGameManual} setParseGameState={setParseGameState} switchPanel={switchMainPanel} t={t} /></WorkspaceContribution>
       {activePanel === 'demo' && demoData && replayReview.open && <WorkspaceContribution slot="left"><ReplayReviewPanel review={replayReview} data={demoData} language={language} loading={demoRoundLoading || Boolean(pendingReviewTarget) || replayMapMismatchForReview()} onClose={() => { replayReview.setOpen(false); replayReview.leave(); }} /></WorkspaceContribution>}
-      <WorkspaceContribution slot="left">{activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && <UtilityRecommendationsPanel language={language}
+      {combinationsEnabled && <WorkspaceContribution slot="left"><UtilityCombinationsPanel combinations={utilityCombinations} language={language}
+        selectedPlayers={analysisSelectedPlayers} utilities={combinedAnalysis.utilities} error={analysisQueryError}
+        onPreview={previewAnalysisRecommendation} previewState={recommendationPreviewState}
+        onSaveUtility={utility => prepareAnalysisUtility(utility, true)} saveState={analysisUtilitySave} savedIds={savedAnalysisUtilityIds} batchSave={saveUtilityCombination} /></WorkspaceContribution>}
+      <WorkspaceContribution slot="left">{activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && !combinationsEnabled && <UtilityRecommendationsPanel language={language}
         groups={utilityRecommendations.groups} utilities={combinedAnalysis.utilities} loading={utilityRecommendations.loading} error={utilityRecommendations.error}
         selectedPlayers={analysisSelectedPlayers} focusedId={focusedAnalysisGroupId} onFocus={setFocusedAnalysisGroupId}
         onPreview={previewAnalysisRecommendation} previewState={recommendationPreviewState} onSave={utility => prepareAnalysisUtility(utility, true)} saveState={analysisUtilitySave} savedIds={savedAnalysisUtilityIds} development={IS_DEVELOPMENT_RUNTIME} formulas={recommendationFormulas} onFormulasChange={setRecommendationFormulas} />}</WorkspaceContribution>
@@ -1457,7 +1487,7 @@ function App() {
         previewState={recommendationPreviewState} saveState={analysisUtilitySave} savedIds={savedAnalysisUtilityIds} navigation={kdRecommendations.navigation} /></WorkspaceContribution>}
       {kdEnabled && kdRecommendations.loading && <WorkspaceContribution slot="viewport-bottom-left"><div className="recommendation-loading" role="status">
         <i className="analysis-loading-spinner" aria-hidden="true" />{translate(language, "analysis.kdRecommendations.loading")}</div></WorkspaceContribution>}
-      {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && utilityRecommendations.loading && <WorkspaceContribution slot="viewport-bottom-left"><div className="recommendation-loading" role="status"><i className="analysis-loading-spinner" aria-hidden="true" />{translate(language, "common.main.preparingUtilityRecommendations")}</div></WorkspaceContribution>}
+      {activePanel === 'analysis' && demoViewFlags.analysisMetric === 'utility' && (utilityRecommendations.loading || utilityCombinations.loading) && <WorkspaceContribution slot="viewport-bottom-left"><div className="recommendation-loading" role="status"><i className="analysis-loading-spinner" aria-hidden="true" />{translate(language, combinationsEnabled ? "analysis.combinations.loading" : "common.main.preparingUtilityRecommendations")}</div></WorkspaceContribution>}
          {replayPanel && demoData && demoRound && <DemoPlaybackActionsPortal><WorkspaceButton type="button" className="demo-save-clip" disabled={demoRoundLoading || replayMapMismatch} onClick={openRecordingModal}>{translate(language, "common.main.saveAsCustomDemo")}</WorkspaceButton></DemoPlaybackActionsPortal>}
          {recordingDraft && <RecordingClipModal error={recordingsStorageError} draft={recordingDraft} folders={recordingFolders.state} language={language} round={recordingDraft.source.round} tickRate={recordingDraft.source.demoData.demo.tickRate || 64} onChange={setRecordingDraft} onClose={() => setRecordingDraft(null)} onSave={saveRecording} />}
          <BroadcastDownloadOverlay download={broadcastRoom.download} language={language} onCancel={broadcastRoom.leave} />

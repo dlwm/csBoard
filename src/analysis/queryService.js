@@ -1,3 +1,4 @@
+import { findUtilityCombinations } from './utilityCombinations.js';
 import { queryKDRecommendations } from './kdRecommendations.js';
 import { queryAssistantEvidence } from './assistantQueries.js';
 import { recoverRecordedReplay } from '../utility/recoverRecordedReplay.js';
@@ -14,6 +15,7 @@ export async function runAnalysisQuery(cache, method, args) {
   if (method === 'analysis.kdRecommendations') return queryKDRecommendations(cache, args);
   if (method === 'analysis.assistant') return queryAssistantEvidence(cache, args);
   if (method === 'analysis.utilityReplay') return recoverRecordedReplay(cache, args);
+  if (method === 'analysis.combinations') return findUtilityCombinations(args);
   if (method === 'analysis.recommendations') return buildUtilityRecommendations(args);
   if (method === 'analysis.catalog') {
     const result = [];
