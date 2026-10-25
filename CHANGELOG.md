@@ -2,6 +2,20 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
+## [2.0.1] - 2026-10-25
+
+### Added
+
+- Recommend existing utilities near kill and death hotspots, with recorded examples and links to the relevant replay moments.
+- Review deaths with a configurable lead-in and player perspective; save local notes with the current time, camera and drawings.
+- Discover recurring utility combinations, inspect their timing and save them together to Utility Notes.
+- Explore utility and combat events by time within a round, with player, side and economy filters and links back to the replay.
+
+### Fixed
+
+- Preserve recorded flash blindness events for utility analysis.
+- Keep model perspective menus above the 3D viewport and accessible from the bottom bar.
+
 ## [2.0.0] - 2026-10-23
 
 ### Added
