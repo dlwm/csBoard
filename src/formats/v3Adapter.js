@@ -101,6 +101,8 @@ export function createV3ReplayConsumer(files, manifest) {
           x: x[frame] * meta.coordScale, y: y[frame] * meta.coordScale, z: z[frame] * meta.coordScale,
           thrower_name: roster[track.throwerIndex]?.name || '', thrower_steamid: roster[track.throwerIndex]?.steamId64 || '' });
       }
+      // V3 tracks are per grenade and can overlap. The cache expects one tick-ordered stream.
+      projectiles.sort((left, right) => left.tick - right.tick);
       return { round: round.roundNumber, snapshots, throwSnapshots: [], projectiles, smokeVoxelFrames: [], infernoFrames: [], voiceFrames: [] };
     },
   };
