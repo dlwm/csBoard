@@ -2,13 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { encodeStoredValue, decodeStoredValue } from '../../shared/storage-codec.js';
-import { unpackExampleSnapshots } from '../../src/onboarding/exampleCodec.js';
+import { adaptGuideExample, unpackExampleSnapshots } from '../../src/onboarding/exampleCodec.js';
 
 // Seed only the caller's disposable desktop profile via the real storage bridge.
 // 截图与流程验收共用内置示例，不借用用户数据，不另外维护回放格式。
 export async function seedGuideExample(root, evaluate) {
-  const example = decodeStoredValue(gunzipSync(await fs.readFile(path.join(root, 'docs/presets/demos/operation-guide.json.gz'))).toString());
-  if (example.version !== 1 || !example.rounds.some(round => round.round === 22)) throw Error('Update the acceptance fixture for the new guide example');
+  const encoded = gunzipSync(await fs.readFile(path.join(root, 'docs/presets/demos/operation-guide.json.gz'))).toString();
+  const example = adaptGuideExample(decodeStoredValue(encoded));
   const now = new Date().toISOString();
   const entry = { ...example.entry, analysisRows: unpackExampleSnapshots(example.entry.analysisRows), fileName: example.sourceFileName,
     map: example.entry.data.demo.map, kind: 'match', rounds: example.rounds.length, sampleRate: example.entry.data.demo.sampleRate,

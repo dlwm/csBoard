@@ -1,7 +1,7 @@
 import exampleUrl from '../../docs/presets/demos/operation-guide.json.gz?url';
 import { decodeStoredValue } from '../../shared/storage-codec.js';
 import { DEMO_CACHE_SCHEMA_VERSION } from '../demo/cacheSchema.js';
-import { unpackExampleSnapshots } from './exampleCodec.js';
+import { adaptGuideExample, unpackExampleSnapshots } from './exampleCodec.js';
 
 // Import the example through the same cache port as real Demos. UI, analysis
 // and saved throws use their existing paths on every host.
@@ -15,8 +15,7 @@ export async function loadGuideExample(cache, onProgress = () => {}) {
   let encoded;
   if (typeof DecompressionStream === 'function') encoded = await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).text();
   else { const { gunzipSync } = await import('three/examples/jsm/libs/fflate.module.js'); encoded = new TextDecoder().decode(gunzipSync(new Uint8Array(await response.arrayBuffer()))); }
-  const payload = decodeStoredValue(encoded);
-  if (payload.version !== 1 || payload.entry.data.cacheSchemaVersion !== DEMO_CACHE_SCHEMA_VERSION || !payload.rounds.some(round => round.round === 22)) throw Error('Example replay version is incompatible');
+  const payload = adaptGuideExample(decodeStoredValue(encoded));
   const id = payload.entry.id;
   const existing = await cache.getCachedDemo(id);
   if (existing?.exampleAsset === exampleUrl && existing?.data?.cacheSchemaVersion === DEMO_CACHE_SCHEMA_VERSION && await cache.countCachedDemoRounds(id) === payload.rounds.length) return existing;
