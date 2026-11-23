@@ -2,11 +2,12 @@
 
 [中文](docs/CHANGELOG.zh-CN.md) · [Русский](docs/CHANGELOG.ru-RU.md)
 
-## [2.0.2] - 2026-11-23
+## [2.0.3] - 2026-11-23
 
 ### Fixed
 
 - Import third-party replay packages when multiple grenade trajectories overlap in time.
+- Keep the built-in tutorial replay playable.
 
 ## [2.0.1] - 2026-10-25
 
